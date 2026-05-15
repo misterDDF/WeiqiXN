@@ -66,6 +66,21 @@ namespace XNClient.ChessBoard
             bool isCenter = x == mid && z == mid;
             return isCorner || isCenter;
         }
+
+        public static bool CheckRoadOnBoardEdge(int x, int z, int gridSize, RectDirection dir)
+        {
+            if (gridSize <= 0) {
+                return false;
+            }
+
+            bool isHorizontalRoad = dir == RectDirection.E || dir == RectDirection.W;
+            if (isHorizontalRoad) {
+                return z == 0 || z == gridSize - 1;
+            }
+
+            return x == 0 || x == gridSize - 1;
+        }
+
         public static (Vector3, Vector3) GetInnerCornerOffsets(RectDirection dir)
         {
             return (ChessBoardConfig.rectCornerOffsets[(int)dir] * ChessBoardConfig.shrinkFactor, ChessBoardConfig.rectCornerOffsets[(int)dir.GetNextDirection()] * ChessBoardConfig.shrinkFactor);
@@ -84,9 +99,9 @@ namespace XNClient.ChessBoard
             return (innerCornerOffstes.Item1 + midDir * blendWidth, innerCornerOffstes.Item2 + midDir * blendWidth);
         }
 
-        public static (Vector3, Vector3) GetRoadCenterCornerOffsets(RectDirection dir, bool isOnEdge)
+        public static (Vector3, Vector3) GetRoadCenterCornerOffsets(RectDirection dir, bool isOnBoardEdgeRoad)
         {
-            float factor = isOnEdge ? ChessBoardConfig.roadBoderFactor : ChessBoardConfig.roadNormalFactor;
+            float factor = isOnBoardEdgeRoad ? ChessBoardConfig.roadBoderFactor : ChessBoardConfig.roadNormalFactor;
             return (ChessBoardConfig.rectCornerOffsets[(int)dir] * factor, ChessBoardConfig.rectCornerOffsets[(int)dir.GetNextDirection()] * factor);
         }
 

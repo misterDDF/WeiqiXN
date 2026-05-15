@@ -381,7 +381,8 @@ namespace XNClient.ChessBoard
         private void TriangulateCellRoad(RectCell cell, RectDirection dir)
         {
             // 道路内侧小三角，按中线切分为两个
-            (Vector3, Vector3) centerOffset = ChessBoardUtils.GetRoadCenterCornerOffsets(dir, cell.isOnEdge);
+            bool isOnBoardEdgeRoad = ChessBoardUtils.CheckRoadOnBoardEdge(cell.coordinates.x, cell.coordinates.z, gridSize, dir);
+            (Vector3, Vector3) centerOffset = ChessBoardUtils.GetRoadCenterCornerOffsets(dir, isOnBoardEdgeRoad);
             Vector3 endPoint1 = cell.centerPosInChunk + centerOffset.Item1;
             Vector3 endPoint2 = cell.centerPosInChunk + centerOffset.Item2;
             Vector3 midPoint = (endPoint1 + endPoint2) / 2f;

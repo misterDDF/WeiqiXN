@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Cinemachine;
 using UnityEngine;
 using XNClient.ChessBoard;
 using XNClient.Logger;
@@ -150,25 +151,24 @@ public class ChessBoardSystem : SystemBase
         // 让相机始终垂直朝向 y 轴负方向，形成俯视棋盘的视角
         duelVCamTransform.rotation = Quaternion.LookRotation(Vector3.down, Vector3.forward);
 
-        float nearClipPlane = compChessBoard.duelVCam.m_Lens.NearClipPlane;
-        float halfVerticalFovRad = compChessBoard.duelVCam.m_Lens.FieldOfView * 0.5f * Mathf.Deg2Rad;
         float aspect = Camera.main != null ? Camera.main.aspect : 16f / 9f;
-
-        // 先计算近平面在当前镜头参数下的半高和半宽
-        float nearPlaneHalfHeight = Mathf.Tan(halfVerticalFovRad) * nearClipPlane;
-        float nearPlaneHalfWidth = nearPlaneHalfHeight * aspect;
-
-        // 根据相似三角形反推相机需要离棋盘中心多高，才能让近平面恰好覆盖 gridBound 的 extent。
-        float requiredDistanceByZ = nearPlaneHalfHeight > 0f ? gridBound.extents.z * nearClipPlane / nearPlaneHalfHeight : 0f;
-        float requiredDistanceByX = nearPlaneHalfWidth > 0f ? gridBound.extents.x * nearClipPlane / nearPlaneHalfWidth : 0f;
-        float requiredDistance = Mathf.Max(requiredDistanceByX, requiredDistanceByZ, nearClipPlane);
 
         // 以棋盘中心为基准，只沿 y 轴正方向抬升相机位置
         float extraYOffset = 0;
         if (chessBoardData != null) {
             extraYOffset = chessBoardData.vcamYOffset;
         }
-        duelVCamTransform.position = gridBound.center + Vector3.up * requiredDistance + new Vector3(0, extraYOffset, 0);
+
+        LensSettings lens = compChessBoard.duelVCam.m_Lens;
+        float halfVerticalFovRad = lens.FieldOfView * 0.5f * Mathf.Deg2Rad;
+        float halfHeightByBoard = Mathf.Max(gridBound.extents.z, aspect > 0f ? gridBound.extents.x / aspect : gridBound.extents.z);
+        float halfHeightPadding = Mathf.Tan(halfVerticalFovRad) * extraYOffset;
+        lens.OrthographicSize = halfHeightByBoard + Mathf.Max(halfHeightPadding, 0f);
+        lens.ModeOverride = LensSettings.OverrideModes.Orthographic;
+        compChessBoard.duelVCam.m_Lens = lens;
+
+        float cameraYOffset = Mathf.Max(gridBound.size.x, gridBound.size.z) + extraYOffset;
+        duelVCamTransform.position = gridBound.center + Vector3.up * cameraYOffset;
     }
 
     private static int[] dirX = { 0, 0, 1, -1 };
