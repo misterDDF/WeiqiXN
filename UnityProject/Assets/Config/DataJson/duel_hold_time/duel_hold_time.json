@@ -1,0 +1,32 @@
+{
+  "2m": {
+    "id": "2m",
+    "displayName": "2分钟",
+    "holdSeconds": 120,
+    "isInfinite": false
+  },
+  "5m": {
+    "id": "5m",
+    "displayName": "5分钟",
+    "holdSeconds": 300,
+    "isInfinite": false
+  },
+  "10m": {
+    "id": "10m",
+    "displayName": "10分钟",
+    "holdSeconds": 600,
+    "isInfinite": false
+  },
+  "20m": {
+    "id": "20m",
+    "displayName": "20分钟",
+    "holdSeconds": 1200,
+    "isInfinite": false
+  },
+  "infinite": {
+    "id": "infinite",
+    "displayName": "无限时间",
+    "holdSeconds": -1,
+    "isInfinite": true
+  }
+}

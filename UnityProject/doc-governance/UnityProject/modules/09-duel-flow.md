@@ -43,3 +43,11 @@ FSM 让本地对局流程清晰可扩展。`WaitAction` 和 `GameEnd` 已有状�
 - 补齐 pass、resign、timeout 策略和 `GameEnd` 进入条件。
 - 为对局状态变化补充明确 UI 事件。
 - 联机阶段将 FSM 区分为“权威状态”和“客户端表现状态”，避免客户端抢先进入不可回滚状态。
+## 2026-05-15 Current Addendum
+
+- New local games initialize board, hold-time, byoyomi-count, and byoyomi-time from `DuelSceneCreateParamas`.
+- Hold time is configured by `duel_hold_time`; byoyomi count is configured by `duel_byoyomi_count`; byoyomi period seconds are configured by `duel_byoyomi_time`.
+- `DuelSetupPopup` forces byoyomi count to `off` and disables byoyomi controls when infinite hold time is selected.
+- `TurnInput` now counts down the current player's remaining hold time. After hold time reaches zero, byoyomi starts only when the selected byoyomi count is greater than zero.
+- Every byoyomi period timeout consumes one remaining byoyomi count. When the count is exhausted, `SceneComponentDuel.timeoutLoserGuid` and `winnerGuid` are recorded and the FSM enters `GameEnd`.
+- `GameEnd` is now reachable through timeout loss, but full endgame UI, pass, resign, scoring, and review flows remain out of scope.

@@ -10,4 +10,7 @@
 public class DuelSceneCreateParamas
 {
     public string boardCfgId;
+    public string holdTimeCfgId;
+    public string byoyomiCountCfgId;
+    public string byoyomiTimeCfgId;
 }

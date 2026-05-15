@@ -1,48 +1,62 @@
-﻿public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
+using UnityEngine.UI;
+
+public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
 {
     public override string pageName => UIPage.GetPageName<DuelSetupPopup>();
+    private const string InfiniteHoldTimeCfgId = "infinite";
+    private const string ByoyomiOffCfgId = "off";
+
+    private string selectedBoardCfgId = "9x9";
+    private string selectedHoldTimeCfgId = "5m";
+    private string selectedByoyomiCountCfgId = ByoyomiOffCfgId;
+    private string selectedByoyomiTimeCfgId = "30s";
 
     protected override void OnLoaded()
     {
         base.OnLoaded();
 
-        binder.btn_9x9.onClick.AddListener(OnClickBtn9x9);
-        binder.btn_13x13.onClick.AddListener(OnClickBtn13x13);
-        binder.btn_19x19.onClick.AddListener(OnClickBtn19x19);
-        binder.btn_close.onClick.AddListener(OnClickBtnClose);
+        AddButtonListener(binder.btn_9x9, () => SelectBoard("9x9"));
+        AddButtonListener(binder.btn_13x13, () => SelectBoard("13x13"));
+        AddButtonListener(binder.btn_19x19, () => SelectBoard("19x19"));
+        BindTimeControlButtons();
+        AddButtonListener(binder.btn_start, OnClickBtnStart);
+        AddButtonListener(binder.btn_close, OnClickBtnClose);
+    }
+
+    protected override void OnOpen()
+    {
+        base.OnOpen();
+
+        RefreshSelectionState();
     }
 
     public void OnClickBtn9x9()
     {
-        SceneCreateParams sceneCreateParams = new SceneCreateParams()
-        {
-            duelSceneCreateParamas = new DuelSceneCreateParamas()
-            {
-                boardCfgId = "9x9",
-            }
-        };
-        Global.Instance.sceneManager.EnterMainScene(SceneConfig.DUEL_SCENE_TYPE_ID, sceneCreateParams);
+        SelectBoard("9x9");
     }
 
     public void OnClickBtn13x13()
     {
-        SceneCreateParams sceneCreateParams = new SceneCreateParams()
-        {
-            duelSceneCreateParamas = new DuelSceneCreateParamas()
-            {
-                boardCfgId = "13x13",
-            }
-        };
-        Global.Instance.sceneManager.EnterMainScene(SceneConfig.DUEL_SCENE_TYPE_ID, sceneCreateParams);
+        SelectBoard("13x13");
     }
 
     public void OnClickBtn19x19()
     {
+        SelectBoard("19x19");
+    }
+
+    public void OnClickBtnStart()
+    {
+        NormalizeTimeControlSelection();
+
         SceneCreateParams sceneCreateParams = new SceneCreateParams()
         {
             duelSceneCreateParamas = new DuelSceneCreateParamas()
             {
-                boardCfgId = "19x19",
+                boardCfgId = selectedBoardCfgId,
+                holdTimeCfgId = selectedHoldTimeCfgId,
+                byoyomiCountCfgId = selectedByoyomiCountCfgId,
+                byoyomiTimeCfgId = selectedByoyomiTimeCfgId,
             }
         };
         Global.Instance.sceneManager.EnterMainScene(SceneConfig.DUEL_SCENE_TYPE_ID, sceneCreateParams);
@@ -51,5 +65,115 @@
     public void OnClickBtnClose()
     {
         ClosePage();
+    }
+
+    private void BindTimeControlButtons()
+    {
+        AddButtonListener(binder.btn_hold_time_2m, () => SelectHoldTime("2m"));
+        AddButtonListener(binder.btn_hold_time_5m, () => SelectHoldTime("5m"));
+        AddButtonListener(binder.btn_hold_time_10m, () => SelectHoldTime("10m"));
+        AddButtonListener(binder.btn_hold_time_20m, () => SelectHoldTime("20m"));
+        AddButtonListener(binder.btn_hold_time_infinite, () => SelectHoldTime("infinite"));
+
+        AddButtonListener(binder.btn_byoyomi_count_off, () => SelectByoyomiCount("off"));
+        AddButtonListener(binder.btn_byoyomi_count_1, () => SelectByoyomiCount("1"));
+        AddButtonListener(binder.btn_byoyomi_count_3, () => SelectByoyomiCount("3"));
+        AddButtonListener(binder.btn_byoyomi_count_5, () => SelectByoyomiCount("5"));
+
+        AddButtonListener(binder.btn_byoyomi_time_10s, () => SelectByoyomiTime("10s"));
+        AddButtonListener(binder.btn_byoyomi_time_20s, () => SelectByoyomiTime("20s"));
+        AddButtonListener(binder.btn_byoyomi_time_30s, () => SelectByoyomiTime("30s"));
+        AddButtonListener(binder.btn_byoyomi_time_60s, () => SelectByoyomiTime("60s"));
+    }
+
+    private void SelectBoard(string boardCfgId)
+    {
+        selectedBoardCfgId = boardCfgId;
+        RefreshSelectionState();
+        if (binder.btn_start == null) {
+            OnClickBtnStart();
+        }
+    }
+
+    private void SelectHoldTime(string holdTimeCfgId)
+    {
+        selectedHoldTimeCfgId = holdTimeCfgId;
+        NormalizeTimeControlSelection();
+        RefreshSelectionState();
+    }
+
+    private void SelectByoyomiCount(string byoyomiCountCfgId)
+    {
+        if (IsInfiniteHoldTimeSelected()) {
+            selectedByoyomiCountCfgId = ByoyomiOffCfgId;
+            RefreshSelectionState();
+            return;
+        }
+
+        selectedByoyomiCountCfgId = byoyomiCountCfgId;
+        RefreshSelectionState();
+    }
+
+    private void SelectByoyomiTime(string byoyomiTimeCfgId)
+    {
+        if (IsInfiniteHoldTimeSelected()) {
+            selectedByoyomiCountCfgId = ByoyomiOffCfgId;
+            RefreshSelectionState();
+            return;
+        }
+
+        selectedByoyomiTimeCfgId = byoyomiTimeCfgId;
+        RefreshSelectionState();
+    }
+
+    private void NormalizeTimeControlSelection()
+    {
+        if (IsInfiniteHoldTimeSelected()) {
+            selectedByoyomiCountCfgId = ByoyomiOffCfgId;
+        }
+    }
+
+    private bool IsInfiniteHoldTimeSelected()
+    {
+        return selectedHoldTimeCfgId == InfiniteHoldTimeCfgId;
+    }
+
+    private void RefreshSelectionState()
+    {
+        SetButtonInteractable(binder.btn_9x9, selectedBoardCfgId != "9x9");
+        SetButtonInteractable(binder.btn_13x13, selectedBoardCfgId != "13x13");
+        SetButtonInteractable(binder.btn_19x19, selectedBoardCfgId != "19x19");
+
+        SetButtonInteractable(binder.btn_hold_time_2m, selectedHoldTimeCfgId != "2m");
+        SetButtonInteractable(binder.btn_hold_time_5m, selectedHoldTimeCfgId != "5m");
+        SetButtonInteractable(binder.btn_hold_time_10m, selectedHoldTimeCfgId != "10m");
+        SetButtonInteractable(binder.btn_hold_time_20m, selectedHoldTimeCfgId != "20m");
+        SetButtonInteractable(binder.btn_hold_time_infinite, !IsInfiniteHoldTimeSelected());
+
+        bool infiniteHoldTime = IsInfiniteHoldTimeSelected();
+        SetButtonInteractable(binder.btn_byoyomi_count_off, !infiniteHoldTime && selectedByoyomiCountCfgId != ByoyomiOffCfgId);
+        SetButtonInteractable(binder.btn_byoyomi_count_1, !infiniteHoldTime && selectedByoyomiCountCfgId != "1");
+        SetButtonInteractable(binder.btn_byoyomi_count_3, !infiniteHoldTime && selectedByoyomiCountCfgId != "3");
+        SetButtonInteractable(binder.btn_byoyomi_count_5, !infiniteHoldTime && selectedByoyomiCountCfgId != "5");
+
+        bool byoyomiEnabled = !infiniteHoldTime && selectedByoyomiCountCfgId != ByoyomiOffCfgId;
+        SetButtonInteractable(binder.btn_byoyomi_time_10s, byoyomiEnabled && selectedByoyomiTimeCfgId != "10s");
+        SetButtonInteractable(binder.btn_byoyomi_time_20s, byoyomiEnabled && selectedByoyomiTimeCfgId != "20s");
+        SetButtonInteractable(binder.btn_byoyomi_time_30s, byoyomiEnabled && selectedByoyomiTimeCfgId != "30s");
+        SetButtonInteractable(binder.btn_byoyomi_time_60s, byoyomiEnabled && selectedByoyomiTimeCfgId != "60s");
+    }
+
+    private void AddButtonListener(Button button, UnityEngine.Events.UnityAction action)
+    {
+        if (button != null) {
+            button.onClick.AddListener(action);
+        }
+    }
+
+    private void SetButtonInteractable(Button button, bool interactable)
+    {
+        if (button != null) {
+            button.interactable = interactable;
+        }
     }
 }

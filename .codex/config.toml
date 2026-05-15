@@ -1,2 +1,5 @@
 [mcp_servers.puerts-unity-editor-assistant]
 url = "http://127.0.0.1:3100/mcp"
+
+[mcp_servers.puerts-unity-editor-assistant.tools.evalJsCode]
+approval_mode = "approve"

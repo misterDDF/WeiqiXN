@@ -40,3 +40,8 @@
 - 在新增联网 UI 前，先补齐 `ui_page.json`、prefab 配置和生成的 Binder。
 - 为资源路径配置加一次完整校验工具，避免运行时才发现 prefab 缺失。
 - 如果联机需要热更新资源，单独设计资源版本和配置版本，不要隐式复用当前本地配置缓存。
+## 2026-05-15 Current Addendum
+
+- Time-control configs are exported from `ConfigExporter/xlsx/duel_hold_time.xlsx`, `duel_byoyomi_count.xlsx`, and `duel_byoyomi_time.xlsx`.
+- Runtime JSON lives under `Assets/Config/DataJson/duel_hold_time/`, `duel_byoyomi_count/`, and `duel_byoyomi_time/`.
+- Generated data types live under `Assets/Config/DataType/duel_hold_time/`, `duel_byoyomi_count/`, and `duel_byoyomi_time/`.

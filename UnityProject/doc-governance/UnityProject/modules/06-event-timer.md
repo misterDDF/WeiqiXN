@@ -39,3 +39,8 @@
 - 为非法落子、对局结束、超时等增加明确系统事件。
 - 联机层只把网络消息转换为受控的领域命令，不要直接开放任意事件派发。
 - 在线对局倒计时应从服务器时间或同步时间派生，本地定时器只做显示和预测。
+## 2026-05-15 Current Addendum
+
+- `DuelStateTurnInput` still uses `SecondIntervalTimer`, but the countdown source is now the selected hold-time and byoyomi configuration instead of a fixed 30-second turn.
+- Infinite hold time does not create a turn countdown timer for the current player.
+- Byoyomi periods reset when a player enters a new input turn while already in byoyomi; period timeout consumes one byoyomi count, and count exhaustion enters `GameEnd` through timeout loss.

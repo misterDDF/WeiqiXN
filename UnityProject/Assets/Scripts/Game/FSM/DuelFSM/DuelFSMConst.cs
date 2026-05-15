@@ -15,4 +15,5 @@ public static class DuelParamDefine
     public const string TRIGGER_PARAM_TURN_INPUT_FINISH = "trigger_turnInputFinish";
     public const string TRIGGER_PARAM_TURN_TIMEOUT = "trigger_turnTimeout";
     public const string TRIGGER_PARAM_TURN_START = "trigger_turnStart";
+    public const string TRIGGER_PARAM_GAME_END = "trigger_gameEnd";
 }

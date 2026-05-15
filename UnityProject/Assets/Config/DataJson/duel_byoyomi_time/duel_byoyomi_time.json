@@ -1,0 +1,22 @@
+{
+  "10s": {
+    "id": "10s",
+    "displayName": "10秒",
+    "seconds": 10
+  },
+  "20s": {
+    "id": "20s",
+    "displayName": "20秒",
+    "seconds": 20
+  },
+  "30s": {
+    "id": "30s",
+    "displayName": "30秒",
+    "seconds": 30
+  },
+  "60s": {
+    "id": "60s",
+    "displayName": "60秒",
+    "seconds": 60
+  }
+}

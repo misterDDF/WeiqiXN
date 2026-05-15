@@ -20,6 +20,7 @@ public class DuelFSM : FSMBase
         triggerParamDict.Add(DuelParamDefine.TRIGGER_PARAM_TURN_INPUT_FINISH, false);
         triggerParamDict.Add(DuelParamDefine.TRIGGER_PARAM_TURN_TIMEOUT, false);
         triggerParamDict.Add(DuelParamDefine.TRIGGER_PARAM_TURN_START, false);
+        triggerParamDict.Add(DuelParamDefine.TRIGGER_PARAM_GAME_END, false);
 
         // Transition define
         FSMTransition transGameStart = stateGameStart.AddTransition(stateTurnStart);
@@ -32,6 +33,8 @@ public class DuelFSM : FSMBase
         transTurnInputFinish.AddTriggerCondition(DuelParamDefine.TRIGGER_PARAM_TURN_INPUT_FINISH);
         FSMTransition transTurnTimeout = stateTurnInput.AddTransition(stateTurnEnd);
         transTurnTimeout.AddTriggerCondition(DuelParamDefine.TRIGGER_PARAM_TURN_TIMEOUT);
+        FSMTransition transGameEnd = stateTurnInput.AddTransition(stateGameEnd);
+        transGameEnd.AddTriggerCondition(DuelParamDefine.TRIGGER_PARAM_GAME_END);
 
         FSMTransition transTurnStart = stateTurnEnd.AddTransition(stateTurnStart);
         transTurnStart.AddTriggerCondition(DuelParamDefine.TRIGGER_PARAM_TURN_START);
