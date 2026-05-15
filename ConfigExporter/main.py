@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Excel配置导出工具
-检查Excel数据并导出为JSON和C#
+Excel 配置导出工具
+检查 Excel 数据并导出为 JSON 和 C#
 """
 
 import sys
@@ -17,10 +17,10 @@ except ImportError:
 
 from excel_checker import ExcelChecker
 from excel_exporter import ExcelExporter, check_datajson_link, prompt_setup_for_datajson
+from excel_loader import ExcelLoader
 
 
 def main():
-    """命令行入口"""
     if len(sys.argv) < 2:
         print("用法: python main.py <excel文件>")
         print("示例: python main.py test.xlsx")
@@ -38,64 +38,55 @@ def main():
     print(f"正在检查并导出: {input_name}")
     print("-" * 50)
 
-    # 1. 先检查数据
-    checker = ExcelChecker(xlsx_file)
-    checker.load()
+    loader = ExcelLoader(xlsx_file)
+    try:
+        loader.load()
+        checker = ExcelChecker(loader)
 
-    valid_sheets = checker.get_valid_sheets()
-    if not valid_sheets:
-        print("错误: 没有找到有效的sheet")
-        checker.close()
-        sys.exit(1)
+        valid_sheets = checker.get_valid_sheets()
+        if not valid_sheets:
+            print("错误: 没有找到有效的sheet")
+            sys.exit(1)
 
-    print(f"找到 {len(valid_sheets)} 个有效sheet")
-    print("-" * 50)
+        print(f"找到 {len(valid_sheets)} 个有效sheet")
+        print("-" * 50)
 
-    results = checker.check_all()
-    checker.close()
+        check_results = checker.check_all()
+        failed = [item for item in check_results if not item[1]]
+        for sheet_name, success, message, count in check_results:
+            status = "通过" if success else "失败"
+            print(f"[{sheet_name}] {status}: {message}")
 
-    # 输出检查结果
-    success_count = 0
-    fail_count = 0
-    for sheet_name, success, message, count in results:
-        status = "通过" if success else "失败"
-        print(f"[{sheet_name}] {status}: {message}")
-        if success:
-            success_count += 1
-        else:
-            fail_count += 1
+        if failed:
+            print("-" * 50)
+            print("检查未通过，终止导出")
+            sys.exit(1)
 
-    print("-" * 50)
+        if not check_datajson_link():
+            prompt_setup_for_datajson()
+            sys.exit(1)
 
-    # 如果检查失败，不导出
-    if fail_count > 0:
-        print(f"检查未通过，终止导出")
-        sys.exit(1)
+        print("检查通过，开始导出...")
+        exporter = ExcelExporter(xlsx_file, valid_sheets, checker.get_validated_results())
+        export_results = exporter.export_all()
 
-    # 2. 检查DataJson链接
-    if not check_datajson_link():
-        prompt_setup_for_datajson()
-        sys.exit(1)
+        success_count = 0
+        fail_count = 0
+        for sheet_name, success, message, json_path, cs_path in export_results:
+            if success:
+                print(f"[{sheet_name}] 导出成功")
+                print(f"         JSON: {json_path}")
+                print(f"         C#:   {cs_path}")
+                success_count += 1
+            else:
+                print(f"[{sheet_name}] 导出失败: {message}")
+                fail_count += 1
 
-    # 3. 导出JSON和C#
-    print("检查通过，开始导出...")
-    exporter = ExcelExporter(xlsx_file)
-    exporter.load()
-
-    export_results = exporter.export_all()
-    exporter.close()
-
-    for sheet_name, success, message, json_path, cs_path in export_results:
-        if success:
-            print(f"[{sheet_name}] 导出成功")
-            print(f"         JSON: {json_path}")
-            print(f"         C#:   {cs_path}")
-        else:
-            print(f"[{sheet_name}] 导出失败: {message}")
-
-    print("-" * 50)
-    print(f"完成: {success_count} 成功, {fail_count} 失败")
-    sys.exit(0 if fail_count == 0 else 1)
+        print("-" * 50)
+        print(f"完成: {success_count} 成功, {fail_count} 失败")
+        sys.exit(0 if fail_count == 0 else 1)
+    finally:
+        loader.close()
 
 
 if __name__ == '__main__':
