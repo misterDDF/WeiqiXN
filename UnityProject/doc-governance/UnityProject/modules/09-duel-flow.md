@@ -21,7 +21,7 @@
 - 读档对局会按保存的玩家 guid 恢复两个玩家，并激活 `TurnInput` 状态。
 - FSM 状态包含 `GameStart`、`TurnStart`、`TurnInput`、`WaitAction`、`TurnEnd`、`GameEnd`。
 - 当前实际主循环是 `GameStart -> TurnStart -> TurnInput -> TurnEnd -> TurnStart`。
-- `TurnInput` 进入时设置当前玩家剩余时间为 30 秒。
+- `TurnInput` 进入时按当前玩家的持有时间或读秒状态刷新剩余时间。
 - 回合倒计时归零时触发 `TURN_TIMEOUT`，进入 `TurnEnd`。
 - 成功落子后 `OnAfterAddChessToBoard` 触发 `TURN_INPUT_FINISH`，进入 `TurnEnd`。
 - `TurnEnd` 切换当前玩家，然后触发下一轮 `TurnStart`。
@@ -50,4 +50,5 @@ FSM 让本地对局流程清晰可扩展。`WaitAction` 和 `GameEnd` 已有状�
 - `DuelSetupPopup` forces byoyomi count to `off` and disables byoyomi controls when infinite hold time is selected.
 - `TurnInput` now counts down the current player's remaining hold time. After hold time reaches zero, byoyomi starts only when the selected byoyomi count is greater than zero.
 - Every byoyomi period timeout consumes one remaining byoyomi count. When the count is exhausted, `SceneComponentDuel.timeoutLoserGuid` and `winnerGuid` are recorded and the FSM enters `GameEnd`.
+- `DuelPage` shows black-player time information in the upper-left panel and white-player time information in the upper-right panel, while save and exit actions live in an in-duel settings panel opened from the lower-right settings button.
 - `GameEnd` is now reachable through timeout loss, but full endgame UI, pass, resign, scoring, and review flows remain out of scope.

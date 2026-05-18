@@ -1,4 +1,7 @@
-﻿using UnityEngine;
+using TMPro;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
 using XNClient.ChessBoard;
 
 public class DuelPage : UIPageWithBinder<DuelPageUI>
@@ -14,22 +17,28 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         RegisterSystemEvent<OnDuelStateChanged>(OnDuelStateChanged);
 
-        binder.btn_save.onClick.AddListener(OnClickBtnSave);
-        binder.btn_exit.onClick.AddListener(OnClickBtnExit);
+        BindPrefabHud();
     }
 
     protected override void OnOpen()
     {
         base.OnOpen();
 
-        RefreshDebugPanel();
+        SetSettingsPanelVisible(false);
+        RefreshDuelHud();
     }
 
     protected override void OnUpdate()
     {
         base.OnUpdate();
 
-        RefreshDebugPanel();
+        RefreshDuelHud();
+
+        if (IsSettingsPanelVisible()) {
+            aimCoords.SetValue(-1, -1);
+            SetAimChessPreviewActive(false);
+            return;
+        }
 
         aimCoords.SetValue(-1, -1);
         var mainScene = Global.Instance.sceneManager.mainScene;
@@ -40,8 +49,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             SetAimChessPreviewActive(false);
         }
 
-        // TODO input manager
-        if (UnityEngine.Input.GetKeyDown(KeyCode.Mouse0)) {
+        if (UnityEngine.Input.GetKeyDown(KeyCode.Mouse0) && !IsPointerOverUI()) {
             OnMouse0Down();
         }
     }
@@ -146,32 +154,47 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
     public void OnDuelStateChanged(OnDuelStateChanged evt)
     {
-        RefreshDebugPanel();
+        RefreshDuelHud();
     }
 
-    public void RefreshDebugPanel()
+    public void RefreshDuelHud()
     {
         var mainScene = Global.Instance.sceneManager.mainScene;
         var compDuel = mainScene.GetComponent<SceneComponentDuel>();
-        if (compDuel != null && compDuel.duelFSM.isActivated) {
-            binder.txt_cur_state.text = compDuel.duelFSM.curState.stateName;
-            switch (compDuel.duelFSM.curState.stateName) {
-                case DuelStateDefine.STATE_TURN_INPUT:
-                    Player player = mainScene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
-                    if (player != null) {
-                        binder.txt_cur_player.text = player.guid;
-                        var compDuelInfo = player.GetComponent<ComponentDuelInfo>();
-                        if (compDuelInfo != null) {
-                            binder.txt_turn_time.text = compDuelInfo.turnLeftTimes.value.ToString();
-                        }
-                    }
-                    break;
-            }
+        if (compDuel == null) {
+            return;
         }
+
+        Player blackPlayer = mainScene.GetEntity<Player>(compDuel.player1Guid.value);
+        Player whitePlayer = mainScene.GetEntity<Player>(compDuel.player2Guid.value);
+        string curTurnPlayerGuid = compDuel.duelFSM.isActivated ? compDuel.curTurnPlayerGuid.value : string.Empty;
+
+        RefreshPlayerInfoPanel(
+            binder.txt_black_title,
+            binder.txt_black_hold_time,
+            binder.txt_black_byoyomi_count,
+            binder.txt_black_byoyomi_time,
+            blackPlayer,
+            curTurnPlayerGuid,
+            "黑方"
+        );
+        RefreshPlayerInfoPanel(
+            binder.txt_white_title,
+            binder.txt_white_hold_time,
+            binder.txt_white_byoyomi_count,
+            binder.txt_white_byoyomi_time,
+            whitePlayer,
+            curTurnPlayerGuid,
+            "白方"
+        );
     }
 
     public void OnMouse0Down()
     {
+        if (IsSettingsPanelVisible()) {
+            return;
+        }
+
         var mainScene = Global.Instance.sceneManager.mainScene;
         var compDuel = mainScene.GetComponent<SceneComponentDuel>();
         if (compDuel != null && compDuel.duelFSM.curState.stateName == DuelStateDefine.STATE_TURN_INPUT) {
@@ -187,5 +210,92 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     public void OnClickBtnExit()
     {
         Global.Instance.sceneManager.EnterMainScene(SceneConfig.MAIN_MENU_SCENE_TYPE_ID, SceneCreateParams.Default);
+    }
+
+    private void BindPrefabHud()
+    {
+        AddButtonListener(binder.btn_duel_settings, OpenSettingsPanel);
+        AddButtonListener(binder.btn_settings_save, OnClickBtnSave);
+        AddButtonListener(binder.btn_settings_exit, OnClickBtnExit);
+        AddButtonListener(binder.btn_settings_close, CloseSettingsPanel);
+    }
+
+    private void RefreshPlayerInfoPanel(
+        TextMeshProUGUI titleText,
+        TextMeshProUGUI holdText,
+        TextMeshProUGUI byoyomiCountText,
+        TextMeshProUGUI byoyomiTimeText,
+        Player player,
+        string curTurnPlayerGuid,
+        string title
+    )
+    {
+        bool isCurTurnPlayer = player != null && player.guid == curTurnPlayerGuid;
+        SetText(titleText, isCurTurnPlayer ? $"{title}  行棋中" : title);
+
+        var compDuelInfo = player?.GetComponent<ComponentDuelInfo>();
+        if (compDuelInfo == null) {
+            SetText(holdText, "持有时间: --");
+            SetText(byoyomiCountText, "读秒次数: --");
+            SetText(byoyomiTimeText, "读秒时间: --");
+            return;
+        }
+
+        SetText(holdText, $"持有时间: {FormatSeconds(compDuelInfo.holdLeftSeconds.value, compDuelInfo.isInfiniteTime.value)}");
+        SetText(byoyomiCountText, $"读秒次数: {compDuelInfo.byoyomiLeftCount.value}");
+        SetText(byoyomiTimeText, $"读秒时间: {FormatSeconds(compDuelInfo.byoyomiLeftSeconds.value, false)}");
+    }
+
+    private string FormatSeconds(int seconds, bool isInfinite)
+    {
+        if (isInfinite || seconds < 0) {
+            return "--";
+        }
+
+        int safeSeconds = Mathf.Max(seconds, 0);
+        int minutes = safeSeconds / 60;
+        int remainSeconds = safeSeconds % 60;
+        return $"{minutes:00}:{remainSeconds:00}";
+    }
+
+    private void OpenSettingsPanel()
+    {
+        SetSettingsPanelVisible(true);
+    }
+
+    private void CloseSettingsPanel()
+    {
+        SetSettingsPanelVisible(false);
+    }
+
+    private void SetSettingsPanelVisible(bool isVisible)
+    {
+        if (binder.panel_duel_settings != null) {
+            binder.panel_duel_settings.SetActive(isVisible);
+        }
+    }
+
+    private bool IsSettingsPanelVisible()
+    {
+        return binder.panel_duel_settings != null && binder.panel_duel_settings.activeSelf;
+    }
+
+    private void AddButtonListener(Button button, UnityEngine.Events.UnityAction action)
+    {
+        if (button != null) {
+            button.onClick.AddListener(action);
+        }
+    }
+
+    private void SetText(TextMeshProUGUI text, string value)
+    {
+        if (text != null) {
+            text.text = value;
+        }
+    }
+
+    private bool IsPointerOverUI()
+    {
+        return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
     }
 }

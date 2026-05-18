@@ -19,7 +19,8 @@
 - When `DuelSetupPopup` selects infinite hold time, byoyomi is forced to `off` and byoyomi count/period buttons are disabled.
 - `DuelSystem` initializes both local players from the selected time-control configs and stores current time-control config ids on `SceneComponentDuel`.
 - `DuelStateTurnInput` counts down the current player's hold time first. If byoyomi is enabled, the player enters byoyomi after hold time reaches zero; each byoyomi period timeout consumes one byoyomi count, and exhausting the count records `timeoutLoserGuid` / `winnerGuid` and enters `GameEnd`.
-- `DuelPage` still displays the current player's `turnLeftTimes`; this value now reflects hold-time seconds, byoyomi period seconds, or `-1` for infinite time.
+- `DuelPage` displays black-player time information in the upper-left panel and white-player time information in the upper-right panel. Each panel shows hold-time countdown, byoyomi remaining count, and byoyomi period time; only the current turn player's time values are decremented by the duel FSM.
+- `DuelPage` moves save and exit actions into an in-duel settings panel opened by the lower-right settings button; direct board click input ignores clicks that are already over UI controls.
 
 **当前行为**
 
@@ -38,9 +39,9 @@
 - `ChessBoardSystem` 根据所选棋盘尺寸初始化网格，调整对局相机以覆盖棋盘，并在读取存档时恢复棋子实体。
 - `DuelSystem` 在新对局中创建两个本地玩家并启动对局状态机；读取存档时，它会按存档中的玩家 guid 重新创建玩家，并激活回合输入状态。
 - `DuelFSM` 当前定义本地回合循环：`GameStart -> TurnStart -> TurnInput -> TurnEnd -> TurnStart`，回合输入可以通过落子完成或超时进入回合结束。
-- `DuelStateTurnInput` 为当前玩家设置 30 秒回合时间，并每秒递减一次。
+- `DuelStateTurnInput` 按当前玩家的持有时间或读秒状态每秒递减一次；无限时间不会启动回合倒计时。
 - `DuelStateTurnEnd` 在玩家 1 和玩家 2 之间切换 `curTurnPlayerGuid`。
-- `DuelPage` 显示当前状态、当前玩家和回合时间；它根据鼠标位置计算最近棋盘坐标，显示落点 VFX，左键触发 `OnAddChessToBoard`，保存时触发 `OnSaveDuelScene`，退出时回到主菜单。
+- `DuelPage` 显示黑方和白方的持有时间、读秒次数和读秒时间；它根据鼠标位置计算最近棋盘坐标，显示落点 VFX，非 UI 区域左键触发 `OnAddChessToBoard`，设置面板中的保存按钮触发 `OnSaveDuelScene`，退出按钮回到主菜单。
 - 落子只有在目标坐标位于棋盘内、目标位置为空、当前回合玩家存在时才会继续处理。
 - 落子校验会先缓存当前棋盘状态，再移除无气的对方连通棋串，随后拒绝自杀、拒绝单子无气、拒绝与上一局面完全一致的棋盘状态。
 - 合法落子接受后，被提掉的棋子实体会被销毁。

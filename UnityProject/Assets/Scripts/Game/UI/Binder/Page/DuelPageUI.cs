@@ -6,9 +6,19 @@ using UnityEngine.UI;
 
 public class DuelPageUI : UIBinderBase
 {
-	public Button btn_save;
-	public Button btn_exit;
-	public TextMeshProUGUI txt_cur_state;
-	public TextMeshProUGUI txt_cur_player;
-	public TextMeshProUGUI txt_turn_time;
+	public GameObject panel_black_player;
+	public TextMeshProUGUI txt_black_title;
+	public TextMeshProUGUI txt_black_hold_time;
+	public TextMeshProUGUI txt_black_byoyomi_count;
+	public TextMeshProUGUI txt_black_byoyomi_time;
+	public GameObject panel_white_player;
+	public TextMeshProUGUI txt_white_title;
+	public TextMeshProUGUI txt_white_hold_time;
+	public TextMeshProUGUI txt_white_byoyomi_count;
+	public TextMeshProUGUI txt_white_byoyomi_time;
+	public Button btn_duel_settings;
+	public GameObject panel_duel_settings;
+	public Button btn_settings_save;
+	public Button btn_settings_exit;
+	public Button btn_settings_close;
 }
