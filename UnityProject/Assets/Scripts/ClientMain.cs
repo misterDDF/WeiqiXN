@@ -21,6 +21,7 @@ public class ClientMain
     private void Start()
     {
         XNLogger.Instance.Init();
+        KataGoBootstrap.Start();
         Global.Instance.Start();
     }
 
@@ -41,6 +42,7 @@ public class ClientMain
 
     private void Destroy()
     {
+        KataGoBootstrap.Stop();
         Global.Instance.Destroy();
         XNLogger.Instance.Destroy();
         _instance = null;

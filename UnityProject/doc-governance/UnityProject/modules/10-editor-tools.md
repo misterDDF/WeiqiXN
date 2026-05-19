@@ -10,7 +10,9 @@
 - `Assets/Scripts/Editor/Build/BuildConfig.cs`
 - `Assets/Scripts/Editor/TMPSprite/SpriteAtlasToTMPSpriteTool.cs`
 - `Assets/Scripts/Editor/Inspector/TextureArrayWizard.cs`
-- 待新增：KataGo 编辑器验证入口，用于配置本地引擎、模型和 analysis 配置文件，并发起一次本地分析请求。
+- `Assets/Scripts/Game/KataGo/KataGoBootstrap.cs`
+- `Assets/Scripts/Game/KataGo/KataGoMoveRecord.cs`
+- `Assets/Scripts/Game/KataGo/KataGoPositionJsonBuilder.cs`
 
 ## 职责
 
@@ -24,6 +26,8 @@
 - 项目已有多份生成的 `*PageUI.cs` 和页面逻辑类。
 - AssetBundle、TMP sprite、TextureArray 等编辑器工具文件已经存在。
 - KataGo 流程当前目标是编辑器模式跑通本地子进程调用和 JSON 解析，不要求进入正式构建资源管线。
+- `ClientMain` 按普通流程调用 `KataGoBootstrap.Start()` / `Stop()`；`KataGoBootstrap` 内部按平台解析引擎路径。Windows Unity Editor 会后台启动 Eigen AVX2 版 KataGo，加载本地模型，发送固定 smoke query，并在日志中输出第一版所需的 `ownershipLength`。
+- `KataGoPositionJsonBuilder` 当前提供 `BuildOwnershipAnalysisJson` 默认入口，以及完整手顺和当前盘面快照两个显式 JSON 生成入口；第一版形势按钮使用默认入口，让它优先走完整手顺，只有缺少手顺时才用快照入口兜底。
 
 ## 设计观察
 
@@ -34,11 +38,11 @@ UI 工具链已经承担了重复代码生成工作，这对后续快速增加�
 - 自动生成文件可能覆盖手写 Binder 修改，Binder 文件应视为生成产物。
 - UI 逻辑文件只在不存在时生成，后续逻辑需要手工维护。
 - 编辑器工具没有在文档中形成使用流程，新成员容易误改生成文件。
-- KataGo 二进制、模型和配置路径在编辑器验证阶段应作为本地开发资源处理；缺失、启动失败、超时和协议解析失败都需要有明确日志。
+- KataGo 二进制、模型和配置路径在编辑器验证阶段位于 `ExternalTools/KataGo/`；缺失、启动失败、超时和协议解析失败都需要有明确日志。
 
 ## 后续建议
 
 - 在 UI 模块补一份“新增页面流程”。
 - 明确 `*UI.cs` Binder 文件为生成文件，业务逻辑写在 `Logic/Page` 或 `Logic/Widget`。
-- 新增 KataGo 编辑器工具时，优先提供一次性 smoke test：选择或读取本地 `katago`、模型和 config 路径，发送固定 19 路测试局面，请求 `includeOwnership`，并输出 `scoreLead`、ownership 数组长度和错误原因。
+- 新增 KataGo 编辑器工具时，优先提供一次性 smoke test：选择或读取本地 `katago`、模型和 config 路径，发送固定 19 路测试局面，请求 `includeOwnership`，并输出 ownership 数组长度和错误原因；第一版不要把 `scoreLead`、胜率或最佳选点接到形势按钮。
 - 联机页面新增前先跑一遍 UI 生成流程，避免手工维护绑定字段。

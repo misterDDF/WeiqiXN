@@ -12,6 +12,8 @@
 
 ### 2026-05-15 Current Addendum
 
+- 2026-05-19：启动流程会统一调用 `KataGoBootstrap.Start()`，退出时调用 `KataGoBootstrap.Stop()`；平台差异由 `KataGoBootstrap` 内部处理。Windows Unity Editor 当前会后台启动 `ExternalTools/KataGo/engines/win-x64/eigenavx2/katago.exe analysis`，加载 `kata1-b18c384nbt-s9996604416-d4316597426.bin.gz`，并发送固定 19 路 smoke query 验证 `ownership` 能返回；非支持平台会记录跳过原因。第一版形势按钮只关心 `ownership` 控制区域，不展示、不缓存也不以 `rootInfo.scoreLead`、胜率或最佳选点作为产品信息。该流程当前不参与正式数子、落子校验或客户端打包。
+- 2026-05-19：合法落子成功后会向 `SceneComponentDuel.kataGoMoveRecords` 追加一条可保存手顺记录，格式为 `B:Q16` 或 `W:D4`。`KataGoPositionJsonBuilder.BuildOwnershipAnalysisJson` 是第一版形势按钮默认入口：有完整手顺时生成 `moves`，没有手顺时退回当前盘面 `initialStones`。`BuildAnalysisJsonWithMoveHistory` 和 `BuildAnalysisJsonWithCurrentBoard` 分别保留为显式手顺/快照入口。
 - `DuelSetupPopup` now passes board, hold-time, byoyomi-count, and byoyomi-time config ids into `DuelSceneCreateParamas`; when the prefab is still on the old three-board-button layout, selecting a board starts a game with default time settings.
 - Hold-time options are table-driven by `Assets/Config/DataJson/duel_hold_time/duel_hold_time.json`: `2m`, `5m`, `10m`, `20m`, and `infinite`.
 - Byoyomi count options are table-driven by `Assets/Config/DataJson/duel_byoyomi_count/duel_byoyomi_count.json`: `off`, `1`, `3`, and `5`. `off` means no byoyomi after hold time runs out.
@@ -35,6 +37,7 @@
 - 场景、UI 页面、预制体和 TMP sprite 配置放在 `Assets/Config/DataJson/`，对应的数据读取类放在 `Assets/Config/DataType/`。
 - `DuelScene` 创建 `SceneComponentChessBoard` 和 `SceneComponentDuel`，从 `DuelSceneFixedRef` 绑定固定场景引用，安装 `DuelSaveSystem`、`ChessBoardSystem`、`DuelSystem`，然后打开 `DuelPage`。
 - `SceneComponentChessBoard` 保存当前棋盘配置 id、按棋盘位置索引存储的棋子信息、用于简单重复局面对比的上一局面快照、`RectGrid` 引用和对局虚拟相机引用。
+- `SceneComponentDuel` 保存双方玩家 guid、当前回合玩家 guid、时间配置、超时/胜者 guid，以及 KataGo 可读的落子手顺记录。
 - `RectGrid` 及其相关棋盘类使用 `RectCoordinates` 生成和寻址矩形棋盘。
 - `ChessBoardSystem` 根据所选棋盘尺寸初始化网格，调整对局相机以覆盖棋盘，并在读取存档时恢复棋子实体。
 - `DuelSystem` 在新对局中创建两个本地玩家并启动对局状态机；读取存档时，它会按存档中的玩家 guid 重新创建玩家，并激活回合输入状态。

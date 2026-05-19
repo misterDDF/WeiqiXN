@@ -9,7 +9,7 @@
 - 保持本地对局作为后续联机功能的回归基线。
 - 在现有配置层已经支持的范围内，让棋盘尺寸、预制体选择和页面入口保持数据驱动。
 - 让后续联机对局能够复用同一套确定性的落子校验路径。
-- 允许 AI 形势判断作为可替换的本地分析适配器接入，但不让 AI 分析结果取代本地规则和正式数子权威。
+- 允许 AI 控制区域作为可替换的本地分析适配器接入，但不让 AI 分析结果取代本地规则和正式数子权威。
 
 ## Module Boundaries
 
@@ -26,7 +26,8 @@
 - `Assets/Config/DataJson` 是当前棋盘、场景、UI 页面、预制体和 TMP sprite 的数据来源。
 - 资源加载通过 `ResourceManager` 和配置 id 抽象；编辑器环境使用 AssetDatabase，非编辑器环境使用 AssetBundle。
 - 存档通过 `SavableObj`、`SavableField` 和可保存集合持久化场景与用户状态。
-- KataGo 接入应先作为编辑器验证用的本地子进程适配器存在：Unity 侧负责启动 `katago analysis`、通过 stdin/stdout 交换 JSON、解析 `ownership` 和 `scoreLead`，并把启动失败、超时、缺少模型或配置文件等情况转成可诊断状态。
+- KataGo 接入应先作为编辑器验证用的本地子进程适配器存在：Unity 侧负责启动 `katago analysis`、通过 stdin/stdout 交换 JSON、解析第一版形势按钮所需的 `ownership`，并把启动失败、超时、缺少模型或配置文件等情况转成可诊断状态。
+- KataGo JSON 生成应区分完整手顺和当前盘面快照：完整手顺入口输出 `moves`，是形势按钮和后续复盘分析的优先路径；当前盘面入口输出 `initialStones`，只作为缺少手顺、读档校验或调试时的快照兜底。
 
 ## Key Tradeoffs
 
@@ -48,7 +49,7 @@
 - 不要绕过 `ChessBoardSystem` 的落子校验来实现联机。现有合法落子路径必须继续作为本地基线，或被明确提取为共享规则服务。
 - 不要让网络代码直接耦合 Unity 预制体实例化；网络命令应描述领域动作，而不是描述预制体操作。
 - 除非在线架构明确选择并记录客户端锁步，否则不要让远端客户端独立决定最终棋盘状态。
-- 不要把 KataGo `ownership` 或 `scoreLead` 当成正式数子权威；正式终局结果必须来自本地规则、死子确认和明确的计分流程。
+- 不要把 KataGo `ownership` 当成正式数子权威；正式终局结果必须来自本地规则、死子确认和明确的计分流程。第一版也不要把 `rootInfo.scoreLead`、胜率或最佳选点纳入形势按钮的产品输出。
 - 不要让 KataGo 适配器直接修改 `SceneComponentChessBoard` 或落子状态；它只能读取局面快照并返回分析结果供表现层或调试层展示。
 - 不要把 `Library/`、`Temp/`、`Logs/`、IDE 生成文件、导入包内部文件或构建输出当成架构权威。
 - 在 [ROADMAP.md](ROADMAP.md) 未移动阶段前，不要把当前本地对局范围扩展到完整计分、匹配、重连或观战。
