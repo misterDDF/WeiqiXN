@@ -16,8 +16,10 @@ public static class KataGoBootstrap
     private const string EngineName = "eigenavx2";
     private const string ModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
     private const int SmokeTestTimeoutMs = 45000;
+    private const int OwnershipAnalyzeTimeoutMs = 45000;
 
     private static Process process;
+    private static readonly SemaphoreSlim analysisSemaphore = new SemaphoreSlim(1, 1);
 #endif
     private static CancellationTokenSource cancellationTokenSource;
     private static Task startupTask;
@@ -50,6 +52,31 @@ public static class KataGoBootstrap
     public static void Stop()
     {
         StopProcessTask();
+    }
+
+    public static async Task<JArray> AnalyzeOwnershipAsync(JObject query)
+    {
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+        if (query == null) {
+            XNLogger.LogError("KataGo ownership analyze failed, query is null.");
+            return null;
+        }
+
+        if (startupTask != null && !startupTask.IsCompleted) {
+            await startupTask;
+        }
+
+        if (process == null || process.HasExited) {
+            XNLogger.LogError("KataGo ownership analyze failed, process is not running.");
+            return null;
+        }
+
+        return await Task.Run(() => AnalyzeOwnership(query, OwnershipAnalyzeTimeoutMs));
+#else
+        await Task.CompletedTask;
+        XNLogger.LogWarn("KataGo ownership analyze skipped.", ("reason", "Local process analyze is not compiled for this platform."));
+        return null;
+#endif
     }
 
     private static PlatformConfig ResolvePlatformConfig()
@@ -208,6 +235,65 @@ public static class KataGoBootstrap
         }
 
         throw new TimeoutException($"KataGo smoke test timed out after {SmokeTestTimeoutMs}ms.");
+    }
+
+    private static JArray AnalyzeOwnership(JObject query, int timeoutMs)
+    {
+        analysisSemaphore.Wait();
+        try {
+            string requestId = query["id"]?.ToString() ?? string.Empty;
+            if (string.IsNullOrEmpty(requestId)) {
+                XNLogger.LogError("KataGo ownership analyze failed, query id is empty.");
+                return null;
+            }
+
+            process.StandardInput.WriteLine(query.ToString(Newtonsoft.Json.Formatting.None));
+            process.StandardInput.Flush();
+
+            DateTime deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+            while (DateTime.UtcNow < deadline) {
+                if (process == null || process.HasExited) {
+                    XNLogger.LogError("KataGo ownership analyze failed, process exited.");
+                    return null;
+                }
+
+                string line = ReadOutputLineBefore(deadline, CancellationToken.None);
+                if (string.IsNullOrWhiteSpace(line) || !line.TrimStart().StartsWith("{", StringComparison.Ordinal)) {
+                    continue;
+                }
+
+                JObject result = JObject.Parse(line);
+                if (result["id"]?.ToString() != requestId) {
+                    continue;
+                }
+
+                if ((bool?)result["isDuringSearch"] == true) {
+                    continue;
+                }
+
+                JArray ownership = result["ownership"] as JArray;
+                if (ownership == null) {
+                    XNLogger.LogError("KataGo ownership analyze failed, ownership missing.", ("id", requestId));
+                    return null;
+                }
+
+                XNLogger.LogInfo(
+                    "KataGo ownership analyze success.",
+                    ("id", requestId),
+                    ("ownershipLength", ownership.Count.ToString()));
+                return ownership;
+            }
+
+            XNLogger.LogError("KataGo ownership analyze failed, request timed out.", ("id", requestId));
+            return null;
+        }
+        catch (Exception ex) {
+            XNLogger.LogError("KataGo ownership analyze failed.", ("err", ex.Message));
+            return null;
+        }
+        finally {
+            analysisSemaphore.Release();
+        }
     }
 
     private static void StopProcess()

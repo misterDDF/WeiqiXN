@@ -10,12 +10,15 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     public GameObject aimChessPreview;
     public RectCoordinates aimCoords = new RectCoordinates(-1, -1);
     private PlayerFlag aimChessPreviewPlayerFlag;
+    private bool isOwnershipVisible;
 
     protected override void OnLoaded()
     {
         base.OnLoaded();
 
         RegisterSystemEvent<OnDuelStateChanged>(OnDuelStateChanged);
+        RegisterSystemEvent<OnDuelOwnershipResult>(OnDuelOwnershipResult);
+        RegisterSystemEvent<OnClearDuelOwnership>(OnClearDuelOwnership);
 
         BindPrefabHud();
     }
@@ -25,6 +28,8 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         base.OnOpen();
 
         SetSettingsPanelVisible(false);
+        SetOwnershipActive(false);
+        SetOwnershipResultPanelVisible(false);
         RefreshDuelHud();
     }
 
@@ -157,6 +162,20 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         RefreshDuelHud();
     }
 
+    public void OnDuelOwnershipResult(OnDuelOwnershipResult evt)
+    {
+        SetText(binder.txt_ownership_black_points, $"黑方目数: {FormatPointCount(evt.blackPoints)}");
+        SetText(binder.txt_ownership_white_points, $"白方目数: {FormatPointCount(evt.whitePoints)}（贴目后）");
+        SetOwnershipActive(true);
+        SetOwnershipResultPanelVisible(true);
+    }
+
+    public void OnClearDuelOwnership(OnClearDuelOwnership evt)
+    {
+        SetOwnershipActive(false);
+        SetOwnershipResultPanelVisible(false);
+    }
+
     public void RefreshDuelHud()
     {
         var mainScene = Global.Instance.sceneManager.mainScene;
@@ -212,9 +231,22 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         Global.Instance.sceneManager.EnterMainScene(SceneConfig.MAIN_MENU_SCENE_TYPE_ID, SceneCreateParams.Default);
     }
 
+    public void OnClickBtnOwnership()
+    {
+        if (isOwnershipVisible) {
+            EmitSystemEvent(new OnRequestClearDuelOwnership());
+            return;
+        }
+
+        SetOwnershipActive(true);
+        SetOwnershipResultPanelVisible(false);
+        EmitSystemEvent(new OnRequestDuelOwnership());
+    }
+
     private void BindPrefabHud()
     {
         AddButtonListener(binder.btn_duel_settings, OpenSettingsPanel);
+        AddButtonListener(binder.btn_duel_ownership, OnClickBtnOwnership);
         AddButtonListener(binder.btn_settings_save, OnClickBtnSave);
         AddButtonListener(binder.btn_settings_exit, OnClickBtnExit);
         AddButtonListener(binder.btn_settings_close, CloseSettingsPanel);
@@ -258,6 +290,13 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         return $"{minutes:00}:{remainSeconds:00}";
     }
 
+    private string FormatPointCount(float pointCount)
+    {
+        return Mathf.Approximately(pointCount, Mathf.Round(pointCount))
+            ? Mathf.RoundToInt(pointCount).ToString()
+            : pointCount.ToString("0.0");
+    }
+
     private void OpenSettingsPanel()
     {
         SetSettingsPanelVisible(true);
@@ -273,6 +312,24 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         if (binder.panel_duel_settings != null) {
             binder.panel_duel_settings.SetActive(isVisible);
         }
+    }
+
+    private void SetOwnershipResultPanelVisible(bool isVisible)
+    {
+        if (binder.panel_duel_ownership_result != null) {
+            binder.panel_duel_ownership_result.SetActive(isVisible);
+        }
+    }
+
+    private void SetOwnershipActive(bool isActive)
+    {
+        isOwnershipVisible = isActive;
+        SetOwnershipButtonText(isActive);
+    }
+
+    private void SetOwnershipButtonText(bool isVisible)
+    {
+        SetText(binder.txt_duel_ownership_button, isVisible ? "关闭" : "形式");
     }
 
     private bool IsSettingsPanelVisible()

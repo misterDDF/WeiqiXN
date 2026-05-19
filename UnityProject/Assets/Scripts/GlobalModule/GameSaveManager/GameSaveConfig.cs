@@ -3,10 +3,47 @@ using UnityEngine;
 
 public static class GameSaveConfig
 {
-    public static readonly string UserSaveFilePath = Path.Combine(Application.persistentDataPath, "User.json");
+    public static string SaveRootPath => GetSaveRootPath();
+    public static string UserSaveFilePath => Path.Combine(SaveRootPath, "User.json");
+
     public static string GetDuelSceneSavePath(int saveSlotIndex)
     {
-        return Path.Combine(Application.persistentDataPath, "Scene", "Duel", $"DuelScene_{saveSlotIndex}.json");
+        return Path.Combine(GetSaveSlotPath(saveSlotIndex), "DuelScene.json");
+    }
+
+    public static string GetDuelRecordSavePath(int saveSlotIndex)
+    {
+        return Path.Combine(GetSaveSlotPath(saveSlotIndex), "DuelRecord.json");
+    }
+
+    public static string GetDuelSaveInfoPath(int saveSlotIndex)
+    {
+        return Path.Combine(GetSaveSlotPath(saveSlotIndex), "SaveInfo.json");
+    }
+
+    public static string GetSaveSlotPath(int saveSlotIndex)
+    {
+        return Path.Combine(SaveRootPath, saveSlotIndex.ToString());
+    }
+
+    private static string GetSaveRootPath()
+    {
+#if UNITY_EDITOR
+        DirectoryInfo unityProjectDir = Directory.GetParent(Application.dataPath);
+        DirectoryInfo workspaceRootDir = unityProjectDir?.Parent;
+        if (workspaceRootDir != null) {
+            return Path.Combine(workspaceRootDir.FullName, "save");
+        }
+#endif
+
+#if UNITY_STANDALONE_WIN || UNITY_STANDALONE_OSX || UNITY_STANDALONE_LINUX
+        DirectoryInfo playerRootDir = Directory.GetParent(Application.dataPath);
+        if (playerRootDir != null) {
+            return Path.Combine(playerRootDir.FullName, "save");
+        }
+#endif
+
+        return Application.persistentDataPath;
     }
 
     public const string SavableObj_Type_Field_Name = "_type";

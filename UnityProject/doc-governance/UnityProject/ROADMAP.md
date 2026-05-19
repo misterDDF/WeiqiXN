@@ -13,8 +13,8 @@
 
 **活跃目标**
 
-- 在 Unity 编辑器模式下先跑通本地 KataGo ownership 链路：启动本地 `katago analysis` 子进程，向 stdin 发送测试棋局 JSON，并读取 `ownership` 和失败状态。
-- 将 AI 控制区域与正式数子拆开：第一版形势按钮只使用 KataGo `ownership` 绘制双方控制范围，不展示胜率、目差或最佳选点，也不作为正式终局数子的权威结果。
+- 在 Unity 编辑器模式下继续验证本地 KataGo ownership 链路：启动本地 `katago analysis` 子进程，向 stdin 发送当前对局 JSON，读取 `ownership`、失败状态，并验证棋盘 overlay 表现。
+- 将 AI 控制区域与正式数子拆开：第一版形势按钮已接入 `ownership` 请求、棋盘黑白小方块 overlay 和按钮上方的双方目数面板；它只使用 KataGo `ownership` 估算控制范围并统计显示目数，不展示胜率、目差或最佳选点，也不作为正式终局数子的权威结果。
 - 为本地对局建立可重复的手动验证流程。
 - 为非法落子增加用户可见反馈。
 - 明确本地终局流程的最小规则：停一手、认输、数目，或先接受一个更小的原型规则集。
@@ -26,11 +26,11 @@
 ### 2026-05-19 Current Addendum
 
 - KataGo 接入目标先收敛为编辑器模式验证，不要求立即进入正式客户端打包流程。
-- 编辑器验证的最小闭环是：本地配置 KataGo 可执行文件、模型和 analysis 配置；Unity 通过子进程启动 analysis engine；用当前或固定测试棋局发起 JSON 请求；解析 `ownership`；在日志或临时调试 UI 中呈现成功、超时、启动失败和缺少资源文件等状态。
+- 编辑器验证的最小闭环是：本地配置 KataGo 可执行文件、模型和 analysis 配置；Unity 通过子进程启动 analysis engine；用当前或固定测试棋局发起 JSON 请求；解析 `ownership`；通过对局页“形式”按钮在棋盘上呈现 ownership overlay，并在日志中呈现成功、超时、启动失败和缺少资源文件等状态。
 - 当前已接入 Play 模式启动 smoke test：优先使用 `eigenavx2` 引擎，后台加载模型并验证 `ownershipLength` 日志；OpenCL 优先与 fallback 策略仍是后续打包前事项。
-- 当前已新增 KataGo 局面 JSON 生成基础：合法落子会保存 KataGo 可读手顺；生成器同时提供完整手顺 `moves` JSON 和当前盘面 `initialStones` JSON，第一版形势按钮优先使用完整手顺入口。
+- 当前已新增 KataGo 标准棋谱链路和第一版形势按钮链路：合法落子直接维护 KataGo `moves`，保存对局时生成可直接作为 ownership analysis 请求骨架的记录 JSON，读档时通过记录文件回放恢复棋盘；`DuelPage` 右下角“形式”按钮会请求当前对局 `ownership`，绘制棋盘 overlay，并在按钮上方显示黑方目数和白方贴目后目数；当前盘面 `initialStones` 入口仅保留为调试或无手顺场景。
 - 正式数子仍应由本地规则算法和死子确认流程承担；KataGo 在当前阶段只提供 AI 控制区域，不改变棋规权威。
-- 目标客户端离线打包、OpenCL/Eigen fallback、模型资源分发、常驻形势按钮和完整数子 UI 暂不作为本次编辑器验证的完成条件。
+- 目标客户端离线打包、OpenCL/Eigen fallback、模型资源分发和完整数子 UI 暂不作为本次编辑器验证的完成条件。
 
 ### 2026-05-15 Current Addendum
 

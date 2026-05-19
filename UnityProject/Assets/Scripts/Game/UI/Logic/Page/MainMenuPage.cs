@@ -19,20 +19,28 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
     {
         base.OnOpen();
 
-        binder.btn_continue.interactable = File.Exists(GameSaveConfig.GetDuelSceneSavePath(0));
+        binder.btn_continue.interactable = File.Exists(GameSaveConfig.GetDuelSceneSavePath(0)) &&
+            File.Exists(GameSaveConfig.GetDuelRecordSavePath(0)) &&
+            File.Exists(GameSaveConfig.GetDuelSaveInfoPath(0));
     }
 
     public void OnClickBtnContinue()
     {
         string saveFilePath = GameSaveConfig.GetDuelSceneSavePath(0);
-        if (File.Exists(saveFilePath)) {
+        string recordFilePath = GameSaveConfig.GetDuelRecordSavePath(0);
+        string saveInfoFilePath = GameSaveConfig.GetDuelSaveInfoPath(0);
+        if (File.Exists(saveFilePath) && File.Exists(recordFilePath) && File.Exists(saveInfoFilePath)) {
             SceneCreateParams sceneCreateParams = new SceneCreateParams()
             {
                 saveFilePath = saveFilePath,
             };
             Global.Instance.sceneManager.EnterMainScene(SceneConfig.DUEL_SCENE_TYPE_ID, sceneCreateParams);
         } else {
-            XNLogger.LogError("Save file not exist, reload duel scene failed.", ("saveFilePath", saveFilePath));
+            XNLogger.LogError(
+                "Save file, record file or save info file not exist, reload duel scene failed.",
+                ("saveFilePath", saveFilePath),
+                ("recordFilePath", recordFilePath),
+                ("saveInfoFilePath", saveInfoFilePath));
         }
     }
 

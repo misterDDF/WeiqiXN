@@ -29,6 +29,7 @@ public class DuelScene : SceneBase
 
         AddSystem(new DuelSaveSystem(this));
         AddSystem(new ChessBoardSystem(this));
+        AddSystem(new DuelOwnershipSystem(this));
         AddSystem(new DuelSystem(this));
 
         Global.Instance.uiManager.ShowPage<DuelPage>();

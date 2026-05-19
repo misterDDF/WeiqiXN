@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Text;
+using Newtonsoft.Json.Linq;
 using UnityEngine;
 using XNClient.Logger;
 
@@ -11,6 +12,10 @@ namespace XNClient.ChessBoard
         public int gridSize;
         private List<RectGridChunk> chunkList = new List<RectGridChunk>();
         private List<RectCell> cellList = new List<RectCell>();
+        private GameObject ownershipRoot;
+
+        private const float OwnershipSquareSizeFactor = ChessBoardConfig.starPointRadiusFactor * 2f * 1.5f;
+        private const float OwnershipYOffset = ChessBoardConfig.starPointYOffset + 0.02f;
 
         public void InitGrid(int gridSize)
         {
@@ -35,6 +40,78 @@ namespace XNClient.ChessBoard
             Vector3 worldCenter = transform.TransformPoint(localCenter);
             Vector3 size = new Vector3(gridSideLength, 0f, gridSideLength);
             return new Bounds(worldCenter, size);
+        }
+
+        public void DrawOwnership(JArray ownership)
+        {
+            ClearOwnership();
+            if (ownership == null) {
+                return;
+            }
+
+            int expectedCount = gridSize * gridSize;
+            if (ownership.Count < expectedCount) {
+                XNLogger.LogError(
+                    "Ownership length is smaller than board point count, draw skipped.",
+                    ("ownershipCount", ownership.Count.ToString()),
+                    ("expectedCount", expectedCount.ToString()));
+                return;
+            }
+
+            ownershipRoot = new GameObject("OwnershipRoot");
+            ownershipRoot.transform.SetParent(transform, false);
+
+            float squareSize = ChessBoardConfig.rectCellSideLength * OwnershipSquareSizeFactor;
+            for (int z = 0; z < gridSize; z++) {
+                for (int x = 0; x < gridSize; x++) {
+                    int ownershipIndex = z * gridSize + x;
+                    if (!float.TryParse(ownership[ownershipIndex]?.ToString(), out float ownershipValue)) {
+                        continue;
+                    }
+
+                    if (Mathf.Abs(ownershipValue) < 0.05f) {
+                        continue;
+                    }
+
+                    CreateOwnershipSquare(x, z, squareSize, ownershipValue > 0f ? Color.black : Color.white);
+                }
+            }
+        }
+
+        public void ClearOwnership()
+        {
+            if (ownershipRoot == null) {
+                return;
+            }
+
+            Destroy(ownershipRoot);
+            ownershipRoot = null;
+        }
+
+        private void CreateOwnershipSquare(int x, int z, float squareSize, Color color)
+        {
+            GameObject square = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            square.name = $"Ownership_{x}_{z}";
+            square.transform.SetParent(ownershipRoot.transform, false);
+            square.transform.localPosition = new Vector3(
+                (x + 0.5f) * ChessBoardConfig.rectCellSideLength,
+                OwnershipYOffset,
+                (z + 0.5f) * ChessBoardConfig.rectCellSideLength
+            );
+            square.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            square.transform.localScale = new Vector3(squareSize, squareSize, 1f);
+
+            Collider squareCollider = square.GetComponent<Collider>();
+            if (squareCollider != null) {
+                Destroy(squareCollider);
+            }
+
+            MeshRenderer renderer = square.GetComponent<MeshRenderer>();
+            if (renderer != null) {
+                Material material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+                material.color = color;
+                renderer.material = material;
+            }
         }
 
         // 检查cell是否位于整个棋盘的最外圈边界上

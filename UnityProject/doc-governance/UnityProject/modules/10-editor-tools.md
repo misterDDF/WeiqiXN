@@ -11,7 +11,7 @@
 - `Assets/Scripts/Editor/TMPSprite/SpriteAtlasToTMPSpriteTool.cs`
 - `Assets/Scripts/Editor/Inspector/TextureArrayWizard.cs`
 - `Assets/Scripts/Game/KataGo/KataGoBootstrap.cs`
-- `Assets/Scripts/Game/KataGo/KataGoMoveRecord.cs`
+- `Assets/Scripts/Game/KataGo/KataGoDuelRecordFile.cs`
 - `Assets/Scripts/Game/KataGo/KataGoPositionJsonBuilder.cs`
 
 ## 职责
@@ -27,7 +27,9 @@
 - AssetBundle、TMP sprite、TextureArray 等编辑器工具文件已经存在。
 - KataGo 流程当前目标是编辑器模式跑通本地子进程调用和 JSON 解析，不要求进入正式构建资源管线。
 - `ClientMain` 按普通流程调用 `KataGoBootstrap.Start()` / `Stop()`；`KataGoBootstrap` 内部按平台解析引擎路径。Windows Unity Editor 会后台启动 Eigen AVX2 版 KataGo，加载本地模型，发送固定 smoke query，并在日志中输出第一版所需的 `ownershipLength`。
-- `KataGoPositionJsonBuilder` 当前提供 `BuildOwnershipAnalysisJson` 默认入口，以及完整手顺和当前盘面快照两个显式 JSON 生成入口；第一版形势按钮使用默认入口，让它优先走完整手顺，只有缺少手顺时才用快照入口兜底。
+- `KataGoBootstrap.AnalyzeOwnershipAsync` 负责把当前对局 query 写入 KataGo stdin，读取匹配 request id 的最终结果，并只返回第一版形势按钮需要的 `ownership` 数组；超时、进程未运行和协议缺失会写入日志。双方目数面板由游戏侧根据 `ownership` 阈值统计，白方显示值会额外加上 query 中的 `komi`。
+- `KataGoPositionJsonBuilder` 当前提供 `BuildOwnershipAnalysisJson` 默认入口，以及完整手顺和当前盘面快照两个显式 JSON 生成入口；正常对局直接维护 KataGo 标准 `moves`，第一版形势按钮使用默认入口优先走 `moves`，快照入口只用于调试或无手顺场景。
+- `KataGoDuelRecordFile` 负责保存和读取对局棋盘记录文件。记录文件采用可直接提交给 KataGo analysis engine 的 JSON 结构，场景读档通过其中的 `moves` 回放恢复棋盘。
 
 ## 设计观察
 

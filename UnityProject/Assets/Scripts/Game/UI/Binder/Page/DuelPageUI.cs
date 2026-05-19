@@ -17,6 +17,11 @@ public class DuelPageUI : UIBinderBase
 	public TextMeshProUGUI txt_white_byoyomi_count;
 	public TextMeshProUGUI txt_white_byoyomi_time;
 	public Button btn_duel_settings;
+	public Button btn_duel_ownership;
+	public TextMeshProUGUI txt_duel_ownership_button;
+	public GameObject panel_duel_ownership_result;
+	public TextMeshProUGUI txt_ownership_black_points;
+	public TextMeshProUGUI txt_ownership_white_points;
 	public GameObject panel_duel_settings;
 	public Button btn_settings_save;
 	public Button btn_settings_exit;

@@ -10,6 +10,7 @@ public class ChessInfo : SavableObj
 public class SceneComponentChessBoard : SceneComponentBase
 {
     public SavableField<string> boardCfgId = SavableFieldFactory.CreateStringField(string.Empty);
+    [SkipSavableCheck]
     public SavableObjectDict<ChessInfo> chessInfoDict = new SavableObjectDict<ChessInfo>();
     [SkipSavableCheck]
     public SavableObjectDict<ChessInfo> lastChessInfoDict = new SavableObjectDict<ChessInfo>();

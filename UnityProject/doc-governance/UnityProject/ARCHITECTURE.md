@@ -18,16 +18,16 @@
 - `ClientMain` 是进程入口和 PlayerLoop 桥接层，负责初始化全局服务，并在 Unity 对应更新阶段后调用项目层更新。
 - `Global` 和 `GlobalModule` 提供跨场景服务，包括 UI、资源加载、事件、定时器、场景加载、存档、红点和日志接入。
 - `MainMenuScene`、`DuelScene` 等场景类负责项目层场景组合：创建场景组件、添加系统、打开对应 UI。
-- 场景组件负责保存场景状态和固定引用。`SceneComponentChessBoard` 拥有棋盘状态数据、`RectGrid` 和对局虚拟相机引用；`SceneComponentDuel` 拥有对局玩家 guid 和对局状态机。
-- 系统负责行为。`ChessBoardSystem` 负责棋盘初始化、落子合法性、提子、棋子实体放置和相机设置；`DuelSystem` 负责本地玩家创建和状态机更新；`DuelSaveSystem` 负责对局保存触发。
+- 场景组件负责保存场景状态和固定引用。`SceneComponentChessBoard` 拥有棋盘配置、运行时棋盘缓存、`RectGrid` 和对局虚拟相机引用；`SceneComponentDuel` 拥有对局玩家 guid、对局状态机和运行时 KataGo 标准 `moves` 手顺。
+- 系统负责行为。`ChessBoardSystem` 负责棋盘初始化、落子合法性、提子、棋子实体放置和相机设置；`DuelSystem` 负责本地玩家创建和状态机更新；`DuelSaveSystem` 负责对局保存触发；`DuelOwnershipSystem` 负责响应形势请求、向 KataGo 请求 `ownership`、按同一阈值统计双方控制点数，并把 overlay 结果交给棋盘表现层、把目数结果通过事件交给 UI 展示。
 - 实体表示运行时游戏对象。`Chess` 是带 Unity `GameObject` 的棋子实体；`Player` 是回合归属实体，并通过组件保存对局信息。
 - 事件连接 UI、系统和实体。UI 发出 `OnAddChessToBoard`、`OnSaveDuelScene` 等系统事件；系统发出 `OnAfterAddChessToBoard` 等领域结果事件。
 - `DuelFSM` 表示本地回合生命周期，回合开始、输入、超时和结束由状态机管理，而不是由 UI 直接切换。
 - `Assets/Config/DataJson` 是当前棋盘、场景、UI 页面、预制体和 TMP sprite 的数据来源。
 - 资源加载通过 `ResourceManager` 和配置 id 抽象；编辑器环境使用 AssetDatabase，非编辑器环境使用 AssetBundle。
-- 存档通过 `SavableObj`、`SavableField` 和可保存集合持久化场景与用户状态。
-- KataGo 接入应先作为编辑器验证用的本地子进程适配器存在：Unity 侧负责启动 `katago analysis`、通过 stdin/stdout 交换 JSON、解析第一版形势按钮所需的 `ownership`，并把启动失败、超时、缺少模型或配置文件等情况转成可诊断状态。
-- KataGo JSON 生成应区分完整手顺和当前盘面快照：完整手顺入口输出 `moves`，是形势按钮和后续复盘分析的优先路径；当前盘面入口输出 `initialStones`，只作为缺少手顺、读档校验或调试时的快照兜底。
+- 存档通过 `SavableObj`、`SavableField` 和可保存集合持久化场景与用户状态；对局棋盘恢复权威单独落在 KataGo analysis JSON 记录文件中，读档时由 `moves` 回放重建运行时棋盘缓存。
+- KataGo 接入应先作为编辑器验证用的本地子进程适配器存在：Unity 侧负责启动 `katago analysis`、通过 stdin/stdout 交换 JSON、解析第一版形势按钮所需的 `ownership`，并把启动失败、超时、缺少模型或配置文件等情况转成可诊断状态。形势展示由 UI 发事件、系统请求分析、棋盘表现层绘制 overlay，不让 KataGo 适配器直接修改棋盘规则状态。
+- 游戏侧手顺格式应直接使用 KataGo 标准 `moves` 数组项，不再维护额外字符串棋谱格式或转换层。KataGo analysis JSON 生成优先输出 `moves`，是形势按钮、记录文件和后续复盘分析的统一路径；当前盘面 `initialStones` 快照入口只作为调试或无手顺场景使用。
 
 ## Key Tradeoffs
 
@@ -35,11 +35,12 @@
 
 - 自定义 PlayerLoop 桥接让核心逻辑集中在模块层，但维护者需要理解非 Mono 系统也会逐帧更新。
 - UI 通过事件与系统通信，避免页面直接修改棋盘内部状态，但事件定义会成为玩法合同的一部分。
-- 棋盘状态使用可保存字典，便于保存与读取，但代码必须保持实体状态和字典状态同步。
+- 棋盘运行状态使用字典缓存，便于规则校验和实体同步；持久化恢复以 KataGo 标准记录文件为权威，避免场景存档和棋谱出现两份棋盘来源。
 - 当前落子校验会先修改缓存棋盘状态，再在非法时回滚。这让规则处理贴近棋盘状态，但联机复用时需要把领域命令校验入口进一步稳定下来。
 - 当前 FSM 适合本地热座对局。联机对局需要明确权威方和同步边界，不能让两个客户端各自自由认定最终棋盘。
 - 数据驱动棋盘尺寸可以避免为不同棋盘复制场景，但规则与 UI 必须持续使用一致的配置 id。
 - KataGo 本地子进程可以避免形势判断依赖网络服务，但会引入平台二进制、模型文件、首次初始化耗时和资源分发问题；这些问题应在编辑器验证跑通后再进入客户端打包决策。
+- 记录文件采用可直接提交给 KataGo analysis engine 的 JSON 结构，会把存档恢复和 ownership 请求骨架耦合到同一份标准格式；代价是读档必须保证记录文件与场景存档同时存在并且棋盘尺寸一致。
 
 ## Guardrails
 
@@ -51,5 +52,6 @@
 - 除非在线架构明确选择并记录客户端锁步，否则不要让远端客户端独立决定最终棋盘状态。
 - 不要把 KataGo `ownership` 当成正式数子权威；正式终局结果必须来自本地规则、死子确认和明确的计分流程。第一版也不要把 `rootInfo.scoreLead`、胜率或最佳选点纳入形势按钮的产品输出。
 - 不要让 KataGo 适配器直接修改 `SceneComponentChessBoard` 或落子状态；它只能读取局面快照并返回分析结果供表现层或调试层展示。
+- 不要新增非 KataGo 标准的内部棋谱格式；正常对局、保存、读档和 ownership 请求都应围绕同一个 `moves` 表达。
 - 不要把 `Library/`、`Temp/`、`Logs/`、IDE 生成文件、导入包内部文件或构建输出当成架构权威。
 - 在 [ROADMAP.md](ROADMAP.md) 未移动阶段前，不要把当前本地对局范围扩展到完整计分、匹配、重连或观战。

@@ -46,15 +46,7 @@ public class ChessBoardSystem : SystemBase
 
         // 读档进来的还原棋子entity
         if (scene.sceneCreateParams.saveFilePath != null) {
-            foreach (var kvp in compChessBoard.chessInfoDict) {
-                int posIndex = int.Parse(kvp.Key);
-                RectCoordinates coords = compChessBoard.GetCoordsByPosIndex(posIndex);
-                ChessInfo chessInfo = kvp.Value;
-
-                if (coords.x >= 0 && coords.z >= 0) {
-                    EntityUtils.CreateChess(scene, chessInfo.chessGuid.value, (PlayerFlag)chessInfo.chessFlag.value, coords);
-                }
-            }
+            RestoreBoardFromKataGoRecord(compChessBoard);
         }
     }
 
@@ -128,6 +120,8 @@ public class ChessBoardSystem : SystemBase
                     }
                     compChessBoard.lastChessInfoDict = cachedChessInfoDict;
                     EntityUtils.CreateChess(scene, chessGuid, (PlayerFlag)curPlayer.playerFlag.value, evt.coords);
+                    int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : chessBoardData?.boardSize ?? 19;
+                    compDuel.AppendKataGoMove((PlayerFlag)curPlayer.playerFlag.value, evt.coords, boardSize);
                     scene.EmitSystemEvent(new OnAfterAddChessToBoard((PlayerFlag)curPlayer.playerFlag.value, evt.coords.Clone()));
                 } else {
                     // TODO show message
@@ -169,6 +163,102 @@ public class ChessBoardSystem : SystemBase
 
         float cameraYOffset = Mathf.Max(gridBound.size.x, gridBound.size.z) + extraYOffset;
         duelVCamTransform.position = gridBound.center + Vector3.up * cameraYOffset;
+    }
+
+    private void RestoreBoardFromKataGoRecord(SceneComponentChessBoard compChessBoard)
+    {
+        string recordFilePath = GameSaveConfig.GetDuelRecordSavePath(0);
+        if (!KataGoDuelRecordFile.TryLoad(recordFilePath, out var recordJson) ||
+            !KataGoDuelRecordFile.TryGetMoves(recordJson, out var moves)) {
+            XNLogger.LogError("Restore board from KataGo record failed.", ("recordFilePath", recordFilePath));
+            return;
+        }
+
+        var compDuel = scene.GetComponent<SceneComponentDuel>();
+        if (compDuel == null) {
+            XNLogger.LogError("Restore board from KataGo record failed, duel component not found.");
+            return;
+        }
+
+        compChessBoard.chessInfoDict.Clear();
+        compChessBoard.lastChessInfoDict.Clear();
+        compDuel.ResetKataGoMoves();
+
+        int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : chessBoardData?.boardSize ?? 19;
+        if (!KataGoDuelRecordFile.TryGetBoardSize(recordJson, out int recordBoardSize)) {
+            XNLogger.LogError("KataGo duel record board size invalid, restore skipped.", ("recordFilePath", recordFilePath));
+            return;
+        }
+
+        if (recordBoardSize != boardSize) {
+            XNLogger.LogError(
+                "KataGo duel record board size mismatch, restore skipped.",
+                ("recordBoardSize", recordBoardSize.ToString()),
+                ("boardSize", boardSize.ToString()));
+            return;
+        }
+
+        foreach (var move in moves) {
+            if (!KataGoDuelRecordFile.TryParseMove(move, out PlayerFlag playerFlag, out RectCoordinates coords, boardSize)) {
+                XNLogger.LogError("Invalid move in KataGo duel record, restore stopped.", ("move", move.ToString()));
+                compChessBoard.chessInfoDict.Clear();
+                compChessBoard.lastChessInfoDict.Clear();
+                compDuel.ResetKataGoMoves();
+                return;
+            }
+
+            if (!ApplyRecordMove(compChessBoard, compDuel, playerFlag, coords, boardSize)) {
+                XNLogger.LogError("Invalid move in KataGo duel record, restore stopped.", ("move", move.ToString()));
+                compChessBoard.chessInfoDict.Clear();
+                compChessBoard.lastChessInfoDict.Clear();
+                compDuel.ResetKataGoMoves();
+                return;
+            }
+        }
+
+        foreach (var kvp in compChessBoard.chessInfoDict) {
+            if (!int.TryParse(kvp.Key, out int posIndex)) {
+                continue;
+            }
+
+            RectCoordinates coords = compChessBoard.GetCoordsByPosIndex(posIndex);
+            ChessInfo chessInfo = kvp.Value;
+            if (coords.x >= 0 && coords.z >= 0 && chessInfo != null) {
+                EntityUtils.CreateChess(scene, chessInfo.chessGuid.value, (PlayerFlag)chessInfo.chessFlag.value, coords);
+            }
+        }
+    }
+
+    private bool ApplyRecordMove(SceneComponentChessBoard compChessBoard, SceneComponentDuel compDuel, PlayerFlag playerFlag, RectCoordinates coords, int boardSize)
+    {
+        int posIndex = compChessBoard.GetPosIndexByCoords(coords);
+        if (posIndex < 0 || compChessBoard.chessInfoDict.ContainsKey(posIndex.ToString())) {
+            XNLogger.LogError("Invalid record move position, restore move skipped.", ("coords", coords?.ToString() ?? "null"));
+            return false;
+        }
+
+        string chessGuid = EntityUtils.CreateGuidWithEntityType(EntityBase.GetEntityType<Chess>());
+        var cachedChessInfoDict = compChessBoard.CreateCacheChessInfoDict();
+
+        ChessInfo addChessInfo = new ChessInfo();
+        addChessInfo.chessGuid.value = chessGuid;
+        addChessInfo.chessFlag.value = (int)playerFlag;
+
+        compChessBoard.chessInfoDict.SetValue(posIndex.ToString(), addChessInfo);
+        List<int> pendingRemovePosIndexes = GetPendingRemovePosIndexes(playerFlag, coords);
+        foreach (int removePosIndex in pendingRemovePosIndexes) {
+            compChessBoard.chessInfoDict.Remove(removePosIndex.ToString());
+        }
+
+        List<int> selfRemovePosIndexes = GetPendingRemovePosIndexes(playerFlag.GetOpponentPlayerFlag(), coords);
+        if (selfRemovePosIndexes.Count > 0 || !CheckSingleChessValid(playerFlag, coords) || !compChessBoard.CheckChessFlagChanged()) {
+            compChessBoard.chessInfoDict = cachedChessInfoDict;
+            return false;
+        }
+
+        compChessBoard.lastChessInfoDict = cachedChessInfoDict;
+        compDuel.AppendKataGoMove(playerFlag, coords, boardSize);
+        return true;
     }
 
     private static int[] dirX = { 0, 0, 1, -1 };

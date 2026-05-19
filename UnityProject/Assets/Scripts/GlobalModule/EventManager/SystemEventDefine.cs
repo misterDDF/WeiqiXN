@@ -62,6 +62,36 @@ public class OnSaveDuelScene : SystemEventBase
     public override string GetEventType() => GetEventType<OnSaveDuelScene>();
 }
 
+public class OnRequestDuelOwnership : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnRequestDuelOwnership>();
+}
+
+public class OnRequestClearDuelOwnership : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnRequestClearDuelOwnership>();
+}
+
+public class OnDuelOwnershipResult : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnDuelOwnershipResult>();
+
+    public float blackPoints;
+    public float whitePoints;
+    public float komi;
+    public OnDuelOwnershipResult(float blackPoints, float whitePoints, float komi)
+    {
+        this.blackPoints = blackPoints;
+        this.whitePoints = whitePoints;
+        this.komi = komi;
+    }
+}
+
+public class OnClearDuelOwnership : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnClearDuelOwnership>();
+}
+
 public class OnDuelStateChanged : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnDuelStateChanged>();

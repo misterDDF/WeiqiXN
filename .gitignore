@@ -13,6 +13,7 @@ $RECYCLE.BIN/
 
 # Build
 /Build/
+/save/
 UnityProject/ProjectSettings/PackageManagerSettings.asset
 UnityProject/ProjectSettings/ProjectVersion.txt
 UnityProject/Assets/UI/Font/SourceHanSansSC-Regular SDF.asset

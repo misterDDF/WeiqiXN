@@ -15,7 +15,18 @@ public class DuelSaveSystem : SystemBase
 
     public void OnSaveDuelScene(OnSaveDuelScene evt)
     {
-        string saveFilePath = GameSaveConfig.GetDuelSceneSavePath(0);
+        int saveSlotIndex = 0;
+        string saveFilePath = GameSaveConfig.GetDuelSceneSavePath(saveSlotIndex);
+        string recordFilePath = GameSaveConfig.GetDuelRecordSavePath(saveSlotIndex);
+        string saveInfoFilePath = GameSaveConfig.GetDuelSaveInfoPath(saveSlotIndex);
+        if (!KataGoDuelRecordFile.Save((DuelScene)scene, recordFilePath)) {
+            return;
+        }
+
+        if (!DuelSaveInfoFile.Save((DuelScene)scene, saveInfoFilePath, saveSlotIndex)) {
+            return;
+        }
+
         _ = Global.Instance.gameSaveManager.SaveDataAsync(scene, saveFilePath);
     }
 }
