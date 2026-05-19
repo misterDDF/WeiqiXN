@@ -6,6 +6,7 @@ namespace XNClient.ChessBoard
     {
         public static Vector3 zeroPos = Vector3.zero;
 
+        // Coordinates follow KataGo board layout: x grows left to right, z grows top to bottom.
         public int x;
         public int z;
 

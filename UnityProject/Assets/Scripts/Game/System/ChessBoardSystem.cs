@@ -61,11 +61,7 @@ public class ChessBoardSystem : SystemBase
                     chessInfo.chessFlag.value == (int)chess.playerFlag
                 ) {
                     Transform gridTransform = compChessBoard.chessBoardGrid.transform;
-                    Vector3 localChessPos = new Vector3(
-                        (chess.coords.x + 0.5f) * ChessBoardConfig.rectCellSideLength,
-                        0f,
-                        (chess.coords.z + 0.5f) * ChessBoardConfig.rectCellSideLength
-                    );
+                    Vector3 localChessPos = compChessBoard.chessBoardGrid.GetCellCenterLocalPosition(chess.coords.x, chess.coords.z);
                     chess.transform.position = gridTransform.TransformPoint(localChessPos);
                 } else {
                     chess.Destroy();

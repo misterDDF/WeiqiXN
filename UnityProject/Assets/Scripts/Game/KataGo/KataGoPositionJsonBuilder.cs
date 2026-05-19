@@ -62,7 +62,7 @@ public static class KataGoPositionJsonBuilder
             throw new ArgumentOutOfRangeException(nameof(coords), coords.ToString(), "Coordinates are outside of the board.");
         }
 
-        return $"{GoColumns[coords.x]}{coords.z + 1}";
+        return $"{GoColumns[coords.x]}{boardSize - coords.z}";
     }
 
     public static bool TryParseKataGoPoint(string point, int boardSize, out RectCoordinates coords)
@@ -82,7 +82,7 @@ public static class KataGoPositionJsonBuilder
             return false;
         }
 
-        int z = row - 1;
+        int z = boardSize - row;
         if (z < 0 || z >= boardSize) {
             return false;
         }

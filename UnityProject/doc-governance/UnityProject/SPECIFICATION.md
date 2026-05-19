@@ -13,7 +13,7 @@
 ### 2026-05-15 Current Addendum
 
 - 2026-05-19：启动流程会统一调用 `KataGoBootstrap.Start()`，退出时调用 `KataGoBootstrap.Stop()`；平台差异由 `KataGoBootstrap` 内部处理。Windows Unity Editor 当前会后台启动 `ExternalTools/KataGo/engines/win-x64/eigenavx2/katago.exe analysis`，加载 `kata1-b18c384nbt-s9996604416-d4316597426.bin.gz`，并发送固定 19 路 smoke query 验证 `ownership` 能返回；非支持平台会记录跳过原因。`DuelPage` 右下角常驻“形式”按钮，点击后发出 `OnRequestDuelOwnership`，按钮文案切为“关闭”；再次点击会发出 `OnRequestClearDuelOwnership`、清除形势绘制和结果面板，并把按钮文案切回“形式”。`DuelOwnershipSystem` 请求 KataGo `ownership` 后会在棋盘交叉点绘制黑白小方块控制区，同时在按钮上方的结果面板显示黑方目数和白方目数；白方目数会加上当前 query 的 `komi` 并显示“（贴目后）”。每次新分析请求和下一手合法落子都会清除旧图层与旧结果面板。第一版形势按钮只关心 `ownership` 控制区域，不展示、不缓存也不以 `rootInfo.scoreLead`、胜率或最佳选点作为产品信息。该流程当前不参与正式数子、落子校验或客户端打包。
-- 2026-05-19：合法落子成功后会向 `SceneComponentDuel.kataGoMoves` 追加 KataGo 标准手顺数组项，例如 `["B","Q16"]`、`["W","D4"]`。`DuelSaveSystem` 保存对局时先写入 `GameSaveConfig.GetDuelRecordSavePath(0)` 指向的 KataGo analysis JSON 记录文件，再保存场景状态；记录文件包含 `boardXSize`、`boardYSize`、`rules`、`komi`、`initialStones: []`、`moves`、`includeOwnership: true` 和 `includePolicy: false`，可直接作为第一版 ownership 分析请求骨架。读取对局时，棋盘状态由记录文件回放恢复，`SceneComponentChessBoard.chessInfoDict` 只作为运行时棋盘缓存，不再作为存档恢复权威。`KataGoPositionJsonBuilder.BuildOwnershipAnalysisJson` 是第一版形势按钮默认入口，优先使用当前对局的 `moves` 生成 ownership 请求；`BuildAnalysisJsonWithCurrentBoard` 只保留为调试或无手顺场景的快照入口。
+- 2026-05-19：合法落子成功后会向 `SceneComponentDuel.kataGoMoves` 追加 KataGo 标准手顺数组项，例如 `["B","Q16"]`、`["W","D4"]`。本地 `RectCoordinates` 直接采用 KataGo 棋盘布局作为逻辑坐标契约：`x` 从左到右递增，`z` 从棋盘上边向下递增；9 路左上角为本地 `(0,0)` 并写为 `A9`，左下角为本地 `(0,8)` 并写为 `A1`。KataGo `ownership` 数组按同一行序直接回绘，不再在 KataGo 边界做额外坐标兼容转换。`DuelSaveSystem` 保存对局时先写入 `GameSaveConfig.GetDuelRecordSavePath(0)` 指向的 KataGo analysis JSON 记录文件，再保存场景状态；记录文件包含 `boardXSize`、`boardYSize`、`rules`、`komi`、`initialStones: []`、`moves`、`includeOwnership: true` 和 `includePolicy: false`，可直接作为第一版 ownership 分析请求骨架。读取对局时，棋盘状态由记录文件回放恢复，`SceneComponentChessBoard.chessInfoDict` 只作为运行时棋盘缓存，不再作为存档恢复权威。`KataGoPositionJsonBuilder.BuildOwnershipAnalysisJson` 是第一版形势按钮默认入口，优先使用当前对局的 `moves` 生成 ownership 请求；`BuildAnalysisJsonWithCurrentBoard` 只保留为调试或无手顺场景的快照入口。
 - `DuelSetupPopup` now passes board, hold-time, byoyomi-count, and byoyomi-time config ids into `DuelSceneCreateParamas`; when the prefab is still on the old three-board-button layout, selecting a board starts a game with default time settings.
 - Hold-time options are table-driven by `Assets/Config/DataJson/duel_hold_time/duel_hold_time.json`: `2m`, `5m`, `10m`, `20m`, and `infinite`.
 - Byoyomi count options are table-driven by `Assets/Config/DataJson/duel_byoyomi_count/duel_byoyomi_count.json`: `off`, `1`, `3`, and `5`. `off` means no byoyomi after hold time runs out.
@@ -38,7 +38,7 @@
 - `DuelScene` 创建 `SceneComponentChessBoard` 和 `SceneComponentDuel`，从 `DuelSceneFixedRef` 绑定固定场景引用，安装 `DuelSaveSystem`、`ChessBoardSystem`、`DuelOwnershipSystem`、`DuelSystem`，然后打开 `DuelPage`。
 - `SceneComponentChessBoard` 保存当前棋盘配置 id、运行时按棋盘位置索引缓存的棋子信息、用于简单重复局面对比的上一局面快照、`RectGrid` 引用和对局虚拟相机引用。
 - `SceneComponentDuel` 保存双方玩家 guid、当前回合玩家 guid、时间配置、超时/胜者 guid，以及运行时 KataGo 标准 `moves` 手顺。
-- `RectGrid` 及其相关棋盘类使用 `RectCoordinates` 生成和寻址矩形棋盘。
+- `RectGrid` 及其相关棋盘类使用 `RectCoordinates` 生成和寻址矩形棋盘；`RectCoordinates` 的逻辑行列语义与 KataGo 坐标保持一致。
 - `ChessBoardSystem` 根据所选棋盘尺寸初始化网格，调整对局相机以覆盖棋盘，并在读取存档时通过 KataGo 记录文件回放恢复运行时棋盘缓存和棋子实体。
 - `DuelSystem` 在新对局中创建两个本地玩家并启动对局状态机；读取存档时，它会按存档中的玩家 guid 重新创建玩家，并激活回合输入状态。
 - `DuelFSM` 当前定义本地回合循环：`GameStart -> TurnStart -> TurnInput -> TurnEnd -> TurnStart`，回合输入可以通过落子完成或超时进入回合结束。

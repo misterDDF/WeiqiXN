@@ -29,6 +29,12 @@
 - KataGo 接入应先作为编辑器验证用的本地子进程适配器存在：Unity 侧负责启动 `katago analysis`、通过 stdin/stdout 交换 JSON、解析第一版形势按钮所需的 `ownership`，并把启动失败、超时、缺少模型或配置文件等情况转成可诊断状态。形势展示由 UI 发事件、系统请求分析、棋盘表现层绘制 overlay，不让 KataGo 适配器直接修改棋盘规则状态。
 - 游戏侧手顺格式应直接使用 KataGo 标准 `moves` 数组项，不再维护额外字符串棋谱格式或转换层。KataGo analysis JSON 生成优先输出 `moves`，是形势按钮、记录文件和后续复盘分析的统一路径；当前盘面 `initialStones` 快照入口只作为调试或无手顺场景使用。
 
+## Coordinate Contract
+
+**坐标契约**
+
+- 本地棋盘逻辑坐标以 KataGo 布局为权威：`RectCoordinates.x` 从左到右递增，`RectCoordinates.z` 从棋盘上边向下递增，棋盘缓存索引和 KataGo `ownership` 都使用 `z * boardSize + x` 行序。Unity 本地空间中的显示位置由棋盘表现层从该逻辑坐标计算，不在 KataGo JSON 边界维护第二套转换语义。
+
 ## Key Tradeoffs
 
 **关键取舍**

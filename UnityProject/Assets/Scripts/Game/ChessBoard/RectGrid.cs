@@ -42,6 +42,15 @@ namespace XNClient.ChessBoard
             return new Bounds(worldCenter, size);
         }
 
+        public Vector3 GetCellCenterLocalPosition(int x, int z)
+        {
+            return new Vector3(
+                (x + 0.5f) * ChessBoardConfig.rectCellSideLength,
+                0f,
+                (gridSize - z - 0.5f) * ChessBoardConfig.rectCellSideLength
+            );
+        }
+
         public void DrawOwnership(JArray ownership)
         {
             ClearOwnership();
@@ -93,11 +102,9 @@ namespace XNClient.ChessBoard
             GameObject square = GameObject.CreatePrimitive(PrimitiveType.Quad);
             square.name = $"Ownership_{x}_{z}";
             square.transform.SetParent(ownershipRoot.transform, false);
-            square.transform.localPosition = new Vector3(
-                (x + 0.5f) * ChessBoardConfig.rectCellSideLength,
-                OwnershipYOffset,
-                (z + 0.5f) * ChessBoardConfig.rectCellSideLength
-            );
+            Vector3 localPosition = GetCellCenterLocalPosition(x, z);
+            localPosition.y = OwnershipYOffset;
+            square.transform.localPosition = localPosition;
             square.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
             square.transform.localScale = new Vector3(squareSize, squareSize, 1f);
 
@@ -191,10 +198,10 @@ namespace XNClient.ChessBoard
             }
 
             if (z > 0) {
-                int southNeighborIndex = (z - 1) * gridSize + x;
-                RectCell southNeighbor = cellList[southNeighborIndex];
-                cell.neighbors[(int)RectDirection.S] = southNeighbor;
-                southNeighbor.neighbors[(int)RectDirection.N] = cell;
+                int northNeighborIndex = (z - 1) * gridSize + x;
+                RectCell northNeighbor = cellList[northNeighborIndex];
+                cell.neighbors[(int)RectDirection.N] = northNeighbor;
+                northNeighbor.neighbors[(int)RectDirection.S] = cell;
             }
 
             return cell;

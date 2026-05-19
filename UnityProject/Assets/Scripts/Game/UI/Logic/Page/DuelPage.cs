@@ -93,7 +93,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         float cellSideLength = ChessBoardConfig.rectCellSideLength;
 
         int nearestCellX = Mathf.RoundToInt(localHitPoint.x / cellSideLength - 0.5f);
-        int nearestCellZ = Mathf.RoundToInt(localHitPoint.z / cellSideLength - 0.5f);
+        int nearestCellZ = compChessBoard.chessBoardGrid.gridSize - 1 - Mathf.RoundToInt(localHitPoint.z / cellSideLength - 0.5f);
 
         int maxCellIndex = Mathf.Max(compChessBoard.chessBoardGrid.gridSize - 1, 0);
         nearestCellX = Mathf.Clamp(nearestCellX, 0, maxCellIndex);
@@ -111,11 +111,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             return;
         }
 
-        Vector3 nearestCellCenterLocalPos = new Vector3(
-            (nearestCellX + 0.5f) * cellSideLength,
-            0f,
-            (nearestCellZ + 0.5f) * cellSideLength
-        );
+        Vector3 nearestCellCenterLocalPos = compChessBoard.chessBoardGrid.GetCellCenterLocalPosition(nearestCellX, nearestCellZ);
         aimChessPreview.transform.position = gridTransform.TransformPoint(nearestCellCenterLocalPos);
         aimCoords.SetValue(nearestCoords.x, nearestCoords.z);
         SetAimChessPreviewActive(true);

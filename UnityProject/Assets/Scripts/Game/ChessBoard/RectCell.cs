@@ -19,7 +19,7 @@ namespace XNClient.ChessBoard
                 }
 
                 float localX = (coordinates.x - chunk.startCellX + 0.5f) * ChessBoardConfig.rectCellSideLength;
-                float localZ = (coordinates.z - chunk.startCellZ + 0.5f) * ChessBoardConfig.rectCellSideLength;
+                float localZ = (chunk.chunkSizeZ - (coordinates.z - chunk.startCellZ) - 0.5f) * ChessBoardConfig.rectCellSideLength;
                 return new Vector3(localX, 0f, localZ);
             }
         }

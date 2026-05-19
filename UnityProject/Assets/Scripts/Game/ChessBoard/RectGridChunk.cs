@@ -50,11 +50,10 @@ namespace XNClient.ChessBoard
             }
             this.gridSize = gridSize;
 
-            // 整个棋盘以左下为(0, 0)原点往右上扩张，chunk gameObject的位置为chunk的左下原点
             transform.localPosition = new Vector3(
                 startCellX * ChessBoardConfig.rectCellSideLength,
                 0f,
-                startCellZ * ChessBoardConfig.rectCellSideLength
+                (gridSize - startCellZ - chunkSizeZ) * ChessBoardConfig.rectCellSideLength
             );
 
             cellList.Clear();

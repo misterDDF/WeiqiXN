@@ -20,9 +20,10 @@
 ## 当前进度
 
 - 支持 `9x9`、`13x13`、`19x19` 三种棋盘。
+- `RectCoordinates` 直接采用 KataGo 棋盘布局：`x` 从左到右递增，`z` 从棋盘上边向下递增；棋盘缓存索引使用 `z * boardSize + x`。
 - `RectGrid` 按配置尺寸生成棋盘并计算边界。
 - `RectGridChunk` 负责分块 mesh 和棋盘视觉结构。
-- `RectGrid` 可以绘制和清除 ownership overlay：形势分析结果会在棋盘交叉点显示黑白小方块，作为 AI 预测控制区域的表现层，不写入棋盘规则状态。
+- `RectGrid` 可以绘制和清除 ownership overlay：形势分析结果会按 KataGo `ownership` 行序直接在棋盘交叉点显示黑白小方块，作为 AI 预测控制区域的表现层，不写入棋盘规则状态。
 - `SceneComponentChessBoard` 负责棋盘配置 id、运行时当前棋子信息、上一局面棋子信息、棋盘引用和虚拟相机引用；棋子字典不再作为持久化棋盘权威。
 - `ChessBoardSystem.Init()` 根据棋盘配置初始化网格，设置相机俯视棋盘，并在读档时通过 KataGo 记录文件回放恢复运行时棋盘缓存和棋子实体。
 - `OnAddChessToBoard` 是当前落子主入口。
