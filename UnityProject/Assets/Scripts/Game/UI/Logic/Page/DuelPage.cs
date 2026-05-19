@@ -224,7 +224,11 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
     public void OnClickBtnExit()
     {
-        Global.Instance.sceneManager.EnterMainScene(SceneConfig.MAIN_MENU_SCENE_TYPE_ID, SceneCreateParams.Default);
+        ConfirmPopup.Show(
+            "退出对局",
+            "确认退出当前对局？",
+            () => Global.Instance.sceneManager.EnterMainScene(SceneConfig.MAIN_MENU_SCENE_TYPE_ID, SceneCreateParams.Default)
+        );
     }
 
     public void OnClickBtnOwnership()

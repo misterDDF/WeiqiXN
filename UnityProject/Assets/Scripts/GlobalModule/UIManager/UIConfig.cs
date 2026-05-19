@@ -6,7 +6,7 @@ public enum UIContextType
     General = 1,
     Header = 2,
     Loading = 6,
-    TopMost = 99,
+    TopMost = 8,
 }
 
 public static class UIConfig

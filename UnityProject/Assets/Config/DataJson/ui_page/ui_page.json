@@ -34,5 +34,11 @@
     "contextType": "Header",
     "isPopup": false,
     "isLoadAsync": true
+  },
+  "ConfirmPopup": {
+    "id": "ConfirmPopup",
+    "contextType": "TopMost",
+    "isPopup": true,
+    "isLoadAsync": false
   }
 }
