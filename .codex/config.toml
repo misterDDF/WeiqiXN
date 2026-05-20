@@ -3,5 +3,35 @@ command = "node"
 args = ["UnityProject/Packages/com.gamelovers.mcp-unity/Server~/build/index.js"]
 env = { UNITY_PORT = "8090", UNITY_HOST = "localhost", UNITY_REQUEST_TIMEOUT = "15000" }
 
+[mcp_servers.mcp-unity.tools.batch_execute]
+approval_mode = "approve"
+
+[mcp_servers.mcp-unity.tools.get_console_logs]
+approval_mode = "approve"
+
+[mcp_servers.mcp-unity.tools.get_gameobject]
+approval_mode = "approve"
+
+[mcp_servers.mcp-unity.tools.get_material_info]
+approval_mode = "approve"
+
 [mcp_servers.mcp-unity.tools.get_scene_info]
+approval_mode = "approve"
+
+[mcp_servers.mcp-unity.tools.recompile_scripts]
+approval_mode = "approve"
+
+[mcp_servers.mcp-unity.tools.run_tests]
+approval_mode = "approve"
+
+[mcp_servers.mcp-unity.tools.save_scene]
+approval_mode = "approve"
+
+[mcp_servers.mcp-unity.tools.select_gameobject]
+approval_mode = "approve"
+
+[mcp_servers.mcp-unity.tools.send_console_log]
+approval_mode = "approve"
+
+[mcp_servers.mcp-unity.tools.execute_menu_item]
 approval_mode = "approve"

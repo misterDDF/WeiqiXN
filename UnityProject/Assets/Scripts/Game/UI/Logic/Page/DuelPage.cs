@@ -525,7 +525,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
     private void SetOwnershipButtonText(bool isVisible)
     {
-        SetText(binder.txt_duel_ownership_button, isVisible ? "关闭" : "形式");
+        SetText(binder.txt_duel_ownership_button, isVisible ? "关闭" : "形势");
     }
 
     private bool IsSettingsPanelVisible()
