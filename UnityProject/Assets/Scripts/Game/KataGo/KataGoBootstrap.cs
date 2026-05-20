@@ -11,15 +11,19 @@ using Debug = UnityEngine.Debug;
 public static class KataGoBootstrap
 {
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
-    private const string EngineName = "eigenavx2";
+    private const string OpenClEngineName = "opencl";
+    private const string CpuEngineName = "eigenavx2";
     private const string ModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
-    private const int SmokeTestTimeoutMs = 45000;
+    private const int OpenClSmokeTestTimeoutMs = 300000;
+    private const int CpuSmokeTestTimeoutMs = 45000;
     private const int AnalyzeTimeoutMs = 45000;
     private const bool HumanSlProfileEnabled = false;
 
     private static Win32KataGoProcess process;
     private static readonly SemaphoreSlim analysisSemaphore = new SemaphoreSlim(1, 1);
+    private static KataGoPaths[] engineCandidates;
     private static KataGoPaths activePaths;
+    private static int activeCandidateIndex = -1;
     private static bool hasActivePaths;
     private static bool isStarted;
 #endif
@@ -39,13 +43,13 @@ public static class KataGoBootstrap
         }
 
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
-        KataGoPaths paths = ResolvePaths(platformConfig);
-        if (!paths.IsValid(out string invalidReason)) {
-            XNLogger.LogError("KataGo startup skipped.", ("reason", invalidReason));
+        KataGoPaths[] candidates = ResolveCandidatePaths(platformConfig);
+        if (candidates.Length == 0) {
+            XNLogger.LogError("KataGo startup skipped.", ("reason", "No KataGo engine candidates resolved."));
             return;
         }
 
-        StartProcessTask(paths);
+        StartProcessTask(candidates);
 #else
         XNLogger.LogWarn("KataGo startup skipped.", ("reason", "Local process startup is not compiled for this platform."));
 #endif
@@ -105,9 +109,9 @@ public static class KataGoBootstrap
         return new PlatformConfig
         {
             isSupported = true,
+            unsupportedReason = null,
             kataGoRoot = kataGoRoot,
-            engineRoot = Path.Combine(kataGoRoot, "engines", "win-x64", EngineName),
-            engineName = EngineName,
+            engineRoot = Path.Combine(kataGoRoot, "engines", "win-x64"),
         };
 #else
         return new PlatformConfig
@@ -119,26 +123,38 @@ public static class KataGoBootstrap
     }
 
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
-    private static KataGoPaths ResolvePaths(PlatformConfig platformConfig)
+    private static KataGoPaths[] ResolveCandidatePaths(PlatformConfig platformConfig)
     {
-        return new KataGoPaths
+        return new[]
         {
-            exePath = Path.Combine(platformConfig.engineRoot, "katago.exe"),
-            configPath = Path.Combine(platformConfig.engineRoot, "analysis_example.cfg"),
-            modelPath = Path.Combine(platformConfig.kataGoRoot, "models", ModelFileName),
-            workingDirectory = platformConfig.engineRoot,
-            engineName = platformConfig.engineName,
+            ResolvePaths(platformConfig, OpenClEngineName, OpenClSmokeTestTimeoutMs),
+            ResolvePaths(platformConfig, CpuEngineName, CpuSmokeTestTimeoutMs),
         };
     }
 
-    private static void StartProcessTask(KataGoPaths paths)
+    private static KataGoPaths ResolvePaths(PlatformConfig platformConfig, string engineName, int smokeTestTimeoutMs)
     {
-        activePaths = paths;
-        hasActivePaths = true;
+        string engineRoot = Path.Combine(platformConfig.engineRoot, engineName);
+        return new KataGoPaths
+        {
+            exePath = Path.Combine(engineRoot, "katago.exe"),
+            configPath = Path.Combine(engineRoot, "analysis_example.cfg"),
+            modelPath = Path.Combine(platformConfig.kataGoRoot, "models", ModelFileName),
+            workingDirectory = engineRoot,
+            engineName = engineName,
+            smokeTestTimeoutMs = smokeTestTimeoutMs,
+        };
+    }
+
+    private static void StartProcessTask(KataGoPaths[] candidates)
+    {
+        engineCandidates = candidates;
+        activeCandidateIndex = -1;
+        hasActivePaths = false;
         isStarted = true;
         cancellationTokenSource?.Dispose();
         cancellationTokenSource = new CancellationTokenSource();
-        startupTask = Task.Run(() => StartAndSmokeTest(paths, cancellationTokenSource.Token));
+        startupTask = Task.Run(() => StartFirstAvailableEngine(candidates, 0, cancellationTokenSource.Token));
     }
 
     private static void StopProcessTask()
@@ -154,6 +170,8 @@ public static class KataGoBootstrap
         cancellationTokenSource?.Dispose();
         cancellationTokenSource = null;
         startupTask = null;
+        engineCandidates = null;
+        activeCandidateIndex = -1;
         hasActivePaths = false;
         isStarted = false;
     }
@@ -168,15 +186,20 @@ public static class KataGoBootstrap
             return true;
         }
 
-        if (!isStarted || !hasActivePaths) {
+        KataGoPaths[] candidates = engineCandidates;
+        if (!isStarted || candidates == null || candidates.Length == 0) {
             return false;
         }
 
-        XNLogger.LogWarn("KataGo process is not running, restarting before analyze.");
-        StartProcessTask(activePaths);
-        if (startupTask != null) {
-            await startupTask;
-        }
+        int restartIndex = hasActivePaths ? activeCandidateIndex : 0;
+        XNLogger.LogWarn(
+            "KataGo process is not running, restarting before analyze.",
+            ("engine", hasActivePaths ? activePaths.engineName : "none"));
+
+        cancellationTokenSource?.Dispose();
+        cancellationTokenSource = new CancellationTokenSource();
+        startupTask = Task.Run(() => StartFirstAvailableEngine(candidates, restartIndex, cancellationTokenSource.Token));
+        await startupTask;
 
         return IsProcessRunning();
     }
@@ -191,7 +214,62 @@ public static class KataGoBootstrap
         }
     }
 
-    private static void StartAndSmokeTest(KataGoPaths paths, CancellationToken cancellationToken)
+    private static void StartFirstAvailableEngine(KataGoPaths[] candidates, int startCandidateIndex, CancellationToken cancellationToken)
+    {
+        StopProcess();
+        hasActivePaths = false;
+        activeCandidateIndex = -1;
+
+        if (candidates == null || candidates.Length == 0) {
+            XNLogger.LogError("KataGo startup failed, no engine candidate is available.");
+            return;
+        }
+
+        int safeStartIndex = Math.Max(0, startCandidateIndex);
+        for (int i = safeStartIndex; i < candidates.Length; i++) {
+            if (cancellationToken.IsCancellationRequested) {
+                StopProcess();
+                return;
+            }
+
+            KataGoPaths paths = candidates[i];
+            if (!paths.IsValid(out string invalidReason)) {
+                XNLogger.LogWarn(
+                    "KataGo engine candidate skipped.",
+                    ("engine", paths.engineName),
+                    ("reason", invalidReason));
+                continue;
+            }
+
+            if (TryStartAndSmokeTest(paths, cancellationToken)) {
+                if (cancellationToken.IsCancellationRequested) {
+                    StopProcess();
+                    return;
+                }
+
+                activePaths = paths;
+                activeCandidateIndex = i;
+                hasActivePaths = true;
+                XNLogger.LogInfo(
+                    "KataGo engine selected.",
+                    ("engine", paths.engineName),
+                    ("exePath", paths.exePath),
+                    ("modelPath", paths.modelPath));
+                return;
+            }
+
+            if (i + 1 < candidates.Length) {
+                XNLogger.LogWarn(
+                    "KataGo engine fallback.",
+                    ("from", paths.engineName),
+                    ("to", candidates[i + 1].engineName));
+            }
+        }
+
+        XNLogger.LogError("KataGo startup failed, no engine candidate is available.");
+    }
+
+    private static bool TryStartAndSmokeTest(KataGoPaths paths, CancellationToken cancellationToken)
     {
         try {
             StartProcess(paths);
@@ -201,11 +279,17 @@ public static class KataGoBootstrap
                 ("exePath", paths.exePath),
                 ("modelPath", paths.modelPath));
 
-            RunSmokeTest(cancellationToken);
+            RunSmokeTest(paths, cancellationToken);
+            return true;
+        }
+        catch (OperationCanceledException) {
+            StopProcess();
+            return false;
         }
         catch (Exception ex) {
             XNLogger.LogError(
-                "KataGo startup failed.",
+                "KataGo engine candidate failed.",
+                ("engine", paths.engineName),
                 ("errType", ex.GetType().Name),
                 ("err", ex.Message),
                 ("exePath", paths.exePath),
@@ -215,6 +299,7 @@ public static class KataGoBootstrap
                 ("workingDirectory", paths.workingDirectory),
                 ("workingDirectoryExists", Directory.Exists(paths.workingDirectory).ToString()));
             StopProcess();
+            return false;
         }
     }
 
@@ -229,12 +314,12 @@ public static class KataGoBootstrap
             paths.workingDirectory);
     }
 
-    private static void RunSmokeTest(CancellationToken cancellationToken)
+    private static void RunSmokeTest(KataGoPaths paths, CancellationToken cancellationToken)
     {
         string query = "{\"id\":\"editor-smoke-001\",\"initialStones\":[],\"moves\":[[\"B\",\"Q16\"],[\"W\",\"D4\"],[\"B\",\"Q4\"],[\"W\",\"D16\"]],\"rules\":\"chinese\",\"komi\":7.5,\"boardXSize\":19,\"boardYSize\":19,\"maxVisits\":4,\"includeOwnership\":true,\"includePolicy\":false}";
         process.WriteLine(query);
 
-        DateTime deadline = DateTime.UtcNow.AddMilliseconds(SmokeTestTimeoutMs);
+        DateTime deadline = DateTime.UtcNow.AddMilliseconds(paths.smokeTestTimeoutMs);
         while (DateTime.UtcNow < deadline) {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -242,7 +327,7 @@ public static class KataGoBootstrap
                 throw new InvalidOperationException("KataGo exited before returning smoke test result.");
             }
 
-            string line = ReadOutputLineBefore(deadline, cancellationToken, "KataGo smoke test", SmokeTestTimeoutMs);
+            string line = ReadOutputLineBefore(deadline, cancellationToken, "KataGo smoke test", paths.smokeTestTimeoutMs);
             if (string.IsNullOrWhiteSpace(line)) {
                 continue;
             }
@@ -261,6 +346,7 @@ public static class KataGoBootstrap
 
             XNLogger.LogInfo(
                 "KataGo editor smoke test success.",
+                ("engine", paths.engineName),
                 ("id", (string)result["id"]),
                 ("scoreLead", rootInfo?["scoreLead"]?.ToString() ?? "null"),
                 ("visits", rootInfo?["visits"]?.ToString() ?? "null"),
@@ -268,7 +354,7 @@ public static class KataGoBootstrap
             return;
         }
 
-        throw new TimeoutException($"KataGo smoke test timed out after {SmokeTestTimeoutMs}ms.");
+        throw new TimeoutException($"KataGo smoke test timed out after {paths.smokeTestTimeoutMs}ms.");
     }
 
     private static JObject Analyze(JObject query, int timeoutMs)
@@ -321,6 +407,7 @@ public static class KataGoBootstrap
 
                 XNLogger.LogInfo(
                     "KataGo analyze success.",
+                    ("engine", hasActivePaths ? activePaths.engineName : "unknown"),
                     ("id", requestId),
                     ("hasOwnership", (result["ownership"] != null).ToString()),
                     ("moveInfoCount", ((result["moveInfos"] as JArray)?.Count ?? 0).ToString()));
@@ -417,6 +504,7 @@ public static class KataGoBootstrap
         public string modelPath;
         public string workingDirectory;
         public string engineName;
+        public int smokeTestTimeoutMs;
 
         public bool IsValid(out string reason)
         {
@@ -460,6 +548,5 @@ public static class KataGoBootstrap
         public string unsupportedReason;
         public string kataGoRoot;
         public string engineRoot;
-        public string engineName;
     }
 }

@@ -23,6 +23,7 @@
 - 当前系统事实以 [SPECIFICATION.md](SPECIFICATION.md) 为准。
 - 架构边界、设计理由和长期约束以 [ARCHITECTURE.md](ARCHITECTURE.md) 为准。
 - 阶段计划、当前目标和范围控制以 [ROADMAP.md](ROADMAP.md) 为准。
+- 当前已知未修复 bug 记录在 [KNOWN_BUGS.md](KNOWN_BUGS.md)；修复并验证后移除对应条目。
 - 模块扫描说明放在 [modules/00-progress-check.md](modules/00-progress-check.md) 及同目录的模块文档中。
 - 本文件只定义入口、执行约束、文档路由和维护规则，不承载详细系统事实。
 

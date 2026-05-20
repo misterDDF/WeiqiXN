@@ -17,6 +17,8 @@ public class AssetBundleGenerator
         "models",
     };
 
+    private const string KataGoOpenClEngineName = "opencl";
+    private const string KataGoCpuEngineName = "eigenavx2";
     private const string KataGoModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
 
     [MenuItem("Assets/打包/打PC包")]
@@ -428,9 +430,10 @@ public class AssetBundleGenerator
     private static void ValidateWindowsKataGoStreamingAssets()
     {
         string kataGoRoot = Path.Combine(Application.streamingAssetsPath, "KataGo");
-        string engineRoot = Path.Combine(kataGoRoot, "engines", "win-x64", "eigenavx2");
-        string exePath = Path.Combine(engineRoot, "katago.exe");
-        string configPath = Path.Combine(engineRoot, "analysis_example.cfg");
+        string cpuEngineRoot = Path.Combine(kataGoRoot, "engines", "win-x64", KataGoCpuEngineName);
+        string openClEngineRoot = Path.Combine(kataGoRoot, "engines", "win-x64", KataGoOpenClEngineName);
+        string cpuExePath = Path.Combine(cpuEngineRoot, "katago.exe");
+        string cpuConfigPath = Path.Combine(cpuEngineRoot, "analysis_example.cfg");
         string modelPath = Path.Combine(kataGoRoot, "models", KataGoModelFileName);
 
         List<string> missingPaths = new List<string>();
@@ -441,21 +444,36 @@ public class AssetBundleGenerator
             }
         }
 
-        if (!File.Exists(exePath)) {
-            missingPaths.Add(exePath);
+        if (!File.Exists(cpuExePath)) {
+            missingPaths.Add(cpuExePath);
         }
 
-        if (!File.Exists(configPath)) {
-            missingPaths.Add(configPath);
+        if (!File.Exists(cpuConfigPath)) {
+            missingPaths.Add(cpuConfigPath);
         }
 
         if (!File.Exists(modelPath)) {
             missingPaths.Add(modelPath);
         }
 
+        if (Directory.Exists(openClEngineRoot) && Directory.GetFiles(openClEngineRoot).Length > 0) {
+            string openClExePath = Path.Combine(openClEngineRoot, "katago.exe");
+            string openClConfigPath = Path.Combine(openClEngineRoot, "analysis_example.cfg");
+            if (!File.Exists(openClExePath)) {
+                missingPaths.Add(openClExePath);
+            }
+
+            if (!File.Exists(openClConfigPath)) {
+                missingPaths.Add(openClConfigPath);
+            }
+        }
+        else {
+            Debug.LogWarning($"KataGo OpenCL engine is not bundled. Windows player will use CPU fallback only. path: {openClEngineRoot}");
+        }
+
         if (missingPaths.Count > 0) {
             throw new FileNotFoundException(
-                "Windows build requires KataGo runtime directories and entry files under Assets/StreamingAssets/KataGo. Missing paths: "
+                "Windows build requires KataGo CPU fallback runtime and any bundled OpenCL entry files under Assets/StreamingAssets/KataGo. Missing paths: "
                 + string.Join(", ", missingPaths));
         }
     }
