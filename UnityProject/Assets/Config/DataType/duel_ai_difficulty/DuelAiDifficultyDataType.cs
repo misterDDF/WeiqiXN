@@ -31,6 +31,29 @@ public class DuelAiDifficultyDataType
     public float maxScoreLoss9;  // 9路最大亏损目数
     public float maxScoreLoss13;  // 13路最大亏损目数
     public float maxScoreLoss19;  // 19路最大亏损目数
+    public bool dynamicBudgetEnabled;  // 动态预算开关
+    public int probeMaxVisits9;  // 9路探测访问次数
+    public int probeMaxVisits13;  // 13路探测访问次数
+    public int probeMaxVisits19;  // 19路探测访问次数
+    public int openingProbeMoveLimit9;  // 9路开局探测手数
+    public int openingProbeMoveLimit13;  // 13路开局探测手数
+    public int openingProbeMoveLimit19;  // 19路开局探测手数
+    public float closeScoreLeadThreshold9;  // 9路接近局势目差阈值
+    public float closeScoreLeadThreshold13;  // 13路接近局势目差阈值
+    public float closeScoreLeadThreshold19;  // 19路接近局势目差阈值
+    public float closeWinrateThreshold9;  // 9路接近胜率阈值
+    public float closeWinrateThreshold13;  // 13路接近胜率阈值
+    public float closeWinrateThreshold19;  // 19路接近胜率阈值
+    public float simpleCandidateGapThreshold9;  // 9路简单候选差距阈值
+    public float simpleCandidateGapThreshold13;  // 13路简单候选差距阈值
+    public float simpleCandidateGapThreshold19;  // 19路简单候选差距阈值
+    public float confidentBestMoveGapThreshold9;  // 9路明显首选差距阈值
+    public float confidentBestMoveGapThreshold13;  // 13路明显首选差距阈值
+    public float confidentBestMoveGapThreshold19;  // 19路明显首选差距阈值
+    public int forceFullBudgetMoveLimit9;  // 9路强制完整预算手数
+    public int forceFullBudgetMoveLimit13;  // 13路强制完整预算手数
+    public int forceFullBudgetMoveLimit19;  // 19路强制完整预算手数
+    public int probeMinMoveInfoCount;  // 探测最小候选数量
 
     public static Dictionary<string, DuelAiDifficultyDataType> DuelAiDifficultyDict;
 
