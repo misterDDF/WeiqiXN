@@ -1,7 +1,4 @@
 using System;
-#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
-using System.Diagnostics;
-#endif
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -20,7 +17,7 @@ public static class KataGoBootstrap
     private const int AnalyzeTimeoutMs = 45000;
     private const bool HumanSlProfileEnabled = false;
 
-    private static Process process;
+    private static Win32KataGoProcess process;
     private static readonly SemaphoreSlim analysisSemaphore = new SemaphoreSlim(1, 1);
     private static KataGoPaths activePaths;
     private static bool hasActivePaths;
@@ -186,9 +183,8 @@ public static class KataGoBootstrap
 
     private static bool IsProcessRunning()
     {
-        Process currentProcess = process;
         try {
-            return currentProcess != null && !currentProcess.HasExited;
+            return process != null && process.IsRunning;
         }
         catch (Exception) {
             return false;
@@ -208,7 +204,16 @@ public static class KataGoBootstrap
             RunSmokeTest(cancellationToken);
         }
         catch (Exception ex) {
-            XNLogger.LogError("KataGo startup failed.", ("err", ex.Message));
+            XNLogger.LogError(
+                "KataGo startup failed.",
+                ("errType", ex.GetType().Name),
+                ("err", ex.Message),
+                ("exePath", paths.exePath),
+                ("exeExists", File.Exists(paths.exePath).ToString()),
+                ("configExists", File.Exists(paths.configPath).ToString()),
+                ("modelExists", File.Exists(paths.modelPath).ToString()),
+                ("workingDirectory", paths.workingDirectory),
+                ("workingDirectoryExists", Directory.Exists(paths.workingDirectory).ToString()));
             StopProcess();
         }
     }
@@ -217,46 +222,23 @@ public static class KataGoBootstrap
     {
         StopProcess();
 
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = paths.exePath,
-            Arguments = $"analysis -config \"{paths.configPath}\" -model \"{paths.modelPath}\"",
-            WorkingDirectory = paths.workingDirectory,
-            UseShellExecute = false,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true,
-        };
-
-        process = new Process
-        {
-            StartInfo = startInfo,
-            EnableRaisingEvents = true,
-        };
-
-        process.ErrorDataReceived += OnKataGoErrorDataReceived;
-        process.Exited += OnKataGoExited;
-
-        if (!process.Start()) {
-            process = null;
-            throw new InvalidOperationException("Process.Start returned false.");
-        }
-
-        process.BeginErrorReadLine();
+        process = new Win32KataGoProcess();
+        process.Start(
+            paths.exePath,
+            $"analysis -config \"{paths.configPath}\" -model \"{paths.modelPath}\"",
+            paths.workingDirectory);
     }
 
     private static void RunSmokeTest(CancellationToken cancellationToken)
     {
         string query = "{\"id\":\"editor-smoke-001\",\"initialStones\":[],\"moves\":[[\"B\",\"Q16\"],[\"W\",\"D4\"],[\"B\",\"Q4\"],[\"W\",\"D16\"]],\"rules\":\"chinese\",\"komi\":7.5,\"boardXSize\":19,\"boardYSize\":19,\"maxVisits\":4,\"includeOwnership\":true,\"includePolicy\":false}";
-        process.StandardInput.WriteLine(query);
-        process.StandardInput.Flush();
+        process.WriteLine(query);
 
         DateTime deadline = DateTime.UtcNow.AddMilliseconds(SmokeTestTimeoutMs);
         while (DateTime.UtcNow < deadline) {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (process == null || process.HasExited) {
+            if (process == null || !process.IsRunning) {
                 throw new InvalidOperationException("KataGo exited before returning smoke test result.");
             }
 
@@ -298,18 +280,17 @@ public static class KataGoBootstrap
                 return null;
             }
 
-            Process currentProcess = process;
-            if (currentProcess == null || currentProcess.HasExited) {
+            Win32KataGoProcess currentProcess = process;
+            if (currentProcess == null || !currentProcess.IsRunning) {
                 XNLogger.LogError("KataGo analyze failed, process exited.");
                 return null;
             }
 
-            currentProcess.StandardInput.WriteLine(query.ToString(Newtonsoft.Json.Formatting.None));
-            currentProcess.StandardInput.Flush();
+            currentProcess.WriteLine(query.ToString(Newtonsoft.Json.Formatting.None));
 
             DateTime deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
             while (DateTime.UtcNow < deadline) {
-                if (process == null || currentProcess.HasExited) {
+                if (process == null || !currentProcess.IsRunning) {
                     XNLogger.LogError("KataGo analyze failed, process exited.");
                     return null;
                 }
@@ -395,7 +376,7 @@ public static class KataGoBootstrap
 
     private static void StopProcess()
     {
-        Process currentProcess = process;
+        Win32KataGoProcess currentProcess = process;
         process = null;
 
         if (currentProcess == null) {
@@ -403,23 +384,10 @@ public static class KataGoBootstrap
         }
 
         try {
-            currentProcess.ErrorDataReceived -= OnKataGoErrorDataReceived;
-            currentProcess.Exited -= OnKataGoExited;
-
-            if (!currentProcess.HasExited) {
-                try {
-                    currentProcess.StandardInput.Close();
-                }
-                catch (Exception) {
-                }
-
-                if (!currentProcess.WaitForExit(2000)) {
-                    currentProcess.Kill();
-                }
-            }
+            currentProcess.Stop();
         }
         catch (Exception ex) {
-            Debug.LogWarning($"Stop KataGo editor process failed: {ex.Message}");
+            Debug.LogWarning($"Stop KataGo process failed: {ex.Message}");
         }
         finally {
             currentProcess.Dispose();
@@ -434,41 +402,12 @@ public static class KataGoBootstrap
             throw new TimeoutException($"{operationName} timed out after {timeoutMs}ms.");
         }
 
-        Process currentProcess = process;
+        Win32KataGoProcess currentProcess = process;
         if (currentProcess == null) {
             throw new InvalidOperationException($"{operationName} failed because KataGo process is not running.");
         }
 
-        Task<string> readTask = currentProcess.StandardOutput.ReadLineAsync();
-        while (!readTask.Wait(100)) {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (process == null || currentProcess.HasExited) {
-                throw new InvalidOperationException($"{operationName} failed because KataGo exited before returning result.");
-            }
-
-            if (DateTime.UtcNow >= deadline) {
-                StopProcess();
-                throw new TimeoutException($"{operationName} timed out after {timeoutMs}ms. KataGo process was stopped and will be restarted before the next analyze request.");
-            }
-        }
-
-        return readTask.Result;
-    }
-
-    private static void OnKataGoErrorDataReceived(object sender, DataReceivedEventArgs e)
-    {
-        if (string.IsNullOrWhiteSpace(e.Data)) {
-            return;
-        }
-
-        Debug.Log($"[KataGo] {e.Data}");
-    }
-
-    private static void OnKataGoExited(object sender, EventArgs e)
-    {
-        Process exitedProcess = sender as Process;
-        XNLogger.LogWarn("KataGo process exited.", ("exitCode", exitedProcess?.ExitCode.ToString() ?? "unknown"));
+        return currentProcess.ReadOutputLineBefore(deadline, cancellationToken, operationName, timeoutMs);
     }
 
     private struct KataGoPaths

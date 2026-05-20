@@ -27,7 +27,7 @@
 - `Assets/Config/DataJson` 是当前棋盘、场景、UI 页面、预制体和 TMP sprite 的数据来源。
 - 资源加载通过 `ResourceManager` 和配置 id 抽象；编辑器环境使用 AssetDatabase，非编辑器环境使用 AssetBundle。
 - 存档通过 `SavableObj`、`SavableField` 和可保存集合持久化场景与用户状态；对局棋盘恢复权威单独落在 KataGo analysis JSON 记录文件中，读档时由 `moves` 回放重建运行时棋盘缓存。
-- KataGo 接入应先作为编辑器验证用的本地子进程适配器存在：Unity 侧负责启动 `katago analysis`、通过 stdin/stdout 交换 JSON、解析第一版形势按钮所需的 `ownership` 和电脑对局所需的 `moveInfos`，并把启动失败、超时、缺少模型或配置文件等情况转成可诊断状态。形势展示由 UI 发事件、系统请求分析、棋盘表现层绘制 overlay；电脑对局由 `DuelAiSystem` 读取分析结果再发出领域落子事件，不让 KataGo 适配器直接修改棋盘规则状态。
+- KataGo 接入作为 Windows Unity Editor 和 Windows PC 包共用的本地子进程适配器存在：Unity 侧负责启动 `katago analysis`、通过 Win32 pipe 交换 stdin/stdout JSON、解析第一版形势按钮所需的 `ownership` 和电脑对局所需的 `moveInfos`，并把启动失败、超时、缺少模型或配置文件等情况转成可诊断状态。形势展示由 UI 发事件、系统请求分析、棋盘表现层绘制 overlay；电脑对局由 `DuelAiSystem` 读取分析结果再发出领域落子事件，不让 KataGo 适配器直接修改棋盘规则状态。
 - 游戏侧手顺格式应直接使用 KataGo 标准 `moves` 数组项，不再维护额外字符串棋谱格式或转换层。合法落子记录标准点位，虚手记录 `pass`；KataGo analysis JSON 生成优先输出 `moves`，是形势按钮、记录文件和后续复盘分析的统一路径；当前盘面 `initialStones` 快照入口只作为调试或无手顺场景使用。
 
 ## Coordinate Contract
