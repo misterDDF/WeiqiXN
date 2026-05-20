@@ -52,6 +52,13 @@
 
 ## Guardrails
 
+## 2026-05-20 Runtime Asset Addendum
+
+- Code-loaded assets that must ship in player builds but may not be referenced by scenes or prefabs must be declared in `ConfigExporter/xlsx/runtime_asset.xlsx`.
+- `AssetBundleGenerator.PackRuntimeAssetTable` consumes the exported `runtime_asset.json`, validates asset path and type, and applies the configured AssetBundle label before bundle build.
+- Runtime code should load declared assets through generated config data and `ResourceManager`; do not add new runtime `Shader.Find` or ad hoc string asset lookups for shipped assets.
+- Assembly boundaries remain respected: `XNClient.ChessBoard` owns board rendering primitives, while `ChessBoardSystem` in the main game assembly resolves table/config/global resources and injects materials into `RectGrid`.
+
 **架构护栏**
 
 - 不要把权威玩法状态修改直接写进 UI 页面类；UI 应该发出命令或事件，并展示状态。

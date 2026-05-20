@@ -44,6 +44,12 @@ UI 工具链已经承担了重复代码生成工作，这对后续快速增加�
 
 ## 后续建议
 
+## 2026-05-20 Runtime Asset Build Addendum
+
+- `AssetBundleGenerator` includes `PackRuntimeAssetTable` in the shared AssetBundle build path used by both PC and WebGL build menu entries.
+- `PackRuntimeAssetTable` reads `Assets/Config/DataJson/runtime_asset/runtime_asset.json`, validates each declared asset path and type, and applies the configured AssetBundle label before `BuildAssetBundles`.
+- The source table is `ConfigExporter/xlsx/runtime_asset.xlsx`; generated JSON and data type files should not be hand-edited.
+
 - 在 UI 模块补一份“新增页面流程”。
 - 明确 `*UI.cs` Binder 文件为生成文件，业务逻辑写在 `Logic/Page` 或 `Logic/Widget`。
 - 新增 KataGo 编辑器工具时，优先提供一次性 smoke test：选择或读取本地 `katago`、模型和 config 路径，发送固定 19 路测试局面，请求 `includeOwnership`，并输出 ownership 数组长度和错误原因；第一版不要把 `scoreLead`、胜率或最佳选点接到形势按钮。

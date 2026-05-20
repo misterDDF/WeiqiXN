@@ -8,6 +8,8 @@ public class ChessBoardSystem : SystemBase
 {
     public override string systemName => GetSystemName<ChessBoardSystem>();
     public ChessBoardDataType chessBoardData;
+    private const string BlackMaterialConfigId = "chess_board_black_material";
+    private const string WhiteMaterialConfigId = "chess_board_white_material";
 
     public ChessBoardSystem(SceneBase scene) : base(scene)
     {
@@ -35,6 +37,7 @@ public class ChessBoardSystem : SystemBase
         chessBoardData = ChessBoardDataType.GetConfigData(compChessBoard.boardCfgId.value);
         if (chessBoardData != null) {
             compChessBoard.chessBoardGrid.InitGrid(chessBoardData.boardSize);
+            ApplyChessBoardMaterials(compChessBoard.chessBoardGrid);
             Bounds gridBounds = compChessBoard.chessBoardGrid.GetGridBounds();
             InitDuelVCam(gridBounds);
         } else {
@@ -115,7 +118,48 @@ public class ChessBoardSystem : SystemBase
             return;
         }
 
-        compChessBoard.chessBoardGrid.DrawLatestMoveMarker(coords.x, coords.z, playerFlag == PlayerFlag.Player1);
+        try {
+            compChessBoard.chessBoardGrid.DrawLatestMoveMarker(coords.x, coords.z, playerFlag == PlayerFlag.Player1);
+        }
+        catch (System.Exception ex) {
+            XNLogger.LogError("Latest move marker draw failed.", ("err", ex.Message));
+        }
+    }
+
+    private void ApplyChessBoardMaterials(RectGrid rectGrid)
+    {
+        if (rectGrid == null) {
+            return;
+        }
+
+        Material blackMaterial = LoadRuntimeMaterial(BlackMaterialConfigId);
+        Material whiteMaterial = LoadRuntimeMaterial(WhiteMaterialConfigId);
+        rectGrid.SetBoardMaterials(blackMaterial, whiteMaterial);
+    }
+
+    private Material LoadRuntimeMaterial(string configId)
+    {
+        RuntimeAssetDataType assetData = RuntimeAssetDataType.GetConfigData(configId);
+        if (assetData == null) {
+            XNLogger.LogError("Runtime material config not found.", ("configId", configId));
+            return null;
+        }
+        if (assetData.assetType != typeof(Material).Name || string.IsNullOrEmpty(assetData.resPath)) {
+            XNLogger.LogError(
+                "Runtime material config invalid.",
+                ("configId", configId),
+                ("assetType", assetData.assetType),
+                ("resPath", assetData.resPath));
+            return null;
+        }
+
+        Material material = Global.Instance.resourceManager.LoadAsset<Material>(assetData.resPath);
+        if (material == null) {
+            XNLogger.LogError("Runtime material asset load failed.", ("configId", configId), ("resPath", assetData.resPath));
+            return null;
+        }
+
+        return material;
     }
 
     private void InitDuelVCam(Bounds gridBound)

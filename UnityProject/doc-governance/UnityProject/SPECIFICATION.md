@@ -84,6 +84,14 @@
 
 ## Validation and Maintenance
 
+## 2026-05-20 Runtime Asset Addendum
+
+- Runtime-only assets loaded by code and not guaranteed to be referenced by scenes or prefabs are declared in `ConfigExporter/xlsx/runtime_asset.xlsx`.
+- The exported runtime asset config is `Assets/Config/DataJson/runtime_asset/runtime_asset.json`; the generated reader is `Assets/Config/DataType/runtime_asset/RuntimeAssetDataType.cs`.
+- The current runtime asset table contains the shared black and white chess-board materials used by ownership overlay and latest-move marker rendering.
+- `ChessBoardSystem` loads these materials through `RuntimeAssetDataType` and `ResourceManager`, then injects them into `RectGrid`. `RectGrid` does not call `Shader.Find` or read global config directly.
+- Latest-move marker draw failures are logged and isolated so a visual material issue does not block `AppendKataGoMove` or `OnAfterAddChessToBoard`.
+
 **验证与维护**
 
 - 当前行为验证应覆盖：从配置的启动场景进入运行、从主菜单打开本地对局和电脑对局、分别启动 `9x9`、`13x13`、`19x19` 棋盘、电脑对局难度下拉框读表、正常落子、尝试已有棋子位置、尝试棋盘外坐标、尝试自杀、尝试简单重复局面、保存对局、读取保存状态。

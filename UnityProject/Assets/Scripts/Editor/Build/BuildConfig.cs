@@ -17,6 +17,8 @@ public static class BuildConfig
     public const string AB_LABEL_UI_PREFAB = "ui_main_prefab";
     public const string AB_LABEL_UI_TEXTURE = "ui_main_texture";
     public const string AB_LABEL_DEBUG = "debug";
+    public const string AB_LABEL_RUNTIME_ASSET = "runtime_asset";
+    public const string PATH_RUNTIME_ASSET_CONFIG = "Assets/Config/DataJson/runtime_asset/runtime_asset.json";
     public const string PATH_DEBUG_CONSOLE_PREFAB = "Assets/Plugins/IngameDebugConsole/IngameDebugConsole.prefab";
 
     public const string BUILD_PATH_ROOT = "../Build";

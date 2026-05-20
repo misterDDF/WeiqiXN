@@ -71,6 +71,7 @@ public class AssetBundleGenerator
         PackAllSceneFiles();
         PackAllUIPrefabFiles();
         PackDebugConsolePrefab();
+        PackRuntimeAssetTable();
 
         BuildAssetBundleOptions options = BuildAssetBundleOptions.None;
         if (BuildConfig.BUILD_BUNDLE_DISABLE_WRITE_TYPE_TREE) {
@@ -278,6 +279,100 @@ public class AssetBundleGenerator
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log($"设置调试资源 AB 标签：{BuildConfig.AB_LABEL_DEBUG}");
+        }
+    }
+
+    [MenuItem("Assets/打包/打包预处理/检查运行时显式资源表")]
+    public static void PackRuntimeAssetTable()
+    {
+        TextAsset configAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(BuildConfig.PATH_RUNTIME_ASSET_CONFIG);
+        if (configAsset == null) {
+            throw new FileNotFoundException($"Runtime asset config not found: {BuildConfig.PATH_RUNTIME_ASSET_CONFIG}");
+        }
+
+        JObject configRoot;
+        try {
+            configRoot = JObject.Parse(configAsset.text);
+        }
+        catch (Exception ex) {
+            throw new Exception($"Parse runtime asset config failed: {BuildConfig.PATH_RUNTIME_ASSET_CONFIG}, err: {ex.Message}", ex);
+        }
+
+        int newImportCount = 0;
+        int assetCount = 0;
+        foreach (JProperty property in configRoot.Properties()) {
+            string id = property.Name;
+            string assetType = property.Value.Value<string>("assetType");
+            string resPath = property.Value.Value<string>("resPath");
+            string bundleName = property.Value.Value<string>("bundleName");
+            string assetPath = GetRuntimeAssetPath(id, assetType, resPath);
+
+            ValidateRuntimeAsset(id, assetType, bundleName, assetPath);
+            AssetImporter importer = AssetImporter.GetAtPath(assetPath);
+            if (importer == null) {
+                throw new FileNotFoundException($"Runtime asset importer not found. id: {id}, assetPath: {assetPath}");
+            }
+
+            string normalizedBundleName = bundleName.ToLowerInvariant();
+            if (importer.assetBundleName != normalizedBundleName) {
+                importer.assetBundleName = normalizedBundleName;
+                newImportCount++;
+            }
+
+            assetCount++;
+        }
+
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+        Debug.Log($"Runtime asset table checked. assetCount: {assetCount}, updatedBundleLabels: {newImportCount}");
+    }
+
+    private static string GetRuntimeAssetPath(string id, string assetType, string resPath)
+    {
+        if (string.IsNullOrWhiteSpace(assetType)) {
+            throw new Exception($"Runtime asset type is empty. id: {id}");
+        }
+        if (string.IsNullOrWhiteSpace(resPath)) {
+            throw new Exception($"Runtime asset path is empty. id: {id}");
+        }
+
+        if (!ResourceUtils.AssetExtendDict.TryGetValue(assetType, out string extension)) {
+            throw new Exception($"Runtime asset type is unsupported. id: {id}, assetType: {assetType}");
+        }
+
+        return $"Assets/{resPath}{extension}";
+    }
+
+    private static void ValidateRuntimeAsset(string id, string assetType, string bundleName, string assetPath)
+    {
+        if (string.IsNullOrWhiteSpace(id)) {
+            throw new Exception("Runtime asset id is empty.");
+        }
+        if (string.IsNullOrWhiteSpace(bundleName)) {
+            throw new Exception($"Runtime asset bundle name is empty. id: {id}");
+        }
+
+        if (assetType == typeof(GameObject).Name) {
+            ValidateRuntimeAssetType<GameObject>(id, assetType, assetPath);
+            return;
+        }
+        if (assetType == typeof(Sprite).Name) {
+            ValidateRuntimeAssetType<Sprite>(id, assetType, assetPath);
+            return;
+        }
+        if (assetType == typeof(Material).Name) {
+            ValidateRuntimeAssetType<Material>(id, assetType, assetPath);
+            return;
+        }
+
+        throw new Exception($"Runtime asset type is unsupported. id: {id}, assetType: {assetType}");
+    }
+
+    private static void ValidateRuntimeAssetType<TAsset>(string id, string assetType, string assetPath) where TAsset : UnityEngine.Object
+    {
+        TAsset asset = AssetDatabase.LoadAssetAtPath<TAsset>(assetPath);
+        if (asset == null) {
+            throw new FileNotFoundException($"Runtime asset not found or type mismatch. id: {id}, assetPath: {assetPath}, expected: {assetType}");
         }
     }
 

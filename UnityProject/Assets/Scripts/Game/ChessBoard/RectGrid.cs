@@ -24,10 +24,8 @@ namespace XNClient.ChessBoard
         private const int OwnershipBlack = 1;
         private const int OwnershipWhite = -1;
 
-        private Material ownershipBlackMaterial;
-        private Material ownershipWhiteMaterial;
-        private Material latestMoveMarkerBlackMaterial;
-        private Material latestMoveMarkerWhiteMaterial;
+        private Material blackMaterial;
+        private Material whiteMaterial;
         private Mesh latestMoveMarkerMesh;
 
         public void InitGrid(int gridSize)
@@ -44,6 +42,12 @@ namespace XNClient.ChessBoard
 
             CreateChunks();
             CreateCells();
+        }
+
+        public void SetBoardMaterials(Material blackMaterial, Material whiteMaterial)
+        {
+            this.blackMaterial = blackMaterial;
+            this.whiteMaterial = whiteMaterial;
         }
 
         public Bounds GetGridBounds()
@@ -94,7 +98,10 @@ namespace XNClient.ChessBoard
                         continue;
                     }
 
-                    CreateOwnershipSquare(x, z, squareSize, GetOwnershipMaterial(ownershipFlag));
+                    Material material = GetOwnershipMaterial(ownershipFlag);
+                    if (material != null) {
+                        CreateOwnershipSquare(x, z, squareSize, material);
+                    }
                 }
             }
         }
@@ -131,8 +138,14 @@ namespace XNClient.ChessBoard
             MeshFilter meshFilter = marker.AddComponent<MeshFilter>();
             meshFilter.sharedMesh = GetLatestMoveMarkerMesh();
 
+            Material material = GetLatestMoveMarkerMaterial(isBlackStone);
+            if (material == null) {
+                ClearLatestMoveMarker();
+                return;
+            }
+
             MeshRenderer meshRenderer = marker.AddComponent<MeshRenderer>();
-            meshRenderer.sharedMaterial = GetLatestMoveMarkerMaterial(isBlackStone);
+            meshRenderer.sharedMaterial = material;
         }
 
         public void ClearLatestMoveMarker()
@@ -177,13 +190,19 @@ namespace XNClient.ChessBoard
                     if (x + 1 < gridSize && ownershipFlags[z * gridSize + x + 1] == ownershipFlag) {
                         Vector3 centerA = GetOwnershipLocalPosition(x, z, OwnershipLineYOffset);
                         Vector3 centerB = GetOwnershipLocalPosition(x + 1, z, OwnershipLineYOffset);
-                        CreateOwnershipLine(centerA, centerB, lineLength, lineWidth, true, GetOwnershipMaterial(ownershipFlag));
+                        Material material = GetOwnershipMaterial(ownershipFlag);
+                        if (material != null) {
+                            CreateOwnershipLine(centerA, centerB, lineLength, lineWidth, true, material);
+                        }
                     }
 
                     if (z + 1 < gridSize && ownershipFlags[(z + 1) * gridSize + x] == ownershipFlag) {
                         Vector3 centerA = GetOwnershipLocalPosition(x, z, OwnershipLineYOffset);
                         Vector3 centerB = GetOwnershipLocalPosition(x, z + 1, OwnershipLineYOffset);
-                        CreateOwnershipLine(centerA, centerB, lineLength, lineWidth, false, GetOwnershipMaterial(ownershipFlag));
+                        Material material = GetOwnershipMaterial(ownershipFlag);
+                        if (material != null) {
+                            CreateOwnershipLine(centerA, centerB, lineLength, lineWidth, false, material);
+                        }
                     }
                 }
             }
@@ -227,31 +246,25 @@ namespace XNClient.ChessBoard
         private Material GetOwnershipMaterial(int ownershipFlag)
         {
             if (ownershipFlag == OwnershipBlack) {
-                if (ownershipBlackMaterial == null) {
-                    ownershipBlackMaterial = CreateOwnershipMaterial(Color.black);
-                }
-                return ownershipBlackMaterial;
+                return GetBlackMaterial();
             }
 
-            if (ownershipWhiteMaterial == null) {
-                ownershipWhiteMaterial = CreateOwnershipMaterial(Color.white);
-            }
-            return ownershipWhiteMaterial;
+            return GetWhiteMaterial();
         }
 
         private Material GetLatestMoveMarkerMaterial(bool isBlackStone)
         {
-            if (isBlackStone) {
-                if (latestMoveMarkerWhiteMaterial == null) {
-                    latestMoveMarkerWhiteMaterial = CreateOwnershipMaterial(Color.white);
-                }
-                return latestMoveMarkerWhiteMaterial;
-            }
+            return isBlackStone ? GetWhiteMaterial() : GetBlackMaterial();
+        }
 
-            if (latestMoveMarkerBlackMaterial == null) {
-                latestMoveMarkerBlackMaterial = CreateOwnershipMaterial(Color.black);
-            }
-            return latestMoveMarkerBlackMaterial;
+        private Material GetBlackMaterial()
+        {
+            return blackMaterial;
+        }
+
+        private Material GetWhiteMaterial()
+        {
+            return whiteMaterial;
         }
 
         private Mesh GetLatestMoveMarkerMesh()
@@ -278,13 +291,6 @@ namespace XNClient.ChessBoard
             markerMesh.SetTriangles(new[] { 0, 2, 1 }, 0);
             markerMesh.RecalculateNormals();
             return markerMesh;
-        }
-
-        private Material CreateOwnershipMaterial(Color color)
-        {
-            Material material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-            material.color = color;
-            return material;
         }
 
         private void RemoveOwnershipCollider(GameObject go)

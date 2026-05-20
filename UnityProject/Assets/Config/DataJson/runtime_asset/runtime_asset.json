@@ -1,0 +1,14 @@
+{
+  "chess_board_black_material": {
+    "id": "chess_board_black_material",
+    "assetType": "Material",
+    "resPath": "Scenes/Duel/Materials/ChessBoardBlack",
+    "bundleName": "runtime_asset"
+  },
+  "chess_board_white_material": {
+    "id": "chess_board_white_material",
+    "assetType": "Material",
+    "resPath": "Scenes/Duel/Materials/ChessBoardWhite",
+    "bundleName": "runtime_asset"
+  }
+}
