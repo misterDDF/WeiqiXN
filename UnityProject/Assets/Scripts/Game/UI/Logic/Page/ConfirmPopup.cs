@@ -11,22 +11,56 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
     private const string DefaultCancelText = "取消";
 
     private static ConfirmPopupRequest pendingRequest;
+    private static ConfirmPopupRequest pendingUpdateRequest;
+    private static ConfirmPopup openedPopup;
+    private static int requestSequence;
 
     private ConfirmPopupRequest currentRequest;
 
     public override string pageName => UIPage.GetPageName<ConfirmPopup>();
 
-    public static void Show(
+    public static int Show(
         string title,
         string content,
         Action onConfirm,
         Action onCancel = null,
         string confirmText = DefaultConfirmText,
-        string cancelText = DefaultCancelText
+        string cancelText = DefaultCancelText,
+        bool canConfirm = true
     )
     {
-        pendingRequest = new ConfirmPopupRequest(title, content, confirmText, cancelText, onConfirm, onCancel);
+        int requestId = ++requestSequence;
+        pendingRequest = new ConfirmPopupRequest(requestId, title, content, confirmText, cancelText, onConfirm, onCancel, canConfirm);
+        pendingUpdateRequest = null;
         Global.Instance.uiManager.ShowPage<ConfirmPopup>();
+        return requestId;
+    }
+
+    public static void UpdateOpenContent(string title, string content, Action onConfirm, bool canConfirm = true)
+    {
+        int requestId = openedPopup?.currentRequest?.requestId ?? pendingRequest?.requestId ?? 0;
+        UpdateOpenContent(requestId, title, content, onConfirm, canConfirm);
+    }
+
+    public static void UpdateOpenContent(int requestId, string title, string content, Action onConfirm, bool canConfirm = true)
+    {
+        if (requestId <= 0 || !CanUpdateRequest(requestId)) {
+            return;
+        }
+
+        ConfirmPopupRequest current = openedPopup?.currentRequest ?? pendingRequest;
+        pendingUpdateRequest = new ConfirmPopupRequest(
+            requestId,
+            title,
+            content,
+            current?.confirmText ?? DefaultConfirmText,
+            current?.cancelText ?? DefaultCancelText,
+            onConfirm,
+            current?.onCancel,
+            canConfirm
+        );
+        openedPopup?.ApplyPendingUpdate();
+        openedPopup?.RefreshContent();
     }
 
     protected override void OnLoaded()
@@ -48,11 +82,17 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
 
         currentRequest = pendingRequest ?? ConfirmPopupRequest.Empty;
         pendingRequest = null;
+        openedPopup = this;
+        ApplyPendingUpdate();
         RefreshContent();
     }
 
     protected override void OnClose()
     {
+        if (openedPopup == this) {
+            openedPopup = null;
+        }
+        pendingUpdateRequest = null;
         currentRequest = null;
 
         base.OnClose();
@@ -60,6 +100,10 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
 
     private void OnClickBtnConfirm()
     {
+        if (currentRequest == null || !currentRequest.canConfirm) {
+            return;
+        }
+
         Action callback = currentRequest?.onConfirm;
         ClosePage();
         callback?.Invoke();
@@ -78,6 +122,7 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         SetText(binder.txt_content, currentRequest?.content ?? DefaultContent);
         SetText(binder.txt_confirm, currentRequest?.confirmText ?? DefaultConfirmText);
         SetText(binder.txt_cancel, currentRequest?.cancelText ?? DefaultCancelText);
+        SetConfirmInteractable(currentRequest == null || currentRequest.canConfirm);
     }
 
     private void AddButtonListener(Button button, UnityEngine.Events.UnityAction action)
@@ -94,6 +139,32 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         }
     }
 
+    private void SetConfirmInteractable(bool canConfirm)
+    {
+        if (binder.btn_confirm != null) {
+            binder.btn_confirm.interactable = canConfirm;
+        }
+    }
+
+    private void ApplyPendingUpdate()
+    {
+        if (pendingUpdateRequest == null || currentRequest == null || pendingUpdateRequest.requestId != currentRequest.requestId) {
+            return;
+        }
+
+        currentRequest = pendingUpdateRequest;
+        pendingUpdateRequest = null;
+    }
+
+    private static bool CanUpdateRequest(int requestId)
+    {
+        if (openedPopup != null) {
+            return openedPopup.currentRequest != null && openedPopup.currentRequest.requestId == requestId;
+        }
+
+        return pendingRequest != null && pendingRequest.requestId == requestId;
+    }
+
     private bool IsBinderReady()
     {
         return binder != null
@@ -108,36 +179,44 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
     private class ConfirmPopupRequest
     {
         public static readonly ConfirmPopupRequest Empty = new ConfirmPopupRequest(
+            0,
             DefaultTitle,
             DefaultContent,
             DefaultConfirmText,
             DefaultCancelText,
             null,
-            null
+            null,
+            true
         );
 
+        public readonly int requestId;
         public readonly string title;
         public readonly string content;
         public readonly string confirmText;
         public readonly string cancelText;
         public readonly Action onConfirm;
         public readonly Action onCancel;
+        public readonly bool canConfirm;
 
         public ConfirmPopupRequest(
+            int requestId,
             string title,
             string content,
             string confirmText,
             string cancelText,
             Action onConfirm,
-            Action onCancel
+            Action onCancel,
+            bool canConfirm
         )
         {
+            this.requestId = requestId;
             this.title = string.IsNullOrEmpty(title) ? DefaultTitle : title;
             this.content = content ?? DefaultContent;
             this.confirmText = string.IsNullOrEmpty(confirmText) ? DefaultConfirmText : confirmText;
             this.cancelText = string.IsNullOrEmpty(cancelText) ? DefaultCancelText : cancelText;
             this.onConfirm = onConfirm;
             this.onCancel = onCancel;
+            this.canConfirm = canConfirm;
         }
     }
 }

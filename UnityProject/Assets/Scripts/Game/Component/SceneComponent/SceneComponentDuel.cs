@@ -22,6 +22,11 @@ public class SceneComponentDuel : SceneComponentBase
     public SavableField<float> finalScoreMargin = SavableFieldFactory.CreateFloatField(0f);
     public JArray kataGoMoves = new JArray();
     public bool isScoring;
+    public bool hasOwnershipScoreCache;
+    public float cachedOwnershipBlackPoints;
+    public float cachedOwnershipWhitePoints;
+    public float cachedOwnershipKomi;
+    public JArray cachedOwnership;
 
     public DuelFSM duelFSM;
 
@@ -49,5 +54,40 @@ public class SceneComponentDuel : SceneComponentBase
             KataGoPositionJsonBuilder.ToKataGoColor(playerFlag),
             KataGoPositionJsonBuilder.PassPoint
         ));
+    }
+
+    public void RemoveLastKataGoMove()
+    {
+        if (kataGoMoves != null && kataGoMoves.Count > 0) {
+            kataGoMoves.RemoveAt(kataGoMoves.Count - 1);
+        }
+    }
+
+    public void CacheOwnershipScore(DuelOwnershipSystem.OwnershipScore score, JArray ownership)
+    {
+        hasOwnershipScoreCache = true;
+        cachedOwnershipBlackPoints = score.blackPoints;
+        cachedOwnershipWhitePoints = score.whitePoints;
+        cachedOwnershipKomi = score.komi;
+        cachedOwnership = ownership != null ? new JArray(ownership) : null;
+    }
+
+    public DuelOwnershipSystem.OwnershipScore GetCachedOwnershipScore()
+    {
+        return new DuelOwnershipSystem.OwnershipScore
+        {
+            blackPoints = cachedOwnershipBlackPoints,
+            whitePoints = cachedOwnershipWhitePoints,
+            komi = cachedOwnershipKomi,
+        };
+    }
+
+    public void ClearOwnershipScoreCache()
+    {
+        hasOwnershipScoreCache = false;
+        cachedOwnershipBlackPoints = 0f;
+        cachedOwnershipWhitePoints = 0f;
+        cachedOwnershipKomi = 0f;
+        cachedOwnership = null;
     }
 }

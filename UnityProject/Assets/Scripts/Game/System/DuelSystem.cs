@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using Newtonsoft.Json.Linq;
 using XNClient.ChessBoard;
 using XNClient.Logger;
@@ -11,12 +10,7 @@ public class DuelSystem : SystemBase
     private const string DEFAULT_BYOYOMI_COUNT_CFG_ID = "off";
     private const string DEFAULT_BYOYOMI_TIME_CFG_ID = "30s";
     private const string DEFAULT_AI_DIFFICULTY_CFG_ID = "k20_k15";
-    private const float KOMI = KataGoDuelRecordFile.Komi;
     private const string SCORE_SOURCE_OWNERSHIP = "katago_ownership";
-    private const string SCORE_SOURCE_LOCAL_PROTOTYPE = "local_prototype";
-
-    private static readonly int[] DirX = { 0, 0, 1, -1 };
-    private static readonly int[] DirZ = { 1, -1, 0, 0 };
 
     public DuelSystem(DuelScene scene) : base(scene)
     {
@@ -200,6 +194,7 @@ public class DuelSystem : SystemBase
         }
 
         if (scoreResult == null) {
+            scene.EmitSystemEvent(new OnDuelScoreFailed(true));
             return;
         }
 
@@ -261,6 +256,7 @@ public class DuelSystem : SystemBase
 
         compDuel.AppendKataGoPass((PlayerFlag)curPlayer.playerFlag.value);
         compDuel.consecutivePassCount.value += 1;
+
         if (compDuel.consecutivePassCount.value >= 2) {
             DuelScoreResult scoreResult = null;
             try {
@@ -272,6 +268,9 @@ public class DuelSystem : SystemBase
             }
 
             if (scoreResult == null) {
+                compDuel.RemoveLastKataGoMove();
+                compDuel.consecutivePassCount.value = 1;
+                scene.EmitSystemEvent(new OnDuelScoreFailed(false));
                 return;
             }
 
@@ -288,7 +287,13 @@ public class DuelSystem : SystemBase
         DuelScene duelScene = scene as DuelScene;
         if (duelScene == null) {
             XNLogger.LogError("Duel ownership score failed, scene is not DuelScene.");
-            return CalculateLocalPrototypeScoreResult();
+            return null;
+        }
+
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
+        if (compDuel != null && compDuel.hasOwnershipScoreCache) {
+            DuelOwnershipSystem.OwnershipScore cachedScore = compDuel.GetCachedOwnershipScore();
+            return BuildScoreResult(cachedScore.blackPoints, cachedScore.whitePoints, cachedScore.komi, SCORE_SOURCE_OWNERSHIP);
         }
 
         try {
@@ -296,56 +301,18 @@ public class DuelSystem : SystemBase
             JObject query = KataGoPositionJsonBuilder.BuildOwnershipAnalysisJson(duelScene, requestId);
             JArray ownership = await KataGoBootstrap.AnalyzeOwnershipAsync(query);
             if (ownership == null) {
-                XNLogger.LogWarn("Duel ownership score failed, fallback to local prototype score.", ("requestId", requestId));
-                return CalculateLocalPrototypeScoreResult();
+                XNLogger.LogWarn("Duel ownership score failed, ownership result is empty.", ("requestId", requestId));
+                return null;
             }
 
             DuelOwnershipSystem.OwnershipScore score = DuelOwnershipSystem.CalculateOwnershipScore(ownership, query);
+            compDuel?.CacheOwnershipScore(score, ownership);
             return BuildScoreResult(score.blackPoints, score.whitePoints, score.komi, SCORE_SOURCE_OWNERSHIP);
         }
         catch (Exception ex) {
-            XNLogger.LogError("Duel ownership score failed, fallback to local prototype score.", ("err", ex.Message));
-            return CalculateLocalPrototypeScoreResult();
-        }
-    }
-
-    private DuelScoreResult CalculateLocalPrototypeScoreResult()
-    {
-        var compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
-        if (compChessBoard?.chessBoardGrid == null) {
-            XNLogger.LogError("Duel score failed, chess board grid is missing.");
+            XNLogger.LogError("Duel ownership score failed.", ("err", ex.Message));
             return null;
         }
-
-        int boardSize = compChessBoard.chessBoardGrid.gridSize;
-        int maxSize = compChessBoard.GetGridMaxSize();
-        bool[] visited = new bool[maxSize];
-        float blackScore = 0f;
-        float whiteScore = KOMI;
-
-        for (int posIndex = 0; posIndex < maxSize; posIndex++) {
-            if (compChessBoard.chessInfoDict.TryGetValue(posIndex.ToString(), out ChessInfo chessInfo) && chessInfo != null) {
-                if (chessInfo.chessFlag.value == (int)PlayerFlag.Player1) {
-                    blackScore += 1f;
-                } else if (chessInfo.chessFlag.value == (int)PlayerFlag.Player2) {
-                    whiteScore += 1f;
-                }
-                continue;
-            }
-
-            if (visited[posIndex]) {
-                continue;
-            }
-
-            EmptyRegion region = CollectEmptyRegion(compChessBoard, posIndex, boardSize, visited);
-            if (region.adjacentBlack && !region.adjacentWhite) {
-                blackScore += region.emptyCount;
-            } else if (region.adjacentWhite && !region.adjacentBlack) {
-                whiteScore += region.emptyCount;
-            }
-        }
-
-        return BuildScoreResult(blackScore, whiteScore, KOMI, SCORE_SOURCE_LOCAL_PROTOTYPE);
     }
 
     private DuelScoreResult BuildScoreResult(float blackScore, float whiteScore, float komi, string scoreSource)
@@ -367,49 +334,6 @@ public class DuelSystem : SystemBase
             winnerFlag = winnerFlag,
             scoreSource = scoreSource,
         };
-    }
-
-    private EmptyRegion CollectEmptyRegion(SceneComponentChessBoard compChessBoard, int startIndex, int boardSize, bool[] visited)
-    {
-        EmptyRegion region = new EmptyRegion();
-        Queue<int> queue = new Queue<int>();
-
-        queue.Enqueue(startIndex);
-        visited[startIndex] = true;
-
-        while (queue.Count > 0) {
-            int curIndex = queue.Dequeue();
-            region.emptyCount += 1;
-            int curX = curIndex % boardSize;
-            int curZ = curIndex / boardSize;
-
-            for (int dir = 0; dir < Math.Min(DirX.Length, DirZ.Length); dir++) {
-                int nx = curX + DirX[dir];
-                int nz = curZ + DirZ[dir];
-                int neighborIndex = compChessBoard.GetPosIndexByCoords(new RectCoordinates(nx, nz));
-                if (neighborIndex < 0) {
-                    continue;
-                }
-
-                if (compChessBoard.chessInfoDict.TryGetValue(neighborIndex.ToString(), out ChessInfo neighborChessInfo) && neighborChessInfo != null) {
-                    if (neighborChessInfo.chessFlag.value == (int)PlayerFlag.Player1) {
-                        region.adjacentBlack = true;
-                    } else if (neighborChessInfo.chessFlag.value == (int)PlayerFlag.Player2) {
-                        region.adjacentWhite = true;
-                    }
-                    continue;
-                }
-
-                if (visited[neighborIndex]) {
-                    continue;
-                }
-
-                visited[neighborIndex] = true;
-                queue.Enqueue(neighborIndex);
-            }
-        }
-
-        return region;
     }
 
     private void EndGameByScore(DuelScoreResult scoreResult, string reason)
@@ -435,10 +359,4 @@ public class DuelSystem : SystemBase
         compDuel.duelFSM.SetParamterTrigger(DuelParamDefine.TRIGGER_PARAM_GAME_END);
     }
 
-    private struct EmptyRegion
-    {
-        public int emptyCount;
-        public bool adjacentBlack;
-        public bool adjacentWhite;
-    }
 }

@@ -121,6 +121,17 @@ public class OnDuelScoreResult : SystemEventBase
     }
 }
 
+public class OnDuelScoreFailed : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnDuelScoreFailed>();
+
+    public bool requireConfirm;
+    public OnDuelScoreFailed(bool requireConfirm)
+    {
+        this.requireConfirm = requireConfirm;
+    }
+}
+
 public class OnDuelOwnershipResult : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnDuelOwnershipResult>();

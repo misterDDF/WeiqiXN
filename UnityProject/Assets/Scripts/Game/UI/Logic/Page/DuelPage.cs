@@ -11,6 +11,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     public RectCoordinates aimCoords = new RectCoordinates(-1, -1);
     private PlayerFlag aimChessPreviewPlayerFlag;
     private bool isOwnershipVisible;
+    private int pendingScorePopupRequestId;
 
     protected override void OnLoaded()
     {
@@ -20,6 +21,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         RegisterSystemEvent<OnDuelOwnershipResult>(OnDuelOwnershipResult);
         RegisterSystemEvent<OnClearDuelOwnership>(OnClearDuelOwnership);
         RegisterSystemEvent<OnDuelScoreResult>(OnDuelScoreResult);
+        RegisterSystemEvent<OnDuelScoreFailed>(OnDuelScoreFailed);
 
         BindPrefabHud();
     }
@@ -176,19 +178,37 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
     public void OnDuelScoreResult(OnDuelScoreResult evt)
     {
-        if (evt.scoreResult == null || !evt.requireConfirm) {
+        if (evt.scoreResult == null) {
             return;
         }
 
         DuelScoreResult scoreResult = evt.scoreResult;
-        ConfirmPopup.Show(
+        if (evt.requireConfirm) {
+            ConfirmPopup.UpdateOpenContent(
+                pendingScorePopupRequestId,
+                "确认数子结果",
+                BuildScoreConfirmContent(scoreResult),
+                () => EmitSystemEvent(new OnConfirmDuelScore(scoreResult)),
+                true
+            );
+            pendingScorePopupRequestId = 0;
+        }
+    }
+
+    public void OnDuelScoreFailed(OnDuelScoreFailed evt)
+    {
+        if (!evt.requireConfirm) {
+            return;
+        }
+
+        ConfirmPopup.UpdateOpenContent(
+            pendingScorePopupRequestId,
             "确认数子结果",
-            BuildScoreConfirmContent(scoreResult),
-            () => EmitSystemEvent(new OnConfirmDuelScore(scoreResult)),
+            "数子失败，请稍后重试。",
             null,
-            "确认结果",
-            "继续对局"
+            false
         );
+        pendingScorePopupRequestId = 0;
     }
 
     public void RefreshDuelHud()
@@ -279,7 +299,22 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
     public void OnClickBtnRequestScore()
     {
+        var mainScene = Global.Instance.sceneManager.mainScene;
+        var compDuel = mainScene.GetComponent<SceneComponentDuel>();
+        if (compDuel != null && compDuel.isScoring) {
+            return;
+        }
+
         CloseSettingsPanel();
+        pendingScorePopupRequestId = ConfirmPopup.Show(
+            "确认数子结果",
+            "数子中...",
+            null,
+            null,
+            "确认结果",
+            "继续对局",
+            false
+        );
         EmitSystemEvent(new OnRequestDuelScore());
     }
 

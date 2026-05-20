@@ -15,7 +15,7 @@
 - 2026-05-20：KataGo 运行资源正式迁移到 `Assets/StreamingAssets/KataGo/`，Windows Unity Editor 和 Windows PC 包统一通过 `Application.streamingAssetsPath/KataGo` 解析引擎、配置和模型路径；PC 包体中的对应目录为 `<GameName>_Data/StreamingAssets/KataGo/`。Windows 构建入口会在打包前检查 `eigenavx2` 引擎目录、模型目录、`katago.exe`、`analysis_example.cfg` 和 `kata1-b18c384nbt-s9996604416-d4316597426.bin.gz` 模型是否齐全，缺失时直接中止构建。KataGo 运行时可能在引擎目录生成 `analysis_logs`，该目录属于诊断日志，不纳入版本库。
 - 2026-05-19：启动流程会统一调用 `KataGoBootstrap.Start()`，退出时调用 `KataGoBootstrap.Stop()`；平台差异由 `KataGoBootstrap` 内部处理。Windows Unity Editor 和 Windows PC 包当前会通过同一套 Win32 pipe 子进程适配器后台启动 `Assets/StreamingAssets/KataGo/engines/win-x64/eigenavx2/katago.exe analysis`，加载 `kata1-b18c384nbt-s9996604416-d4316597426.bin.gz`，并发送固定 19 路 smoke query 验证 `ownership` 能返回；非支持平台会记录跳过原因。`DuelPage` 右下角常驻“形式”按钮，点击后发出 `OnRequestDuelOwnership`，按钮文案切为“关闭”；再次点击会发出 `OnRequestClearDuelOwnership`、清除形势绘制和结果面板，并把按钮文案切回“形式”。`DuelOwnershipSystem` 请求 KataGo `ownership` 后会在棋盘交叉点绘制黑白小方块控制区，同时在按钮上方的结果面板显示黑方目数和白方目数；白方目数会加上当前 query 的 `komi` 并显示“（贴目后）”。`ownership` 绝对值不超过当前阈值的交叉点视为未明确控制，不计入双方目数，也不绘制 overlay；同色相邻控制点之间会用对应黑白颜色的细线连接，线宽略粗于棋盘线；绘制层位于棋子模型上方，避免被棋子遮挡。每次新分析请求和下一手合法落子都会清除旧图层与旧结果面板。第一版形势按钮只关心 `ownership` 控制区域，不展示、不缓存也不以 `rootInfo.scoreLead`、胜率或最佳选点作为产品信息。KataGo 分析超时会停止当前子进程，后续分析请求会尝试使用已解析路径自动重启 KataGo。该流程当前不参与正式数子或落子校验。
 - 2026-05-19：合法落子成功后会向 `SceneComponentDuel.kataGoMoves` 追加 KataGo 标准手顺数组项，例如 `["B","Q16"]`、`["W","D4"]`。本地 `RectCoordinates` 直接采用 KataGo 棋盘布局作为逻辑坐标契约：`x` 从左到右递增，`z` 从棋盘上边向下递增；9 路左上角为本地 `(0,0)` 并写为 `A9`，左下角为本地 `(0,8)` 并写为 `A1`。KataGo `ownership` 数组按同一行序直接回绘，不再在 KataGo 边界做额外坐标兼容转换。`DuelSaveSystem` 保存对局时先写入 `GameSaveConfig.GetDuelRecordSavePath(0)` 指向的 KataGo analysis JSON 记录文件，再保存场景状态；记录文件包含 `boardXSize`、`boardYSize`、`rules`、`komi`、`initialStones: []`、`moves`、`includeOwnership: true` 和 `includePolicy: false`，可直接作为第一版 ownership 分析请求骨架。读取对局时，棋盘状态由记录文件回放恢复，`SceneComponentChessBoard.chessInfoDict` 只作为运行时棋盘缓存，不再作为存档恢复权威。`KataGoPositionJsonBuilder.BuildOwnershipAnalysisJson` 是第一版形势按钮默认入口，优先使用当前对局的 `moves` 生成 ownership 请求；`BuildAnalysisJsonWithCurrentBoard` 只保留为调试或无手顺场景的快照入口。
-- 2026-05-20：`DuelPage.prefab` 通过 Binder 显式维护“虚手”“请求数子”和“认输”按钮；业务代码只绑定点击监听，不在运行时创建这些固定 UI 控件。请求数子会由 `DuelSystem` 优先按当前对局 `moves` 请求 KataGo `ownership`，复用与“形势”按钮相同的阈值和贴目口径生成黑白目数、胜者和目差，并通过通用 `ConfirmPopup` 要求玩家确认，确认后写入 `SceneComponentDuel.finalBlackScore`、`finalWhiteScore`、`finalScoreMargin`、`winnerGuid` 和 `gameEndReason`，再进入 `GameEnd`。如果 KataGo `ownership` 请求失败或返回为空，则回退到本地原型中国数子：黑白双方分数分别由己方棋子数、完全被单方包围的空点数构成，白方额外加 `KataGoDuelRecordFile.Komi` 当前固定 7.5 贴目。虚手会写入 KataGo 标准 `moves` 项 `["B","pass"]` 或 `["W","pass"]`，第一手虚手只推进回合并清除旧形势图层，双方连续虚手会立即按同一 ownership 优先、原型数子兜底的结算流程结束对局，不弹出确认。认输会先通过通用二次确认，确认后写入 `resignLoserGuid`、`winnerGuid` 和 `gameEndReason` 并进入 `GameEnd`。本地原型数子当前仍不包含死子标记、死子确认或让子计分。
+- 2026-05-20：`DuelPage.prefab` 通过 Binder 显式维护“虚手”“请求数子”和“认输”按钮；业务代码只绑定点击监听，不在运行时创建这些固定 UI 控件。请求数子会先打开通用 `ConfirmPopup`，内容显示“数子中...”，确认按钮不可点击；`DuelSystem` 按当前对局 `moves` 请求 KataGo `ownership`，复用与“形势”按钮相同的阈值和贴目口径生成黑白目数、胜者和目差，结果返回后更新同一个弹窗内容并启用确认按钮，玩家确认后写入 `SceneComponentDuel.finalBlackScore`、`finalWhiteScore`、`finalScoreMargin`、`winnerGuid` 和 `gameEndReason`，再进入 `GameEnd`。如果 KataGo `ownership` 请求失败或返回为空，则弹窗显示失败且确认按钮保持不可用，不进入终局。`SceneComponentDuel` 会缓存最近一次 ownership 数子结果和 ownership 数组；没有新落子或虚手时，“形势”和“请求数子”会复用缓存，不重复请求 KataGo。虚手会写入 KataGo 标准 `moves` 项 `["B","pass"]` 或 `["W","pass"]`，第一手虚手只推进回合并清除旧形势图层，双方连续虚手会立即按同一 ownership 结算流程结束对局，不弹出确认；如果连续虚手后的 ownership 数子失败，会回滚第二手虚手记录并保持当前对局。合法落子或虚手会清除 ownership 缓存。
 - `DuelSetupPopup` now passes board, hold-time, byoyomi-count, and byoyomi-time config ids into `DuelSceneCreateParamas`; when the prefab is still on the old three-board-button layout, selecting a board starts a game with default time settings.
 - Hold-time options are table-driven by `Assets/Config/DataJson/duel_hold_time/duel_hold_time.json`: `2m`, `5m`, `10m`, `20m`, and `infinite`.
 - Byoyomi count options are table-driven by `Assets/Config/DataJson/duel_byoyomi_count/duel_byoyomi_count.json`: `off`, `1`, `3`, and `5`. `off` means no byoyomi after hold time runs out.
@@ -59,8 +59,8 @@
 - 合法落子接受后，被提掉的棋子实体会被销毁。
 - 合法落子接受后，系统会更新 `lastChessInfoDict`，创建新的 `Chess` 实体，并发出 `OnAfterAddChessToBoard`。
 - `OnAfterAddChessToBoard` 会推动对局状态机从回合输入进入回合结束。
-- `OnRequestDuelPass` 在回合输入状态下记录当前玩家虚手并推动回合结束；双方连续虚手会优先按 KataGo `ownership` 统计结果结算，失败时回退到本地原型数子，然后直接进入 `GameEnd`。
-- `OnRequestDuelScore` 会优先按 KataGo `ownership` 统计结果生成数子确认内容；若 KataGo 不可用则回退到本地原型数子。玩家确认后进入 `GameEnd`，取消则继续当前对局。
+- `OnRequestDuelPass` 在回合输入状态下记录当前玩家虚手并推动回合结束；双方连续虚手会按 KataGo `ownership` 统计结果结算，然后直接进入 `GameEnd`；如果 ownership 数子失败，会回滚第二手虚手记录并保持当前对局。
+- `OnRequestDuelScore` 会先显示“数子中...”确认弹窗且禁用确认按钮，再按 KataGo `ownership` 统计结果更新确认内容；若 KataGo 不可用或无结果，则显示失败且不进入终局。玩家确认后进入 `GameEnd`，取消则继续当前对局。
 - `OnConfirmDuelResign` 会把当前行棋方记录为认输方，另一方记录为胜者，并进入 `GameEnd`。
 - `GameEnd` 结果面板按终局原因显示结果：数子和连续虚手显示领先目数，超时显示黑/白方超时判负，认输显示黑/白方认输。
 - `DuelSaveSystem` 响应 `OnSaveDuelScene`，先通过 `KataGoDuelRecordFile.Save` 保存棋盘记录文件，再通过 `DuelSaveInfoFile.Save` 保存槽位摘要信息，成功后再通过 `GameSaveManager.SaveDataAsync` 把当前场景状态保存到 `GameSaveConfig.GetDuelSceneSavePath(0)`。
@@ -80,7 +80,7 @@
 - 对局棋盘恢复权威是槽位目录中 `DuelRecord.json` 的 KataGo 标准 `moves`，场景存档不再保存 `SceneComponentChessBoard.chessInfoDict`。
 - `chessInfoDict` 和 `lastChessInfoDict` 跳过保存检查，只作为运行时棋盘缓存和局面对比状态；读档时由记录文件回放重建。
 - 非法落子当前只做逻辑回退，没有用户可见提示。
-- 死子确认、复盘、匹配、房间、重连和网络同步当前未实现；数子、虚手、认输和基础终局结果 UI 已有本地原型实现，但尚未覆盖死子确认或完整线上裁定模型。当前阶段“请求数子”和连续虚手终局会临时复用 KataGo `ownership` 作为优先结算口径，本地原型数子保留为兜底。
+- 死子确认、复盘、匹配、房间、重连和网络同步当前未实现；数子、虚手、认输和基础终局结果 UI 已有本地原型实现，但尚未覆盖死子确认或完整线上裁定模型。当前阶段“请求数子”和连续虚手终局只依赖 KataGo `ownership` 结算，KataGo 不可用或无结果时不产生数子结果。
 
 ## Validation and Maintenance
 
