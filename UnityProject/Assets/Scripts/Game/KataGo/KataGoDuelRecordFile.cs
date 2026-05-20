@@ -103,10 +103,11 @@ public static class KataGoDuelRecordFile
         return true;
     }
 
-    public static bool TryParseMove(JToken moveToken, out PlayerFlag playerFlag, out RectCoordinates coords, int boardSize)
+    public static bool TryParseMove(JToken moveToken, out PlayerFlag playerFlag, out RectCoordinates coords, out bool isPass, int boardSize)
     {
         playerFlag = 0;
         coords = null;
+        isPass = false;
 
         JArray move = moveToken as JArray;
         if (move == null || move.Count < 2) {
@@ -115,7 +116,16 @@ public static class KataGoDuelRecordFile
 
         string color = move[0]?.ToString();
         string point = move[1]?.ToString();
-        if (!TryParseColor(color, out playerFlag) || !KataGoPositionJsonBuilder.TryParseKataGoPoint(point, boardSize, out coords)) {
+        if (!TryParseColor(color, out playerFlag)) {
+            return false;
+        }
+
+        if (string.Equals(point, KataGoPositionJsonBuilder.PassPoint, StringComparison.OrdinalIgnoreCase)) {
+            isPass = true;
+            return true;
+        }
+
+        if (!KataGoPositionJsonBuilder.TryParseKataGoPoint(point, boardSize, out coords)) {
             return false;
         }
 

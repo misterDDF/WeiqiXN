@@ -5,6 +5,8 @@ using XNClient.ChessBoard;
 
 public static class KataGoPositionJsonBuilder
 {
+    public const string PassPoint = "pass";
+
     private const string GoColumns = "ABCDEFGHJKLMNOPQRST";
     private const string DefaultRules = "chinese";
     private const float DefaultKomi = 7.5f;

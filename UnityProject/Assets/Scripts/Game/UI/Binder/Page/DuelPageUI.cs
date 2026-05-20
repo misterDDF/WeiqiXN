@@ -19,11 +19,17 @@ public class DuelPageUI : UIBinderBase
 	public Button btn_duel_settings;
 	public Button btn_duel_ownership;
 	public TextMeshProUGUI txt_duel_ownership_button;
+	public Button btn_duel_pass;
 	public GameObject panel_duel_ownership_result;
 	public TextMeshProUGUI txt_ownership_black_points;
 	public TextMeshProUGUI txt_ownership_white_points;
 	public GameObject panel_duel_settings;
+	public Button btn_settings_request_score;
+	public Button btn_settings_resign;
 	public Button btn_settings_save;
 	public Button btn_settings_exit;
 	public Button btn_settings_close;
+	public GameObject panel_game_end_result;
+	public TextMeshProUGUI txt_game_end_winner;
+	public TextMeshProUGUI txt_game_end_reason;
 }

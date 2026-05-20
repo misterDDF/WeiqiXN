@@ -15,7 +15,15 @@ namespace XNClient.ChessBoard
         private GameObject ownershipRoot;
 
         private const float OwnershipSquareSizeFactor = ChessBoardConfig.starPointRadiusFactor * 2f * 1.5f;
-        private const float OwnershipYOffset = ChessBoardConfig.starPointYOffset + 0.02f;
+        private const float OwnershipLineWidthFactor = ChessBoardConfig.roadNormalFactor * 1.5f;
+        private const float OwnershipYOffset = ChessBoardConfig.rectCellSideLength;
+        private const float OwnershipLineYOffset = OwnershipYOffset - 0.01f;
+        private const int OwnershipNeutral = 0;
+        private const int OwnershipBlack = 1;
+        private const int OwnershipWhite = -1;
+
+        private Material ownershipBlackMaterial;
+        private Material ownershipWhiteMaterial;
 
         public void InitGrid(int gridSize)
         {
@@ -51,7 +59,7 @@ namespace XNClient.ChessBoard
             );
         }
 
-        public void DrawOwnership(JArray ownership)
+        public void DrawOwnership(JArray ownership, float ownershipThreshold)
         {
             ClearOwnership();
             if (ownership == null) {
@@ -70,19 +78,18 @@ namespace XNClient.ChessBoard
             ownershipRoot = new GameObject("OwnershipRoot");
             ownershipRoot.transform.SetParent(transform, false);
 
+            int[] ownershipFlags = BuildOwnershipFlags(ownership, ownershipThreshold, expectedCount);
+            DrawOwnershipLines(ownershipFlags);
+
             float squareSize = ChessBoardConfig.rectCellSideLength * OwnershipSquareSizeFactor;
             for (int z = 0; z < gridSize; z++) {
                 for (int x = 0; x < gridSize; x++) {
-                    int ownershipIndex = z * gridSize + x;
-                    if (!float.TryParse(ownership[ownershipIndex]?.ToString(), out float ownershipValue)) {
+                    int ownershipFlag = ownershipFlags[z * gridSize + x];
+                    if (ownershipFlag == OwnershipNeutral) {
                         continue;
                     }
 
-                    if (Mathf.Abs(ownershipValue) < 0.05f) {
-                        continue;
-                    }
-
-                    CreateOwnershipSquare(x, z, squareSize, ownershipValue > 0f ? Color.black : Color.white);
+                    CreateOwnershipSquare(x, z, squareSize, GetOwnershipMaterial(ownershipFlag));
                 }
             }
         }
@@ -97,27 +104,120 @@ namespace XNClient.ChessBoard
             ownershipRoot = null;
         }
 
-        private void CreateOwnershipSquare(int x, int z, float squareSize, Color color)
+        private int[] BuildOwnershipFlags(JArray ownership, float ownershipThreshold, int expectedCount)
+        {
+            int[] ownershipFlags = new int[expectedCount];
+            for (int ownershipIndex = 0; ownershipIndex < expectedCount; ownershipIndex++) {
+                if (!float.TryParse(ownership[ownershipIndex]?.ToString(), out float ownershipValue)) {
+                    continue;
+                }
+
+                if (Mathf.Abs(ownershipValue) <= ownershipThreshold) {
+                    continue;
+                }
+
+                ownershipFlags[ownershipIndex] = ownershipValue > 0f ? OwnershipBlack : OwnershipWhite;
+            }
+
+            return ownershipFlags;
+        }
+
+        private void DrawOwnershipLines(int[] ownershipFlags)
+        {
+            float lineWidth = ChessBoardConfig.rectCellSideLength * OwnershipLineWidthFactor;
+            float lineLength = ChessBoardConfig.rectCellSideLength;
+            for (int z = 0; z < gridSize; z++) {
+                for (int x = 0; x < gridSize; x++) {
+                    int ownershipFlag = ownershipFlags[z * gridSize + x];
+                    if (ownershipFlag == OwnershipNeutral) {
+                        continue;
+                    }
+
+                    if (x + 1 < gridSize && ownershipFlags[z * gridSize + x + 1] == ownershipFlag) {
+                        Vector3 centerA = GetOwnershipLocalPosition(x, z, OwnershipLineYOffset);
+                        Vector3 centerB = GetOwnershipLocalPosition(x + 1, z, OwnershipLineYOffset);
+                        CreateOwnershipLine(centerA, centerB, lineLength, lineWidth, true, GetOwnershipMaterial(ownershipFlag));
+                    }
+
+                    if (z + 1 < gridSize && ownershipFlags[(z + 1) * gridSize + x] == ownershipFlag) {
+                        Vector3 centerA = GetOwnershipLocalPosition(x, z, OwnershipLineYOffset);
+                        Vector3 centerB = GetOwnershipLocalPosition(x, z + 1, OwnershipLineYOffset);
+                        CreateOwnershipLine(centerA, centerB, lineLength, lineWidth, false, GetOwnershipMaterial(ownershipFlag));
+                    }
+                }
+            }
+        }
+
+        private void CreateOwnershipSquare(int x, int z, float squareSize, Material material)
         {
             GameObject square = GameObject.CreatePrimitive(PrimitiveType.Quad);
             square.name = $"Ownership_{x}_{z}";
             square.transform.SetParent(ownershipRoot.transform, false);
-            Vector3 localPosition = GetCellCenterLocalPosition(x, z);
-            localPosition.y = OwnershipYOffset;
-            square.transform.localPosition = localPosition;
+            square.transform.localPosition = GetOwnershipLocalPosition(x, z, OwnershipYOffset);
             square.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
             square.transform.localScale = new Vector3(squareSize, squareSize, 1f);
 
-            Collider squareCollider = square.GetComponent<Collider>();
-            if (squareCollider != null) {
-                Destroy(squareCollider);
+            RemoveOwnershipCollider(square);
+            ApplyOwnershipMaterial(square, material);
+        }
+
+        private void CreateOwnershipLine(Vector3 centerA, Vector3 centerB, float lineLength, float lineWidth, bool isHorizontal, Material material)
+        {
+            GameObject line = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            line.name = isHorizontal ? "OwnershipLine_H" : "OwnershipLine_V";
+            line.transform.SetParent(ownershipRoot.transform, false);
+            line.transform.localPosition = (centerA + centerB) * 0.5f;
+            line.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            line.transform.localScale = isHorizontal
+                ? new Vector3(lineLength, lineWidth, 1f)
+                : new Vector3(lineWidth, lineLength, 1f);
+
+            RemoveOwnershipCollider(line);
+            ApplyOwnershipMaterial(line, material);
+        }
+
+        private Vector3 GetOwnershipLocalPosition(int x, int z, float y)
+        {
+            Vector3 localPosition = GetCellCenterLocalPosition(x, z);
+            localPosition.y = y;
+            return localPosition;
+        }
+
+        private Material GetOwnershipMaterial(int ownershipFlag)
+        {
+            if (ownershipFlag == OwnershipBlack) {
+                if (ownershipBlackMaterial == null) {
+                    ownershipBlackMaterial = CreateOwnershipMaterial(Color.black);
+                }
+                return ownershipBlackMaterial;
             }
 
-            MeshRenderer renderer = square.GetComponent<MeshRenderer>();
+            if (ownershipWhiteMaterial == null) {
+                ownershipWhiteMaterial = CreateOwnershipMaterial(Color.white);
+            }
+            return ownershipWhiteMaterial;
+        }
+
+        private Material CreateOwnershipMaterial(Color color)
+        {
+            Material material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+            material.color = color;
+            return material;
+        }
+
+        private void RemoveOwnershipCollider(GameObject go)
+        {
+            Collider collider = go.GetComponent<Collider>();
+            if (collider != null) {
+                Destroy(collider);
+            }
+        }
+
+        private void ApplyOwnershipMaterial(GameObject go, Material material)
+        {
+            MeshRenderer renderer = go.GetComponent<MeshRenderer>();
             if (renderer != null) {
-                Material material = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-                material.color = color;
-                renderer.material = material;
+                renderer.sharedMaterial = material;
             }
         }
 

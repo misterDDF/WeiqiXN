@@ -195,12 +195,17 @@ public class ChessBoardSystem : SystemBase
         }
 
         foreach (var move in moves) {
-            if (!KataGoDuelRecordFile.TryParseMove(move, out PlayerFlag playerFlag, out RectCoordinates coords, boardSize)) {
+            if (!KataGoDuelRecordFile.TryParseMove(move, out PlayerFlag playerFlag, out RectCoordinates coords, out bool isPass, boardSize)) {
                 XNLogger.LogError("Invalid move in KataGo duel record, restore stopped.", ("move", move.ToString()));
                 compChessBoard.chessInfoDict.Clear();
                 compChessBoard.lastChessInfoDict.Clear();
                 compDuel.ResetKataGoMoves();
                 return;
+            }
+
+            if (isPass) {
+                compDuel.AppendKataGoPass(playerFlag);
+                continue;
             }
 
             if (!ApplyRecordMove(compChessBoard, compDuel, playerFlag, coords, boardSize)) {

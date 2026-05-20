@@ -19,6 +19,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         RegisterSystemEvent<OnDuelStateChanged>(OnDuelStateChanged);
         RegisterSystemEvent<OnDuelOwnershipResult>(OnDuelOwnershipResult);
         RegisterSystemEvent<OnClearDuelOwnership>(OnClearDuelOwnership);
+        RegisterSystemEvent<OnDuelScoreResult>(OnDuelScoreResult);
 
         BindPrefabHud();
     }
@@ -30,6 +31,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         SetSettingsPanelVisible(false);
         SetOwnershipActive(false);
         SetOwnershipResultPanelVisible(false);
+        SetGameEndResultPanelVisible(false);
         RefreshDuelHud();
     }
 
@@ -172,11 +174,29 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         SetOwnershipResultPanelVisible(false);
     }
 
+    public void OnDuelScoreResult(OnDuelScoreResult evt)
+    {
+        if (evt.scoreResult == null || !evt.requireConfirm) {
+            return;
+        }
+
+        DuelScoreResult scoreResult = evt.scoreResult;
+        ConfirmPopup.Show(
+            "确认数子结果",
+            BuildScoreConfirmContent(scoreResult),
+            () => EmitSystemEvent(new OnConfirmDuelScore(scoreResult)),
+            null,
+            "确认结果",
+            "继续对局"
+        );
+    }
+
     public void RefreshDuelHud()
     {
         var mainScene = Global.Instance.sceneManager.mainScene;
         var compDuel = mainScene.GetComponent<SceneComponentDuel>();
         if (compDuel == null) {
+            SetResignButtonVisible(false);
             return;
         }
 
@@ -202,6 +222,9 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             curTurnPlayerGuid,
             "白方"
         );
+
+        RefreshGameEndResultPanel(mainScene, compDuel);
+        RefreshSettingsActionVisibility(mainScene, compDuel);
     }
 
     public void OnMouse0Down()
@@ -243,10 +266,48 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         EmitSystemEvent(new OnRequestDuelOwnership());
     }
 
+    public void OnClickBtnPass()
+    {
+        EmitSystemEvent(new OnRequestDuelPass());
+    }
+
+    public void OnClickBtnRequestScore()
+    {
+        CloseSettingsPanel();
+        EmitSystemEvent(new OnRequestDuelScore());
+    }
+
+    public void OnClickBtnResign()
+    {
+        var mainScene = Global.Instance.sceneManager.mainScene;
+        var compDuel = mainScene.GetComponent<SceneComponentDuel>();
+        if (!CanResign(mainScene, compDuel)) {
+            SetResignButtonVisible(false);
+            return;
+        }
+
+        CloseSettingsPanel();
+
+        Player curPlayer = mainScene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
+        string playerText = GetPlayerDisplayName(curPlayer, compDuel, compDuel?.curTurnPlayerGuid.value);
+
+        ConfirmPopup.Show(
+            "确认认输",
+            $"确认{playerText}认输？",
+            () => EmitSystemEvent(new OnConfirmDuelResign()),
+            null,
+            "确认认输",
+            "继续对局"
+        );
+    }
+
     private void BindPrefabHud()
     {
         AddButtonListener(binder.btn_duel_settings, OpenSettingsPanel);
         AddButtonListener(binder.btn_duel_ownership, OnClickBtnOwnership);
+        AddButtonListener(binder.btn_duel_pass, OnClickBtnPass);
+        AddButtonListener(binder.btn_settings_request_score, OnClickBtnRequestScore);
+        AddButtonListener(binder.btn_settings_resign, OnClickBtnResign);
         AddButtonListener(binder.btn_settings_save, OnClickBtnSave);
         AddButtonListener(binder.btn_settings_exit, OnClickBtnExit);
         AddButtonListener(binder.btn_settings_close, CloseSettingsPanel);
@@ -297,6 +358,105 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             : pointCount.ToString("0.0");
     }
 
+    private string BuildScoreConfirmContent(DuelScoreResult scoreResult)
+    {
+        string winnerText;
+        if (scoreResult.winnerFlag == PlayerFlag.Player1) {
+            winnerText = $"黑方胜 {FormatPointCount(scoreResult.margin)} 目";
+        } else if (scoreResult.winnerFlag == PlayerFlag.Player2) {
+            winnerText = $"白方胜 {FormatPointCount(scoreResult.margin)} 目";
+        } else {
+            winnerText = "双方和棋";
+        }
+
+        return $"黑方: {FormatPointCount(scoreResult.blackScore)} 目\n白方: {FormatPointCount(scoreResult.whiteScore)} 目（含贴目 {FormatPointCount(scoreResult.komi)}）\n结果: {winnerText}";
+    }
+
+    private void RefreshSettingsActionVisibility(SceneBase mainScene, SceneComponentDuel compDuel)
+    {
+        SetResignButtonVisible(CanResign(mainScene, compDuel));
+    }
+
+    private bool CanResign(SceneBase mainScene, SceneComponentDuel compDuel)
+    {
+        if (mainScene == null || compDuel == null || compDuel.duelFSM == null || !compDuel.duelFSM.isActivated) {
+            return false;
+        }
+
+        if (compDuel.duelFSM.curState == null || compDuel.duelFSM.curState.stateName != DuelStateDefine.STATE_TURN_INPUT) {
+            return false;
+        }
+
+        if (string.IsNullOrEmpty(compDuel.curTurnPlayerGuid.value)) {
+            return false;
+        }
+
+        return mainScene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value) != null;
+    }
+
+    private void RefreshGameEndResultPanel(SceneBase mainScene, SceneComponentDuel compDuel)
+    {
+        if (compDuel == null || compDuel.duelFSM == null || compDuel.duelFSM.curState == null) {
+            SetGameEndResultPanelVisible(false);
+            return;
+        }
+
+        if (compDuel.duelFSM.curState.stateName != DuelStateDefine.STATE_GAME_END) {
+            SetGameEndResultPanelVisible(false);
+            return;
+        }
+
+        Player winner = mainScene.GetEntity<Player>(compDuel.winnerGuid.value);
+        string winnerText = GetPlayerDisplayName(winner, compDuel, compDuel.winnerGuid.value);
+        string reasonText = BuildGameEndReasonText(mainScene, compDuel);
+
+        SetText(binder.txt_game_end_winner, string.IsNullOrEmpty(compDuel.winnerGuid.value) ? "双方和棋" : $"{winnerText}胜出");
+        SetText(binder.txt_game_end_reason, reasonText);
+        SetGameEndResultPanelVisible(true);
+    }
+
+    private string BuildGameEndReasonText(SceneBase mainScene, SceneComponentDuel compDuel)
+    {
+        if (compDuel == null) {
+            return string.Empty;
+        }
+
+        if (compDuel.gameEndReason.value == DuelGameEndReason.Timeout) {
+            Player loser = mainScene.GetEntity<Player>(compDuel.timeoutLoserGuid.value);
+            return $"{GetPlayerDisplayName(loser, compDuel, compDuel.timeoutLoserGuid.value)}超时判负";
+        }
+
+        if (compDuel.gameEndReason.value == DuelGameEndReason.Resign) {
+            Player loser = mainScene.GetEntity<Player>(compDuel.resignLoserGuid.value);
+            return $"{GetPlayerDisplayName(loser, compDuel, compDuel.resignLoserGuid.value)}认输";
+        }
+
+        if (compDuel.gameEndReason.value == DuelGameEndReason.Score
+            || compDuel.gameEndReason.value == DuelGameEndReason.ConsecutivePass) {
+            return $"领先 {FormatPointCount(compDuel.finalScoreMargin.value)} 目";
+        }
+
+        return "对局结束";
+    }
+
+    private string GetPlayerDisplayName(Player player, SceneComponentDuel compDuel, string playerGuid)
+    {
+        if (player != null) {
+            return (PlayerFlag)player.playerFlag.value == PlayerFlag.Player1 ? "黑方" : "白方";
+        }
+
+        if (compDuel != null && !string.IsNullOrEmpty(playerGuid)) {
+            if (playerGuid == compDuel.player1Guid.value) {
+                return "黑方";
+            }
+            if (playerGuid == compDuel.player2Guid.value) {
+                return "白方";
+            }
+        }
+
+        return "当前方";
+    }
+
     private void OpenSettingsPanel()
     {
         SetSettingsPanelVisible(true);
@@ -318,6 +478,20 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     {
         if (binder.panel_duel_ownership_result != null) {
             binder.panel_duel_ownership_result.SetActive(isVisible);
+        }
+    }
+
+    private void SetGameEndResultPanelVisible(bool isVisible)
+    {
+        if (binder.panel_game_end_result != null) {
+            binder.panel_game_end_result.SetActive(isVisible);
+        }
+    }
+
+    private void SetResignButtonVisible(bool isVisible)
+    {
+        if (binder.btn_settings_resign != null) {
+            binder.btn_settings_resign.gameObject.SetActive(isVisible);
         }
     }
 

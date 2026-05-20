@@ -26,6 +26,9 @@
 - 成功落子后 `OnAfterAddChessToBoard` 触发 `TURN_INPUT_FINISH`，进入 `TurnEnd`。
 - `TurnEnd` 切换当前玩家，然后触发下一轮 `TurnStart`。
 - `DuelPage` 右下角“形式”按钮会发出 `OnRequestDuelOwnership`，并在分析或显示期间切换为“关闭”；再次点击会发出 `OnRequestClearDuelOwnership`。`DuelOwnershipSystem` 根据当前对局生成 KataGo ownership 请求，收到结果后绘制棋盘 overlay，并通过 `OnDuelOwnershipResult` 让 UI 显示双方目数。该流程不推进 FSM，也不改变正式对局结果。
+- `DuelPage.prefab` 会在形势按钮旁提供“虚手”入口；`DuelSystem` 在回合输入状态收到虚手后记录 KataGo `pass`，第一手虚手推进到下一回合，双方连续虚手会立即按本地原型数子结果进入 `GameEnd`，不弹二次确认。
+- `DuelPage.prefab` 设置面板会提供“请求数子”和“认输”入口；`DuelSystem` 自动计算黑白分数、胜者和目差，通过 `OnDuelScoreResult` 交给页面弹出通用二次确认，确认后进入 `GameEnd`，取消则保持当前对局。认输按钮只在回合输入且当前行棋玩家有效时显示，点击后先弹出通用二次确认，确认后当前行棋方判负并进入 `GameEnd`。
+- `DuelPage.prefab` 右侧中部维护结算结果面板，进入 `GameEnd` 后显示黑/白方胜出和结束原因；数子或连续虚手显示领先目数，超时显示黑/白方超时判负，认输显示黑/白方认输。
 
 ## 设计观察
 
@@ -33,15 +36,14 @@ FSM 让本地对局流程清晰可扩展。`WaitAction` 和 `GameEnd` 已有状�
 
 ## 风险和缺口
 
-- 超时目前直接进入回合结束，没有记录超时原因或对局惩罚。
 - `WaitAction` 未接入主路径。
-- `GameEnd` 未接入胜负、终局或 UI。
+- `GameEnd` 已可由超时、确认数子、双方连续虚手或认输进入，并保存 `winnerGuid`、终局原因和原型数子结果；仍缺少死子确认流程和线上裁定模型。
 - 玩家显示仍偏调试形态。
 - 联机时当前玩家、倒计时、落子确认都必须由权威状态驱动，不能只依赖本地 FSM 触发。
 
 ## 后续建议
 
-- 补齐 pass、resign、timeout 策略和 `GameEnd` 进入条件。
+- 补齐死子确认、线上裁定和 `GameEnd` 后续复盘流程。
 - 为对局状态变化补充明确 UI 事件。
 - 联机阶段将 FSM 区分为“权威状态”和“客户端表现状态”，避免客户端抢先进入不可回滚状态。
 ## 2026-05-15 Current Addendum
@@ -52,4 +54,4 @@ FSM 让本地对局流程清晰可扩展。`WaitAction` 和 `GameEnd` 已有状�
 - `TurnInput` now counts down the current player's remaining hold time. After hold time reaches zero, byoyomi starts only when the selected byoyomi count is greater than zero.
 - Every byoyomi period timeout consumes one remaining byoyomi count. When the count is exhausted, `SceneComponentDuel.timeoutLoserGuid` and `winnerGuid` are recorded and the FSM enters `GameEnd`.
 - `DuelPage` shows black-player time information in the upper-left panel and white-player time information in the upper-right panel, while save and exit actions live in an in-duel settings panel opened from the lower-right settings button.
-- `GameEnd` is now reachable through timeout loss, but full endgame UI, pass, resign, scoring, and review flows remain out of scope.
+- `GameEnd` is now reachable through timeout loss, scoring, consecutive pass, and resign; dead-stone confirmation, review flows, and online adjudication remain out of scope.

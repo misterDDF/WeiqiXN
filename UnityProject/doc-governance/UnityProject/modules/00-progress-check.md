@@ -33,7 +33,7 @@
 - 非法落子目前只有逻辑回退，`ChessBoardSystem` 中多个 `TODO show message` 还没有用户反馈。
 - 鼠标输入在 `DuelPage` 中直接读取，标注了 `TODO input manager`。
 - `SceneBase` 加载时有 `TODO update load progress`，LoadingPage 尚未展示真实进度。
-- 对局结束规则缺失：没有 pass、resign、终局、数目、胜负判定。
+- 对局结束规则仍不完整：已有虚手、请求数子、连续虚手终局、认输和基础终局结果 UI 原型，但仍没有死子确认和线上裁定模型。
 - 保存已有触发入口，但用户可见的读取入口不明确。
 - 本地回归验证还没有自动化测试。
 - 联机前需要明确规则最小集，否则同步协议会被 pass/resign/scoring 的缺口反复打断。

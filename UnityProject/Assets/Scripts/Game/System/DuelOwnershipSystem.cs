@@ -8,7 +8,7 @@ public class DuelOwnershipSystem : SystemBase
 {
     public override string systemName => GetSystemName<DuelOwnershipSystem>();
 
-    private const float OwnershipThreshold = 0.05f;
+    private const float OwnershipThreshold = 0.2f;
 
     private bool isAnalyzing;
     private int requestVersion;
@@ -23,6 +23,7 @@ public class DuelOwnershipSystem : SystemBase
         scene.RegisterSystemEvent<OnRequestDuelOwnership>(OnRequestDuelOwnership);
         scene.RegisterSystemEvent<OnRequestClearDuelOwnership>(OnRequestClearDuelOwnership);
         scene.RegisterSystemEvent<OnAfterAddChessToBoard>(OnAfterAddChessToBoard);
+        scene.RegisterSystemEvent<OnRequestDuelPass>(OnRequestDuelPass);
     }
 
     private void OnAfterAddChessToBoard(OnAfterAddChessToBoard evt)
@@ -31,6 +32,11 @@ public class DuelOwnershipSystem : SystemBase
     }
 
     private void OnRequestClearDuelOwnership(OnRequestClearDuelOwnership evt)
+    {
+        ClearOwnershipAndNotify();
+    }
+
+    private void OnRequestDuelPass(OnRequestDuelPass evt)
     {
         ClearOwnershipAndNotify();
     }
@@ -72,7 +78,7 @@ public class DuelOwnershipSystem : SystemBase
                 return;
             }
 
-            compChessBoard.chessBoardGrid.DrawOwnership(ownership);
+            compChessBoard.chessBoardGrid.DrawOwnership(ownership, OwnershipThreshold);
             OwnershipScore score = CalculateOwnershipScore(ownership, query);
             scene.EmitSystemEvent(new OnDuelOwnershipResult(score.blackPoints, score.whitePoints, score.komi));
         }

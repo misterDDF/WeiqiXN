@@ -72,6 +72,54 @@ public class OnRequestClearDuelOwnership : SystemEventBase
     public override string GetEventType() => GetEventType<OnRequestClearDuelOwnership>();
 }
 
+public class DuelScoreResult
+{
+    public float blackScore;
+    public float whiteScore;
+    public float komi;
+    public float margin;
+    public PlayerFlag winnerFlag;
+}
+
+public class OnRequestDuelScore : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnRequestDuelScore>();
+}
+
+public class OnConfirmDuelScore : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnConfirmDuelScore>();
+
+    public DuelScoreResult scoreResult;
+    public OnConfirmDuelScore(DuelScoreResult scoreResult)
+    {
+        this.scoreResult = scoreResult;
+    }
+}
+
+public class OnConfirmDuelResign : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnConfirmDuelResign>();
+}
+
+public class OnRequestDuelPass : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnRequestDuelPass>();
+}
+
+public class OnDuelScoreResult : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnDuelScoreResult>();
+
+    public DuelScoreResult scoreResult;
+    public bool requireConfirm;
+    public OnDuelScoreResult(DuelScoreResult scoreResult, bool requireConfirm)
+    {
+        this.scoreResult = scoreResult;
+        this.requireConfirm = requireConfirm;
+    }
+}
+
 public class OnDuelOwnershipResult : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnDuelOwnershipResult>();

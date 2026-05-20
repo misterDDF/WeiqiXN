@@ -17,3 +17,11 @@ public static class DuelParamDefine
     public const string TRIGGER_PARAM_TURN_START = "trigger_turnStart";
     public const string TRIGGER_PARAM_GAME_END = "trigger_gameEnd";
 }
+
+public static class DuelGameEndReason
+{
+    public const string Score = "score";
+    public const string ConsecutivePass = "consecutive_pass";
+    public const string Timeout = "timeout";
+    public const string Resign = "resign";
+}

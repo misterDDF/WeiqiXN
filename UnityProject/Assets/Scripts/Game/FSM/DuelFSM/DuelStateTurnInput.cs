@@ -115,6 +115,7 @@ public class DuelStateTurnInput : DuelFSMState
     {
         hasTimedOut = true;
         compDuel.timeoutLoserGuid.value = compDuel.curTurnPlayerGuid.value;
+        compDuel.gameEndReason.value = DuelGameEndReason.Timeout;
         compDuel.winnerGuid.value = compDuel.curTurnPlayerGuid.value == compDuel.player1Guid.value
             ? compDuel.player2Guid.value
             : compDuel.player1Guid.value;
