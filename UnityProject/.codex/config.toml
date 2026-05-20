@@ -1,0 +1,4 @@
+[mcp_servers.unity]
+command = "node"
+args = ["Packages/com.gamelovers.mcp-unity/Server~/build/index.js"]
+env = { UNITY_PORT = "8090", UNITY_HOST = "localhost", UNITY_REQUEST_TIMEOUT = "15000" }

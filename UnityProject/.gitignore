@@ -81,3 +81,6 @@ crashlytics-build.properties
 
 # AI Agent
 /[Aa]ssets/.minimax
+
+# Embedded MCP Unity server dependencies
+/[Pp]ackages/com.gamelovers.mcp-unity/Server~/node_modules/

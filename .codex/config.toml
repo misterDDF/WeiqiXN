@@ -1,5 +1,4 @@
-[mcp_servers.puerts-unity-editor-assistant]
-url = "http://127.0.0.1:3100/mcp"
-
-[mcp_servers.puerts-unity-editor-assistant.tools.evalJsCode]
-approval_mode = "approve"
+[mcp_servers.mcp-unity]
+command = "node"
+args = ["UnityProject/Packages/com.gamelovers.mcp-unity/Server~/build/index.js"]
+env = { UNITY_PORT = "8090", UNITY_HOST = "localhost", UNITY_REQUEST_TIMEOUT = "15000" }
