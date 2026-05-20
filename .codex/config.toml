@@ -2,3 +2,6 @@
 command = "node"
 args = ["UnityProject/Packages/com.gamelovers.mcp-unity/Server~/build/index.js"]
 env = { UNITY_PORT = "8090", UNITY_HOST = "localhost", UNITY_REQUEST_TIMEOUT = "15000" }
+
+[mcp_servers.mcp-unity.tools.get_scene_info]
+approval_mode = "approve"
