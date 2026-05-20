@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Cinemachine;
 using UnityEngine;
@@ -25,7 +24,6 @@ public class ChessBoardSystem : SystemBase
         var compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
         if (compChessBoard == null) return;
 
-        // 非读档进来的需要手动初始化
         if (scene.sceneCreateParams.saveFilePath == null) {
             if (scene.sceneCreateParams.duelSceneCreateParamas != null) {
                 compChessBoard.boardCfgId.value = scene.sceneCreateParams.duelSceneCreateParamas.boardCfgId;
@@ -37,14 +35,12 @@ public class ChessBoardSystem : SystemBase
         chessBoardData = ChessBoardDataType.GetConfigData(compChessBoard.boardCfgId.value);
         if (chessBoardData != null) {
             compChessBoard.chessBoardGrid.InitGrid(chessBoardData.boardSize);
-            int chessBoardCellCount = compChessBoard.chessBoardGrid.gridSize * compChessBoard.chessBoardGrid.gridSize;
             Bounds gridBounds = compChessBoard.chessBoardGrid.GetGridBounds();
             InitDuelVCam(gridBounds);
         } else {
             XNLogger.LogError("Chess board config not found!", ("chessBoardCfgId", compChessBoard.boardCfgId.value));
         }
 
-        // 读档进来的还原棋子entity
         if (scene.sceneCreateParams.saveFilePath != null) {
             RestoreBoardFromKataGoRecord(compChessBoard);
         }
@@ -74,58 +70,42 @@ public class ChessBoardSystem : SystemBase
     {
         var compDuel = scene.GetComponent<SceneComponentDuel>();
         var compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
-        if (compDuel != null && compChessBoard != null) {
-            int posIndex = compChessBoard.GetPosIndexByCoords(evt.coords);
-            var curPlayer = scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
-            if (posIndex >= 0 && !compChessBoard.chessInfoDict.ContainsKey(posIndex.ToString()) && curPlayer != null) {
-                string chessGuid = EntityUtils.CreateGuidWithEntityType(EntityBase.GetEntityType<Chess>());
-                var cachedChessInfoDict = compChessBoard.CreateCacheChessInfoDict();
+        if (compDuel == null || compChessBoard == null) {
+            return;
+        }
 
-                ChessInfo addChessInfo = new ChessInfo();
-                addChessInfo.chessGuid.value = chessGuid;
-                addChessInfo.chessFlag.value = curPlayer.playerFlag.value;
-                compChessBoard.chessInfoDict.SetValue(posIndex.ToString(), addChessInfo);
-                List<int> pendingRemovePosIndexes = GetPendingRemovePosIndexes((PlayerFlag)curPlayer.playerFlag.value, evt.coords);
-                foreach (var removePosIndex in pendingRemovePosIndexes) {
-                    compChessBoard.chessInfoDict.Remove(removePosIndex.ToString());
-                }
+        var curPlayer = scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
+        if (curPlayer == null) {
+            return;
+        }
 
-                // 落子提子后，还会导致自杀是非法的
-                List<int> selfRemovePosIndexes = GetPendingRemovePosIndexes(((PlayerFlag)curPlayer.playerFlag.value).GetOpponentPlayerFlag(), evt.coords);
-                if (selfRemovePosIndexes.Count > 0) {
-                    // TODO show message
-                    compChessBoard.chessInfoDict = cachedChessInfoDict;
-                    return;
-                }
-                // 额外检查单独落子是否自杀
-                if (!CheckSingleChessValid((PlayerFlag)curPlayer.playerFlag.value, evt.coords)) {
-                    // TODO show message
-                    compChessBoard.chessInfoDict = cachedChessInfoDict;
-                    return;
-                }
-                // 落子前后棋盘状态不能完全一致，防止打劫
-                if (compChessBoard.CheckChessFlagChanged()) {
-                    foreach (var removePosIndex in pendingRemovePosIndexes) {
-                        // 注意chessInfoMap提子的guid已经清理了，这里要从上次的状态去找
-                        if (cachedChessInfoDict.TryGetValue(removePosIndex.ToString(), out var _chessInfo)) {
-                            var chess = scene.GetEntity<Chess>(_chessInfo.chessGuid.value);
-                            if (chess != null) {
-                                chess.Destroy();
-                            }
-                        }
-                    }
-                    compChessBoard.lastChessInfoDict = cachedChessInfoDict;
-                    EntityUtils.CreateChess(scene, chessGuid, (PlayerFlag)curPlayer.playerFlag.value, evt.coords);
-                    int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : chessBoardData?.boardSize ?? 19;
-                    compDuel.AppendKataGoMove((PlayerFlag)curPlayer.playerFlag.value, evt.coords, boardSize);
-                    scene.EmitSystemEvent(new OnAfterAddChessToBoard((PlayerFlag)curPlayer.playerFlag.value, evt.coords.Clone()));
-                } else {
-                    // TODO show message
-                    compChessBoard.chessInfoDict = cachedChessInfoDict;
-                    return;
+        PlayerFlag playerFlag = (PlayerFlag)curPlayer.playerFlag.value;
+        string chessGuid = EntityUtils.CreateGuidWithEntityType(EntityBase.GetEntityType<Chess>());
+        if (!DuelMoveRule.TryApplyMove(
+            compChessBoard,
+            playerFlag,
+            evt.coords,
+            chessGuid,
+            out SavableObjectDict<ChessInfo> cachedChessInfoDict,
+            out List<int> pendingRemovePosIndexes
+        )) {
+            return;
+        }
+
+        foreach (var removePosIndex in pendingRemovePosIndexes) {
+            if (cachedChessInfoDict.TryGetValue(removePosIndex.ToString(), out var chessInfo)) {
+                var chess = scene.GetEntity<Chess>(chessInfo.chessGuid.value);
+                if (chess != null) {
+                    chess.Destroy();
                 }
             }
         }
+
+        compChessBoard.lastChessInfoDict = cachedChessInfoDict;
+        EntityUtils.CreateChess(scene, chessGuid, playerFlag, evt.coords);
+        int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : chessBoardData?.boardSize ?? 19;
+        compDuel.AppendKataGoMove(playerFlag, evt.coords, boardSize);
+        scene.EmitSystemEvent(new OnAfterAddChessToBoard(playerFlag, evt.coords.Clone()));
     }
 
     private void InitDuelVCam(Bounds gridBound)
@@ -137,13 +117,10 @@ public class ChessBoardSystem : SystemBase
         }
 
         Transform duelVCamTransform = compChessBoard.duelVCam.transform;
-
-        // 让相机始终垂直朝向 y 轴负方向，形成俯视棋盘的视角
         duelVCamTransform.rotation = Quaternion.LookRotation(Vector3.down, Vector3.forward);
 
         float aspect = Camera.main != null ? Camera.main.aspect : 16f / 9f;
 
-        // 以棋盘中心为基准，只沿 y 轴正方向抬升相机位置
         float extraYOffset = 0;
         if (chessBoardData != null) {
             extraYOffset = chessBoardData.vcamYOffset;
@@ -232,176 +209,14 @@ public class ChessBoardSystem : SystemBase
 
     private bool ApplyRecordMove(SceneComponentChessBoard compChessBoard, SceneComponentDuel compDuel, PlayerFlag playerFlag, RectCoordinates coords, int boardSize)
     {
-        int posIndex = compChessBoard.GetPosIndexByCoords(coords);
-        if (posIndex < 0 || compChessBoard.chessInfoDict.ContainsKey(posIndex.ToString())) {
-            XNLogger.LogError("Invalid record move position, restore move skipped.", ("coords", coords?.ToString() ?? "null"));
-            return false;
-        }
-
         string chessGuid = EntityUtils.CreateGuidWithEntityType(EntityBase.GetEntityType<Chess>());
-        var cachedChessInfoDict = compChessBoard.CreateCacheChessInfoDict();
-
-        ChessInfo addChessInfo = new ChessInfo();
-        addChessInfo.chessGuid.value = chessGuid;
-        addChessInfo.chessFlag.value = (int)playerFlag;
-
-        compChessBoard.chessInfoDict.SetValue(posIndex.ToString(), addChessInfo);
-        List<int> pendingRemovePosIndexes = GetPendingRemovePosIndexes(playerFlag, coords);
-        foreach (int removePosIndex in pendingRemovePosIndexes) {
-            compChessBoard.chessInfoDict.Remove(removePosIndex.ToString());
-        }
-
-        List<int> selfRemovePosIndexes = GetPendingRemovePosIndexes(playerFlag.GetOpponentPlayerFlag(), coords);
-        if (selfRemovePosIndexes.Count > 0 || !CheckSingleChessValid(playerFlag, coords) || !compChessBoard.CheckChessFlagChanged()) {
-            compChessBoard.chessInfoDict = cachedChessInfoDict;
+        if (!DuelMoveRule.TryApplyMove(compChessBoard, playerFlag, coords, chessGuid, out var cachedChessInfoDict, out _)) {
+            XNLogger.LogError("Invalid record move position, restore move skipped.", ("coords", coords?.ToString() ?? "null"));
             return false;
         }
 
         compChessBoard.lastChessInfoDict = cachedChessInfoDict;
         compDuel.AppendKataGoMove(playerFlag, coords, boardSize);
         return true;
-    }
-
-    private static int[] dirX = { 0, 0, 1, -1 };
-    private static int[] dirZ = { 1, -1, 0, 0 };
-    private bool[] visited;
-    // 新增棋子时，BFS遍历失去所有气的棋子串
-    private List<int> GetPendingRemovePosIndexes(PlayerFlag playerFlag, RectCoordinates coords)
-    {
-        List<int> pendingRemovePosIndexes = new List<int>();
-        var compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
-        if (compChessBoard != null) {
-            visited = new bool[compChessBoard.GetGridMaxSize()];
-            for (int dir = 0; dir < Math.Min(dirX.Length, dirZ.Length); dir++) {
-                int nx = coords.x + dirX[dir];
-                int nz = coords.z + dirZ[dir];
-                int nPosIndex = compChessBoard.GetPosIndexByCoords(new RectCoordinates(nx, nz));
-
-                if (nPosIndex < 0 || visited[nPosIndex]) {
-                    continue;
-                }
-                List<int> connectGroup = GetConnectGroup(nPosIndex, playerFlag.GetOpponentPlayerFlag());
-                if (!CheckGroupHasLiberty(connectGroup)) {
-                    foreach (int _posIndex in connectGroup) {
-                        pendingRemovePosIndexes.Add(_posIndex);
-                    }
-                }
-            }
-        }
-        return pendingRemovePosIndexes;
-    }
-
-    // 计算连通图
-    private List<int> GetConnectGroup(int startIndex, PlayerFlag targetPlayerFlag)
-    {
-        List<int> connectGroup = new List<int>();
-        var compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
-        if (compChessBoard != null) {
-            if (startIndex < 0 || startIndex >= compChessBoard.GetGridMaxSize()) {
-                return connectGroup;
-            }
-
-            if (!compChessBoard.chessInfoDict.TryGetValue(startIndex.ToString(), out var startChessInfo)) {
-                return connectGroup;
-            }
-
-            // 首先要求起点必须同色
-            if (startChessInfo == null || startChessInfo.chessFlag.value != (int)targetPlayerFlag) {
-                return connectGroup;
-            }
-
-            int gridSize = compChessBoard.chessBoardGrid.gridSize;
-            Queue<int> bfsQueue = new Queue<int>();
-
-            bfsQueue.Enqueue(startIndex);
-            visited[startIndex] = true;
-            connectGroup.Add(startIndex);
-
-            while (bfsQueue.Count > 0) {
-                int curIndex = bfsQueue.Dequeue();
-                int curX = curIndex % gridSize;
-                int curZ = curIndex / gridSize;
-
-                for (int dir = 0; dir < Math.Min(dirX.Length, dirZ.Length); dir++) {
-                    int nx = curX + dirX[dir];
-                    int nz = curZ + dirZ[dir];
-                    int nextIndex = compChessBoard.GetPosIndexByCoords(new RectCoordinates(nx, nz));
-                    if (nextIndex < 0 || visited[nextIndex]) {
-                        continue;
-                    }
-
-                    if (compChessBoard.chessInfoDict.TryGetValue(nextIndex.ToString(), out var nextChessInfo)) {
-                        if (nextChessInfo.chessFlag.value != (int)targetPlayerFlag) {
-                            continue;
-                        }
-                    } else {
-                        continue;
-                    }
-
-                    bfsQueue.Enqueue(nextIndex);
-                    visited[nextIndex] = true;
-                    connectGroup.Add(nextIndex);
-                }
-            }
-        }
-
-        return connectGroup;
-    }
-
-    // 检查连通图是否有气
-    private bool CheckGroupHasLiberty(List<int> connectGroup)
-    {
-        var compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
-        if (compChessBoard != null) {
-            int gridSize = compChessBoard.chessBoardGrid.gridSize;
-            foreach (int posIndex in connectGroup) {
-                if (posIndex < 0 || posIndex >= compChessBoard.GetGridMaxSize()) {
-                    continue;
-                }
-
-                int curX = posIndex % gridSize;
-                int curZ = posIndex / gridSize;
-                for (int dir = 0; dir < Math.Min(dirX.Length, dirZ.Length); dir++) {
-                    int nx = curX + dirX[dir];
-                    int nz = curZ + dirZ[dir];
-                    int neighborIndex = compChessBoard.GetPosIndexByCoords(new RectCoordinates(nx, nz));
-                    if (neighborIndex < 0) {
-                        continue;
-                    }
-
-                    if (!compChessBoard.chessInfoDict.ContainsKey(neighborIndex.ToString())) {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        return false;
-    }
-
-    // 检查单一落子是否为死子
-    private bool CheckSingleChessValid(PlayerFlag playerFlag, RectCoordinates coords)
-    {
-        var compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
-        if (compChessBoard != null) {
-            for (int dir = 0; dir < Math.Min(dirX.Length, dirZ.Length); dir++) {
-                int nx = coords.x + dirX[dir];
-                int nz = coords.z + dirZ[dir];
-                int neighborIndex = compChessBoard.GetPosIndexByCoords(new RectCoordinates(nx, nz));
-                if (neighborIndex < 0) {
-                    continue;
-                }
-
-                if (compChessBoard.chessInfoDict.TryGetValue(neighborIndex.ToString(), out var neighborChessInfo)) {
-                    if (neighborChessInfo.chessFlag.value == (int)playerFlag) {
-                        return true;
-                    }
-                } else {
-                    return true;
-                }
-            }
-        }
-
-        return false;
     }
 }

@@ -209,6 +209,17 @@ python -m py_compile main.py excel_common.py excel_loader.py header_checker.py d
 
 如果新增了新的 `.py` 文件，也要加入检查。
 
+### JSON 校验注意
+
+- 导出的 JSON 文件统一按 UTF-8 写入。
+- 在 Windows PowerShell 中校验包含中文的导出 JSON 时，必须显式指定 UTF-8，例如：
+
+```powershell
+Get-Content -Raw -Encoding UTF8 -LiteralPath UnityProject/Assets/Config/DataJson/duel_ai_difficulty/duel_ai_difficulty.json | ConvertFrom-Json | Out-Null
+```
+
+- 如果省略 `-Encoding UTF8`，Windows PowerShell 可能按本地默认编码读取 UTF-8 文件，先把中文读坏，再报出类似 JSON 语法错误；这类错误不能直接判定为导出文件损坏。可优先用 `python -m json.tool <json-path>` 或带 `-Encoding UTF8` 的 PowerShell 命令复核。
+
 ### 尽量少调用 openpyxl 接口
 
 这是当前工具的核心约束：

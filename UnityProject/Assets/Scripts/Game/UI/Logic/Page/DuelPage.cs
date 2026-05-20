@@ -50,7 +50,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         aimCoords.SetValue(-1, -1);
         var mainScene = Global.Instance.sceneManager.mainScene;
         var compDuel = mainScene.GetComponent<SceneComponentDuel>();
-        if (compDuel != null && compDuel.duelFSM.curState.stateName == DuelStateDefine.STATE_TURN_INPUT) {
+        if (CanAcceptHumanTurnInput(mainScene, compDuel)) {
             RefreshAimChessPreview(mainScene, compDuel);
         } else {
             SetAimChessPreviewActive(false);
@@ -235,7 +235,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         var mainScene = Global.Instance.sceneManager.mainScene;
         var compDuel = mainScene.GetComponent<SceneComponentDuel>();
-        if (compDuel != null && compDuel.duelFSM.curState.stateName == DuelStateDefine.STATE_TURN_INPUT) {
+        if (CanAcceptHumanTurnInput(mainScene, compDuel)) {
             EmitSystemEvent(new OnAddChessToBoard(aimCoords.Clone()));
         }
     }
@@ -268,6 +268,12 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
     public void OnClickBtnPass()
     {
+        var mainScene = Global.Instance.sceneManager.mainScene;
+        var compDuel = mainScene.GetComponent<SceneComponentDuel>();
+        if (!CanAcceptHumanTurnInput(mainScene, compDuel)) {
+            return;
+        }
+
         EmitSystemEvent(new OnRequestDuelPass());
     }
 
@@ -391,7 +397,23 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             return false;
         }
 
-        return mainScene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value) != null;
+        return CanAcceptHumanTurnInput(mainScene, compDuel)
+            && mainScene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value) != null;
+    }
+
+    private bool CanAcceptHumanTurnInput(SceneBase mainScene, SceneComponentDuel compDuel)
+    {
+        if (mainScene == null || compDuel == null || compDuel.duelFSM == null || !compDuel.duelFSM.isActivated) {
+            return false;
+        }
+
+        if (compDuel.duelFSM.curState == null || compDuel.duelFSM.curState.stateName != DuelStateDefine.STATE_TURN_INPUT) {
+            return false;
+        }
+
+        return !compDuel.isAiDuel.value
+            || string.IsNullOrEmpty(compDuel.aiPlayerGuid.value)
+            || compDuel.curTurnPlayerGuid.value != compDuel.aiPlayerGuid.value;
     }
 
     private void RefreshGameEndResultPanel(SceneBase mainScene, SceneComponentDuel compDuel)

@@ -3,6 +3,7 @@ using System;
 using System.Diagnostics;
 #endif
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
@@ -17,6 +18,7 @@ public static class KataGoBootstrap
     private const string ModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
     private const int SmokeTestTimeoutMs = 45000;
     private const int OwnershipAnalyzeTimeoutMs = 45000;
+    private const bool HumanSlProfileEnabled = false;
 
     private static Process process;
     private static readonly SemaphoreSlim analysisSemaphore = new SemaphoreSlim(1, 1);
@@ -56,9 +58,15 @@ public static class KataGoBootstrap
 
     public static async Task<JArray> AnalyzeOwnershipAsync(JObject query)
     {
+        JObject result = await AnalyzeAsync(query);
+        return result?["ownership"] as JArray;
+    }
+
+    public static async Task<JObject> AnalyzeAsync(JObject query)
+    {
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
         if (query == null) {
-            XNLogger.LogError("KataGo ownership analyze failed, query is null.");
+            XNLogger.LogError("KataGo analyze failed, query is null.");
             return null;
         }
 
@@ -67,15 +75,24 @@ public static class KataGoBootstrap
         }
 
         if (process == null || process.HasExited) {
-            XNLogger.LogError("KataGo ownership analyze failed, process is not running.");
+            XNLogger.LogError("KataGo analyze failed, process is not running.");
             return null;
         }
 
-        return await Task.Run(() => AnalyzeOwnership(query, OwnershipAnalyzeTimeoutMs));
+        return await Task.Run(() => Analyze(query, OwnershipAnalyzeTimeoutMs));
 #else
         await Task.CompletedTask;
-        XNLogger.LogWarn("KataGo ownership analyze skipped.", ("reason", "Local process analyze is not compiled for this platform."));
+        XNLogger.LogWarn("KataGo analyze skipped.", ("reason", "Local process analyze is not compiled for this platform."));
         return null;
+#endif
+    }
+
+    public static bool CanUseHumanSlProfile()
+    {
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+        return HumanSlProfileEnabled;
+#else
+        return false;
 #endif
     }
 
@@ -237,13 +254,13 @@ public static class KataGoBootstrap
         throw new TimeoutException($"KataGo smoke test timed out after {SmokeTestTimeoutMs}ms.");
     }
 
-    private static JArray AnalyzeOwnership(JObject query, int timeoutMs)
+    private static JObject Analyze(JObject query, int timeoutMs)
     {
         analysisSemaphore.Wait();
         try {
             string requestId = query["id"]?.ToString() ?? string.Empty;
             if (string.IsNullOrEmpty(requestId)) {
-                XNLogger.LogError("KataGo ownership analyze failed, query id is empty.");
+                XNLogger.LogError("KataGo analyze failed, query id is empty.");
                 return null;
             }
 
@@ -253,7 +270,7 @@ public static class KataGoBootstrap
             DateTime deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
             while (DateTime.UtcNow < deadline) {
                 if (process == null || process.HasExited) {
-                    XNLogger.LogError("KataGo ownership analyze failed, process exited.");
+                    XNLogger.LogError("KataGo analyze failed, process exited.");
                     return null;
                 }
 
@@ -267,33 +284,76 @@ public static class KataGoBootstrap
                     continue;
                 }
 
+                LogKataGoResultDiagnostics(result, requestId);
+
+                if (!HasAnalysisPayload(result)) {
+                    if (result["error"] != null) {
+                        return result;
+                    }
+
+                    continue;
+                }
+
                 if ((bool?)result["isDuringSearch"] == true) {
                     continue;
                 }
 
-                JArray ownership = result["ownership"] as JArray;
-                if (ownership == null) {
-                    XNLogger.LogError("KataGo ownership analyze failed, ownership missing.", ("id", requestId));
-                    return null;
-                }
-
                 XNLogger.LogInfo(
-                    "KataGo ownership analyze success.",
+                    "KataGo analyze success.",
                     ("id", requestId),
-                    ("ownershipLength", ownership.Count.ToString()));
-                return ownership;
+                    ("hasOwnership", (result["ownership"] != null).ToString()),
+                    ("moveInfoCount", ((result["moveInfos"] as JArray)?.Count ?? 0).ToString()));
+                return result;
             }
 
-            XNLogger.LogError("KataGo ownership analyze failed, request timed out.", ("id", requestId));
+            XNLogger.LogError("KataGo analyze failed, request timed out.", ("id", requestId));
             return null;
         }
         catch (Exception ex) {
-            XNLogger.LogError("KataGo ownership analyze failed.", ("err", ex.Message));
+            XNLogger.LogError("KataGo analyze failed.", ("err", ex.Message));
             return null;
         }
         finally {
             analysisSemaphore.Release();
         }
+    }
+
+    private static bool HasAnalysisPayload(JObject result)
+    {
+        return result["moveInfos"] != null
+            || result["ownership"] != null
+            || result["rootInfo"] != null
+            || result["policy"] != null;
+    }
+
+    private static void LogKataGoResultDiagnostics(JObject result, string requestId)
+    {
+        string warning = result["warning"]?.ToString();
+        if (!string.IsNullOrEmpty(warning)) {
+            XNLogger.LogWarn(
+                "KataGo analyze warning.",
+                ("id", requestId),
+                ("warning", warning),
+                ("resultKeys", BuildResultKeysLog(result)));
+        }
+
+        string error = result["error"]?.ToString();
+        if (!string.IsNullOrEmpty(error)) {
+            XNLogger.LogError(
+                "KataGo analyze returned error.",
+                ("id", requestId),
+                ("error", error),
+                ("resultKeys", BuildResultKeysLog(result)));
+        }
+    }
+
+    private static string BuildResultKeysLog(JObject result)
+    {
+        if (result == null) {
+            return string.Empty;
+        }
+
+        return string.Join(",", result.Properties().Select(property => property.Name));
     }
 
     private static void StopProcess()

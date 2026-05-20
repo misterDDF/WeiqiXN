@@ -11,6 +11,9 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
 
         binder.btn_continue.onClick.AddListener(OnClickBtnContinue);
         binder.btn_new_game.onClick.AddListener(OnClickBtnNewGame);
+        if (binder.btn_ai_game != null) {
+            binder.btn_ai_game.onClick.AddListener(OnClickBtnAiGame);
+        }
         binder.btn_exit.onClick.AddListener(OnClickBtnExit);
         binder.btn_user_info.onClick.AddListener(OnClickBtnUserInfo);
     }
@@ -46,7 +49,12 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
 
     public void OnClickBtnNewGame()
     {
-        Global.Instance.uiManager.ShowPage<DuelSetupPopup>();
+        DuelSetupPopup.Open(false);
+    }
+
+    public void OnClickBtnAiGame()
+    {
+        DuelSetupPopup.Open(true);
     }
 
     public void OnClickBtnExit()

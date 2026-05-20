@@ -22,6 +22,8 @@ public class DuelSetupPopupUI : UIBinderBase
     public Button btn_byoyomi_time_20s;
     public Button btn_byoyomi_time_30s;
     public Button btn_byoyomi_time_60s;
+    public GameObject panel_ai_difficulty;
+    public TMP_Dropdown dropdown_ai_difficulty;
     public Button btn_start;
     public Button btn_close;
 }

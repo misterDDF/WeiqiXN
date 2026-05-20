@@ -9,6 +9,7 @@ public class DuelSystem : SystemBase
     private const string DEFAULT_HOLD_TIME_CFG_ID = "5m";
     private const string DEFAULT_BYOYOMI_COUNT_CFG_ID = "off";
     private const string DEFAULT_BYOYOMI_TIME_CFG_ID = "30s";
+    private const string DEFAULT_AI_DIFFICULTY_CFG_ID = "k20_k15";
     private const float KOMI = KataGoDuelRecordFile.Komi;
 
     private static readonly int[] DirX = { 0, 0, 1, -1 };
@@ -42,6 +43,7 @@ public class DuelSystem : SystemBase
                 Player player2 = EntityUtils.CreatePlayer(scene, player2Guid, PlayerFlag.Player2);
                 compDuel.player2Guid.value = player2Guid;
                 compDuel.curTurnPlayerGuid.value = player1Guid;
+                InitAiDuelConfig(compDuel);
                 InitPlayerTimeControl(compDuel, player1);
                 InitPlayerTimeControl(compDuel, player2);
 
@@ -51,6 +53,7 @@ public class DuelSystem : SystemBase
             var compDuel = scene.GetComponent<SceneComponentDuel>();
             if (compDuel != null) {
                 EnsureTimeControlConfig(compDuel);
+                EnsureAiDuelConfig(compDuel);
 
                 Player player1 = EntityUtils.CreatePlayer(scene, compDuel.player1Guid.value, PlayerFlag.Player1);
                 Player player2 = EntityUtils.CreatePlayer(scene, compDuel.player2Guid.value, PlayerFlag.Player2);
@@ -68,11 +71,35 @@ public class DuelSystem : SystemBase
         compDuel.byoyomiTimeCfgId.value = GetValidByoyomiTimeCfgId(duelParams?.byoyomiTimeCfgId);
     }
 
+    private void InitAiDuelConfig(SceneComponentDuel compDuel)
+    {
+        var duelParams = scene.sceneCreateParams.duelSceneCreateParamas;
+        compDuel.isAiDuel.value = duelParams != null && duelParams.isAiDuel;
+        compDuel.aiDifficultyCfgId.value = compDuel.isAiDuel.value
+            ? GetValidAiDifficultyCfgId(duelParams?.aiDifficultyCfgId)
+            : string.Empty;
+        compDuel.aiPlayerGuid.value = compDuel.isAiDuel.value ? compDuel.player2Guid.value : string.Empty;
+    }
+
     private void EnsureTimeControlConfig(SceneComponentDuel compDuel)
     {
         compDuel.holdTimeCfgId.value = GetValidHoldTimeCfgId(compDuel.holdTimeCfgId.value);
         compDuel.byoyomiCountCfgId.value = GetValidByoyomiCountCfgId(compDuel.byoyomiCountCfgId.value);
         compDuel.byoyomiTimeCfgId.value = GetValidByoyomiTimeCfgId(compDuel.byoyomiTimeCfgId.value);
+    }
+
+    private void EnsureAiDuelConfig(SceneComponentDuel compDuel)
+    {
+        if (!compDuel.isAiDuel.value) {
+            compDuel.aiDifficultyCfgId.value = string.Empty;
+            compDuel.aiPlayerGuid.value = string.Empty;
+            return;
+        }
+
+        compDuel.aiDifficultyCfgId.value = GetValidAiDifficultyCfgId(compDuel.aiDifficultyCfgId.value);
+        if (string.IsNullOrEmpty(compDuel.aiPlayerGuid.value)) {
+            compDuel.aiPlayerGuid.value = compDuel.player2Guid.value;
+        }
     }
 
     private string GetValidHoldTimeCfgId(string cfgId)
@@ -97,6 +124,14 @@ public class DuelSystem : SystemBase
             return cfgId;
         }
         return DEFAULT_BYOYOMI_TIME_CFG_ID;
+    }
+
+    private string GetValidAiDifficultyCfgId(string cfgId)
+    {
+        if (!string.IsNullOrEmpty(cfgId) && DuelAiDifficultyDataType.GetConfigData(cfgId) != null) {
+            return cfgId;
+        }
+        return DEFAULT_AI_DIFFICULTY_CFG_ID;
     }
 
     private void InitPlayerTimeControl(SceneComponentDuel compDuel, Player player)

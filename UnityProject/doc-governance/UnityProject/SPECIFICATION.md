@@ -24,6 +24,10 @@
 - `DuelStateTurnInput` counts down the current player's hold time first. If byoyomi is enabled, the player enters byoyomi after hold time reaches zero; each byoyomi period timeout consumes one byoyomi count, and exhausting the count records `timeoutLoserGuid` / `winnerGuid` and enters `GameEnd`.
 - `DuelPage` displays black-player time information in the upper-left panel and white-player time information in the upper-right panel. Each panel shows hold-time countdown, byoyomi remaining count, and byoyomi period time; only the current turn player's time values are decremented by the duel FSM.
 - `DuelPage` moves save and exit actions into an in-duel settings panel opened by the lower-right settings button; direct board click input ignores clicks that are already over UI controls.
+- `MainMenuPage` provides separate local duel and computer duel entries. Both entries open `DuelSetupPopup`; only the computer duel entry enables the AI difficulty dropdown.
+- AI difficulty options are table-driven by `Assets/Config/DataJson/duel_ai_difficulty/duel_ai_difficulty.json`. `DuelSetupPopup` displays the config `name` values in a fixed rank order and passes the selected config id through `DuelSceneCreateParamas`.
+- Computer duel creates the same two local `Player` entities as local duel, stores `isAiDuel`, `aiDifficultyCfgId`, and `aiPlayerGuid` on `SceneComponentDuel`, and assigns the AI to Player2 / white by default.
+- `DuelAiSystem` is installed in `DuelScene`. During an AI turn it asks KataGo analysis for move candidates using the current KataGo-standard `moves`, filters candidates through the same local move legality rule path, then emits the normal `OnAddChessToBoard` event. Human board click, pass, and resign inputs are ignored while the current turn belongs to the AI player.
 
 **当前行为**
 
@@ -33,19 +37,22 @@
 - 启动后，场景管理器进入主菜单场景。
 - 项目场景位于 `Assets/Scenes/`，当前包含主菜单、主场景和对局场景。
 - `MainMenuScene` 加载后打开 `MainMenuPage`。
-- `DuelSetupPopup` 可以用 `9x9`、`13x13`、`19x19` 三个棋盘配置进入对局场景。
+- `MainMenuPage` 可以打开本地对局或电脑对局；两者都使用 `DuelSetupPopup` 选择对局参数。
+- `DuelSetupPopup` 可以用 `9x9`、`13x13`、`19x19` 三个棋盘配置进入对局场景；从电脑对局入口打开时还会显示电脑难度下拉框。
 - 棋盘尺寸和对局虚拟相机 y 偏移配置在 `Assets/Config/DataJson/chess_board/chess_board.json`。
 - 场景、UI 页面、预制体和 TMP sprite 配置放在 `Assets/Config/DataJson/`，对应的数据读取类放在 `Assets/Config/DataType/`。
-- `DuelScene` 创建 `SceneComponentChessBoard` 和 `SceneComponentDuel`，从 `DuelSceneFixedRef` 绑定固定场景引用，安装 `DuelSaveSystem`、`ChessBoardSystem`、`DuelOwnershipSystem`、`DuelSystem`，然后打开 `DuelPage`。
+- `DuelScene` 创建 `SceneComponentChessBoard` 和 `SceneComponentDuel`，从 `DuelSceneFixedRef` 绑定固定场景引用，安装 `DuelSaveSystem`、`ChessBoardSystem`、`DuelOwnershipSystem`、`DuelSystem`、`DuelAiSystem`，然后打开 `DuelPage`。
 - `SceneComponentChessBoard` 保存当前棋盘配置 id、运行时按棋盘位置索引缓存的棋子信息、用于简单重复局面对比的上一局面快照、`RectGrid` 引用和对局虚拟相机引用。
-- `SceneComponentDuel` 保存双方玩家 guid、当前回合玩家 guid、时间配置、超时/胜者 guid、连续虚手数、终局原因、最终数子分数和运行时 KataGo 标准 `moves` 手顺。
+- `SceneComponentDuel` 保存双方玩家 guid、当前回合玩家 guid、时间配置、电脑对局配置、超时/胜者 guid、连续虚手数、终局原因、最终数子分数和运行时 KataGo 标准 `moves` 手顺。
 - `RectGrid` 及其相关棋盘类使用 `RectCoordinates` 生成和寻址矩形棋盘；`RectCoordinates` 的逻辑行列语义与 KataGo 坐标保持一致。
 - `ChessBoardSystem` 根据所选棋盘尺寸初始化网格，调整对局相机以覆盖棋盘，并在读取存档时通过 KataGo 记录文件回放恢复运行时棋盘缓存和棋子实体。
 - `DuelSystem` 在新对局中创建两个本地玩家并启动对局状态机；读取存档时，它会按存档中的玩家 guid 重新创建玩家，并激活回合输入状态。
+- 电脑对局仍复用本地双玩家和本地回合 FSM，默认由玩家 1 执黑先行、AI 控制玩家 2 / 白方；AI 难度配置随场景状态保存和读档恢复。
 - `DuelFSM` 当前定义本地回合循环：`GameStart -> TurnStart -> TurnInput -> TurnEnd -> TurnStart`，回合输入可以通过落子完成或超时进入回合结束。
 - `DuelStateTurnInput` 按当前玩家的持有时间或读秒状态每秒递减一次；无限时间不会启动回合倒计时。
 - `DuelStateTurnEnd` 在玩家 1 和玩家 2 之间切换 `curTurnPlayerGuid`。
 - `DuelPage` 显示黑方和白方的持有时间、读秒次数和读秒时间；它根据鼠标位置计算最近棋盘坐标，显示落点 VFX，非 UI 区域左键触发 `OnAddChessToBoard`，右下角设置按钮打开对局设置面板，右下角形式按钮触发 `OnRequestDuelOwnership`，形式按钮旁的虚手按钮触发 `OnRequestDuelPass`，形式按钮上方的结果面板显示 ownership 统计出的双方目数，设置面板中的保存按钮触发 `OnSaveDuelScene`，请求数子按钮触发 `OnRequestDuelScore`，认输按钮仅在当前对局处于回合输入且当前行棋玩家有效时显示，点击后通过二次确认触发 `OnConfirmDuelResign`，退出按钮回到主菜单。进入 `GameEnd` 后，页面右侧中部的结算结果面板会显示黑/白方胜出和结束原因。
+- 电脑对局的 AI 回合中，`DuelPage` 不接受人类棋盘落子、虚手或认输输入；AI 由 `DuelAiSystem` 请求 KataGo 候选点并通过本地落子规则筛选后走正常落子事件。
 - 落子只有在目标坐标位于棋盘内、目标位置为空、当前回合玩家存在时才会继续处理。
 - 落子校验会先缓存当前棋盘状态，再移除无气的对方连通棋串，随后拒绝自杀、拒绝单子无气、拒绝与上一局面完全一致的棋盘状态。
 - 合法落子接受后，被提掉的棋子实体会被销毁。
@@ -78,6 +85,6 @@
 
 **验证与维护**
 
-- 当前行为验证应覆盖：从配置的启动场景进入运行、从主菜单打开对局、分别启动 `9x9`、`13x13`、`19x19` 棋盘、正常落子、尝试已有棋子位置、尝试棋盘外坐标、尝试自杀、尝试简单重复局面、保存对局、读取保存状态。
+- 当前行为验证应覆盖：从配置的启动场景进入运行、从主菜单打开本地对局和电脑对局、分别启动 `9x9`、`13x13`、`19x19` 棋盘、电脑对局难度下拉框读表、正常落子、尝试已有棋子位置、尝试棋盘外坐标、尝试自杀、尝试简单重复局面、保存对局、读取保存状态。
 - 棋规、回合、场景、UI、资源、存档或依赖的当前行为发生变化时，需要更新本文档。
 - 网络依赖或网络实现一旦成为当前行为，也需要更新本文档。

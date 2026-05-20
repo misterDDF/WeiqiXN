@@ -22,6 +22,7 @@
 - `ResourceManager` 支持同步 prefab 加载、异步 prefab 加载、异步资源请求、加载绑定者取消。
 - `game_prefab.json` 已配置 EventSystem、IngameDebugConsole、落子 VFX、黑白棋子预制体。
 - `chess_board.json` 已配置 `9x9`、`13x13`、`19x19`。
+- `duel_ai_difficulty.json` 已配置电脑对局难度选项、KataGo human policy profile、访问次数、候选点数量、失误率、采样温度、最大亏损目数、访问权重、提前虚手开关和思考延迟。
 - `scene.json` 已配置 MainMenu 和 Duel。
 - `ui_page.json` 已配置 LoadingPage、MainMenuPage、SavingPopup、UserInfoPopup、DuelSetupPopup、DuelPage。
 
@@ -45,3 +46,6 @@
 - Time-control configs are exported from `ConfigExporter/xlsx/duel_hold_time.xlsx`, `duel_byoyomi_count.xlsx`, and `duel_byoyomi_time.xlsx`.
 - Runtime JSON lives under `Assets/Config/DataJson/duel_hold_time/`, `duel_byoyomi_count/`, and `duel_byoyomi_time/`.
 - Generated data types live under `Assets/Config/DataType/duel_hold_time/`, `duel_byoyomi_count/`, and `duel_byoyomi_time/`.
+- Computer-duel difficulty configs are exported from `ConfigExporter/xlsx/duel_ai_difficulty.xlsx`.
+- Runtime AI difficulty JSON lives under `Assets/Config/DataJson/duel_ai_difficulty/`; its generated data type lives under `Assets/Config/DataType/duel_ai_difficulty/`.
+- Runtime config JSON is UTF-8. When validating config JSON that contains Chinese text in Windows PowerShell, use `Get-Content -Raw -Encoding UTF8 ... | ConvertFrom-Json`; omitting `-Encoding UTF8` can corrupt Chinese text during PowerShell reads and surface as a misleading JSON parse error. Unity-side config loading is not affected when the file itself is valid UTF-8 JSON.

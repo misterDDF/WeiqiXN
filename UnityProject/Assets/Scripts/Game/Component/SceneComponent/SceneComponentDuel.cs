@@ -9,6 +9,9 @@ public class SceneComponentDuel : SceneComponentBase
     public SavableField<string> holdTimeCfgId = SavableFieldFactory.CreateStringField(string.Empty);
     public SavableField<string> byoyomiCountCfgId = SavableFieldFactory.CreateStringField(string.Empty);
     public SavableField<string> byoyomiTimeCfgId = SavableFieldFactory.CreateStringField(string.Empty);
+    public SavableField<bool> isAiDuel = SavableFieldFactory.CreateBoolField(false);
+    public SavableField<string> aiDifficultyCfgId = SavableFieldFactory.CreateStringField(string.Empty);
+    public SavableField<string> aiPlayerGuid = SavableFieldFactory.CreateStringField(string.Empty);
     public SavableField<string> timeoutLoserGuid = SavableFieldFactory.CreateStringField(string.Empty);
     public SavableField<string> resignLoserGuid = SavableFieldFactory.CreateStringField(string.Empty);
     public SavableField<string> winnerGuid = SavableFieldFactory.CreateStringField(string.Empty);

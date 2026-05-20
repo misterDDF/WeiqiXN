@@ -13,4 +13,6 @@ public class DuelSceneCreateParamas
     public string holdTimeCfgId;
     public string byoyomiCountCfgId;
     public string byoyomiTimeCfgId;
+    public bool isAiDuel;
+    public string aiDifficultyCfgId;
 }

@@ -30,6 +30,28 @@ public static class KataGoPositionJsonBuilder
         return BuildAnalysisJsonWithCurrentBoard(duelScene, requestId, maxVisits);
     }
 
+    public static JObject BuildAiMoveAnalysisJson(DuelScene duelScene, string requestId, DuelAiDifficultyDataType difficultyData)
+    {
+        int maxVisits = difficultyData != null ? Math.Max(difficultyData.maxVisits, 1) : DefaultMaxVisits;
+        JObject query = BuildAnalysisJsonWithMoveHistory(duelScene, requestId, maxVisits);
+        query["analyzeTurns"] = new JArray((query["moves"] as JArray)?.Count ?? 0);
+        query["includeOwnership"] = false;
+
+        if (difficultyData != null) {
+            query["includePolicy"] = difficultyData.includePolicy;
+            if (difficultyData.useHumanPolicy
+                && !string.IsNullOrEmpty(difficultyData.humanSLProfile)
+                && KataGoBootstrap.CanUseHumanSlProfile()) {
+                query["overrideSettings"] = new JObject
+                {
+                    ["humanSLProfile"] = difficultyData.humanSLProfile,
+                };
+            }
+        }
+
+        return query;
+    }
+
     public static JObject BuildAnalysisJsonWithCurrentBoard(DuelScene duelScene, string requestId, int maxVisits = DefaultMaxVisits)
     {
         JObject query = BuildBaseAnalysisJson(duelScene, requestId, maxVisits);
