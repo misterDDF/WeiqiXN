@@ -103,9 +103,19 @@ public class ChessBoardSystem : SystemBase
 
         compChessBoard.lastChessInfoDict = cachedChessInfoDict;
         EntityUtils.CreateChess(scene, chessGuid, playerFlag, evt.coords);
+        DrawLatestMoveMarker(compChessBoard, playerFlag, evt.coords);
         int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : chessBoardData?.boardSize ?? 19;
         compDuel.AppendKataGoMove(playerFlag, evt.coords, boardSize);
         scene.EmitSystemEvent(new OnAfterAddChessToBoard(playerFlag, evt.coords.Clone()));
+    }
+
+    private void DrawLatestMoveMarker(SceneComponentChessBoard compChessBoard, PlayerFlag playerFlag, RectCoordinates coords)
+    {
+        if (compChessBoard?.chessBoardGrid == null || coords == null) {
+            return;
+        }
+
+        compChessBoard.chessBoardGrid.DrawLatestMoveMarker(coords.x, coords.z, playerFlag == PlayerFlag.Player1);
     }
 
     private void InitDuelVCam(Bounds gridBound)
@@ -171,6 +181,8 @@ public class ChessBoardSystem : SystemBase
             return;
         }
 
+        RectCoordinates latestMoveCoords = null;
+        PlayerFlag latestMovePlayerFlag = 0;
         foreach (var move in moves) {
             if (!KataGoDuelRecordFile.TryParseMove(move, out PlayerFlag playerFlag, out RectCoordinates coords, out bool isPass, boardSize)) {
                 XNLogger.LogError("Invalid move in KataGo duel record, restore stopped.", ("move", move.ToString()));
@@ -192,6 +204,9 @@ public class ChessBoardSystem : SystemBase
                 compDuel.ResetKataGoMoves();
                 return;
             }
+
+            latestMoveCoords = coords.Clone();
+            latestMovePlayerFlag = playerFlag;
         }
 
         foreach (var kvp in compChessBoard.chessInfoDict) {
@@ -204,6 +219,10 @@ public class ChessBoardSystem : SystemBase
             if (coords.x >= 0 && coords.z >= 0 && chessInfo != null) {
                 EntityUtils.CreateChess(scene, chessInfo.chessGuid.value, (PlayerFlag)chessInfo.chessFlag.value, coords);
             }
+        }
+
+        if (latestMoveCoords != null) {
+            DrawLatestMoveMarker(compChessBoard, latestMovePlayerFlag, latestMoveCoords);
         }
     }
 

@@ -13,17 +13,22 @@ namespace XNClient.ChessBoard
         private List<RectGridChunk> chunkList = new List<RectGridChunk>();
         private List<RectCell> cellList = new List<RectCell>();
         private GameObject ownershipRoot;
+        private GameObject latestMoveMarkerRoot;
 
         private const float OwnershipSquareSizeFactor = ChessBoardConfig.starPointRadiusFactor * 2f * 1.5f;
         private const float OwnershipLineWidthFactor = ChessBoardConfig.roadNormalFactor * 1.5f;
         private const float OwnershipYOffset = ChessBoardConfig.rectCellSideLength;
         private const float OwnershipLineYOffset = OwnershipYOffset - 0.01f;
+        private const float LatestMoveMarkerSizeFactor = ChessBoardConfig.starPointRadiusFactor * 2f * 2.3f;
         private const int OwnershipNeutral = 0;
         private const int OwnershipBlack = 1;
         private const int OwnershipWhite = -1;
 
         private Material ownershipBlackMaterial;
         private Material ownershipWhiteMaterial;
+        private Material latestMoveMarkerBlackMaterial;
+        private Material latestMoveMarkerWhiteMaterial;
+        private Mesh latestMoveMarkerMesh;
 
         public void InitGrid(int gridSize)
         {
@@ -102,6 +107,42 @@ namespace XNClient.ChessBoard
 
             Destroy(ownershipRoot);
             ownershipRoot = null;
+        }
+
+        public void DrawLatestMoveMarker(int x, int z, bool isBlackStone)
+        {
+            ClearLatestMoveMarker();
+            if (x < 0 || x >= gridSize || z < 0 || z >= gridSize) {
+                XNLogger.LogError(
+                    "Latest move marker position is outside board, draw skipped.",
+                    ("x", x.ToString()),
+                    ("z", z.ToString()),
+                    ("gridSize", gridSize.ToString()));
+                return;
+            }
+
+            latestMoveMarkerRoot = new GameObject("LatestMoveMarkerRoot");
+            latestMoveMarkerRoot.transform.SetParent(transform, false);
+
+            GameObject marker = new GameObject($"LatestMoveMarker_{x}_{z}");
+            marker.transform.SetParent(latestMoveMarkerRoot.transform, false);
+            marker.transform.localPosition = GetOwnershipLocalPosition(x, z, OwnershipYOffset);
+
+            MeshFilter meshFilter = marker.AddComponent<MeshFilter>();
+            meshFilter.sharedMesh = GetLatestMoveMarkerMesh();
+
+            MeshRenderer meshRenderer = marker.AddComponent<MeshRenderer>();
+            meshRenderer.sharedMaterial = GetLatestMoveMarkerMaterial(isBlackStone);
+        }
+
+        public void ClearLatestMoveMarker()
+        {
+            if (latestMoveMarkerRoot == null) {
+                return;
+            }
+
+            Destroy(latestMoveMarkerRoot);
+            latestMoveMarkerRoot = null;
         }
 
         private int[] BuildOwnershipFlags(JArray ownership, float ownershipThreshold, int expectedCount)
@@ -196,6 +237,47 @@ namespace XNClient.ChessBoard
                 ownershipWhiteMaterial = CreateOwnershipMaterial(Color.white);
             }
             return ownershipWhiteMaterial;
+        }
+
+        private Material GetLatestMoveMarkerMaterial(bool isBlackStone)
+        {
+            if (isBlackStone) {
+                if (latestMoveMarkerWhiteMaterial == null) {
+                    latestMoveMarkerWhiteMaterial = CreateOwnershipMaterial(Color.white);
+                }
+                return latestMoveMarkerWhiteMaterial;
+            }
+
+            if (latestMoveMarkerBlackMaterial == null) {
+                latestMoveMarkerBlackMaterial = CreateOwnershipMaterial(Color.black);
+            }
+            return latestMoveMarkerBlackMaterial;
+        }
+
+        private Mesh GetLatestMoveMarkerMesh()
+        {
+            if (latestMoveMarkerMesh == null) {
+                latestMoveMarkerMesh = CreateLatestMoveMarkerMesh(ChessBoardConfig.rectCellSideLength * LatestMoveMarkerSizeFactor);
+            }
+
+            return latestMoveMarkerMesh;
+        }
+
+        private Mesh CreateLatestMoveMarkerMesh(float markerSize)
+        {
+            float halfWidth = markerSize * 0.5f;
+            float halfHeight = markerSize * 0.5f;
+            Mesh markerMesh = new Mesh();
+            markerMesh.name = "LatestMoveMarkerMesh";
+            markerMesh.SetVertices(new List<Vector3>
+            {
+                new Vector3(0f, 0f, halfHeight),
+                new Vector3(-halfWidth, 0f, -halfHeight),
+                new Vector3(halfWidth, 0f, -halfHeight),
+            });
+            markerMesh.SetTriangles(new[] { 0, 2, 1 }, 0);
+            markerMesh.RecalculateNormals();
+            return markerMesh;
         }
 
         private Material CreateOwnershipMaterial(Color color)

@@ -24,6 +24,7 @@
 - `RectGrid` 按配置尺寸生成棋盘并计算边界。
 - `RectGridChunk` 负责分块 mesh 和棋盘视觉结构。
 - `RectGrid` 可以绘制和清除 ownership overlay：形势分析结果会按 KataGo `ownership` 行序直接在棋盘交叉点显示黑白小方块，低于当前阈值的中立或未明确控制点不绘制；同色相邻控制点之间会用对应颜色细线连接；overlay 位于棋子模型上方，只作为 AI 预测控制区域的表现层，不写入棋盘规则状态。
+- `RectGrid` 会在最新一手棋子上方绘制三角标记，标记高度与 ownership overlay 一致；黑棋使用白色三角，白棋使用黑色三角。最新手标记只作为表现层，不写入棋盘规则状态。
 - `SceneComponentChessBoard` 负责棋盘配置 id、运行时当前棋子信息、上一局面棋子信息、棋盘引用和虚拟相机引用；棋子字典不再作为持久化棋盘权威。
 - `ChessBoardSystem.Init()` 根据棋盘配置初始化网格，设置相机俯视棋盘，并在读档时通过 KataGo 记录文件回放恢复运行时棋盘缓存和棋子实体。
 - `OnAddChessToBoard` 是当前落子主入口。

@@ -17,11 +17,14 @@ public static class KataGoBootstrap
     private const string EngineName = "eigenavx2";
     private const string ModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
     private const int SmokeTestTimeoutMs = 45000;
-    private const int OwnershipAnalyzeTimeoutMs = 45000;
+    private const int AnalyzeTimeoutMs = 45000;
     private const bool HumanSlProfileEnabled = false;
 
     private static Process process;
     private static readonly SemaphoreSlim analysisSemaphore = new SemaphoreSlim(1, 1);
+    private static KataGoPaths activePaths;
+    private static bool hasActivePaths;
+    private static bool isStarted;
 #endif
     private static CancellationTokenSource cancellationTokenSource;
     private static Task startupTask;
@@ -70,16 +73,18 @@ public static class KataGoBootstrap
             return null;
         }
 
-        if (startupTask != null && !startupTask.IsCompleted) {
-            await startupTask;
-        }
+        await analysisSemaphore.WaitAsync();
+        try {
+            if (!await EnsureProcessReadyAsync()) {
+                XNLogger.LogError("KataGo analyze failed, process is not running.");
+                return null;
+            }
 
-        if (process == null || process.HasExited) {
-            XNLogger.LogError("KataGo analyze failed, process is not running.");
-            return null;
+            return await Task.Run(() => Analyze(query, AnalyzeTimeoutMs));
         }
-
-        return await Task.Run(() => Analyze(query, OwnershipAnalyzeTimeoutMs));
+        finally {
+            analysisSemaphore.Release();
+        }
 #else
         await Task.CompletedTask;
         XNLogger.LogWarn("KataGo analyze skipped.", ("reason", "Local process analyze is not compiled for this platform."));
@@ -141,6 +146,10 @@ public static class KataGoBootstrap
 
     private static void StartProcessTask(KataGoPaths paths)
     {
+        activePaths = paths;
+        hasActivePaths = true;
+        isStarted = true;
+        cancellationTokenSource?.Dispose();
         cancellationTokenSource = new CancellationTokenSource();
         startupTask = Task.Run(() => StartAndSmokeTest(paths, cancellationTokenSource.Token));
     }
@@ -158,6 +167,42 @@ public static class KataGoBootstrap
         cancellationTokenSource?.Dispose();
         cancellationTokenSource = null;
         startupTask = null;
+        hasActivePaths = false;
+        isStarted = false;
+    }
+
+    private static async Task<bool> EnsureProcessReadyAsync()
+    {
+        if (startupTask != null && !startupTask.IsCompleted) {
+            await startupTask;
+        }
+
+        if (IsProcessRunning()) {
+            return true;
+        }
+
+        if (!isStarted || !hasActivePaths) {
+            return false;
+        }
+
+        XNLogger.LogWarn("KataGo process is not running, restarting before analyze.");
+        StartProcessTask(activePaths);
+        if (startupTask != null) {
+            await startupTask;
+        }
+
+        return IsProcessRunning();
+    }
+
+    private static bool IsProcessRunning()
+    {
+        Process currentProcess = process;
+        try {
+            return currentProcess != null && !currentProcess.HasExited;
+        }
+        catch (Exception) {
+            return false;
+        }
     }
 
     private static void StartAndSmokeTest(KataGoPaths paths, CancellationToken cancellationToken)
@@ -225,7 +270,7 @@ public static class KataGoBootstrap
                 throw new InvalidOperationException("KataGo exited before returning smoke test result.");
             }
 
-            string line = ReadOutputLineBefore(deadline, cancellationToken);
+            string line = ReadOutputLineBefore(deadline, cancellationToken, "KataGo smoke test", SmokeTestTimeoutMs);
             if (string.IsNullOrWhiteSpace(line)) {
                 continue;
             }
@@ -256,7 +301,6 @@ public static class KataGoBootstrap
 
     private static JObject Analyze(JObject query, int timeoutMs)
     {
-        analysisSemaphore.Wait();
         try {
             string requestId = query["id"]?.ToString() ?? string.Empty;
             if (string.IsNullOrEmpty(requestId)) {
@@ -264,17 +308,23 @@ public static class KataGoBootstrap
                 return null;
             }
 
-            process.StandardInput.WriteLine(query.ToString(Newtonsoft.Json.Formatting.None));
-            process.StandardInput.Flush();
+            Process currentProcess = process;
+            if (currentProcess == null || currentProcess.HasExited) {
+                XNLogger.LogError("KataGo analyze failed, process exited.");
+                return null;
+            }
+
+            currentProcess.StandardInput.WriteLine(query.ToString(Newtonsoft.Json.Formatting.None));
+            currentProcess.StandardInput.Flush();
 
             DateTime deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
             while (DateTime.UtcNow < deadline) {
-                if (process == null || process.HasExited) {
+                if (process == null || currentProcess.HasExited) {
                     XNLogger.LogError("KataGo analyze failed, process exited.");
                     return null;
                 }
 
-                string line = ReadOutputLineBefore(deadline, CancellationToken.None);
+                string line = ReadOutputLineBefore(deadline, CancellationToken.None, $"KataGo analyze request {requestId}", timeoutMs);
                 if (string.IsNullOrWhiteSpace(line) || !line.TrimStart().StartsWith("{", StringComparison.Ordinal)) {
                     continue;
                 }
@@ -312,9 +362,6 @@ public static class KataGoBootstrap
         catch (Exception ex) {
             XNLogger.LogError("KataGo analyze failed.", ("err", ex.Message));
             return null;
-        }
-        finally {
-            analysisSemaphore.Release();
         }
     }
 
@@ -390,24 +437,29 @@ public static class KataGoBootstrap
         }
     }
 
-    private static string ReadOutputLineBefore(DateTime deadline, CancellationToken cancellationToken)
+    private static string ReadOutputLineBefore(DateTime deadline, CancellationToken cancellationToken, string operationName, int timeoutMs)
     {
         TimeSpan remaining = deadline - DateTime.UtcNow;
         if (remaining <= TimeSpan.Zero) {
-            throw new TimeoutException($"KataGo smoke test timed out after {SmokeTestTimeoutMs}ms.");
+            throw new TimeoutException($"{operationName} timed out after {timeoutMs}ms.");
         }
 
-        Task<string> readTask = process.StandardOutput.ReadLineAsync();
+        Process currentProcess = process;
+        if (currentProcess == null) {
+            throw new InvalidOperationException($"{operationName} failed because KataGo process is not running.");
+        }
+
+        Task<string> readTask = currentProcess.StandardOutput.ReadLineAsync();
         while (!readTask.Wait(100)) {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (process == null || process.HasExited) {
-                throw new InvalidOperationException("KataGo exited before returning smoke test result.");
+            if (process == null || currentProcess.HasExited) {
+                throw new InvalidOperationException($"{operationName} failed because KataGo exited before returning result.");
             }
 
             if (DateTime.UtcNow >= deadline) {
                 StopProcess();
-                throw new TimeoutException($"KataGo smoke test timed out after {SmokeTestTimeoutMs}ms.");
+                throw new TimeoutException($"{operationName} timed out after {timeoutMs}ms. KataGo process was stopped and will be restarted before the next analyze request.");
             }
         }
 
