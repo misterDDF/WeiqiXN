@@ -103,17 +103,7 @@ public static class KataGoBootstrap
 
     private static PlatformConfig ResolvePlatformConfig()
     {
-#if UNITY_EDITOR_WIN
-        string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
-        string kataGoRoot = Path.Combine(projectRoot, "ExternalTools", "KataGo");
-        return new PlatformConfig
-        {
-            isSupported = true,
-            kataGoRoot = kataGoRoot,
-            engineRoot = Path.Combine(kataGoRoot, "engines", "win-x64", EngineName),
-            engineName = EngineName,
-        };
-#elif UNITY_STANDALONE_WIN
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
         string kataGoRoot = Path.Combine(Application.streamingAssetsPath, "KataGo");
         return new PlatformConfig
         {

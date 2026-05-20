@@ -11,11 +11,19 @@ using UnityEngine.Build.Pipeline;
 public class AssetBundleGenerator
 {
     private static readonly string[] PlayerScenes = { "Assets/Scenes/Main.unity" };
+    private static readonly string[] RequiredKataGoDirectories =
+    {
+        "engines/win-x64/eigenavx2",
+        "models",
+    };
+
+    private const string KataGoModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
 
     [MenuItem("Assets/打包/打PC包")]
     public static void BuildWindows()
     {
         BuildAssetBundlesForTarget(BuildTarget.StandaloneWindows64);
+        ValidateWindowsKataGoStreamingAssets();
 
         PrepareBuildRootDirectory(BuildConfig.BUILD_PATH_ROOT);
         PlayerSettings.SetScriptingBackend(BuildTargetGroup.Standalone, ScriptingImplementation.IL2CPP);
@@ -320,5 +328,40 @@ public class AssetBundleGenerator
         }
 
         Directory.CreateDirectory(fullBuildRootPath);
+    }
+
+    private static void ValidateWindowsKataGoStreamingAssets()
+    {
+        string kataGoRoot = Path.Combine(Application.streamingAssetsPath, "KataGo");
+        string engineRoot = Path.Combine(kataGoRoot, "engines", "win-x64", "eigenavx2");
+        string exePath = Path.Combine(engineRoot, "katago.exe");
+        string configPath = Path.Combine(engineRoot, "analysis_example.cfg");
+        string modelPath = Path.Combine(kataGoRoot, "models", KataGoModelFileName);
+
+        List<string> missingPaths = new List<string>();
+        foreach (string directoryPath in RequiredKataGoDirectories) {
+            string fullDirectoryPath = Path.Combine(kataGoRoot, directoryPath);
+            if (!Directory.Exists(fullDirectoryPath) || Directory.GetFiles(fullDirectoryPath).Length == 0) {
+                missingPaths.Add(fullDirectoryPath);
+            }
+        }
+
+        if (!File.Exists(exePath)) {
+            missingPaths.Add(exePath);
+        }
+
+        if (!File.Exists(configPath)) {
+            missingPaths.Add(configPath);
+        }
+
+        if (!File.Exists(modelPath)) {
+            missingPaths.Add(modelPath);
+        }
+
+        if (missingPaths.Count > 0) {
+            throw new FileNotFoundException(
+                "Windows build requires KataGo runtime directories and entry files under Assets/StreamingAssets/KataGo. Missing paths: "
+                + string.Join(", ", missingPaths));
+        }
     }
 }

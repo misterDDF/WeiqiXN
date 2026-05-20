@@ -13,7 +13,7 @@
 
 **活跃目标**
 
-- 在 Unity 编辑器模式下继续验证本地 KataGo ownership 链路：启动本地 `katago analysis` 子进程，向 stdin 发送当前对局 JSON，读取 `ownership`、失败状态，并验证棋盘 overlay 表现。
+- 在 Windows Unity Editor 和 Windows PC 包中继续验证本地 KataGo ownership 链路：启动本地 `katago analysis` 子进程，向 stdin 发送当前对局 JSON，读取 `ownership`、失败状态，并验证棋盘 overlay 表现。
 - 将 AI 控制区域与正式数子拆开：第一版形势按钮已接入 `ownership` 请求、棋盘黑白小方块 overlay 和按钮上方的双方目数面板；它只使用 KataGo `ownership` 估算控制范围并统计显示目数，不展示胜率、目差或最佳选点，也不作为正式终局数子的权威结果。
 - 为本地对局建立可重复的手动验证流程。
 - 为非法落子增加用户可见反馈。
@@ -25,13 +25,13 @@
 
 ### 2026-05-19 Current Addendum
 
-- KataGo 接入目标先收敛为编辑器模式验证，不要求立即进入正式客户端打包流程。
-- 编辑器验证的最小闭环是：本地配置 KataGo 可执行文件、模型和 analysis 配置；Unity 通过子进程启动 analysis engine；用当前或固定测试棋局发起 JSON 请求；解析 `ownership`；通过对局页“形式”按钮在棋盘上呈现 ownership overlay，并在日志中呈现成功、超时、启动失败和缺少资源文件等状态。
-- 当前已接入 Play 模式启动 smoke test：优先使用 `eigenavx2` 引擎，后台加载模型并验证 `ownershipLength` 日志；OpenCL 优先与 fallback 策略仍是后续打包前事项。
+- KataGo 接入目标已覆盖 Windows Unity Editor 和 Windows PC 包；两者统一使用 `Assets/StreamingAssets/KataGo/` 作为运行资源源目录，PC 构建后由 Unity 原样复制到 `<GameName>_Data/StreamingAssets/KataGo/`。
+- 最小闭环是：本地配置 KataGo 可执行文件、模型和 analysis 配置；Unity 通过子进程启动 analysis engine；用当前或固定测试棋局发起 JSON 请求；解析 `ownership`；通过对局页“形式”按钮在棋盘上呈现 ownership overlay，并在日志中呈现成功、超时、启动失败和缺少资源文件等状态。Windows 构建入口会在打包前校验当前运行所需的 `eigenavx2` 引擎文件和模型。
+- 当前已接入 Play 模式和 Windows PC 包启动 smoke test：优先使用 `eigenavx2` 引擎，后台加载模型并验证 `ownershipLength` 日志；OpenCL 优先与 fallback 策略仍是后续事项。
 - 当前已新增 KataGo 标准棋谱链路和第一版形势按钮链路：合法落子直接维护 KataGo `moves`，保存对局时生成可直接作为 ownership analysis 请求骨架的记录 JSON，读档时通过记录文件回放恢复棋盘；`DuelPage` 右下角“形式”按钮会请求当前对局 `ownership`，绘制棋盘 overlay，并在按钮上方显示黑方目数和白方贴目后目数；当前盘面 `initialStones` 入口仅保留为调试或无手顺场景。
 - 当前已接入本地原型数子、虚手终局、认输和基础终局结果 UI：设置面板可请求数子并通过通用二次确认确认结果，形势按钮旁的虚手按钮支持双方连续虚手后直接数子结束，设置面板认输按钮通过通用二次确认进入终局，右侧中部结算面板显示胜方和结束原因；虚手写入 KataGo 标准 `moves` 的 `pass` 项。
 - 正式数子仍应由本地规则算法和死子确认流程承担；当前原型数子先按棋子数、单方包围空点和 7.5 贴目判断胜负，尚未包含死子确认。KataGo 在当前阶段只提供 AI 控制区域，不改变棋规权威。
-- 目标客户端离线打包、OpenCL/Eigen fallback、模型资源分发和完整数子 UI 暂不作为本次编辑器验证的完成条件。
+- Windows PC 离线包已纳入当前 KataGo 验证范围；移动端、WebGL、跨平台发布、OpenCL/Eigen fallback、外部模型分发和完整数子 UI 仍不是当前完成条件。
 
 ### 2026-05-15 Current Addendum
 
