@@ -22,6 +22,15 @@ public class DuelAiDifficultyDataType
     public float visitPower;  // 访问权重指数
     public bool allowPassBeforeEndgame;  // 终局前允许Pass
     public int thinkDelayMs;  // AI思考延迟毫秒
+    public int realtimeMaxVisits9;  // 9路实时访问上限
+    public int realtimeMaxVisits13;  // 13路实时访问上限
+    public int realtimeMaxVisits19;  // 19路实时访问上限
+    public int candidateLimit9;  // 9路候选点数量
+    public int candidateLimit13;  // 13路候选点数量
+    public int candidateLimit19;  // 19路候选点数量
+    public float maxScoreLoss9;  // 9路最大亏损目数
+    public float maxScoreLoss13;  // 13路最大亏损目数
+    public float maxScoreLoss19;  // 19路最大亏损目数
 
     public static Dictionary<string, DuelAiDifficultyDataType> DuelAiDifficultyDict;
 

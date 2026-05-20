@@ -28,7 +28,7 @@
 - 回合倒计时归零时触发 `TURN_TIMEOUT`，进入 `TurnEnd`。
 - 成功落子后 `OnAfterAddChessToBoard` 触发 `TURN_INPUT_FINISH`，进入 `TurnEnd`。
 - `TurnEnd` 切换当前玩家，然后触发下一轮 `TurnStart`。
-- `DuelAiSystem` 在电脑对局的 AI 回合读取 `duel_ai_difficulty` 配置，请求 KataGo `moveInfos`，筛选本地规则允许的候选点后发出正常 `OnAddChessToBoard`。实时 AI 落子请求会对过高的 `maxVisits` 做本地上限裁剪，避免高段位配置长时间占用唯一 KataGo analysis 进程；难度差异仍通过候选数量、失误率、温度、亏损阈值和访问权重等配置参与选点。没有可用候选点时，仅在难度配置允许提前虚手或棋盘已满时发出虚手。
+- `DuelAiSystem` 在电脑对局的 AI 回合读取 `duel_ai_difficulty` 配置，请求 KataGo `moveInfos`，筛选本地规则允许的候选点后发出正常 `OnAddChessToBoard`。实时 AI 落子请求会按当前棋盘路数解析 `realtimeMaxVisits9/13/19`、`candidateLimit9/13/19` 和 `maxScoreLoss9/13/19`；实际 KataGo 请求访问次数为 `min(maxVisits, realtimeMaxVisitsN)`，候选筛选使用对应路数的候选数量和亏损阈值。难度差异仍通过候选数量、失误率、温度、亏损阈值和访问权重等配置参与选点。没有可用候选点时，仅在难度配置允许提前虚手或棋盘已满时发出虚手。
 - `DuelMoveRule` 提供共享落子规则入口，`ChessBoardSystem` 用它执行真实落子，`DuelAiSystem` 用它检查候选点合法性；AI 检查候选点不能保留模拟产生的棋盘状态。
 - `DuelPage` 右下角“形式”按钮会发出 `OnRequestDuelOwnership`，并在分析或显示期间切换为“关闭”；再次点击会发出 `OnRequestClearDuelOwnership`。`DuelOwnershipSystem` 根据当前对局生成 KataGo ownership 请求，收到结果后绘制棋盘 overlay，并通过 `OnDuelOwnershipResult` 让 UI 显示双方目数。该流程不推进 FSM，也不改变正式对局结果。
 - `DuelPage.prefab` 会在形势按钮旁提供“虚手”入口；`DuelSystem` 在回合输入状态收到虚手后记录 KataGo `pass`，第一手虚手推进到下一回合，双方连续虚手会立即按本地原型数子结果进入 `GameEnd`，不弹二次确认。
@@ -63,3 +63,4 @@ FSM 让本地对局流程清晰可扩展。`WaitAction` 和 `GameEnd` 已有状�
 - `DuelPage` shows black-player time information in the upper-left panel and white-player time information in the upper-right panel, while save and exit actions live in an in-duel settings panel opened from the lower-right settings button.
 - `GameEnd` is now reachable through timeout loss, scoring, consecutive pass, and resign; dead-stone confirmation, review flows, and online adjudication remain out of scope.
 - Computer duel uses the same board, time-control, FSM, save, scoring, pass, and resign flow as local duel. The only turn-owner difference is that `DuelAiSystem` drives Player2 / white turns from KataGo candidates selected by `duel_ai_difficulty`.
+- AI turn logs include the board size, configured and requested visit count, configured and requested candidate limit, and configured and requested score-loss threshold so board-size-specific runtime budgets can be checked from Unity Console logs.

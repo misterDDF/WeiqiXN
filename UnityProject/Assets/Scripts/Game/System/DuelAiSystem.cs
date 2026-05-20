@@ -78,13 +78,19 @@ public class DuelAiSystem : SystemBase
                 return;
             }
 
+            AiRuntimeParams runtimeParams = ResolveRuntimeParams(difficultyData);
             XNLogger.LogInfo(
                 "Duel AI turn started.",
                 ("cfgId", compDuel.aiDifficultyCfgId.value),
                 ("cfgName", difficultyData.name ?? string.Empty),
                 ("thinkDelayMs", difficultyData.thinkDelayMs.ToString()),
-                ("maxVisits", difficultyData.maxVisits.ToString()),
-                ("candidateLimit", difficultyData.candidateLimit.ToString()),
+                ("boardSize", runtimeParams.boardSize.ToString()),
+                ("configuredMaxVisits", runtimeParams.configuredMaxVisits.ToString()),
+                ("requestMaxVisits", runtimeParams.requestMaxVisits.ToString()),
+                ("configuredCandidateLimit", runtimeParams.configuredCandidateLimit.ToString()),
+                ("requestCandidateLimit", runtimeParams.requestCandidateLimit.ToString()),
+                ("configuredMaxScoreLoss", runtimeParams.configuredMaxScoreLoss.ToString()),
+                ("requestMaxScoreLoss", runtimeParams.requestMaxScoreLoss.ToString()),
                 ("requestVersion", currentRequestVersion.ToString()),
                 ("turnInfo", BuildTurnInfoLog()));
 
@@ -103,14 +109,19 @@ public class DuelAiSystem : SystemBase
             }
 
             string requestId = $"duel-ai-move-{DateTime.UtcNow.Ticks}";
-            JObject query = KataGoPositionJsonBuilder.BuildAiMoveAnalysisJson((DuelScene)scene, requestId, difficultyData);
+            JObject query = KataGoPositionJsonBuilder.BuildAiMoveAnalysisJson((DuelScene)scene, requestId, difficultyData, runtimeParams.requestMaxVisits);
             XNLogger.LogInfo(
                 "Duel AI analyze requested.",
                 ("requestId", requestId),
                 ("moveCount", ((query["moves"] as JArray)?.Count ?? 0).ToString()),
                 ("analyzeTurns", query["analyzeTurns"]?.ToString(Newtonsoft.Json.Formatting.None) ?? "null"),
-                ("configuredMaxVisits", difficultyData.maxVisits.ToString()),
-                ("requestMaxVisits", query["maxVisits"]?.ToString() ?? "null"),
+                ("boardSize", runtimeParams.boardSize.ToString()),
+                ("configuredMaxVisits", runtimeParams.configuredMaxVisits.ToString()),
+                ("requestMaxVisits", runtimeParams.requestMaxVisits.ToString()),
+                ("configuredCandidateLimit", runtimeParams.configuredCandidateLimit.ToString()),
+                ("requestCandidateLimit", runtimeParams.requestCandidateLimit.ToString()),
+                ("configuredMaxScoreLoss", runtimeParams.configuredMaxScoreLoss.ToString()),
+                ("requestMaxScoreLoss", runtimeParams.requestMaxScoreLoss.ToString()),
                 ("includePolicy", query["includePolicy"]?.ToString() ?? "null"),
                 ("humanProfileRequested", difficultyData.useHumanPolicy.ToString()),
                 ("humanProfileEnabled", KataGoBootstrap.CanUseHumanSlProfile().ToString()),
@@ -127,7 +138,7 @@ public class DuelAiSystem : SystemBase
                 return;
             }
 
-            RectCoordinates coords = SelectMove(result, difficultyData);
+            RectCoordinates coords = SelectMove(result, difficultyData, runtimeParams);
             if (coords != null) {
                 XNLogger.LogInfo("Duel AI move selected.", ("coords", coords.ToString()), ("requestId", requestId));
                 scene.EmitSystemEvent(new OnAddChessToBoard(coords));
@@ -197,7 +208,89 @@ public class DuelAiSystem : SystemBase
         return true;
     }
 
-    private RectCoordinates SelectMove(JObject result, DuelAiDifficultyDataType difficultyData)
+    private AiRuntimeParams ResolveRuntimeParams(DuelAiDifficultyDataType difficultyData)
+    {
+        int boardSize = GetBoardSize();
+        int configuredMaxVisits = Mathf.Max(difficultyData.maxVisits, 1);
+        int configuredCandidateLimit = Mathf.Max(difficultyData.candidateLimit, 0);
+        float configuredMaxScoreLoss = Mathf.Max(difficultyData.maxScoreLoss, 0f);
+
+        int realtimeMaxVisits = GetBoardSizeIntValue(boardSize, difficultyData.realtimeMaxVisits9, difficultyData.realtimeMaxVisits13, difficultyData.realtimeMaxVisits19, configuredMaxVisits);
+        int candidateLimit = GetBoardSizeIntValue(boardSize, difficultyData.candidateLimit9, difficultyData.candidateLimit13, difficultyData.candidateLimit19, configuredCandidateLimit);
+        float maxScoreLoss = GetBoardSizeFloatValue(boardSize, difficultyData.maxScoreLoss9, difficultyData.maxScoreLoss13, difficultyData.maxScoreLoss19, configuredMaxScoreLoss);
+
+        return new AiRuntimeParams
+        {
+            boardSize = boardSize,
+            configuredMaxVisits = configuredMaxVisits,
+            requestMaxVisits = Mathf.Clamp(realtimeMaxVisits, 1, configuredMaxVisits),
+            configuredCandidateLimit = configuredCandidateLimit,
+            requestCandidateLimit = Mathf.Max(candidateLimit, 0),
+            configuredMaxScoreLoss = configuredMaxScoreLoss,
+            requestMaxScoreLoss = Mathf.Max(maxScoreLoss, 0f),
+        };
+    }
+
+    private int GetBoardSize()
+    {
+        SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
+        if (compChessBoard?.chessBoardGrid != null) {
+            return compChessBoard.chessBoardGrid.gridSize;
+        }
+
+        if (compChessBoard != null && !string.IsNullOrEmpty(compChessBoard.boardCfgId.value)) {
+            ChessBoardDataType chessBoardData = ChessBoardDataType.GetConfigData(compChessBoard.boardCfgId.value);
+            if (chessBoardData != null) {
+                return chessBoardData.boardSize;
+            }
+        }
+
+        return 19;
+    }
+
+    private int GetBoardSizeIntValue(int boardSize, int board9, int board13, int board19, int fallback)
+    {
+        int value;
+        switch (boardSize) {
+            case 9:
+                value = board9;
+                break;
+            case 13:
+                value = board13;
+                break;
+            case 19:
+                value = board19;
+                break;
+            default:
+                value = fallback;
+                break;
+        }
+
+        return value > 0 ? value : fallback;
+    }
+
+    private float GetBoardSizeFloatValue(int boardSize, float board9, float board13, float board19, float fallback)
+    {
+        float value;
+        switch (boardSize) {
+            case 9:
+                value = board9;
+                break;
+            case 13:
+                value = board13;
+                break;
+            case 19:
+                value = board19;
+                break;
+            default:
+                value = fallback;
+                break;
+        }
+
+        return value > 0f ? value : fallback;
+    }
+
+    private RectCoordinates SelectMove(JObject result, DuelAiDifficultyDataType difficultyData, AiRuntimeParams runtimeParams)
     {
         SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
         if (result == null || compChessBoard?.chessBoardGrid == null || difficultyData == null) {
@@ -211,7 +304,7 @@ public class DuelAiSystem : SystemBase
 
         JArray moveInfos = result["moveInfos"] as JArray;
         if (moveInfos == null || moveInfos.Count == 0) {
-            RectCoordinates policyCoords = SelectMoveFromPolicy(result, difficultyData);
+            RectCoordinates policyCoords = SelectMoveFromPolicy(result, difficultyData, runtimeParams);
             if (policyCoords != null) {
                 return policyCoords;
             }
@@ -231,7 +324,7 @@ public class DuelAiSystem : SystemBase
 
         int boardSize = compChessBoard.chessBoardGrid.gridSize;
         List<AiMoveCandidate> candidates = new List<AiMoveCandidate>();
-        int candidateLimit = difficultyData.candidateLimit > 0 ? difficultyData.candidateLimit : moveInfos.Count;
+        int candidateLimit = runtimeParams.requestCandidateLimit > 0 ? runtimeParams.requestCandidateLimit : moveInfos.Count;
         int parsedCount = 0;
         int passCount = 0;
         int parseFailedCount = 0;
@@ -280,12 +373,14 @@ public class DuelAiSystem : SystemBase
             return null;
         }
 
-        List<AiMoveCandidate> filteredCandidates = BuildFilteredCandidates(candidates, difficultyData);
+        List<AiMoveCandidate> filteredCandidates = BuildFilteredCandidates(candidates, runtimeParams);
         AiMoveCandidate pickedCandidate = PickCandidate(filteredCandidates.Count > 0 ? filteredCandidates : candidates, difficultyData);
         XNLogger.LogInfo(
             "Duel AI move candidates ready.",
             ("moveInfoCount", moveInfos.Count.ToString()),
+            ("boardSize", runtimeParams.boardSize.ToString()),
             ("candidateLimit", candidateLimit.ToString()),
+            ("maxScoreLoss", runtimeParams.requestMaxScoreLoss.ToString()),
             ("legalCount", candidates.Count.ToString()),
             ("filteredCount", filteredCandidates.Count.ToString()),
             ("pickedCoords", pickedCandidate.coords?.ToString() ?? "null"),
@@ -294,7 +389,7 @@ public class DuelAiSystem : SystemBase
         return pickedCandidate.coords;
     }
 
-    private RectCoordinates SelectMoveFromPolicy(JObject result, DuelAiDifficultyDataType difficultyData)
+    private RectCoordinates SelectMoveFromPolicy(JObject result, DuelAiDifficultyDataType difficultyData, AiRuntimeParams runtimeParams)
     {
         SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
         JArray policy = result?["policy"] as JArray;
@@ -312,7 +407,7 @@ public class DuelAiSystem : SystemBase
             return null;
         }
 
-        int candidateLimit = difficultyData.candidateLimit > 0 ? difficultyData.candidateLimit : pointCount;
+        int candidateLimit = runtimeParams.requestCandidateLimit > 0 ? runtimeParams.requestCandidateLimit : pointCount;
         List<PolicyCandidate> policyCandidates = new List<PolicyCandidate>();
         for (int i = 0; i < pointCount; i++) {
             policyCandidates.Add(new PolicyCandidate
@@ -366,6 +461,7 @@ public class DuelAiSystem : SystemBase
         XNLogger.LogInfo(
             "Duel AI policy fallback selected move.",
             ("policyCount", policy.Count.ToString()),
+            ("boardSize", runtimeParams.boardSize.ToString()),
             ("candidateLimit", candidateLimit.ToString()),
             ("legalCount", candidates.Count.ToString()),
             ("pickedCoords", pickedCandidate.coords?.ToString() ?? "null"),
@@ -373,12 +469,11 @@ public class DuelAiSystem : SystemBase
         return pickedCandidate.coords;
     }
 
-    private List<AiMoveCandidate> BuildFilteredCandidates(List<AiMoveCandidate> candidates, DuelAiDifficultyDataType difficultyData)
+    private List<AiMoveCandidate> BuildFilteredCandidates(List<AiMoveCandidate> candidates, AiRuntimeParams runtimeParams)
     {
         List<AiMoveCandidate> filteredCandidates = new List<AiMoveCandidate>();
-        float maxScoreLoss = Mathf.Max(difficultyData.maxScoreLoss, 0f);
         foreach (AiMoveCandidate candidate in candidates) {
-            if (candidate.scoreLoss <= maxScoreLoss) {
+            if (candidate.scoreLoss <= runtimeParams.requestMaxScoreLoss) {
                 filteredCandidates.Add(candidate);
             }
         }
@@ -506,5 +601,16 @@ public class DuelAiSystem : SystemBase
     {
         public int posIndex;
         public float probability;
+    }
+
+    private struct AiRuntimeParams
+    {
+        public int boardSize;
+        public int configuredMaxVisits;
+        public int requestMaxVisits;
+        public int configuredCandidateLimit;
+        public int requestCandidateLimit;
+        public float configuredMaxScoreLoss;
+        public float requestMaxScoreLoss;
     }
 }

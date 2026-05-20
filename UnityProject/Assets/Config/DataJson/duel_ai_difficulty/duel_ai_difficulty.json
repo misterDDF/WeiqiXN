@@ -14,7 +14,16 @@
     "maxScoreLoss": 30.0,
     "visitPower": 0.1,
     "allowPassBeforeEndgame": false,
-    "thinkDelayMs": 450
+    "thinkDelayMs": 450,
+    "realtimeMaxVisits9": 1,
+    "realtimeMaxVisits13": 1,
+    "realtimeMaxVisits19": 1,
+    "candidateLimit9": 20,
+    "candidateLimit13": 20,
+    "candidateLimit19": 20,
+    "maxScoreLoss9": 30.0,
+    "maxScoreLoss13": 30.0,
+    "maxScoreLoss19": 30.0
   },
   "k14_k10": {
     "id": "k14_k10",
@@ -31,7 +40,16 @@
     "maxScoreLoss": 24.0,
     "visitPower": 0.15,
     "allowPassBeforeEndgame": false,
-    "thinkDelayMs": 500
+    "thinkDelayMs": 500,
+    "realtimeMaxVisits9": 1,
+    "realtimeMaxVisits13": 1,
+    "realtimeMaxVisits19": 1,
+    "candidateLimit9": 18,
+    "candidateLimit13": 18,
+    "candidateLimit19": 18,
+    "maxScoreLoss9": 24.0,
+    "maxScoreLoss13": 24.0,
+    "maxScoreLoss19": 24.0
   },
   "k9_k7": {
     "id": "k9_k7",
@@ -41,14 +59,23 @@
     "humanSLProfile": "rank_8k",
     "useHumanPolicy": true,
     "includePolicy": true,
-    "maxVisits": 2,
+    "maxVisits": 4,
     "candidateLimit": 16,
     "mistakeRate": 0.65,
     "temperature": 1.15,
     "maxScoreLoss": 18.0,
     "visitPower": 0.2,
     "allowPassBeforeEndgame": false,
-    "thinkDelayMs": 550
+    "thinkDelayMs": 550,
+    "realtimeMaxVisits9": 4,
+    "realtimeMaxVisits13": 3,
+    "realtimeMaxVisits19": 2,
+    "candidateLimit9": 16,
+    "candidateLimit13": 16,
+    "candidateLimit19": 16,
+    "maxScoreLoss9": 18.0,
+    "maxScoreLoss13": 18.0,
+    "maxScoreLoss19": 18.0
   },
   "k6_k4": {
     "id": "k6_k4",
@@ -58,14 +85,23 @@
     "humanSLProfile": "rank_5k",
     "useHumanPolicy": true,
     "includePolicy": true,
-    "maxVisits": 4,
+    "maxVisits": 8,
     "candidateLimit": 14,
     "mistakeRate": 0.55,
     "temperature": 1.0,
     "maxScoreLoss": 12.0,
     "visitPower": 0.25,
     "allowPassBeforeEndgame": false,
-    "thinkDelayMs": 600
+    "thinkDelayMs": 600,
+    "realtimeMaxVisits9": 8,
+    "realtimeMaxVisits13": 6,
+    "realtimeMaxVisits19": 4,
+    "candidateLimit9": 14,
+    "candidateLimit13": 14,
+    "candidateLimit19": 14,
+    "maxScoreLoss9": 12.0,
+    "maxScoreLoss13": 12.0,
+    "maxScoreLoss19": 12.0
   },
   "k3_k1": {
     "id": "k3_k1",
@@ -75,14 +111,23 @@
     "humanSLProfile": "rank_2k",
     "useHumanPolicy": true,
     "includePolicy": true,
-    "maxVisits": 16,
+    "maxVisits": 64,
     "candidateLimit": 10,
     "mistakeRate": 0.4,
     "temperature": 0.85,
     "maxScoreLoss": 7.0,
     "visitPower": 0.35,
     "allowPassBeforeEndgame": false,
-    "thinkDelayMs": 700
+    "thinkDelayMs": 700,
+    "realtimeMaxVisits9": 64,
+    "realtimeMaxVisits13": 48,
+    "realtimeMaxVisits19": 32,
+    "candidateLimit9": 10,
+    "candidateLimit13": 10,
+    "candidateLimit19": 10,
+    "maxScoreLoss9": 7.0,
+    "maxScoreLoss13": 7.0,
+    "maxScoreLoss19": 7.0
   },
   "d1_d3": {
     "id": "d1_d3",
@@ -92,14 +137,23 @@
     "humanSLProfile": "rank_2d",
     "useHumanPolicy": true,
     "includePolicy": true,
-    "maxVisits": 96,
+    "maxVisits": 160,
     "candidateLimit": 7,
     "mistakeRate": 0.22,
     "temperature": 0.62,
     "maxScoreLoss": 3.2,
     "visitPower": 0.5,
     "allowPassBeforeEndgame": false,
-    "thinkDelayMs": 850
+    "thinkDelayMs": 850,
+    "realtimeMaxVisits9": 160,
+    "realtimeMaxVisits13": 128,
+    "realtimeMaxVisits19": 96,
+    "candidateLimit9": 7,
+    "candidateLimit13": 7,
+    "candidateLimit19": 7,
+    "maxScoreLoss9": 3.0,
+    "maxScoreLoss13": 3.2,
+    "maxScoreLoss19": 3.2
   },
   "d4_d5": {
     "id": "d4_d5",
@@ -116,7 +170,16 @@
     "maxScoreLoss": 1.4,
     "visitPower": 0.7,
     "allowPassBeforeEndgame": false,
-    "thinkDelayMs": 1050
+    "thinkDelayMs": 1050,
+    "realtimeMaxVisits9": 320,
+    "realtimeMaxVisits13": 224,
+    "realtimeMaxVisits19": 160,
+    "candidateLimit9": 5,
+    "candidateLimit13": 5,
+    "candidateLimit19": 5,
+    "maxScoreLoss9": 1.0,
+    "maxScoreLoss13": 1.2,
+    "maxScoreLoss19": 1.4
   },
   "d6": {
     "id": "d6",
@@ -133,7 +196,16 @@
     "maxScoreLoss": 0.9,
     "visitPower": 0.85,
     "allowPassBeforeEndgame": false,
-    "thinkDelayMs": 1200
+    "thinkDelayMs": 1200,
+    "realtimeMaxVisits9": 512,
+    "realtimeMaxVisits13": 320,
+    "realtimeMaxVisits19": 224,
+    "candidateLimit9": 4,
+    "candidateLimit13": 4,
+    "candidateLimit19": 4,
+    "maxScoreLoss9": 0.6,
+    "maxScoreLoss13": 0.75,
+    "maxScoreLoss19": 0.9
   },
   "pro_1p_2p": {
     "id": "pro_1p_2p",
@@ -150,7 +222,16 @@
     "maxScoreLoss": 0.6,
     "visitPower": 1.0,
     "allowPassBeforeEndgame": false,
-    "thinkDelayMs": 1300
+    "thinkDelayMs": 1300,
+    "realtimeMaxVisits9": 640,
+    "realtimeMaxVisits13": 384,
+    "realtimeMaxVisits19": 256,
+    "candidateLimit9": 3,
+    "candidateLimit13": 3,
+    "candidateLimit19": 3,
+    "maxScoreLoss9": 0.4,
+    "maxScoreLoss13": 0.5,
+    "maxScoreLoss19": 0.6
   },
   "pro_3p_4p": {
     "id": "pro_3p_4p",
@@ -167,7 +248,16 @@
     "maxScoreLoss": 0.4,
     "visitPower": 1.1,
     "allowPassBeforeEndgame": false,
-    "thinkDelayMs": 1400
+    "thinkDelayMs": 1400,
+    "realtimeMaxVisits9": 720,
+    "realtimeMaxVisits13": 448,
+    "realtimeMaxVisits19": 288,
+    "candidateLimit9": 3,
+    "candidateLimit13": 3,
+    "candidateLimit19": 3,
+    "maxScoreLoss9": 0.25,
+    "maxScoreLoss13": 0.35,
+    "maxScoreLoss19": 0.4
   },
   "pro_5p_6p": {
     "id": "pro_5p_6p",
@@ -184,7 +274,16 @@
     "maxScoreLoss": 0.3,
     "visitPower": 1.25,
     "allowPassBeforeEndgame": false,
-    "thinkDelayMs": 1500
+    "thinkDelayMs": 1500,
+    "realtimeMaxVisits9": 800,
+    "realtimeMaxVisits13": 512,
+    "realtimeMaxVisits19": 320,
+    "candidateLimit9": 2,
+    "candidateLimit13": 2,
+    "candidateLimit19": 2,
+    "maxScoreLoss9": 0.18,
+    "maxScoreLoss13": 0.25,
+    "maxScoreLoss19": 0.3
   },
   "pro_7p_8p": {
     "id": "pro_7p_8p",
@@ -201,7 +300,16 @@
     "maxScoreLoss": 0.2,
     "visitPower": 1.4,
     "allowPassBeforeEndgame": false,
-    "thinkDelayMs": 1550
+    "thinkDelayMs": 1550,
+    "realtimeMaxVisits9": 800,
+    "realtimeMaxVisits13": 512,
+    "realtimeMaxVisits19": 320,
+    "candidateLimit9": 2,
+    "candidateLimit13": 2,
+    "candidateLimit19": 2,
+    "maxScoreLoss9": 0.12,
+    "maxScoreLoss13": 0.18,
+    "maxScoreLoss19": 0.2
   },
   "pro_9p": {
     "id": "pro_9p",
@@ -218,6 +326,15 @@
     "maxScoreLoss": 0.1,
     "visitPower": 1.5,
     "allowPassBeforeEndgame": false,
-    "thinkDelayMs": 1600
+    "thinkDelayMs": 1600,
+    "realtimeMaxVisits9": 800,
+    "realtimeMaxVisits13": 512,
+    "realtimeMaxVisits19": 320,
+    "candidateLimit9": 1,
+    "candidateLimit13": 1,
+    "candidateLimit19": 1,
+    "maxScoreLoss9": 0.08,
+    "maxScoreLoss13": 0.1,
+    "maxScoreLoss19": 0.1
   }
 }

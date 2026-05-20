@@ -11,7 +11,6 @@ public static class KataGoPositionJsonBuilder
     private const string DefaultRules = "chinese";
     private const float DefaultKomi = 7.5f;
     private const int DefaultMaxVisits = 16;
-    private const int RealtimeAiMaxVisits = 512;
 
     public static JObject BuildAnalysisJsonWithMoveHistory(DuelScene duelScene, string requestId, int maxVisits = DefaultMaxVisits)
     {
@@ -31,11 +30,9 @@ public static class KataGoPositionJsonBuilder
         return BuildAnalysisJsonWithCurrentBoard(duelScene, requestId, maxVisits);
     }
 
-    public static JObject BuildAiMoveAnalysisJson(DuelScene duelScene, string requestId, DuelAiDifficultyDataType difficultyData)
+    public static JObject BuildAiMoveAnalysisJson(DuelScene duelScene, string requestId, DuelAiDifficultyDataType difficultyData, int maxVisits)
     {
-        int configuredMaxVisits = difficultyData != null ? Math.Max(difficultyData.maxVisits, 1) : DefaultMaxVisits;
-        int maxVisits = Math.Min(configuredMaxVisits, RealtimeAiMaxVisits);
-        JObject query = BuildAnalysisJsonWithMoveHistory(duelScene, requestId, maxVisits);
+        JObject query = BuildAnalysisJsonWithMoveHistory(duelScene, requestId, Math.Max(maxVisits, 1));
         query["analyzeTurns"] = new JArray((query["moves"] as JArray)?.Count ?? 0);
         query["includeOwnership"] = false;
 
