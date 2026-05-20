@@ -21,6 +21,7 @@ public class SceneComponentDuel : SceneComponentBase
     public SavableField<float> finalWhiteScore = SavableFieldFactory.CreateFloatField(0f);
     public SavableField<float> finalScoreMargin = SavableFieldFactory.CreateFloatField(0f);
     public JArray kataGoMoves = new JArray();
+    public bool isScoring;
 
     public DuelFSM duelFSM;
 

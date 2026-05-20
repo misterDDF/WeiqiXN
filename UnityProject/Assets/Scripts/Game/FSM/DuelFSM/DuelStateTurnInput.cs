@@ -16,6 +16,7 @@ public class DuelStateTurnInput : DuelFSMState
 
         var compDuel = fsm.scene.GetComponent<SceneComponentDuel>();
         if (compDuel == null) return;
+        if (compDuel.isScoring) return;
 
         Player curPlayer = fsm.scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
         if (curPlayer != null) {
@@ -57,6 +58,7 @@ public class DuelStateTurnInput : DuelFSMState
     {
         var compDuel = fsm.scene.GetComponent<SceneComponentDuel>();
         if (compDuel == null) return;
+        if (compDuel.isScoring) return;
 
         Player curPlayer = fsm.scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
         if (curPlayer != null) {

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Newtonsoft.Json.Linq;
 using XNClient.ChessBoard;
 using XNClient.Logger;
 
@@ -11,6 +12,8 @@ public class DuelSystem : SystemBase
     private const string DEFAULT_BYOYOMI_TIME_CFG_ID = "30s";
     private const string DEFAULT_AI_DIFFICULTY_CFG_ID = "k20_k15";
     private const float KOMI = KataGoDuelRecordFile.Komi;
+    private const string SCORE_SOURCE_OWNERSHIP = "katago_ownership";
+    private const string SCORE_SOURCE_LOCAL_PROTOTYPE = "local_prototype";
 
     private static readonly int[] DirX = { 0, 0, 1, -1 };
     private static readonly int[] DirZ = { 1, -1, 0, 0 };
@@ -175,9 +178,27 @@ public class DuelSystem : SystemBase
         }
     }
 
-    private void OnRequestDuelScore(OnRequestDuelScore evt)
+    private async void OnRequestDuelScore(OnRequestDuelScore evt)
     {
-        DuelScoreResult scoreResult = CalculateScoreResult();
+        var compDuel = scene.GetComponent<SceneComponentDuel>();
+        if (compDuel == null) {
+            return;
+        }
+
+        if (compDuel.isScoring) {
+            XNLogger.LogWarn("Duel score request skipped, score calculation is already running.");
+            return;
+        }
+
+        DuelScoreResult scoreResult = null;
+        try {
+            compDuel.isScoring = true;
+            scoreResult = await CalculateOwnershipScoreResultAsync("duel-score");
+        }
+        finally {
+            compDuel.isScoring = false;
+        }
+
         if (scoreResult == null) {
             return;
         }
@@ -216,7 +237,7 @@ public class DuelSystem : SystemBase
         compDuel.duelFSM.SetParamterTrigger(DuelParamDefine.TRIGGER_PARAM_GAME_END);
     }
 
-    private void OnRequestDuelPass(OnRequestDuelPass evt)
+    private async void OnRequestDuelPass(OnRequestDuelPass evt)
     {
         var compDuel = scene.GetComponent<SceneComponentDuel>();
         var compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
@@ -228,6 +249,11 @@ public class DuelSystem : SystemBase
             return;
         }
 
+        if (compDuel.isScoring) {
+            XNLogger.LogWarn("Duel pass skipped, score calculation is already running.");
+            return;
+        }
+
         Player curPlayer = scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
         if (curPlayer == null) {
             return;
@@ -236,7 +262,15 @@ public class DuelSystem : SystemBase
         compDuel.AppendKataGoPass((PlayerFlag)curPlayer.playerFlag.value);
         compDuel.consecutivePassCount.value += 1;
         if (compDuel.consecutivePassCount.value >= 2) {
-            DuelScoreResult scoreResult = CalculateScoreResult();
+            DuelScoreResult scoreResult = null;
+            try {
+                compDuel.isScoring = true;
+                scoreResult = await CalculateOwnershipScoreResultAsync("duel-consecutive-pass-score");
+            }
+            finally {
+                compDuel.isScoring = false;
+            }
+
             if (scoreResult == null) {
                 return;
             }
@@ -249,7 +283,33 @@ public class DuelSystem : SystemBase
         compDuel.duelFSM.SetParamterTrigger(DuelParamDefine.TRIGGER_PARAM_TURN_INPUT_FINISH);
     }
 
-    private DuelScoreResult CalculateScoreResult()
+    private async System.Threading.Tasks.Task<DuelScoreResult> CalculateOwnershipScoreResultAsync(string requestIdPrefix)
+    {
+        DuelScene duelScene = scene as DuelScene;
+        if (duelScene == null) {
+            XNLogger.LogError("Duel ownership score failed, scene is not DuelScene.");
+            return CalculateLocalPrototypeScoreResult();
+        }
+
+        try {
+            string requestId = $"{requestIdPrefix}-{DateTime.UtcNow.Ticks}";
+            JObject query = KataGoPositionJsonBuilder.BuildOwnershipAnalysisJson(duelScene, requestId);
+            JArray ownership = await KataGoBootstrap.AnalyzeOwnershipAsync(query);
+            if (ownership == null) {
+                XNLogger.LogWarn("Duel ownership score failed, fallback to local prototype score.", ("requestId", requestId));
+                return CalculateLocalPrototypeScoreResult();
+            }
+
+            DuelOwnershipSystem.OwnershipScore score = DuelOwnershipSystem.CalculateOwnershipScore(ownership, query);
+            return BuildScoreResult(score.blackPoints, score.whitePoints, score.komi, SCORE_SOURCE_OWNERSHIP);
+        }
+        catch (Exception ex) {
+            XNLogger.LogError("Duel ownership score failed, fallback to local prototype score.", ("err", ex.Message));
+            return CalculateLocalPrototypeScoreResult();
+        }
+    }
+
+    private DuelScoreResult CalculateLocalPrototypeScoreResult()
     {
         var compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
         if (compChessBoard?.chessBoardGrid == null) {
@@ -285,6 +345,11 @@ public class DuelSystem : SystemBase
             }
         }
 
+        return BuildScoreResult(blackScore, whiteScore, KOMI, SCORE_SOURCE_LOCAL_PROTOTYPE);
+    }
+
+    private DuelScoreResult BuildScoreResult(float blackScore, float whiteScore, float komi, string scoreSource)
+    {
         float margin = Math.Abs(blackScore - whiteScore);
         PlayerFlag winnerFlag = 0;
         if (blackScore > whiteScore) {
@@ -297,9 +362,10 @@ public class DuelSystem : SystemBase
         {
             blackScore = blackScore,
             whiteScore = whiteScore,
-            komi = KOMI,
+            komi = komi,
             margin = margin,
             winnerFlag = winnerFlag,
+            scoreSource = scoreSource,
         };
     }
 

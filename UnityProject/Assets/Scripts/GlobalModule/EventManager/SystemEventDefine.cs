@@ -79,6 +79,7 @@ public class DuelScoreResult
     public float komi;
     public float margin;
     public PlayerFlag winnerFlag;
+    public string scoreSource;
 }
 
 public class OnRequestDuelScore : SystemEventBase

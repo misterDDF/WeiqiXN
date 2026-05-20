@@ -389,6 +389,10 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             return false;
         }
 
+        if (compDuel.isScoring) {
+            return false;
+        }
+
         if (compDuel.duelFSM.curState == null || compDuel.duelFSM.curState.stateName != DuelStateDefine.STATE_TURN_INPUT) {
             return false;
         }

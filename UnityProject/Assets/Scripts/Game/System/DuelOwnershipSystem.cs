@@ -8,7 +8,7 @@ public class DuelOwnershipSystem : SystemBase
 {
     public override string systemName => GetSystemName<DuelOwnershipSystem>();
 
-    private const float OwnershipThreshold = 0.2f;
+    public const float OwnershipThreshold = 0.2f;
 
     private bool isAnalyzing;
     private int requestVersion;
@@ -104,7 +104,7 @@ public class DuelOwnershipSystem : SystemBase
         compChessBoard?.chessBoardGrid?.ClearOwnership();
     }
 
-    private OwnershipScore CalculateOwnershipScore(JArray ownership, JObject query)
+    public static OwnershipScore CalculateOwnershipScore(JArray ownership, JObject query)
     {
         float blackPoints = 0f;
         float whitePoints = 0f;
@@ -132,7 +132,7 @@ public class DuelOwnershipSystem : SystemBase
         };
     }
 
-    private struct OwnershipScore
+    public struct OwnershipScore
     {
         public float blackPoints;
         public float whitePoints;

@@ -77,6 +77,10 @@ public class ChessBoardSystem : SystemBase
             return;
         }
 
+        if (compDuel.isScoring) {
+            return;
+        }
+
         var curPlayer = scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
         if (curPlayer == null) {
             return;
