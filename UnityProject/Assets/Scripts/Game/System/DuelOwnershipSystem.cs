@@ -28,6 +28,7 @@ public class DuelOwnershipSystem : SystemBase
 
     private void OnAfterAddChessToBoard(OnAfterAddChessToBoard evt)
     {
+        ClearOwnershipScoreCache();
         ClearOwnershipAndNotify();
     }
 
@@ -38,6 +39,7 @@ public class DuelOwnershipSystem : SystemBase
 
     private void OnRequestDuelPass(OnRequestDuelPass evt)
     {
+        ClearOwnershipScoreCache();
         ClearOwnershipAndNotify();
     }
 
@@ -62,7 +64,12 @@ public class DuelOwnershipSystem : SystemBase
 
             string requestId = $"duel-ownership-{DateTime.UtcNow.Ticks}";
             JObject query = KataGoPositionJsonBuilder.BuildOwnershipAnalysisJson(duelScene, requestId);
-            JArray ownership = await KataGoBootstrap.AnalyzeOwnershipAsync(query);
+            SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
+            JArray ownership = compDuel?.cachedOwnership != null ? new JArray(compDuel.cachedOwnership) : null;
+            bool hasScoreCache = compDuel != null && compDuel.hasOwnershipScoreCache && ownership != null;
+            if (!hasScoreCache) {
+                ownership = await KataGoBootstrap.AnalyzeOwnershipAsync(query);
+            }
             if (currentRequestVersion != requestVersion) {
                 return;
             }
@@ -79,7 +86,8 @@ public class DuelOwnershipSystem : SystemBase
             }
 
             compChessBoard.chessBoardGrid.DrawOwnership(ownership, OwnershipThreshold);
-            OwnershipScore score = CalculateOwnershipScore(ownership, query);
+            OwnershipScore score = hasScoreCache ? compDuel.GetCachedOwnershipScore() : CalculateOwnershipScore(ownership, query);
+            compDuel?.CacheOwnershipScore(score, ownership);
             scene.EmitSystemEvent(new OnDuelOwnershipResult(score.blackPoints, score.whitePoints, score.komi));
         }
         catch (Exception ex) {
@@ -102,6 +110,12 @@ public class DuelOwnershipSystem : SystemBase
     {
         SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
         compChessBoard?.chessBoardGrid?.ClearOwnership();
+    }
+
+    private void ClearOwnershipScoreCache()
+    {
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
+        compDuel?.ClearOwnershipScoreCache();
     }
 
     public static OwnershipScore CalculateOwnershipScore(JArray ownership, JObject query)
