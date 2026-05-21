@@ -29,6 +29,12 @@
     "isPopup": true,
     "isLoadAsync": true
   },
+  "LanRoomPopup": {
+    "id": "LanRoomPopup",
+    "contextType": "General",
+    "isPopup": true,
+    "isLoadAsync": true
+  },
   "DuelPage": {
     "id": "DuelPage",
     "contextType": "Header",

@@ -26,7 +26,7 @@
 - `DuelPage` displays black-player time information in the upper-left panel and white-player time information in the upper-right panel. Each panel shows hold-time countdown, byoyomi remaining count, and byoyomi period time; only the current turn player's time values are decremented by the duel FSM.
 - `DuelPage` 维护短暂动作提示 HUD。成功落子会显示行棋方和围棋坐标，虚手会显示行棋方且在 AI 行棋时带 AI 标记，双方连续虚手会显示正在数子的提示，连续虚手数子失败会显示已回到对局。
 - `DuelPage` moves save and exit actions into an in-duel settings panel opened by the lower-right settings button; direct board click input ignores clicks that are already over UI controls.
-- `MainMenuPage` provides separate local duel and computer duel entries. Both entries open `DuelSetupPopup`; only the computer duel entry enables the AI difficulty dropdown.
+- `MainMenuPage` provides separate local duel, computer duel, and LAN multiplayer entries. Local duel and computer duel open `DuelSetupPopup`; only the computer duel entry enables the AI difficulty dropdown. The LAN multiplayer entry opens `LanRoomPopup`, which currently provides create-room and search-room UI paths with a visible room list placeholder and does not start network transport.
 - AI difficulty options are table-driven by `Assets/Config/DataJson/duel_ai_difficulty/duel_ai_difficulty.json`. `DuelSetupPopup` displays the config `name` values in a fixed rank order and passes the selected config id through `DuelSceneCreateParamas`. The difficulty table includes base selection parameters, board-size-specific realtime overrides for 9x9, 13x13, and 19x19 boards, and optional dynamic-budget thresholds.
 - Computer duel creates the same two local `Player` entities as local duel, stores `isAiDuel`, `aiDifficultyCfgId`, and `aiPlayerGuid` on `SceneComponentDuel`, and assigns the AI to Player2 / white by default.
 - `DuelAiSystem` is installed in `DuelScene`. During an AI turn it asks KataGo analysis for move candidates using the current KataGo-standard `moves`; if KataGo's top `moveInfos` candidate is `pass`, or the `policy` fallback ranks pass above every legal board point, the AI emits `OnRequestDuelPass`; otherwise it filters candidates through the same local move legality rule path, then emits the normal `OnAddChessToBoard` event. Human board click, pass, and resign inputs are ignored while the current turn belongs to the AI player. Realtime AI move requests resolve `maxVisits`, candidate count, and maximum score-loss threshold from the selected board size; request visits use `min(maxVisits, realtimeMaxVisitsN)`. Difficulties with dynamic budget enabled first send a low-visit probe request, then either use the probe result for opening/simple/confident positions or upgrade to the full realtime budget for complex, incomplete, or late-game positions.
@@ -39,7 +39,8 @@
 - 启动后，场景管理器进入主菜单场景。
 - 项目场景位于 `Assets/Scenes/`，当前包含主菜单、主场景和对局场景。
 - `MainMenuScene` 加载后打开 `MainMenuPage`。
-- `MainMenuPage` 可以打开本地对局或电脑对局；两者都使用 `DuelSetupPopup` 选择对局参数。
+- `MainMenuPage` 可以打开本地对局、电脑对局或局域网联机入口；本地对局和电脑对局使用 `DuelSetupPopup` 选择对局参数，局域网联机入口打开 `LanRoomPopup`。
+- `LanRoomPopup` 当前提供“创建房间”和“搜索房间”两条 UI 路径；搜索房间会展示房间列表占位数据，创建房间会展示本地房间占位状态。当前尚未接入实际网络传输、局域网广播、房间加入或对局同步。
 - `DuelSetupPopup` 可以用 `9x9`、`13x13`、`19x19` 三个棋盘配置进入对局场景；从电脑对局入口打开时还会显示电脑难度下拉框。
 - 棋盘尺寸和对局虚拟相机 y 偏移配置在 `Assets/Config/DataJson/chess_board/chess_board.json`。
 - 场景、UI 页面、预制体和 TMP sprite 配置放在 `Assets/Config/DataJson/`，对应的数据读取类放在 `Assets/Config/DataType/`。
@@ -82,7 +83,7 @@
 - 对局记录文件中的 KataGo 标准 `moves` 是保存侧的棋谱输出；场景存档不再保存 `SceneComponentChessBoard.chessInfoDict`。
 - `chessInfoDict` 和 `lastChessInfoDict` 跳过保存检查，只作为运行时棋盘缓存和局面对比状态。
 - 非法落子不显示预览棋子，页面不额外弹出“无法落子”提示；真实落子被规则拒绝时系统仍保留 `OnDuelMoveRejected` 边界事件。
-- 死子确认、复盘、匹配、房间、重连和网络同步当前未实现；数子、虚手、认输和基础终局结果 UI 已有本地原型实现，但尚未覆盖死子确认或完整线上裁定模型。当前阶段“请求数子”和连续虚手终局只依赖 KataGo `ownership` 结算，KataGo 不可用或无结果时不产生数子结果。
+- 死子确认、复盘、匹配、真实房间服务、重连和网络同步当前未实现；局域网联机入口和房间弹窗已有 UI 原型，但只展示创建/搜索和房间列表占位状态。数子、虚手、认输和基础终局结果 UI 已有本地原型实现，但尚未覆盖死子确认或完整线上裁定模型。当前阶段“请求数子”和连续虚手终局只依赖 KataGo `ownership` 结算，KataGo 不可用或无结果时不产生数子结果。
 
 ## Validation and Maintenance
 
@@ -96,6 +97,6 @@
 
 **验证与维护**
 
-- 当前行为验证应覆盖：从配置的启动场景进入运行、从主菜单打开本地对局和电脑对局、分别启动 `9x9`、`13x13`、`19x19` 棋盘、电脑对局难度下拉框读表、正常落子、尝试已有棋子位置、尝试棋盘外坐标、尝试自杀、尝试简单重复局面、保存对局。
+- 当前行为验证应覆盖：从配置的启动场景进入运行、从主菜单打开本地对局和电脑对局、从主菜单打开局域网联机弹窗并切换创建/搜索房间 UI、分别启动 `9x9`、`13x13`、`19x19` 棋盘、电脑对局难度下拉框读表、正常落子、尝试已有棋子位置、尝试棋盘外坐标、尝试自杀、尝试简单重复局面、保存对局。
 - 棋规、回合、场景、UI、资源、存档或依赖的当前行为发生变化时，需要更新本文档。
 - 网络依赖或网络实现一旦成为当前行为，也需要更新本文档。

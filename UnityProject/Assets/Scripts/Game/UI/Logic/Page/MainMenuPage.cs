@@ -14,6 +14,9 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
         if (binder.btn_ai_game != null) {
             binder.btn_ai_game.onClick.AddListener(OnClickBtnAiGame);
         }
+        if (binder.btn_lan_game != null) {
+            binder.btn_lan_game.onClick.AddListener(OnClickBtnLanGame);
+        }
         binder.btn_exit.onClick.AddListener(OnClickBtnExit);
         binder.btn_user_info.onClick.AddListener(OnClickBtnUserInfo);
     }
@@ -55,6 +58,11 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
     public void OnClickBtnAiGame()
     {
         DuelSetupPopup.Open(true);
+    }
+
+    public void OnClickBtnLanGame()
+    {
+        LanRoomPopup.OpenPopup();
     }
 
     public void OnClickBtnExit()
