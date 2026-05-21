@@ -4,10 +4,13 @@ using XNClient.Logger;
 
 public class Global
 {
+    private const float MinKataGoWarmupLoadingSeconds = 1.5f;
+
     private enum StartupState
     {
         None,
         LoadingResources,
+        WarmingKataGo,
         Running,
         Failed,
     }
@@ -34,6 +37,7 @@ public class Global
     public SceneManager sceneManager;
 
     private StartupState startupState = StartupState.None;
+    private float kataGoWarmupStartTime;
 
     public void Start()
     {
@@ -58,7 +62,19 @@ public class Global
 
     private void TryFinishStartup()
     {
-        if (startupState != StartupState.LoadingResources || resourceManager == null) {
+        if (startupState == StartupState.LoadingResources) {
+            TryStartKataGoWarmup();
+            return;
+        }
+
+        if (startupState == StartupState.WarmingKataGo) {
+            TryFinishKataGoWarmup();
+        }
+    }
+
+    private void TryStartKataGoWarmup()
+    {
+        if (resourceManager == null) {
             return;
         }
 
@@ -85,6 +101,42 @@ public class Global
             XNLogger.LogInfo("Ingame debug console go loaded.");
         }
 #endif
+
+        LoadingPage.SetProgress("AI模型预热中...", "正在启动本地 KataGo 分析引擎。", 0.05f);
+        uiManager.ShowPage<LoadingPage>();
+        kataGoWarmupStartTime = Time.realtimeSinceStartup;
+        KataGoBootstrap.Start();
+        startupState = StartupState.WarmingKataGo;
+    }
+
+    private void TryFinishKataGoWarmup()
+    {
+        KataGoBootstrap.KataGoStartupStatus kataGoStatus = KataGoBootstrap.GetStartupStatus();
+        LoadingPage.SetProgress(kataGoStatus.statusText, kataGoStatus.detailText, kataGoStatus.progress);
+
+        if (!kataGoStatus.isFinished) {
+            return;
+        }
+
+        if (Time.realtimeSinceStartup - kataGoWarmupStartTime < MinKataGoWarmupLoadingSeconds) {
+            return;
+        }
+
+        if (kataGoStatus.isFailed) {
+            XNLogger.LogError(
+                "Global startup continues after KataGo warmup failed.",
+                ("engine", kataGoStatus.engineName),
+                ("detail", kataGoStatus.detailText));
+        } else if (kataGoStatus.isSkipped) {
+            XNLogger.LogWarn("Global startup continues without KataGo warmup.", ("detail", kataGoStatus.detailText));
+        } else {
+            XNLogger.LogInfo(
+                "Global startup KataGo warmup finished.",
+                ("engine", kataGoStatus.engineName),
+                ("detail", kataGoStatus.detailText));
+        }
+
+        LoadingPage.SetProgress("场景加载中...", "正在进入主菜单。", 0.95f);
         sceneManager.EnterMainScene(SceneConfig.MAIN_MENU_SCENE_TYPE_ID, SceneCreateParams.Default);
         User.Instance.Init();
         startupState = StartupState.Running;

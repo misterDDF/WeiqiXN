@@ -6,4 +6,7 @@ using UnityEngine.UI;
 public class LoadingPageUI : UIBinderBase
 {
 	public TextMeshProUGUI txt_loading;
+	public TextMeshProUGUI txt_detail;
+	public TextMeshProUGUI txt_percent;
+	public Image img_progress_fill;
 }

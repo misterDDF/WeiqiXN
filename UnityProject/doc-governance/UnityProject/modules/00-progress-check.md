@@ -32,7 +32,7 @@
 
 - 非法落子目前只有逻辑回退，`ChessBoardSystem` 中多个 `TODO show message` 还没有用户反馈。
 - 鼠标输入在 `DuelPage` 中直接读取，标注了 `TODO input manager`。
-- `SceneBase` 加载时有 `TODO update load progress`，LoadingPage 尚未展示真实进度。
+- `LoadingPage` 已显示 KataGo 启动预热和 Unity 场景异步加载进度；进度仍包含 KataGo 单个 smoke query 内部的时间插值，不是 KataGo 原生细粒度调优进度。
 - 对局结束规则仍不完整：已有虚手、请求数子、连续虚手终局、认输和基础终局结果 UI 原型，但仍没有死子确认和线上裁定模型。
 - 保存已有触发入口，但用户可见的读取入口不明确。
 - 本地回归验证还没有自动化测试。

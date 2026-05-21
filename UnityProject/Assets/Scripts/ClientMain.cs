@@ -21,7 +21,6 @@ public class ClientMain
     private void Start()
     {
         XNLogger.Instance.Init();
-        KataGoBootstrap.Start();
         Global.Instance.Start();
     }
 

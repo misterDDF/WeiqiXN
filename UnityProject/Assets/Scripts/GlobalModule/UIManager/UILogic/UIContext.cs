@@ -34,15 +34,17 @@ public class UIContext
 
     public TPage GetMainPage<TPage>() where TPage : UIPage
     {
-        TPage page = null;
-        foreach (var _page in mainPageStack) {
-            if (_page.pageName == UIPage.GetPageName<TPage>()) {
-                page = (TPage)_page;
-                break;
+        LinkedListNode<UIPage> node = mainPageStack.Last;
+        string pageName = UIPage.GetPageName<TPage>();
+        while (node != null) {
+            if (node.Value.pageName == pageName) {
+                return (TPage)node.Value;
             }
+
+            node = node.Previous;
         }
 
-        return page;
+        return null;
     }
 
     public TPage GetPopupPage<TPage>() where TPage : UIPage
@@ -61,13 +63,13 @@ public class UIContext
     public void ShowMainPage(UIPage mainPage, bool isCachePage)
     {
         mainPage.canvasOrder = baseCanvasOrder + mainPageStack.Count * UIConfig.MAINPAGE_INCREASE_CANVAS_ORDER;
+        mainPageStack.AddLast(mainPage);
         if (isCachePage) {
             mainPage.InitPage(this);
             mainPage.Open();
         } else {
             mainPage.LoadPage();
         }
-        mainPageStack.AddLast(mainPage);
         XNLogger.LogInfo("UIContext show main page.", ("contextType", contextType.ToString()), ("pageName", mainPage.pageName));
     }
 

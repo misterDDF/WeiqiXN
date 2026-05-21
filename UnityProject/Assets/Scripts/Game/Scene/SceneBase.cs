@@ -53,7 +53,8 @@ public class SceneBase : SavableObj, ITimerAttacher, IEventReceiver, IResourceLo
     protected virtual void OnUpdate()
     {
         if (!isLoaded && unitySceneLoadAsync != null) {
-            // TODO update load progress
+            float progress = Mathf.Clamp01(unitySceneLoadAsync.progress / 0.9f);
+            LoadingPage.SetProgress("场景加载中...", $"正在加载 {configData.unitySceneName}", progress);
             return;
         }
 
@@ -92,10 +93,6 @@ public class SceneBase : SavableObj, ITimerAttacher, IEventReceiver, IResourceLo
 
     public void Update()
     {
-        if (!isLoaded) {
-            return;
-        }
-
         OnUpdate();
     }
 
@@ -218,7 +215,10 @@ public class SceneBase : SavableObj, ITimerAttacher, IEventReceiver, IResourceLo
         UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnUnitySceneLoaded;
         try {
             unitySceneLoadAsync = UnityEngine.SceneManagement.SceneManager.LoadSceneAsync(configData.unitySceneName);
-            Global.Instance.uiManager.ShowPage<LoadingPage>();
+            LoadingPage.SetProgress("场景加载中...", $"正在加载 {configData.unitySceneName}", 0f);
+            if (!LoadingPage.hasActivePage) {
+                Global.Instance.uiManager.ShowPage<LoadingPage>();
+            }
             XNLogger.LogInfo("Load scene async start.", ("sceneTypeId", configData.id), ("unitySceneName", configData.unitySceneName));
         }
         catch (Exception ex) {

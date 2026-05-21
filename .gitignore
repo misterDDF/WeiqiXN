@@ -18,3 +18,5 @@ UnityProject/ProjectSettings/PackageManagerSettings.asset
 UnityProject/ProjectSettings/ProjectVersion.txt
 UnityProject/Assets/UI/Font/SourceHanSansSC-Regular SDF.asset
 UnityProject/Assets/StreamingAssets/KataGo/**/analysis_logs/
+UnityProject/Assets/StreamingAssets/KataGo/**/KataGoData/
+UnityProject/Assets/StreamingAssets/KataGo/**/KataGoData.meta

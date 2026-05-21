@@ -134,6 +134,47 @@ internal sealed class Win32KataGoProcess : IDisposable
         throw new TimeoutException($"{operationName} timed out after {timeoutMs}ms. KataGo process was stopped and will be restarted before the next analyze request.");
     }
 
+    public bool TryReadOutputLineBefore(
+        DateTime deadline,
+        CancellationToken cancellationToken,
+        string operationName,
+        int timeoutMs,
+        int maxWaitMs,
+        out string line)
+    {
+        ThrowIfDisposed();
+        line = null;
+
+        DateTime waitUntil = DateTime.UtcNow.AddMilliseconds(Math.Max(1, maxWaitMs));
+        if (waitUntil > deadline) {
+            waitUntil = deadline;
+        }
+
+        while (DateTime.UtcNow < waitUntil) {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (stdoutLines.TryDequeue(out line)) {
+                return true;
+            }
+
+            if (!IsRunning && stdoutLines.IsEmpty) {
+                throw new InvalidOperationException($"{operationName} failed because KataGo exited before returning result.");
+            }
+
+            TimeSpan remainingToDeadline = deadline - DateTime.UtcNow;
+            TimeSpan remainingToWaitUntil = waitUntil - DateTime.UtcNow;
+            int waitMs = Math.Min(100, Math.Max(1, (int)Math.Min(remainingToDeadline.TotalMilliseconds, remainingToWaitUntil.TotalMilliseconds)));
+            stdoutLineReady.WaitOne(waitMs);
+        }
+
+        if (DateTime.UtcNow >= deadline) {
+            Stop();
+            throw new TimeoutException($"{operationName} timed out after {timeoutMs}ms. KataGo process was stopped and will be restarted before the next analyze request.");
+        }
+
+        return false;
+    }
+
     public void Stop()
     {
         lock (stateLock) {
