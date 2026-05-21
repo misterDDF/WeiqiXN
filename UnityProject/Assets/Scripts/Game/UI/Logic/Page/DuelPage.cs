@@ -6,12 +6,16 @@ using XNClient.ChessBoard;
 
 public class DuelPage : UIPageWithBinder<DuelPageUI>
 {
+    private const float ActionNoticeHoldSeconds = 2.2f;
+    private const float ActionNoticeFadeSeconds = 0.28f;
+
     public override string pageName => UIPage.GetPageName<DuelPage>();
     public GameObject aimChessPreview;
     public RectCoordinates aimCoords = new RectCoordinates(-1, -1);
     private PlayerFlag aimChessPreviewPlayerFlag;
     private bool isOwnershipVisible;
     private int pendingScorePopupRequestId;
+    private float actionNoticeHideStartTime = -1f;
 
     protected override void OnLoaded()
     {
@@ -22,6 +26,8 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         RegisterSystemEvent<OnClearDuelOwnership>(OnClearDuelOwnership);
         RegisterSystemEvent<OnDuelScoreResult>(OnDuelScoreResult);
         RegisterSystemEvent<OnDuelScoreFailed>(OnDuelScoreFailed);
+        RegisterSystemEvent<OnDuelPassAccepted>(OnDuelPassAccepted);
+        RegisterSystemEvent<OnAfterAddChessToBoard>(OnAfterAddChessToBoard);
 
         BindPrefabHud();
     }
@@ -34,6 +40,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         SetOwnershipActive(false);
         SetOwnershipResultPanelVisible(false);
         SetGameEndResultPanelVisible(false);
+        SetActionNoticeVisible(false);
         RefreshDuelHud();
     }
 
@@ -42,6 +49,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         base.OnUpdate();
 
         RefreshDuelHud();
+        RefreshActionNotice();
 
         if (IsSettingsPanelVisible()) {
             aimCoords.SetValue(-1, -1);
@@ -198,6 +206,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     public void OnDuelScoreFailed(OnDuelScoreFailed evt)
     {
         if (!evt.requireConfirm) {
+            ShowActionNotice("数子失败，已回到对局");
             return;
         }
 
@@ -209,6 +218,25 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             false
         );
         pendingScorePopupRequestId = 0;
+    }
+
+    public void OnDuelPassAccepted(OnDuelPassAccepted evt)
+    {
+        if (evt.consecutivePassCount >= 2) {
+            ShowActionNotice("双方连续虚手，正在数子...");
+            return;
+        }
+
+        string playerText = evt.playerFlag == PlayerFlag.Player1 ? "黑方" : "白方";
+        string aiText = evt.isAiPlayer ? "（AI）" : string.Empty;
+        ShowActionNotice($"{playerText}{aiText}虚手");
+    }
+
+    public void OnAfterAddChessToBoard(OnAfterAddChessToBoard evt)
+    {
+        string playerText = evt.playerFlag == PlayerFlag.Player1 ? "黑方" : "白方";
+        string aiText = IsAiPlayer(evt.playerFlag) ? "（AI）" : string.Empty;
+        ShowActionNotice($"{playerText}{aiText}落子 {FormatBoardPoint(evt.coords)}");
     }
 
     public void RefreshDuelHud()
@@ -399,6 +427,19 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             : pointCount.ToString("0.0");
     }
 
+    private string FormatBoardPoint(RectCoordinates coords)
+    {
+        var mainScene = Global.Instance.sceneManager.mainScene;
+        var compChessBoard = mainScene?.GetComponent<SceneComponentChessBoard>();
+        int boardSize = compChessBoard?.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : 19;
+        try {
+            return KataGoPositionJsonBuilder.ToKataGoPoint(coords, boardSize);
+        }
+        catch (System.Exception) {
+            return coords?.ToString() ?? "--";
+        }
+    }
+
     private string BuildScoreConfirmContent(DuelScoreResult scoreResult)
     {
         string winnerText;
@@ -518,6 +559,18 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         return "当前方";
     }
 
+    private bool IsAiPlayer(PlayerFlag playerFlag)
+    {
+        var mainScene = Global.Instance.sceneManager.mainScene;
+        var compDuel = mainScene?.GetComponent<SceneComponentDuel>();
+        if (compDuel == null || !compDuel.isAiDuel.value || string.IsNullOrEmpty(compDuel.aiPlayerGuid.value)) {
+            return false;
+        }
+
+        string playerGuid = playerFlag == PlayerFlag.Player1 ? compDuel.player1Guid.value : compDuel.player2Guid.value;
+        return playerGuid == compDuel.aiPlayerGuid.value;
+    }
+
     private void OpenSettingsPanel()
     {
         SetSettingsPanelVisible(true);
@@ -546,6 +599,47 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     {
         if (binder.panel_game_end_result != null) {
             binder.panel_game_end_result.SetActive(isVisible);
+        }
+    }
+
+    private void ShowActionNotice(string message)
+    {
+        SetText(binder.txt_duel_action_notice, message);
+        SetActionNoticeVisible(true);
+        if (binder.canvas_duel_action_notice != null) {
+            binder.canvas_duel_action_notice.alpha = 1f;
+        }
+        actionNoticeHideStartTime = Time.unscaledTime + ActionNoticeHoldSeconds;
+    }
+
+    private void RefreshActionNotice()
+    {
+        if (binder.panel_duel_action_notice == null || !binder.panel_duel_action_notice.activeSelf || actionNoticeHideStartTime < 0f) {
+            return;
+        }
+
+        float fadeElapsed = Time.unscaledTime - actionNoticeHideStartTime;
+        if (fadeElapsed < 0f) {
+            return;
+        }
+
+        float fadeProgress = ActionNoticeFadeSeconds <= 0f ? 1f : Mathf.Clamp01(fadeElapsed / ActionNoticeFadeSeconds);
+        if (binder.canvas_duel_action_notice != null) {
+            binder.canvas_duel_action_notice.alpha = 1f - fadeProgress;
+        }
+
+        if (fadeProgress >= 1f) {
+            SetActionNoticeVisible(false);
+        }
+    }
+
+    private void SetActionNoticeVisible(bool isVisible)
+    {
+        if (binder.panel_duel_action_notice != null) {
+            binder.panel_duel_action_notice.SetActive(isVisible);
+        }
+        if (!isVisible) {
+            actionNoticeHideStartTime = -1f;
         }
     }
 

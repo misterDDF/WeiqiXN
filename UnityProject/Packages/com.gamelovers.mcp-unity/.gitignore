@@ -114,6 +114,8 @@ GvhProjectSettings.xml
 .codeiumignore
 Server~/log.txt
 Server~/log.txt.meta
+McpUnitySettings.local.json
+McpUnitySettings.local.json.meta
 log.txt
 log.txt.meta
 Server~/node_modules/*

@@ -34,6 +34,7 @@ export declare class McpUnity {
     private logger;
     private port;
     private host;
+    private hostCandidates;
     private requestTimeout;
     private connection;
     private pendingRequests;
@@ -68,6 +69,11 @@ export declare class McpUnity {
      * Reads our configuration file and sets parameters of the server based on them.
      */
     private parseAndSetConfig;
+    private getHostCandidates;
+    private formatHost;
+    private ensureConnection;
+    private replaceConnection;
+    private connectWithHostFallback;
     /**
      * Handle connection state changes
      */
@@ -133,8 +139,11 @@ export declare class McpUnity {
         timeSinceLastPong?: number;
     };
     /**
-     * Read the McpUnitySettings.json file and return its contents as a JSON object.
-     * @returns a JSON object with the contents of the McpUnitySettings.json file.
+     * Reads package-level MCP Unity settings and applies local overrides when present.
      */
     private readConfigFileAsJson;
+    private getConfigFileCandidates;
+    private getPackageRoot;
+    private uniquePaths;
+    private tryReadConfigFile;
 }

@@ -18,7 +18,8 @@ namespace McpUnity.Unity
         public const int RequestTimeoutMinimum = 10;
         
         // Paths
-        private const string SettingsPath = "ProjectSettings/McpUnitySettings.json";
+        private const string DefaultSettingsPath = "Packages/com.gamelovers.mcp-unity/McpUnitySettings.json";
+        private const string LocalSettingsPath = "Packages/com.gamelovers.mcp-unity/McpUnitySettings.local.json";
         
         private static McpUnitySettings _instance;
 
@@ -70,16 +71,21 @@ namespace McpUnity.Unity
         {
             try
             {
-                // Load settings from McpUnitySettings.json
-                if (File.Exists(SettingsPath))
+                if (File.Exists(DefaultSettingsPath))
                 {
-                    string json = File.ReadAllText(SettingsPath);
+                    string json = File.ReadAllText(DefaultSettingsPath);
                     JsonUtility.FromJsonOverwrite(json, this);
                 }
                 else
                 {
                     // Create default settings file on the first time initialization
-                    SaveSettings();
+                    SaveSettings(DefaultSettingsPath);
+                }
+
+                if (File.Exists(LocalSettingsPath))
+                {
+                    string json = File.ReadAllText(LocalSettingsPath);
+                    JsonUtility.FromJsonOverwrite(json, this);
                 }
             }
             catch (Exception ex)
@@ -97,11 +103,15 @@ namespace McpUnity.Unity
         /// </remarks>
         public void SaveSettings()
         {
+            SaveSettings(LocalSettingsPath);
+        }
+
+        private void SaveSettings(string settingsPath)
+        {
             try
             {
-                // Save settings to McpUnitySettings.json
                 string json = JsonUtility.ToJson(this, true);
-                File.WriteAllText(SettingsPath, json);
+                File.WriteAllText(settingsPath, json);
             }
             catch (Exception ex)
             {

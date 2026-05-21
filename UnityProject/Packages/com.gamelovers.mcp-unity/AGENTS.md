@@ -11,8 +11,8 @@
 - **Tool/Resource names must match exactly** across Node and Unity (typically `lower_snake_case`).
 
 ### Key defaults & invariants
-- **Unity WebSocket endpoint**: `ws://localhost:8090/McpUnity` by default.
-- **Config file**: `ProjectSettings/McpUnitySettings.json` (written/read by Unity; read opportunistically by Node).
+- **Unity WebSocket endpoint**: `ws://localhost:8090/McpUnity` by default, with local overrides supported.
+- **Config files**: `McpUnitySettings.json` is the tracked package default; `McpUnitySettings.local.json` is an ignored per-machine override. Both live at the package root.
 - **Execution thread**: Tool/resource execution is dispatched via `EditorCoroutineUtility` and runs on the **Unity main thread**. Keep synchronous work short; use async patterns for long work.
 
 ### Repo layout (where to change what)
@@ -36,7 +36,7 @@
 - **Unity side**
   - Open the Unity project that has this package installed.
   - Ensure the server is running (auto-start is controlled by `McpUnitySettings.AutoStartServer`).
-  - Settings persist in `ProjectSettings/McpUnitySettings.json`.
+  - Default settings live in package-root `McpUnitySettings.json`; editor changes are saved to ignored package-root `McpUnitySettings.local.json`.
 
 - **Node side (build)**
   - `cd Server~ && npm run build`
@@ -46,19 +46,24 @@
   - `cd Server~ && npm run inspector` to use the MCP Inspector.
 
 ### Configuration (Unity ↔ Node bridge)
-The Unity settings file is the shared contract:
-- **Path**: `ProjectSettings/McpUnitySettings.json`
+The package settings files are the shared contract:
+- **Default path**: `McpUnitySettings.json` at the package root. This file is tracked and defaults to port **8090**.
+- **Local override path**: `McpUnitySettings.local.json` at the package root. This file is ignored by git and may override only the local fields that differ, such as port **8091**.
 - **Fields**
   - **Port** (default **8090**): Unity WebSocket server port.
-  - **RequestTimeoutSeconds** (default **10**): Node request timeout (Node reads this if the settings file is discoverable).
+  - **RequestTimeoutSeconds** (default **10**): Node request timeout.
   - **AllowRemoteConnections** (default **false**): Unity binds to `0.0.0.0` when enabled; otherwise `localhost`.
   - **EnableInfoLogs**: Unity console logging verbosity.
   - **NpmExecutablePath**: optional npm path for Unity-driven install/build.
 
-Node reads config from `../ProjectSettings/McpUnitySettings.json` relative to **its current working directory**. If not found, Node falls back to:
-- **host**: `localhost`
+Unity and Node read package-root `McpUnitySettings.json` first, then merge package-root `McpUnitySettings.local.json` when it exists. Node can also read the same files from `MCP_UNITY_PACKAGE_PATH` when that environment variable points at a package root.
+
+If no config file is found, Node falls back to:
+- **host candidates**: `[::1]`, `127.0.0.1`, `localhost`
 - **port**: `8090`
 - **timeout**: `10s`
+
+When no explicit `UNITY_HOST` or config `Host` is set, Node tries local loopback host candidates in order. This avoids Windows localhost IPv4/IPv6 mismatch when Unity's WebSocket server is listening only on one loopback family.
 
 **Remote connection note**:
 - If Unity is on another machine, set `AllowRemoteConnections=true` in Unity and set `UNITY_HOST=<unity_machine_ip_or_hostname>` for the Node process.

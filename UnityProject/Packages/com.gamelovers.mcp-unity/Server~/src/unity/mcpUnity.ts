@@ -3,11 +3,13 @@ import { Logger } from '../utils/logger.js';
 import { McpUnityError, ErrorType } from '../utils/errors.js';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { UnityConnection, ConnectionState, ConnectionStateChange, UnityConnectionConfig } from './unityConnection.js';
 import { CommandQueue, CommandQueueConfig, CommandQueueStats, QueuedCommand } from './commandQueue.js';
 
-// Top-level constant for the Unity settings JSON path
-const MCP_UNITY_SETTINGS_PATH = path.resolve(process.cwd(), './ProjectSettings/McpUnitySettings.json');
+const MCP_UNITY_SETTINGS_FILE = 'McpUnitySettings.json';
+const MCP_UNITY_LOCAL_SETTINGS_FILE = 'McpUnitySettings.local.json';
+const LOCAL_HOST_CANDIDATES = ['[::1]', '127.0.0.1', 'localhost'];
 
 interface PendingRequest {
   resolve: (value: any) => void;
@@ -65,6 +67,7 @@ export class McpUnity {
   private logger: Logger;
   private port: number = 8090;
   private host: string = 'localhost';
+  private hostCandidates: string[] = ['localhost'];
   private requestTimeout = 10000;
 
   private connection: UnityConnection | null = null;
@@ -127,34 +130,8 @@ export class McpUnity {
 
       this.clientName = clientName || '';
 
-      // Create connection with configuration
-      const config: UnityConnectionConfig = {
-        host: this.host,
-        port: this.port,
-        requestTimeout: this.requestTimeout,
-        clientName: this.clientName,
-        // Use defaults for reconnection and heartbeat from UnityConnection
-      };
-
-      this.connection = new UnityConnection(this.logger, config);
-
-      // Set up event handlers
-      this.connection.on('stateChange', (change: ConnectionStateChange) => {
-        this.handleStateChange(change);
-      });
-
-      this.connection.on('message', (data: string) => {
-        this.handleMessage(data);
-      });
-
-      this.connection.on('error', (error: McpUnityError) => {
-        this.logger.error(`Connection error: ${error.message}`);
-        // Reject pending requests on connection error
-        this.rejectAllPendingRequests(error);
-      });
-
       this.logger.info('Attempting to connect to Unity WebSocket...');
-      await this.connection.connect();
+      await this.connectWithHostFallback();
       this.logger.info('Successfully connected to Unity WebSocket');
 
       if (clientName) {
@@ -163,6 +140,7 @@ export class McpUnity {
     } catch (error) {
       this.logger.warn(`Could not connect to Unity WebSocket: ${error instanceof Error ? error.message : String(error)}`);
       this.logger.warn('Will retry connection on next request (with automatic reconnection)');
+      this.ensureConnection(this.hostCandidates[0] || this.host);
     }
 
     return Promise.resolve();
@@ -178,14 +156,98 @@ export class McpUnity {
     this.port = configPort ? parseInt(configPort, 10) : 8090;
     this.logger.info(`Using port: ${this.port} for Unity WebSocket connection`);
 
-    // Check environment variable first, then config file, then default to localhost
+    // Check environment variable first, then config file, then local loopback candidates.
     const configHost = process.env.UNITY_HOST || config.Host;
-    this.host = configHost || 'localhost';
+    this.hostCandidates = this.getHostCandidates(configHost);
+    this.host = this.hostCandidates[0];
+    this.logger.info(`Using host candidate(s): ${this.hostCandidates.join(', ')} for Unity WebSocket connection`);
 
     // Initialize timeout from environment variable (in seconds; it is the same as Cline) or use default (10 seconds)
     const configTimeout = config.RequestTimeoutSeconds;
     this.requestTimeout = configTimeout ? parseInt(configTimeout, 10) * 1000 : 10000;
     this.logger.info(`Using request timeout: ${this.requestTimeout / 1000} seconds`);
+  }
+
+  private getHostCandidates(configHost?: string): string[] {
+    if (configHost) {
+      return [this.formatHost(configHost)];
+    }
+
+    return LOCAL_HOST_CANDIDATES;
+  }
+
+  private formatHost(host: string): string {
+    const trimmedHost = host.trim();
+
+    if (trimmedHost.includes(':') && !trimmedHost.startsWith('[')) {
+      return `[${trimmedHost}]`;
+    }
+
+    return trimmedHost;
+  }
+
+  private ensureConnection(host: string): void {
+    if (this.connection && this.host === host) {
+      return;
+    }
+
+    this.replaceConnection(host);
+  }
+
+  private replaceConnection(host: string): void {
+    if (this.connection) {
+      this.connection.disconnect('Switching Unity host');
+      this.connection.removeAllListeners();
+    }
+
+    this.host = host;
+
+    const config: UnityConnectionConfig = {
+      host: this.host,
+      port: this.port,
+      requestTimeout: this.requestTimeout,
+      clientName: this.clientName,
+      // Use defaults for reconnection and heartbeat from UnityConnection
+    };
+
+    this.connection = new UnityConnection(this.logger, config);
+
+    this.connection.on('stateChange', (change: ConnectionStateChange) => {
+      this.handleStateChange(change);
+    });
+
+    this.connection.on('message', (data: string) => {
+      this.handleMessage(data);
+    });
+
+    this.connection.on('error', (error: McpUnityError) => {
+      this.logger.error(`Connection error: ${error.message}`);
+      this.rejectAllPendingRequests(error);
+    });
+  }
+
+  private async connectWithHostFallback(): Promise<void> {
+    let lastError: unknown = null;
+    const candidates = this.hostCandidates.length > 0 ? this.hostCandidates : [this.host];
+
+    for (const host of candidates) {
+      this.ensureConnection(host);
+
+      try {
+        this.logger.info(`Trying Unity WebSocket host: ${host}`);
+        await this.connection!.connect();
+
+        if (this.connection!.isConnected) {
+          this.host = host;
+          return;
+        }
+      } catch (error) {
+        lastError = error;
+        this.logger.warn(`Unity WebSocket host ${host} failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    throw lastError || new McpUnityError(ErrorType.CONNECTION, 'Could not connect to Unity WebSocket');
   }
 
   /**
@@ -376,7 +438,7 @@ export class McpUnity {
     this.logger.info('Not connected to Unity, connecting first...');
 
     try {
-      await this.connection.connect();
+      await this.connectWithHostFallback();
       // Connection successful, send the request
       return this.sendRequestInternal(message, timeout);
     } catch (error) {
@@ -512,18 +574,54 @@ export class McpUnity {
   }
 
   /**
-   * Read the McpUnitySettings.json file and return its contents as a JSON object.
-   * @returns a JSON object with the contents of the McpUnitySettings.json file.
+   * Reads package-level MCP Unity settings and applies local overrides when present.
    */
   private async readConfigFileAsJson(): Promise<any> {
-    const configPath = MCP_UNITY_SETTINGS_PATH;
+    const config: Record<string, any> = {};
+
+    for (const configPath of this.getConfigFileCandidates()) {
+      const partialConfig = await this.tryReadConfigFile(configPath);
+      if (partialConfig) {
+        Object.assign(config, partialConfig);
+      }
+    }
+
+    return config;
+  }
+
+  private getConfigFileCandidates(): string[] {
+    const packageRoot = this.getPackageRoot();
+    const configuredPackageRoot = process.env.MCP_UNITY_PACKAGE_PATH
+      ? path.resolve(process.env.MCP_UNITY_PACKAGE_PATH)
+      : null;
+
+    return this.uniquePaths([
+      configuredPackageRoot ? path.resolve(configuredPackageRoot, MCP_UNITY_SETTINGS_FILE) : null,
+      path.resolve(packageRoot, MCP_UNITY_SETTINGS_FILE),
+      path.resolve(process.cwd(), MCP_UNITY_SETTINGS_FILE),
+      configuredPackageRoot ? path.resolve(configuredPackageRoot, MCP_UNITY_LOCAL_SETTINGS_FILE) : null,
+      path.resolve(packageRoot, MCP_UNITY_LOCAL_SETTINGS_FILE),
+      path.resolve(process.cwd(), MCP_UNITY_LOCAL_SETTINGS_FILE),
+    ]);
+  }
+
+  private getPackageRoot(): string {
+    const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
+    return path.resolve(moduleDirectory, '../../..');
+  }
+
+  private uniquePaths(candidates: Array<string | null>): string[] {
+    return Array.from(new Set(candidates.filter((candidate): candidate is string => Boolean(candidate))));
+  }
+
+  private async tryReadConfigFile(configPath: string): Promise<Record<string, any> | null> {
     try {
       const content = await fs.readFile(configPath, 'utf-8');
-      const json = JSON.parse(content);
-      return json;
+      this.logger.info(`Using MCP Unity settings: ${configPath}`);
+      return JSON.parse(content);
     } catch (err) {
-      this.logger.debug(`McpUnitySettings.json not found or unreadable: ${err instanceof Error ? err.message : String(err)}`);
-      return {};
+      this.logger.debug(`MCP Unity settings not found or unreadable at ${configPath}: ${err instanceof Error ? err.message : String(err)}`);
+      return null;
     }
   }
 }

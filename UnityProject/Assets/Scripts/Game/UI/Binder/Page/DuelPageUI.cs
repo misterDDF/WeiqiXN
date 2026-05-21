@@ -20,6 +20,10 @@ public class DuelPageUI : UIBinderBase
 	public Button btn_duel_ownership;
 	public TextMeshProUGUI txt_duel_ownership_button;
 	public Button btn_duel_pass;
+	public GameObject panel_duel_action_notice;
+	public CanvasGroup canvas_duel_action_notice;
+	public Image img_duel_action_notice_icon;
+	public TextMeshProUGUI txt_duel_action_notice;
 	public GameObject panel_duel_ownership_result;
 	public TextMeshProUGUI txt_ownership_black_points;
 	public TextMeshProUGUI txt_ownership_white_points;

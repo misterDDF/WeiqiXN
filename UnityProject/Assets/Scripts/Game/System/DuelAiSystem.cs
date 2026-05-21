@@ -120,15 +120,27 @@ public class DuelAiSystem : SystemBase
                 return;
             }
 
-            RectCoordinates coords = SelectMove(result, difficultyData, runtimeParams);
-            if (coords != null) {
+            AiTurnDecision decision = SelectTurnDecision(result, difficultyData, runtimeParams);
+            if (decision.type == AiTurnDecisionType.Move && decision.coords != null) {
                 XNLogger.LogInfo(
                     "Duel AI move selected.",
-                    ("coords", coords.ToString()),
+                    ("coords", decision.coords.ToString()),
+                    ("reason", decision.reason ?? string.Empty),
                     ("requestId", analyzeResult.requestId ?? string.Empty),
                     ("budgetMode", analyzeResult.budgetMode ?? string.Empty),
                     ("budgetDecision", analyzeResult.decisionReason ?? string.Empty));
-                scene.EmitSystemEvent(new OnAddChessToBoard(coords));
+                scene.EmitSystemEvent(new OnAddChessToBoard(decision.coords));
+                return;
+            }
+
+            if (decision.type == AiTurnDecisionType.Pass) {
+                XNLogger.LogInfo(
+                    "Duel AI requests pass.",
+                    ("reason", decision.reason ?? string.Empty),
+                    ("requestId", analyzeResult.requestId ?? string.Empty),
+                    ("budgetMode", analyzeResult.budgetMode ?? string.Empty),
+                    ("budgetDecision", analyzeResult.decisionReason ?? string.Empty));
+                scene.EmitSystemEvent(new OnRequestDuelPass());
                 return;
             }
 
@@ -137,12 +149,16 @@ public class DuelAiSystem : SystemBase
                     "Duel AI requests pass.",
                     ("allowPassBeforeEndgame", difficultyData.allowPassBeforeEndgame.ToString()),
                     ("isBoardFull", IsBoardFull().ToString()),
-                    ("requestId", analyzeResult.requestId ?? string.Empty));
+                    ("requestId", analyzeResult.requestId ?? string.Empty),
+                    ("reason", decision.reason ?? string.Empty));
                 scene.EmitSystemEvent(new OnRequestDuelPass());
                 return;
             }
 
-            XNLogger.LogWarn("Duel AI move skipped, no playable candidate found.", ("requestId", analyzeResult.requestId ?? string.Empty));
+            XNLogger.LogWarn(
+                "Duel AI move skipped, no playable decision found.",
+                ("requestId", analyzeResult.requestId ?? string.Empty),
+                ("reason", decision.reason ?? string.Empty));
         }
         catch (Exception ex) {
             XNLogger.LogError("Duel AI move failed.", ("err", ex.Message), ("stack", ex.StackTrace ?? string.Empty));
@@ -504,7 +520,7 @@ public class DuelAiSystem : SystemBase
         return value > 0f ? value : fallback;
     }
 
-    private RectCoordinates SelectMove(JObject result, DuelAiDifficultyDataType difficultyData, AiRuntimeParams runtimeParams)
+    private AiTurnDecision SelectTurnDecision(JObject result, DuelAiDifficultyDataType difficultyData, AiRuntimeParams runtimeParams)
     {
         SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
         if (result == null || compChessBoard?.chessBoardGrid == null || difficultyData == null) {
@@ -513,14 +529,14 @@ public class DuelAiSystem : SystemBase
                 ("hasResult", (result != null).ToString()),
                 ("hasBoardGrid", (compChessBoard?.chessBoardGrid != null).ToString()),
                 ("hasDifficulty", (difficultyData != null).ToString()));
-            return null;
+            return BuildFailedDecision("required_data_missing");
         }
 
         JArray moveInfos = result["moveInfos"] as JArray;
         if (moveInfos == null || moveInfos.Count == 0) {
-            RectCoordinates policyCoords = SelectMoveFromPolicy(result, difficultyData, runtimeParams);
-            if (policyCoords != null) {
-                return policyCoords;
+            AiTurnDecision policyDecision = SelectTurnDecisionFromPolicy(result, difficultyData, runtimeParams);
+            if (policyDecision.type != AiTurnDecisionType.Failed) {
+                return policyDecision;
             }
 
             XNLogger.LogError(
@@ -533,7 +549,16 @@ public class DuelAiSystem : SystemBase
                 ("hasRootInfo", (result["rootInfo"] != null).ToString()),
                 ("warning", result["warning"]?.ToString() ?? string.Empty),
                 ("error", result["error"]?.ToString() ?? string.Empty));
-            return null;
+            return BuildFailedDecision("moveinfos_missing_policy_unusable");
+        }
+
+        string topMove = GetTopMove(moveInfos);
+        if (IsPassMove(topMove)) {
+            XNLogger.LogInfo(
+                "Duel AI top move is pass.",
+                ("moveInfoCount", moveInfos.Count.ToString()),
+                ("boardSize", runtimeParams.boardSize.ToString()));
+            return BuildPassDecision("moveinfos_top_pass");
         }
 
         int boardSize = compChessBoard.chessBoardGrid.gridSize;
@@ -550,7 +575,7 @@ public class DuelAiSystem : SystemBase
             }
 
             string move = token?["move"]?.ToString();
-            if (string.Equals(move, KataGoPositionJsonBuilder.PassPoint, StringComparison.OrdinalIgnoreCase)) {
+            if (IsPassMove(move)) {
                 passCount += 1;
                 continue;
             }
@@ -584,7 +609,11 @@ public class DuelAiSystem : SystemBase
                 ("passCount", passCount.ToString()),
                 ("parseFailedCount", parseFailedCount.ToString()),
                 ("illegalCount", illegalCount.ToString()));
-            return null;
+            if (passCount > 0) {
+                return BuildPassDecision("moveinfos_pass_no_legal_candidate");
+            }
+
+            return BuildFailedDecision("moveinfos_no_legal_candidate");
         }
 
         List<AiMoveCandidate> filteredCandidates = BuildFilteredCandidates(candidates, runtimeParams);
@@ -600,15 +629,15 @@ public class DuelAiSystem : SystemBase
             ("pickedCoords", pickedCandidate.coords?.ToString() ?? "null"),
             ("pickedScoreLoss", pickedCandidate.scoreLoss.ToString()),
             ("pickedVisits", pickedCandidate.visits.ToString()));
-        return pickedCandidate.coords;
+        return BuildMoveDecision(pickedCandidate.coords, "moveinfos_candidate");
     }
 
-    private RectCoordinates SelectMoveFromPolicy(JObject result, DuelAiDifficultyDataType difficultyData, AiRuntimeParams runtimeParams)
+    private AiTurnDecision SelectTurnDecisionFromPolicy(JObject result, DuelAiDifficultyDataType difficultyData, AiRuntimeParams runtimeParams)
     {
         SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
         JArray policy = result?["policy"] as JArray;
         if (compChessBoard?.chessBoardGrid == null || policy == null || policy.Count == 0) {
-            return null;
+            return BuildFailedDecision("policy_missing");
         }
 
         int boardSize = compChessBoard.chessBoardGrid.gridSize;
@@ -618,9 +647,11 @@ public class DuelAiSystem : SystemBase
                 "Duel AI policy fallback skipped, policy length invalid.",
                 ("policyCount", policy.Count.ToString()),
                 ("pointCount", pointCount.ToString()));
-            return null;
+            return BuildFailedDecision("policy_length_invalid");
         }
 
+        bool hasPassPolicy = policy.Count > pointCount;
+        float passPolicy = hasPassPolicy ? Mathf.Max(ParseFloat(policy[pointCount]), 0f) : 0f;
         int candidateLimit = runtimeParams.requestCandidateLimit > 0 ? runtimeParams.requestCandidateLimit : pointCount;
         List<PolicyCandidate> policyCandidates = new List<PolicyCandidate>();
         for (int i = 0; i < pointCount; i++) {
@@ -636,6 +667,7 @@ public class DuelAiSystem : SystemBase
         List<AiMoveCandidate> candidates = new List<AiMoveCandidate>();
         int illegalCount = 0;
         int zeroProbabilityCount = 0;
+        float bestLegalPointPolicy = 0f;
         foreach (PolicyCandidate policyCandidate in policyCandidates) {
             if (candidates.Count >= candidateLimit) {
                 break;
@@ -652,6 +684,7 @@ public class DuelAiSystem : SystemBase
                 continue;
             }
 
+            bestLegalPointPolicy = Mathf.Max(bestLegalPointPolicy, policyCandidate.probability);
             candidates.Add(new AiMoveCandidate
             {
                 coords = coords,
@@ -661,14 +694,32 @@ public class DuelAiSystem : SystemBase
             });
         }
 
+        if (hasPassPolicy && passPolicy > 0f && passPolicy > bestLegalPointPolicy) {
+            XNLogger.LogInfo(
+                "Duel AI policy fallback selected pass.",
+                ("policyCount", policy.Count.ToString()),
+                ("boardSize", runtimeParams.boardSize.ToString()),
+                ("candidateLimit", candidateLimit.ToString()),
+                ("passPolicy", passPolicy.ToString()),
+                ("bestLegalPointPolicy", bestLegalPointPolicy.ToString()),
+                ("legalCount", candidates.Count.ToString()));
+            return BuildPassDecision("policy_pass_best");
+        }
+
         if (candidates.Count == 0) {
             XNLogger.LogWarn(
                 "Duel AI policy fallback found no legal candidates.",
                 ("policyCount", policy.Count.ToString()),
                 ("candidateLimit", candidateLimit.ToString()),
+                ("hasPassPolicy", hasPassPolicy.ToString()),
+                ("passPolicy", passPolicy.ToString()),
                 ("illegalCount", illegalCount.ToString()),
                 ("zeroProbabilityCount", zeroProbabilityCount.ToString()));
-            return null;
+            if (hasPassPolicy && passPolicy > 0f) {
+                return BuildPassDecision("policy_pass_no_legal_candidate");
+            }
+
+            return BuildFailedDecision("policy_no_legal_candidate");
         }
 
         AiMoveCandidate pickedCandidate = PickCandidate(candidates, difficultyData);
@@ -677,10 +728,13 @@ public class DuelAiSystem : SystemBase
             ("policyCount", policy.Count.ToString()),
             ("boardSize", runtimeParams.boardSize.ToString()),
             ("candidateLimit", candidateLimit.ToString()),
+            ("hasPassPolicy", hasPassPolicy.ToString()),
+            ("passPolicy", passPolicy.ToString()),
+            ("bestLegalPointPolicy", bestLegalPointPolicy.ToString()),
             ("legalCount", candidates.Count.ToString()),
             ("pickedCoords", pickedCandidate.coords?.ToString() ?? "null"),
             ("pickedWeight", pickedCandidate.visits.ToString()));
-        return pickedCandidate.coords;
+        return BuildMoveDecision(pickedCandidate.coords, "policy_candidate");
     }
 
     private List<AiMoveCandidate> BuildFilteredCandidates(List<AiMoveCandidate> candidates, AiRuntimeParams runtimeParams)
@@ -785,9 +839,70 @@ public class DuelAiSystem : SystemBase
         return string.Join(",", keys);
     }
 
+    private string GetTopMove(JArray moveInfos)
+    {
+        if (moveInfos == null || moveInfos.Count == 0) {
+            return string.Empty;
+        }
+
+        JToken bestOrderedMove = null;
+        int bestOrder = int.MaxValue;
+        foreach (JToken token in moveInfos) {
+            if (TryParseInt(token?["order"], out int order) && order < bestOrder) {
+                bestOrderedMove = token;
+                bestOrder = order;
+            }
+        }
+
+        JToken topMove = bestOrderedMove ?? moveInfos[0];
+        return topMove?["move"]?.ToString() ?? string.Empty;
+    }
+
+    private bool IsPassMove(string move)
+    {
+        return string.Equals(move, KataGoPositionJsonBuilder.PassPoint, StringComparison.OrdinalIgnoreCase);
+    }
+
     private string GetResultRequestId(JObject result)
     {
         return result?["id"]?.ToString() ?? string.Empty;
+    }
+
+    private AiTurnDecision BuildMoveDecision(RectCoordinates coords, string reason)
+    {
+        if (coords == null) {
+            return BuildFailedDecision("move_coords_missing");
+        }
+
+        return new AiTurnDecision
+        {
+            type = AiTurnDecisionType.Move,
+            coords = coords,
+            reason = reason,
+        };
+    }
+
+    private AiTurnDecision BuildPassDecision(string reason)
+    {
+        return new AiTurnDecision
+        {
+            type = AiTurnDecisionType.Pass,
+            reason = reason,
+        };
+    }
+
+    private AiTurnDecision BuildFailedDecision(string reason)
+    {
+        return new AiTurnDecision
+        {
+            type = AiTurnDecisionType.Failed,
+            reason = reason,
+        };
+    }
+
+    private bool TryParseInt(JToken token, out int value)
+    {
+        return int.TryParse(token?.ToString(), out value);
     }
 
     private int ParseInt(JToken token)
@@ -811,6 +926,20 @@ public class DuelAiSystem : SystemBase
         }
 
         return 0f;
+    }
+
+    private enum AiTurnDecisionType
+    {
+        Failed,
+        Move,
+        Pass,
+    }
+
+    private struct AiTurnDecision
+    {
+        public AiTurnDecisionType type;
+        public RectCoordinates coords;
+        public string reason;
     }
 
     private struct AiMoveCandidate
