@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Cinemachine;
 using UnityEngine;
 using XNClient.ChessBoard;
@@ -22,6 +23,7 @@ public class ChessBoardSystem : SystemBase
 
         scene.RegisterEntityEvent<Chess, OnEntityCreated>(OnChessCreated);
         scene.RegisterSystemEvent<OnAddChessToBoard>(OnAddChessToBoard);
+        scene.RegisterSystemEvent<OnApplyLanDuelMove>(OnApplyLanDuelMove);
 
         var compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
         if (compChessBoard == null) return;
@@ -77,6 +79,10 @@ public class ChessBoardSystem : SystemBase
             return;
         }
 
+        if (compDuel.isLanDuel.value) {
+            return;
+        }
+
         if (compDuel.isScoring) {
             return;
         }
@@ -112,6 +118,200 @@ public class ChessBoardSystem : SystemBase
         int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : chessBoardData?.boardSize ?? 19;
         compDuel.AppendKataGoMove(playerFlag, evt.coords, boardSize);
         scene.EmitSystemEvent(new OnAfterAddChessToBoard(playerFlag, evt.coords.Clone()));
+    }
+
+    public void OnApplyLanDuelMove(OnApplyLanDuelMove evt)
+    {
+        ApplyLanDuelMove(evt.move);
+    }
+
+    public bool TryAcceptLanDuelMove(LanDuelMoveMessage move, out LanDuelMoveMessage acceptedMove, out DuelMoveRejectReason rejectReason)
+    {
+        acceptedMove = move;
+        if (!ApplyLanDuelMove(move, true, out rejectReason)) {
+            return false;
+        }
+
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
+        int boardVersion = compDuel != null ? compDuel.lanBoardVersion.value : move.boardVersion;
+        acceptedMove = new LanDuelMoveMessage(move.moveId, boardVersion, move.playerFlag, move.coords?.Clone());
+        return true;
+    }
+
+    private bool ApplyLanDuelMove(LanDuelMoveMessage move)
+    {
+        return ApplyLanDuelMove(move, false, out _);
+    }
+
+    private bool ApplyLanDuelMove(LanDuelMoveMessage move, bool isHostAuthority, out DuelMoveRejectReason rejectReason)
+    {
+        rejectReason = DuelMoveRejectReason.None;
+        var compDuel = scene.GetComponent<SceneComponentDuel>();
+        var compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
+        if (compDuel == null || compChessBoard == null || move.coords == null || compDuel.isScoring) {
+            rejectReason = DuelMoveRejectReason.InvalidBoard;
+            return false;
+        }
+
+        var curPlayer = scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
+        if (curPlayer == null) {
+            rejectReason = DuelMoveRejectReason.InvalidCommand;
+            return false;
+        }
+
+        PlayerFlag curPlayerFlag = (PlayerFlag)curPlayer.playerFlag.value;
+        if (curPlayerFlag != move.playerFlag) {
+            rejectReason = DuelMoveRejectReason.NotPlayerTurn;
+            scene.EmitSystemEvent(new OnDuelMoveRejected(move.playerFlag, move.coords.Clone(), rejectReason));
+            return false;
+        }
+
+        if (isHostAuthority && move.boardVersion != compDuel.lanBoardVersion.value) {
+            rejectReason = DuelMoveRejectReason.BoardVersionMismatch;
+            scene.EmitSystemEvent(new OnDuelMoveRejected(move.playerFlag, move.coords.Clone(), rejectReason));
+            return false;
+        }
+
+        if (!isHostAuthority && move.boardVersion > 0 && move.boardVersion != compDuel.lanBoardVersion.value + 1) {
+            return true;
+        }
+
+        string chessGuid = EntityUtils.CreateGuidWithEntityType(EntityBase.GetEntityType<Chess>());
+        DuelMoveResult moveResult = DuelMoveRule.BuildMoveResult(
+            compChessBoard,
+            new DuelMoveCommand(move.playerFlag, move.coords, chessGuid)
+        );
+        if (!moveResult.accepted) {
+            rejectReason = moveResult.rejectReason;
+            scene.EmitSystemEvent(new OnDuelMoveRejected(move.playerFlag, move.coords.Clone(), moveResult.rejectReason));
+            return false;
+        }
+
+        foreach (var removePosIndex in moveResult.pendingRemovePosIndexes) {
+            if (moveResult.previousChessInfoDict.TryGetValue(removePosIndex.ToString(), out var chessInfo)) {
+                var chess = scene.GetEntity<Chess>(chessInfo.chessGuid.value);
+                if (chess != null) {
+                    chess.Destroy();
+                }
+            }
+        }
+
+        DuelMoveRule.ApplyMoveResult(compChessBoard, moveResult);
+        EntityUtils.CreateChess(scene, chessGuid, move.playerFlag, move.coords);
+        DrawLatestMoveMarker(compChessBoard, move.playerFlag, move.coords);
+        int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : chessBoardData?.boardSize ?? 19;
+        compDuel.AppendKataGoMove(move.playerFlag, move.coords, boardSize);
+        if (move.boardVersion > 0) {
+            compDuel.lanBoardVersion.value = move.boardVersion;
+        } else {
+            compDuel.lanBoardVersion.value += 1;
+        }
+        scene.EmitSystemEvent(new OnAfterAddChessToBoard(move.playerFlag, move.coords.Clone()));
+        return true;
+    }
+
+    public bool TryBuildLanBoardSnapshot(LanDuelMoveMessage latestMove, out LanDuelBoardSnapshotMessage snapshot)
+    {
+        snapshot = default;
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
+        SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
+        if (compDuel == null || compChessBoard == null || compChessBoard.chessBoardGrid == null) {
+            return false;
+        }
+
+        List<LanDuelBoardSnapshotStone> stones = new List<LanDuelBoardSnapshotStone>();
+        foreach (var kvp in compChessBoard.chessInfoDict) {
+            if (!int.TryParse(kvp.Key, out int posIndex) || kvp.Value == null) {
+                continue;
+            }
+
+            RectCoordinates coords = compChessBoard.GetCoordsByPosIndex(posIndex);
+            if (coords.x < 0 || coords.z < 0) {
+                continue;
+            }
+
+            stones.Add(new LanDuelBoardSnapshotStone(coords, (PlayerFlag)kvp.Value.chessFlag.value));
+        }
+
+        PlayerFlag nextTurnPlayerFlag = latestMove.playerFlag.GetOpponentPlayerFlag();
+        snapshot = new LanDuelBoardSnapshotMessage(
+            compDuel.lanBoardVersion.value,
+            compChessBoard.chessBoardGrid.gridSize,
+            nextTurnPlayerFlag,
+            latestMove.coords?.Clone(),
+            latestMove.playerFlag,
+            stones);
+        return true;
+    }
+
+    public void ApplyLanBoardSnapshot(LanDuelBoardSnapshotMessage snapshot)
+    {
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
+        SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
+        if (compDuel == null || compChessBoard == null || compChessBoard.chessBoardGrid == null) {
+            return;
+        }
+
+        int previousBoardVersion = compDuel.lanBoardVersion.value;
+        if (snapshot.boardSize != compChessBoard.chessBoardGrid.gridSize) {
+            XNLogger.LogWarn("LAN board snapshot skipped, board size mismatch.",
+                ("snapshotBoardSize", snapshot.boardSize.ToString()),
+                ("localBoardSize", compChessBoard.chessBoardGrid.gridSize.ToString()));
+            return;
+        }
+
+        ClearChessEntities();
+        compChessBoard.chessInfoDict.Clear();
+        compChessBoard.lastChessInfoDict.Clear();
+        compChessBoard.chessBoardGrid.ClearLatestMoveMarker();
+
+        if (snapshot.stones != null) {
+            foreach (LanDuelBoardSnapshotStone stone in snapshot.stones) {
+                if (stone.coords == null || compChessBoard.GetPosIndexByCoords(stone.coords) < 0 || stone.playerFlag == 0) {
+                    continue;
+                }
+
+                string chessGuid = EntityUtils.CreateGuidWithEntityType(EntityBase.GetEntityType<Chess>());
+                ChessInfo chessInfo = new ChessInfo();
+                chessInfo.chessGuid.value = chessGuid;
+                chessInfo.chessFlag.value = (int)stone.playerFlag;
+                compChessBoard.chessInfoDict.SetValue(compChessBoard.GetPosIndexByCoords(stone.coords).ToString(), chessInfo);
+                EntityUtils.CreateChess(scene, chessGuid, stone.playerFlag, stone.coords);
+            }
+        }
+
+        compChessBoard.lastChessInfoDict = compChessBoard.CreateCacheChessInfoDict();
+
+        if (snapshot.latestMoveCoords != null && snapshot.latestMovePlayerFlag != 0) {
+            DrawLatestMoveMarker(compChessBoard, snapshot.latestMovePlayerFlag, snapshot.latestMoveCoords);
+        }
+
+        compDuel.lanBoardVersion.value = snapshot.boardVersion;
+        if (snapshot.boardVersion > previousBoardVersion &&
+            snapshot.latestMoveCoords != null &&
+            snapshot.latestMovePlayerFlag != 0) {
+            compDuel.AppendKataGoMove(snapshot.latestMovePlayerFlag, snapshot.latestMoveCoords, compChessBoard.chessBoardGrid.gridSize);
+            scene.EmitSystemEvent(new OnAfterAddChessToBoard(snapshot.latestMovePlayerFlag, snapshot.latestMoveCoords.Clone()));
+            return;
+        }
+
+        if (snapshot.nextTurnPlayerFlag == PlayerFlag.Player1) {
+            compDuel.curTurnPlayerGuid.value = compDuel.player1Guid.value;
+        } else if (snapshot.nextTurnPlayerFlag == PlayerFlag.Player2) {
+            compDuel.curTurnPlayerGuid.value = compDuel.player2Guid.value;
+        }
+    }
+
+    private void ClearChessEntities()
+    {
+        string chessEntityType = EntityBase.GetEntityType<Chess>();
+        if (!scene.entityTypeDict.TryGetValue(chessEntityType, out HashSet<EntityBase> chessEntities)) {
+            return;
+        }
+
+        foreach (EntityBase chessEntity in chessEntities.ToList()) {
+            chessEntity.Destroy();
+        }
     }
 
     private void DrawLatestMoveMarker(SceneComponentChessBoard compChessBoard, PlayerFlag playerFlag, RectCoordinates coords)

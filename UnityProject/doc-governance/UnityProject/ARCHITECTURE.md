@@ -18,14 +18,15 @@
 **模块边界**
 
 - `ClientMain` 是进程入口和 PlayerLoop 桥接层，负责初始化全局服务，并在 Unity 对应更新阶段后调用项目层更新。
-- `Global` 和 `GlobalModule` 提供跨场景服务，包括 UI、资源加载、事件、定时器、场景加载、存档、红点和日志接入。
+- `Global` 和 `GlobalModule` 提供跨场景服务，包括 UI、资源加载、事件、定时器、场景加载、存档、红点、局域网房间发现/连接和日志接入。
 - `MainMenuScene`、`DuelScene` 等场景类负责项目层场景组合：创建场景组件、添加系统、打开对应 UI。
-- 场景组件负责保存场景状态和固定引用。`SceneComponentChessBoard` 拥有棋盘配置、运行时棋盘缓存、`RectGrid` 和对局虚拟相机引用；`SceneComponentDuel` 拥有对局玩家 guid、对局状态机、电脑对局配置、连续虚手数、终局结果字段和运行时 KataGo 标准 `moves` 手顺。
-- 系统负责行为。`ChessBoardSystem` 负责棋盘初始化、落子结果应用、提子、棋子实体放置和相机设置；`DuelMoveRule` 负责构建落子命令结果，输出 accepted/rejected、拒绝原因、上一局面、下一局面和待移除位置；真实落子和悔棋回放都只应用 accepted result。`DuelSystem` 负责本地玩家创建、电脑对局状态初始化、状态机更新、虚手、悔棋、数子结算请求和终局触发：当前“请求数子”和双方连续虚手只使用 KataGo `ownership` 统计结果作为结算口径，失败时不产生数子结果；`DuelSaveSystem` 负责对局保存触发并通过 `OnDuelSaveResult` 暴露保存成功/失败；`DuelOwnershipSystem` 负责响应形势请求并绘制 overlay；`DuelOwnershipQueryService` 负责集中向 KataGo 请求 `ownership`、按同一阈值统计双方控制点数、构建数子结果并复用缓存；`DuelAiBudgetService` 负责 AI 棋盘尺寸预算参数解析、probe/full budget 决策和预算日志；`DuelAiAnalyzeService` 负责电脑对局 AI 的 KataGo 分析请求构造、probe/full 请求调度和结果元信息返回；`DuelAiMoveSelector` 负责解析 `moveInfos`/`policy`、按本地规则筛选合法候选点并按难度配置加权选点；`DuelAiSystem` 只负责 AI 回合监听、取消检查和提交正常落子或虚手事件。`SceneComponentDuel` 保存一份运行时 ownership 结果缓存，供形势展示和数子结算在局面未变化时复用；合法落子或虚手会使该缓存失效。
+- 场景组件负责保存场景状态和固定引用。`SceneComponentChessBoard` 拥有棋盘配置、运行时棋盘缓存、`RectGrid` 和对局虚拟相机引用；`SceneComponentDuel` 拥有对局玩家 guid、对局状态机、电脑对局配置、局域网对局标记、局域网角色、局域网棋盘版本、连续虚手数、终局结果字段和运行时 KataGo 标准 `moves` 手顺。
+- 系统负责行为。`ChessBoardSystem` 负责棋盘初始化、落子结果应用、提子、棋子实体放置、局域网棋盘快照构建/应用和相机设置；`DuelMoveRule` 负责构建落子命令结果，输出 accepted/rejected、拒绝原因、上一局面、下一局面和待移除位置；真实落子和悔棋回放都只应用 accepted result。`LanDuelSystem` 负责最小局域网对局命令泵：host 消费 `SubmitMove`、通过 `ChessBoardSystem` 和 `DuelMoveRule` 校验版本与棋规并广播 `MoveAccepted` / `MoveRejected`，合法落子后再广播 `BoardSnapshot`；client 只应用 host 接受的落子，并用 host 快照纠偏本地棋盘。`DuelSystem` 负责本地玩家创建、电脑对局状态初始化、状态机更新、虚手、悔棋、数子结算请求和终局触发：当前“请求数子”和双方连续虚手只使用 KataGo `ownership` 统计结果作为结算口径，失败时不产生数子结果；`DuelSaveSystem` 负责对局保存触发并通过 `OnDuelSaveResult` 暴露保存成功/失败；`DuelOwnershipSystem` 负责响应形势请求并绘制 overlay；`DuelOwnershipQueryService` 负责集中向 KataGo 请求 `ownership`、按同一阈值统计双方控制点数、构建数子结果并复用缓存；`DuelAiBudgetService` 负责 AI 棋盘尺寸预算参数解析、probe/full budget 决策和预算日志；`DuelAiAnalyzeService` 负责电脑对局 AI 的 KataGo 分析请求构造、probe/full 请求调度和结果元信息返回；`DuelAiMoveSelector` 负责解析 `moveInfos`/`policy`、按本地规则筛选合法候选点并按难度配置加权选点；`DuelAiSystem` 只负责 AI 回合监听、取消检查和提交正常落子或虚手事件。`SceneComponentDuel` 保存一份运行时 ownership 结果缓存，供形势展示和数子结算在局面未变化时复用；合法落子或虚手会使该缓存失效。
 - 实体表示运行时游戏对象。`Chess` 是带 Unity `GameObject` 的棋子实体；`Player` 是回合归属实体，并通过组件保存对局信息。
 - 事件连接 UI、系统和实体。UI 发出 `OnAddChessToBoard`、`OnSaveDuelScene` 等系统事件；系统发出 `OnAfterAddChessToBoard`、`OnDuelMoveRejected` 等领域结果事件，UI 只展示结果，不重复承担棋规判断。
 - `DuelPage` 只负责页面生命周期、事件注册和按钮命令转发；`DuelPageBoardInputController` 负责棋盘鼠标命中、合法预览棋子生命周期和点击落子坐标输出；`DuelPageHudView` 负责玩家信息、形势结果、数子确认文案、终局面板、动作提示和设置按钮状态；`DuelPageInteractionState` 集中计算人类回合输入、悔棋、认输、AI 身份和读秒显示可用性。
 - `DuelFSM` 表示本地回合生命周期，回合开始、输入、超时和结束由状态机管理，而不是由 UI 直接切换。
+- `LanRoomService` 是第一版局域网房间服务入口，负责 host 侧 TCP 监听、UDP 房间广播、client 侧 UDP 搜索、TCP 加入握手、最小准备状态交换、host 开局命令和最小对局消息搬运；`LanRoomPopup` 在收到开局状态后进入带 LAN 标记的 `DuelScene`。当前服务只承载房间发现、连接状态、落子命令和棋盘快照搬运，不直接操作 UI 预制体；棋盘权威推进由 host 侧 `LanDuelSystem` 通过现有规则入口完成。
 - 联机相关的会话、房间、座位、准备、命令校验、权威状态推进和快照广播应收敛到单一会话核心；第一版可以作为 host 进程中的嵌入式 server core 运行，后续若拆分进程也必须保持同一套命令和快照合同。
 - `Assets/Config/DataJson` 是当前棋盘、场景、UI 页面、预制体和 TMP sprite 的数据来源。
 - 日志开关集中在 `LoggerConfig`。事件分发、FSM 参数/状态转移、AI 观察日志和 AI 分析细节日志归入诊断级输出；错误、警告、关键启动、AI 回合开始和最终落子/虚手决策归入常规输出。诊断级输出由 `ENABLE_EVENT_VERBOSE_LOG`、`ENABLE_FSM_VERBOSE_LOG`、`ENABLE_DUEL_AI_VERBOSE_LOG` 和 `ENABLE_DUEL_AI_DETAIL_LOG` 控制。

@@ -150,6 +150,16 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
         if (boardInput.TryGetMoveCoords(mainScene, compDuel, out RectCoordinates coords)) {
+            if (compDuel != null && compDuel.isLanDuel.value) {
+                Player curPlayer = mainScene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
+                if (curPlayer == null || !DuelPageInteractionState.CanAcceptLocalLanTurnInput(compDuel, (PlayerFlag)curPlayer.playerFlag.value)) {
+                    return;
+                }
+
+                Global.Instance.lanRoomService?.SubmitLocalMove((PlayerFlag)curPlayer.playerFlag.value, coords, compDuel.lanBoardVersion.value);
+                return;
+            }
+
             EmitSystemEvent(new OnAddChessToBoard(coords));
         }
     }

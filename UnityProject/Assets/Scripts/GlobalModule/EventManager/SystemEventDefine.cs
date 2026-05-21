@@ -229,6 +229,17 @@ public class OnAddChessToBoard : SystemEventBase
     }
 }
 
+public class OnApplyLanDuelMove : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnApplyLanDuelMove>();
+
+    public LanDuelMoveMessage move;
+    public OnApplyLanDuelMove(LanDuelMoveMessage move)
+    {
+        this.move = move;
+    }
+}
+
 public class OnAfterAddChessToBoard : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnAfterAddChessToBoard>();

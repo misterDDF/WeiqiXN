@@ -33,6 +33,7 @@ public class Global
     public TimerManager timerManager;
     public GameSaveManager gameSaveManager;
     public ReddotManager reddotManager;
+    public LanRoomService lanRoomService;
     public UIManager uiManager;
     public SceneManager sceneManager;
 
@@ -55,6 +56,9 @@ public class Global
 
         reddotManager = new ReddotManager();
         moduleList.Add(reddotManager);
+
+        lanRoomService = new LanRoomService();
+        moduleList.Add(lanRoomService);
 
         startupState = StartupState.LoadingResources;
         TryFinishStartup();

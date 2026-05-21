@@ -42,6 +42,7 @@ public class DuelSystem : SystemBase
                 compDuel.player2Guid.value = player2Guid;
                 compDuel.curTurnPlayerGuid.value = player1Guid;
                 InitAiDuelConfig(compDuel);
+                InitLanDuelConfig(compDuel);
                 InitPlayerTimeControl(compDuel, player1);
                 InitPlayerTimeControl(compDuel, player2);
 
@@ -52,6 +53,7 @@ public class DuelSystem : SystemBase
             if (compDuel != null) {
                 EnsureTimeControlConfig(compDuel);
                 EnsureAiDuelConfig(compDuel);
+                EnsureLanDuelConfig(compDuel);
 
                 Player player1 = EntityUtils.CreatePlayer(scene, compDuel.player1Guid.value, PlayerFlag.Player1);
                 Player player2 = EntityUtils.CreatePlayer(scene, compDuel.player2Guid.value, PlayerFlag.Player2);
@@ -79,6 +81,13 @@ public class DuelSystem : SystemBase
         compDuel.aiPlayerGuid.value = compDuel.isAiDuel.value ? compDuel.player2Guid.value : string.Empty;
     }
 
+    private void InitLanDuelConfig(SceneComponentDuel compDuel)
+    {
+        var duelParams = scene.sceneCreateParams.duelSceneCreateParamas;
+        compDuel.isLanDuel.value = duelParams != null && duelParams.isLanDuel;
+        compDuel.lanRole.value = compDuel.isLanDuel.value ? (int)duelParams.lanRole : (int)LanRoomRole.None;
+    }
+
     private void EnsureTimeControlConfig(SceneComponentDuel compDuel)
     {
         compDuel.holdTimeCfgId.value = GetValidHoldTimeCfgId(compDuel.holdTimeCfgId.value);
@@ -97,6 +106,19 @@ public class DuelSystem : SystemBase
         compDuel.aiDifficultyCfgId.value = GetValidAiDifficultyCfgId(compDuel.aiDifficultyCfgId.value);
         if (string.IsNullOrEmpty(compDuel.aiPlayerGuid.value)) {
             compDuel.aiPlayerGuid.value = compDuel.player2Guid.value;
+        }
+    }
+
+    private void EnsureLanDuelConfig(SceneComponentDuel compDuel)
+    {
+        if (!compDuel.isLanDuel.value) {
+            compDuel.lanRole.value = (int)LanRoomRole.None;
+            compDuel.lanBoardVersion.value = 0;
+            return;
+        }
+
+        if (compDuel.lanRole.value != (int)LanRoomRole.Host && compDuel.lanRole.value != (int)LanRoomRole.Client) {
+            compDuel.lanRole.value = (int)LanRoomRole.None;
         }
     }
 

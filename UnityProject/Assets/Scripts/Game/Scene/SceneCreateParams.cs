@@ -15,4 +15,6 @@ public class DuelSceneCreateParamas
     public string byoyomiTimeCfgId;
     public bool isAiDuel;
     public string aiDifficultyCfgId;
+    public bool isLanDuel;
+    public LanRoomRole lanRole;
 }

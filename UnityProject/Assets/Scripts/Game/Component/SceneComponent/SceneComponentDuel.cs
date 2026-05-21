@@ -12,6 +12,9 @@ public class SceneComponentDuel : SceneComponentBase
     public SavableField<bool> isAiDuel = SavableFieldFactory.CreateBoolField(false);
     public SavableField<string> aiDifficultyCfgId = SavableFieldFactory.CreateStringField(string.Empty);
     public SavableField<string> aiPlayerGuid = SavableFieldFactory.CreateStringField(string.Empty);
+    public SavableField<bool> isLanDuel = SavableFieldFactory.CreateBoolField(false);
+    public SavableField<int> lanRole = SavableFieldFactory.CreateIntField((int)LanRoomRole.None);
+    public SavableField<int> lanBoardVersion = SavableFieldFactory.CreateIntField(0);
     public SavableField<string> timeoutLoserGuid = SavableFieldFactory.CreateStringField(string.Empty);
     public SavableField<string> resignLoserGuid = SavableFieldFactory.CreateStringField(string.Empty);
     public SavableField<string> winnerGuid = SavableFieldFactory.CreateStringField(string.Empty);

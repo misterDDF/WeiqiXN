@@ -11,6 +11,8 @@ public enum DuelMoveRejectReason
     PositionOccupied,
     Suicide,
     RepeatedBoard,
+    NotPlayerTurn,
+    BoardVersionMismatch,
 }
 
 public class DuelMoveCommand

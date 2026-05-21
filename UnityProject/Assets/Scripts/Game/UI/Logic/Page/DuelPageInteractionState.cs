@@ -59,6 +59,17 @@ public static class DuelPageInteractionState
             || compDuel.curTurnPlayerGuid.value != compDuel.aiPlayerGuid.value;
     }
 
+    public static bool CanAcceptLocalLanTurnInput(SceneComponentDuel compDuel, PlayerFlag curPlayerFlag)
+    {
+        if (compDuel == null || !compDuel.isLanDuel.value) {
+            return false;
+        }
+
+        LanRoomRole role = (LanRoomRole)compDuel.lanRole.value;
+        return (role == LanRoomRole.Host && curPlayerFlag == PlayerFlag.Player1) ||
+            (role == LanRoomRole.Client && curPlayerFlag == PlayerFlag.Player2);
+    }
+
     public static bool IsAiPlayer(SceneBase mainScene, PlayerFlag playerFlag)
     {
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();

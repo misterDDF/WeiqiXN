@@ -238,6 +238,17 @@ public class SceneBase : SavableObj, ITimerAttacher, IEventReceiver, IResourceLo
         systemNames.Add(system.systemName);
     }
 
+    public TSystem GetSystem<TSystem>() where TSystem : SystemBase
+    {
+        foreach (SystemBase system in systemList) {
+            if (system is TSystem targetSystem) {
+                return targetSystem;
+            }
+        }
+
+        return null;
+    }
+
     public void AddEntity(EntityBase entity)
     {
         if (entity == null) {

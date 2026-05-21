@@ -5,16 +5,11 @@ using UnityEngine.UI;
 
 public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
 {
-    private static readonly List<LanRoomInfo> MockSearchRooms = new List<LanRoomInfo>
-    {
-        new LanRoomInfo("\u672c\u673a\u6d4b\u8bd5\u623f\u95f4", "192.168.1.12", 1, 2),
-        new LanRoomInfo("\u5c40\u57df\u7f51\u623f\u95f4 A", "192.168.1.24", 1, 2),
-        new LanRoomInfo("\u5c40\u57df\u7f51\u623f\u95f4 B", "192.168.1.35", 1, 2),
-    };
-
     private readonly List<Button> roomButtons = new List<Button>();
     private readonly List<TextMeshProUGUI> roomTexts = new List<TextMeshProUGUI>();
     private readonly List<LanRoomInfo> visibleRooms = new List<LanRoomInfo>();
+    private float nextSearchRefreshTime;
+    private bool hasEnteredLanDuel;
 
     public override string pageName => UIPage.GetPageName<LanRoomPopup>();
 
@@ -42,21 +37,57 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
 
         SetStatus("\u8bf7\u9009\u62e9\u521b\u5efa\u623f\u95f4\u6216\u641c\u7d22\u623f\u95f4\u3002");
         RefreshRoomList(null);
+        hasEnteredLanDuel = false;
+    }
+
+    protected override void OnUpdate()
+    {
+        base.OnUpdate();
+
+        if (Global.Instance.lanRoomService == null) {
+            return;
+        }
+
+        if (Time.unscaledTime < nextSearchRefreshTime) {
+            return;
+        }
+
+        nextSearchRefreshTime = Time.unscaledTime + 0.5f;
+        if (Global.Instance.lanRoomService.IsSearching) {
+            RefreshRoomList(Global.Instance.lanRoomService.GetDiscoveredRooms());
+        }
+        if (Global.Instance.lanRoomService.IsSearching || Global.Instance.lanRoomService.IsHosting) {
+            SetStatus(Global.Instance.lanRoomService.LastStatus);
+        }
+        TryAutoStartGame();
+        TryEnterLanDuel();
     }
 
     public void OnClickBtnCreateRoom()
     {
-        RefreshRoomList(new List<LanRoomInfo>
-        {
-            new LanRoomInfo("\u6211\u7684\u5c40\u57df\u7f51\u623f\u95f4", "\u672c\u673a", 1, 2),
-        });
-        SetStatus("\u5df2\u521b\u5efa\u672c\u5730\u623f\u95f4\uff0c\u7b49\u5f85\u540c\u4e00\u5c40\u57df\u7f51\u73a9\u5bb6\u52a0\u5165\u3002");
+        if (Global.Instance.lanRoomService == null) {
+            SetStatus("\u5c40\u57df\u7f51\u623f\u95f4\u670d\u52a1\u672a\u521d\u59cb\u5316\u3002");
+            return;
+        }
+
+        Global.Instance.lanRoomService.StopSearchRooms();
+        Global.Instance.lanRoomService.CreateRoom("\u6211\u7684\u5c40\u57df\u7f51\u623f\u95f4");
+        Global.Instance.lanRoomService.SetLocalReady(true);
+        RefreshRoomList(null);
+        SetStatus(Global.Instance.lanRoomService.LastStatus);
     }
 
     public void OnClickBtnSearchRoom()
     {
-        RefreshRoomList(MockSearchRooms);
-        SetStatus("\u5df2\u5c55\u793a\u641c\u7d22\u5230\u7684\u5c40\u57df\u7f51\u623f\u95f4\u3002");
+        if (Global.Instance.lanRoomService == null) {
+            SetStatus("\u5c40\u57df\u7f51\u623f\u95f4\u670d\u52a1\u672a\u521d\u59cb\u5316\u3002");
+            return;
+        }
+
+        Global.Instance.lanRoomService.StartSearchRooms();
+        nextSearchRefreshTime = 0f;
+        RefreshRoomList(Global.Instance.lanRoomService.GetDiscoveredRooms());
+        SetStatus(Global.Instance.lanRoomService.LastStatus);
     }
 
     public void OnClickBtnClose()
@@ -78,7 +109,17 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
         }
 
         LanRoomInfo room = visibleRooms[roomIndex];
-        SetStatus($"\u6b63\u5728\u8fde\u63a5 {room.name} ({room.hostAddress})\u3002");
+        if (Global.Instance.lanRoomService == null) {
+            SetStatus("\u5c40\u57df\u7f51\u623f\u95f4\u670d\u52a1\u672a\u521d\u59cb\u5316\u3002");
+            return;
+        }
+
+        SetStatus($"\u6b63\u5728\u8fde\u63a5 {room.name} ({room.hostAddress}:{room.tcpPort})\u3002");
+        Global.Instance.lanRoomService.StopSearchRooms();
+        if (Global.Instance.lanRoomService.ConnectToRoom(room)) {
+            Global.Instance.lanRoomService.SetLocalReady(true);
+        }
+        SetStatus(Global.Instance.lanRoomService.LastStatus);
     }
 
     private void RefreshRoomList(IReadOnlyList<LanRoomInfo> rooms)
@@ -122,24 +163,51 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
         }
     }
 
-    private readonly struct LanRoomInfo
+    private void TryAutoStartGame()
     {
-        public readonly string name;
-        public readonly string hostAddress;
-        private readonly int playerCount;
-        private readonly int maxPlayerCount;
-
-        public LanRoomInfo(string name, string hostAddress, int playerCount, int maxPlayerCount)
-        {
-            this.name = name;
-            this.hostAddress = hostAddress;
-            this.playerCount = playerCount;
-            this.maxPlayerCount = maxPlayerCount;
+        LanRoomService service = Global.Instance.lanRoomService;
+        if (service == null) {
+            return;
         }
 
-        public string GetDisplayText()
-        {
-            return $"{name}  {hostAddress}  {playerCount}/{maxPlayerCount}";
+        LanRoomSessionState state = service.SessionState;
+        if (state.role == LanRoomRole.Host && state.CanStartGame) {
+            service.TryStartGame();
+            SetStatus(service.LastStatus);
         }
+    }
+
+    private void TryEnterLanDuel()
+    {
+        if (hasEnteredLanDuel) {
+            return;
+        }
+
+        LanRoomService service = Global.Instance.lanRoomService;
+        if (service == null) {
+            return;
+        }
+
+        LanRoomSessionState state = service.SessionState;
+        if (!state.gameStarted || state.role == LanRoomRole.None) {
+            return;
+        }
+
+        hasEnteredLanDuel = true;
+        SceneCreateParams sceneCreateParams = new SceneCreateParams()
+        {
+            duelSceneCreateParamas = new DuelSceneCreateParamas()
+            {
+                boardCfgId = "9x9",
+                holdTimeCfgId = "5m",
+                byoyomiCountCfgId = "off",
+                byoyomiTimeCfgId = "30s",
+                isAiDuel = false,
+                aiDifficultyCfgId = string.Empty,
+                isLanDuel = true,
+                lanRole = state.role,
+            }
+        };
+        Global.Instance.sceneManager.EnterMainScene(SceneConfig.DUEL_SCENE_TYPE_ID, sceneCreateParams);
     }
 }

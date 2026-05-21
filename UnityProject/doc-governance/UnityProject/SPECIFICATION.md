@@ -26,7 +26,7 @@
 - `DuelPage` displays black-player time information in the upper-left panel and white-player time information in the upper-right panel. Each panel shows hold-time countdown, byoyomi remaining count, and byoyomi period time; only the current turn player's time values are decremented by the duel FSM.
 - `DuelPage` 维护短暂动作提示 HUD。成功落子会显示行棋方和围棋坐标，虚手会显示行棋方且在 AI 行棋时带 AI 标记，双方连续虚手会显示正在数子的提示，连续虚手数子失败会显示已回到对局。
 - `DuelPage` moves save and exit actions into an in-duel settings panel opened by the lower-right settings button; direct board click input ignores clicks that are already over UI controls.
-- `MainMenuPage` provides separate local duel, computer duel, and LAN multiplayer entries. Local duel and computer duel open `DuelSetupPopup`; only the computer duel entry enables the AI difficulty dropdown. The LAN multiplayer entry opens `LanRoomPopup`, which currently provides create-room and search-room UI paths with a visible room list placeholder and does not start network transport.
+- `MainMenuPage` provides separate local duel, computer duel, and LAN multiplayer entries. Local duel and computer duel open `DuelSetupPopup`; only the computer duel entry enables the AI difficulty dropdown. The LAN multiplayer entry opens `LanRoomPopup`, which calls `LanRoomService` to create a LAN host room, search UDP room broadcasts, display discovered rooms, run a TCP join handshake, exchange minimal ready state, and send a host-only start-game command. After `START`, both peers enter `DuelScene` with `isLanDuel` and `lanRole` set. LAN move input uses a minimal host-authoritative `SubmitMove` / `MoveAccepted` / `MoveRejected` / `BoardSnapshot` command path: submitted and accepted moves carry a board version, host rejects stale-version moves, and accepted moves are followed by an authoritative board snapshot for client correction. Recovery, pass, resign, scoring and timeout synchronization are not implemented yet.
 - AI difficulty options are table-driven by `Assets/Config/DataJson/duel_ai_difficulty/duel_ai_difficulty.json`. `DuelSetupPopup` displays the config `name` values in a fixed rank order and passes the selected config id through `DuelSceneCreateParamas`. The difficulty table includes base selection parameters, board-size-specific realtime overrides for 9x9, 13x13, and 19x19 boards, and optional dynamic-budget thresholds.
 - Computer duel creates the same two local `Player` entities as local duel, stores `isAiDuel`, `aiDifficultyCfgId`, and `aiPlayerGuid` on `SceneComponentDuel`, and assigns the AI to Player2 / white by default.
 - `DuelAiSystem` is installed in `DuelScene`. During an AI turn it asks KataGo analysis for move candidates using the current KataGo-standard `moves`; if KataGo's top `moveInfos` candidate is `pass`, or the `policy` fallback ranks pass above every legal board point, the AI emits `OnRequestDuelPass`; otherwise it filters candidates through the same local move legality rule path, then emits the normal `OnAddChessToBoard` event. Human board click, pass, and resign inputs are ignored while the current turn belongs to the AI player. Realtime AI move requests resolve `maxVisits`, candidate count, and maximum score-loss threshold from the selected board size; request visits use `min(maxVisits, realtimeMaxVisitsN)`. Difficulties with dynamic budget enabled first send a low-visit probe request, then either use the probe result for opening/simple/confident positions or upgrade to the full realtime budget for complex, incomplete, or late-game positions.
@@ -34,19 +34,19 @@
 **当前行为**
 
 - Unity 入口由 `ClientMain` 初始化；它启动 `XNLogger` 和 `Global`，并把自定义 `Update`、`FixedUpdate`、`LateUpdate` 回调插入 Unity PlayerLoop。
-- `Global` 按顺序创建全局模块：事件、资源、定时器、存档、红点、UI、场景。
+- `Global` 按顺序创建全局模块：事件、资源、定时器、存档、红点、局域网房间服务、UI、场景。
 - 开发构建和 Unity 编辑器环境会加载 IngameDebugConsole 预制体。
 - 启动后，场景管理器进入主菜单场景。
 - 项目场景位于 `Assets/Scenes/`，当前包含主菜单、主场景和对局场景。
 - `MainMenuScene` 加载后打开 `MainMenuPage`。
 - `MainMenuPage` 可以打开本地对局、电脑对局或局域网联机入口；本地对局和电脑对局使用 `DuelSetupPopup` 选择对局参数，局域网联机入口打开 `LanRoomPopup`。
-- `LanRoomPopup` 当前提供“创建房间”和“搜索房间”两条 UI 路径；搜索房间会展示房间列表占位数据，创建房间会展示本地房间占位状态。当前尚未接入实际网络传输、局域网广播、房间加入或对局同步。
+- `LanRoomPopup` 当前提供“创建房间”和“搜索房间”两条 UI 路径；创建房间会通过 `LanRoomService` 打开 TCP 监听并每秒 UDP 广播房间信息，搜索房间会监听 UDP 广播并展示发现到的房间列表，点击房间会发起 TCP 加入握手。连接成功后双方会交换最小准备状态，host 看到双方准备后会发送开局命令；收到开局状态的一端会进入 `DuelScene`，并在 `SceneComponentDuel` 中记录 `isLanDuel`、`lanRole` 和 `lanBoardVersion`。LAN 对局中 host 执黑、client 执白，client 的落子只发送到 host，host 通过现有规则入口校验当前版本和棋规后广播接受或拒绝结果；合法落子会递增 host 权威棋盘版本，并广播包含棋盘尺寸、下一手玩家、最后一步和棋子列表的 `BoardSnapshot`，client 用该快照纠正本地棋盘。当前尚未接入座位选择、断线恢复、虚手、认输、数子或超时同步。
 - `DuelSetupPopup` 可以用 `9x9`、`13x13`、`19x19` 三个棋盘配置进入对局场景；从电脑对局入口打开时还会显示电脑难度下拉框。
 - 棋盘尺寸和对局虚拟相机 y 偏移配置在 `Assets/Config/DataJson/chess_board/chess_board.json`。
 - 场景、UI 页面、预制体和 TMP sprite 配置放在 `Assets/Config/DataJson/`，对应的数据读取类放在 `Assets/Config/DataType/`。
 - `DuelScene` 创建 `SceneComponentChessBoard` 和 `SceneComponentDuel`，从 `DuelSceneFixedRef` 绑定固定场景引用，安装 `DuelSaveSystem`、`ChessBoardSystem`、`DuelOwnershipSystem`、`DuelSystem`、`DuelAiSystem`，然后打开 `DuelPage`。
 - `SceneComponentChessBoard` 保存当前棋盘配置 id、运行时按棋盘位置索引缓存的棋子信息、用于简单重复局面对比的上一局面快照、`RectGrid` 引用和对局虚拟相机引用。
-- `SceneComponentDuel` 保存双方玩家 guid、当前回合玩家 guid、时间配置、电脑对局配置、超时/胜者 guid、连续虚手数、终局原因、最终数子分数和运行时 KataGo 标准 `moves` 手顺。
+- `SceneComponentDuel` 保存双方玩家 guid、当前回合玩家 guid、时间配置、电脑对局配置、局域网对局标记、局域网角色、局域网棋盘版本、超时/胜者 guid、连续虚手数、终局原因、最终数子分数和运行时 KataGo 标准 `moves` 手顺。
 - `RectGrid` 及其相关棋盘类使用 `RectCoordinates` 生成和寻址矩形棋盘；`RectCoordinates` 的逻辑行列语义与 KataGo 坐标保持一致。
 - `ChessBoardSystem` 根据所选棋盘尺寸初始化网格，并调整对局相机以覆盖棋盘。
 - `DuelSystem` 在新对局中创建两个本地玩家并启动对局状态机。
@@ -83,7 +83,7 @@
 - 对局记录文件中的 KataGo 标准 `moves` 是保存侧的棋谱输出；场景存档不再保存 `SceneComponentChessBoard.chessInfoDict`。
 - `chessInfoDict` 和 `lastChessInfoDict` 跳过保存检查，只作为运行时棋盘缓存和局面对比状态。
 - 非法落子不显示预览棋子，页面不额外弹出“无法落子”提示；真实落子被规则拒绝时系统仍保留 `OnDuelMoveRejected` 边界事件。
-- 死子确认、复盘、匹配、真实房间服务、重连和网络同步当前未实现；局域网联机入口和房间弹窗已有 UI 原型，但只展示创建/搜索和房间列表占位状态。数子、虚手、认输和基础终局结果 UI 已有本地原型实现，但尚未覆盖死子确认或完整线上裁定模型。当前阶段“请求数子”和连续虚手终局只依赖 KataGo `ownership` 结算，KataGo 不可用或无结果时不产生数子结果。
+- 死子确认、复盘、匹配、重连和完整网络对局同步当前未实现；局域网联机入口已有房间创建、UDP 广播发现、房间列表展示、TCP 加入握手、最小准备状态交换、host 开局命令、进入带 LAN 标记的 `DuelScene`、最小 host 权威落子命令骨架、棋盘版本和落子后权威快照纠偏，但尚未接入座位选择、虚手、认输、数子、超时或完整线上裁定模型。数子、虚手、认输和基础终局结果 UI 已有本地原型实现，但尚未覆盖死子确认或完整线上裁定模型。当前阶段“请求数子”和连续虚手终局只依赖 KataGo `ownership` 结算，KataGo 不可用或无结果时不产生数子结果。
 
 ## Validation and Maintenance
 
