@@ -27,6 +27,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         RegisterSystemEvent<OnDuelScoreResult>(OnDuelScoreResult);
         RegisterSystemEvent<OnDuelScoreFailed>(OnDuelScoreFailed);
         RegisterSystemEvent<OnDuelPassAccepted>(OnDuelPassAccepted);
+        RegisterSystemEvent<OnDuelTakeBackResult>(OnDuelTakeBackResult);
         RegisterSystemEvent<OnAfterAddChessToBoard>(OnAfterAddChessToBoard);
 
         BindPrefabHud();
@@ -232,6 +233,15 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         ShowActionNotice($"{playerText}{aiText}虚手");
     }
 
+    public void OnDuelTakeBackResult(OnDuelTakeBackResult evt)
+    {
+        if (evt == null || string.IsNullOrEmpty(evt.message)) {
+            return;
+        }
+
+        ShowActionNotice(evt.message);
+    }
+
     public void OnAfterAddChessToBoard(OnAfterAddChessToBoard evt)
     {
         string playerText = evt.playerFlag == PlayerFlag.Player1 ? "黑方" : "白方";
@@ -350,6 +360,12 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         EmitSystemEvent(new OnRequestDuelScore());
     }
 
+    public void OnClickBtnTakeBack()
+    {
+        CloseSettingsPanel();
+        EmitSystemEvent(new OnRequestDuelTakeBack());
+    }
+
     public void OnClickBtnResign()
     {
         var mainScene = Global.Instance.sceneManager.mainScene;
@@ -380,6 +396,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         AddButtonListener(binder.btn_duel_ownership, OnClickBtnOwnership);
         AddButtonListener(binder.btn_duel_pass, OnClickBtnPass);
         AddButtonListener(binder.btn_settings_request_score, OnClickBtnRequestScore);
+        AddButtonListener(binder.btn_settings_take_back, OnClickBtnTakeBack);
         AddButtonListener(binder.btn_settings_resign, OnClickBtnResign);
         AddButtonListener(binder.btn_settings_save, OnClickBtnSave);
         AddButtonListener(binder.btn_settings_exit, OnClickBtnExit);
@@ -477,9 +494,33 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         bool canAcceptHumanTurnInput = CanAcceptHumanTurnInput(mainScene, compDuel);
         bool isGameEnd = compDuel?.duelFSM?.curState != null && compDuel.duelFSM.curState.stateName == DuelStateDefine.STATE_GAME_END;
         bool canRequestScore = compDuel != null && !compDuel.isScoring && !isGameEnd;
+        bool canTakeBack = CanTakeBack(compDuel);
         SetButtonInteractable(binder.btn_duel_pass, canAcceptHumanTurnInput);
         SetButtonInteractable(binder.btn_settings_request_score, canRequestScore);
+        SetButtonInteractable(binder.btn_settings_take_back, canTakeBack);
         SetResignButtonVisible(CanResign(mainScene, compDuel));
+    }
+
+    private bool CanTakeBack(SceneComponentDuel compDuel)
+    {
+        if (compDuel == null || compDuel.duelFSM == null || !compDuel.duelFSM.isActivated || compDuel.isScoring) {
+            return false;
+        }
+
+        int moveCount = compDuel.kataGoMoves?.Count ?? 0;
+        if (moveCount <= 0) {
+            return false;
+        }
+
+        if (!compDuel.isAiDuel.value) {
+            return true;
+        }
+
+        string humanPlayerGuid = compDuel.player1Guid.value == compDuel.aiPlayerGuid.value
+            ? compDuel.player2Guid.value
+            : compDuel.player1Guid.value;
+        int requiredMoveCount = compDuel.curTurnPlayerGuid.value == humanPlayerGuid ? 2 : 1;
+        return moveCount >= requiredMoveCount;
     }
 
     private bool CanResign(SceneBase mainScene, SceneComponentDuel compDuel)

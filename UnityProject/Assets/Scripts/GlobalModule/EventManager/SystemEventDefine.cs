@@ -108,6 +108,27 @@ public class OnRequestDuelPass : SystemEventBase
     public override string GetEventType() => GetEventType<OnRequestDuelPass>();
 }
 
+public class OnRequestDuelTakeBack : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnRequestDuelTakeBack>();
+}
+
+public class OnDuelTakeBackResult : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnDuelTakeBackResult>();
+
+    public bool success;
+    public string message;
+    public int removedMoveCount;
+
+    public OnDuelTakeBackResult(bool success, string message, int removedMoveCount = 0)
+    {
+        this.success = success;
+        this.message = message;
+        this.removedMoveCount = removedMoveCount;
+    }
+}
+
 public class OnDuelPassAccepted : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnDuelPassAccepted>();

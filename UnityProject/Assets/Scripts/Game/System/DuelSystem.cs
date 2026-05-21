@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Newtonsoft.Json.Linq;
 using XNClient.ChessBoard;
 using XNClient.Logger;
@@ -26,6 +28,7 @@ public class DuelSystem : SystemBase
         scene.RegisterSystemEvent<OnConfirmDuelScore>(OnConfirmDuelScore);
         scene.RegisterSystemEvent<OnConfirmDuelResign>(OnConfirmDuelResign);
         scene.RegisterSystemEvent<OnRequestDuelPass>(OnRequestDuelPass);
+        scene.RegisterSystemEvent<OnRequestDuelTakeBack>(OnRequestDuelTakeBack);
 
         // 非读档进来的需要手动初始化
         if (scene.sceneCreateParams.saveFilePath == null) {
@@ -232,6 +235,53 @@ public class DuelSystem : SystemBase
         compDuel.duelFSM.SetParamterTrigger(DuelParamDefine.TRIGGER_PARAM_GAME_END);
     }
 
+    private void OnRequestDuelTakeBack(OnRequestDuelTakeBack evt)
+    {
+        var compDuel = scene.GetComponent<SceneComponentDuel>();
+        var compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
+        if (compDuel == null || compChessBoard == null || compDuel.duelFSM == null || !compDuel.duelFSM.isActivated) {
+            EmitTakeBackResult(false, "当前无法悔棋");
+            return;
+        }
+
+        if (compDuel.isScoring) {
+            EmitTakeBackResult(false, "数子中，暂不能悔棋");
+            return;
+        }
+
+        int moveCount = compDuel.kataGoMoves?.Count ?? 0;
+        int removeCount = GetTakeBackMoveCount(compDuel);
+        if (removeCount <= 0 || moveCount < removeCount) {
+            EmitTakeBackResult(false, "无可悔棋的手数");
+            return;
+        }
+
+        JArray originalMoves = CloneMoves(compDuel.kataGoMoves, moveCount);
+        JArray remainMoves = CloneMoves(compDuel.kataGoMoves, moveCount - removeCount);
+
+        if (!RebuildBoardFromMoves(compChessBoard, compDuel, remainMoves)) {
+            XNLogger.LogError("Duel take back failed, board rebuild failed.");
+            RebuildBoardFromMoves(compChessBoard, compDuel, originalMoves);
+            EmitTakeBackResult(false, "悔棋失败");
+            return;
+        }
+
+        compDuel.curTurnPlayerGuid.value = GetNextTurnPlayerGuid(compDuel, remainMoves.Count);
+        compDuel.timeoutLoserGuid.value = string.Empty;
+        compDuel.resignLoserGuid.value = string.Empty;
+        compDuel.winnerGuid.value = string.Empty;
+        compDuel.gameEndReason.value = string.Empty;
+        compDuel.finalBlackScore.value = 0f;
+        compDuel.finalWhiteScore.value = 0f;
+        compDuel.finalScoreMargin.value = 0f;
+        compDuel.consecutivePassCount.value = CountTrailingPasses(compDuel.kataGoMoves);
+        compDuel.ClearOwnershipScoreCache();
+        compChessBoard.chessBoardGrid?.ClearOwnership();
+
+        compDuel.duelFSM.SwitchState(DuelStateDefine.STATE_TURN_INPUT);
+        EmitTakeBackResult(true, removeCount >= 2 ? "已回退两手棋" : "已悔棋", removeCount);
+    }
+
     private async void OnRequestDuelPass(OnRequestDuelPass evt)
     {
         var compDuel = scene.GetComponent<SceneComponentDuel>();
@@ -287,6 +337,149 @@ public class DuelSystem : SystemBase
         }
 
         compDuel.duelFSM.SetParamterTrigger(DuelParamDefine.TRIGGER_PARAM_TURN_INPUT_FINISH);
+    }
+
+    private int GetTakeBackMoveCount(SceneComponentDuel compDuel)
+    {
+        if (compDuel == null) {
+            return 0;
+        }
+
+        if (!compDuel.isAiDuel.value) {
+            return 1;
+        }
+
+        string humanPlayerGuid = compDuel.player1Guid.value == compDuel.aiPlayerGuid.value
+            ? compDuel.player2Guid.value
+            : compDuel.player1Guid.value;
+        return compDuel.curTurnPlayerGuid.value == humanPlayerGuid ? 2 : 1;
+    }
+
+    private bool RebuildBoardFromMoves(SceneComponentChessBoard compChessBoard, SceneComponentDuel compDuel, JArray moves)
+    {
+        if (compChessBoard == null || compDuel == null || moves == null) {
+            return false;
+        }
+
+        ClearChessEntities();
+        compChessBoard.chessInfoDict.Clear();
+        compChessBoard.lastChessInfoDict.Clear();
+        compChessBoard.chessBoardGrid?.ClearLatestMoveMarker();
+        compDuel.ResetKataGoMoves();
+
+        int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : 19;
+        RectCoordinates latestMoveCoords = null;
+        PlayerFlag latestMovePlayerFlag = 0;
+        foreach (JToken move in moves) {
+            if (!KataGoDuelRecordFile.TryParseMove(move, out PlayerFlag playerFlag, out RectCoordinates coords, out bool isPass, boardSize)) {
+                return false;
+            }
+
+            if (isPass) {
+                compDuel.AppendKataGoPass(playerFlag);
+                continue;
+            }
+
+            if (!ReplayMove(compChessBoard, compDuel, playerFlag, coords, boardSize)) {
+                return false;
+            }
+
+            latestMoveCoords = coords.Clone();
+            latestMovePlayerFlag = playerFlag;
+        }
+
+        if (latestMoveCoords != null) {
+            compChessBoard.chessBoardGrid?.DrawLatestMoveMarker(latestMoveCoords.x, latestMoveCoords.z, latestMovePlayerFlag == PlayerFlag.Player1);
+        }
+
+        return true;
+    }
+
+    private JArray CloneMoves(JArray moves, int count)
+    {
+        JArray clonedMoves = new JArray();
+        if (moves == null) {
+            return clonedMoves;
+        }
+
+        int safeCount = Math.Min(Math.Max(count, 0), moves.Count);
+        for (int i = 0; i < safeCount; i++) {
+            clonedMoves.Add(moves[i].DeepClone());
+        }
+
+        return clonedMoves;
+    }
+
+    private bool ReplayMove(SceneComponentChessBoard compChessBoard, SceneComponentDuel compDuel, PlayerFlag playerFlag, RectCoordinates coords, int boardSize)
+    {
+        string chessGuid = EntityUtils.CreateGuidWithEntityType(EntityBase.GetEntityType<Chess>());
+        if (!DuelMoveRule.TryApplyMove(
+            compChessBoard,
+            playerFlag,
+            coords,
+            chessGuid,
+            out SavableObjectDict<ChessInfo> cachedChessInfoDict,
+            out List<int> pendingRemovePosIndexes
+        )) {
+            return false;
+        }
+
+        foreach (int removePosIndex in pendingRemovePosIndexes) {
+            if (cachedChessInfoDict.TryGetValue(removePosIndex.ToString(), out ChessInfo chessInfo)) {
+                Chess chess = scene.GetEntity<Chess>(chessInfo.chessGuid.value);
+                chess?.Destroy();
+            }
+        }
+
+        compChessBoard.lastChessInfoDict = cachedChessInfoDict;
+        EntityUtils.CreateChess(scene, chessGuid, playerFlag, coords);
+        compDuel.AppendKataGoMove(playerFlag, coords, boardSize);
+        return true;
+    }
+
+    private void ClearChessEntities()
+    {
+        string chessEntityType = EntityBase.GetEntityType<Chess>();
+        if (!scene.entityTypeDict.TryGetValue(chessEntityType, out HashSet<EntityBase> chessEntities)) {
+            return;
+        }
+
+        foreach (EntityBase chessEntity in chessEntities.ToList()) {
+            chessEntity.Destroy();
+        }
+    }
+
+    private string GetNextTurnPlayerGuid(SceneComponentDuel compDuel, int moveCount)
+    {
+        return moveCount % 2 == 0 ? compDuel.player1Guid.value : compDuel.player2Guid.value;
+    }
+
+    private int CountTrailingPasses(JArray moves)
+    {
+        if (moves == null) {
+            return 0;
+        }
+
+        int count = 0;
+        for (int i = moves.Count - 1; i >= 0; i--) {
+            JArray move = moves[i] as JArray;
+            if (move == null || move.Count < 2) {
+                break;
+            }
+
+            if (!string.Equals(move[1]?.ToString(), KataGoPositionJsonBuilder.PassPoint, StringComparison.OrdinalIgnoreCase)) {
+                break;
+            }
+
+            count += 1;
+        }
+
+        return count;
+    }
+
+    private void EmitTakeBackResult(bool success, string message, int removedMoveCount = 0)
+    {
+        scene.EmitSystemEvent(new OnDuelTakeBackResult(success, message, removedMoveCount));
     }
 
     private async System.Threading.Tasks.Task<DuelScoreResult> CalculateOwnershipScoreResultAsync(string requestIdPrefix)
