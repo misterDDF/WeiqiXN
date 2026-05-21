@@ -32,7 +32,9 @@ public class FSMTransition
     {
         srcState.OnExitState();
         dstState.OnEnterState();
-        XNLogger.LogInfo("FSM activate transition.", ("srcStateName", srcState.stateName), ("dstStateName", dstState.stateName));
+        if (LoggerConfig.ENABLE_FSM_VERBOSE_LOG) {
+            XNLogger.LogInfo("FSM activate transition.", ("srcStateName", srcState.stateName), ("dstStateName", dstState.stateName));
+        }
     }
 
     public void AddIntCondition(string paramName, FSMIntConditionOption opt, int conditionVal)

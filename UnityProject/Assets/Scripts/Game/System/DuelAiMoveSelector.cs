@@ -42,10 +42,12 @@ public static class DuelAiMoveSelector
 
         string topMove = GetTopMove(moveInfos);
         if (IsPassMove(topMove)) {
-            XNLogger.LogInfo(
-                "Duel AI top move is pass.",
-                ("moveInfoCount", moveInfos.Count.ToString()),
-                ("boardSize", runtimeParams.boardSize.ToString()));
+            if (LoggerConfig.ENABLE_DUEL_AI_DETAIL_LOG) {
+                XNLogger.LogInfo(
+                    "Duel AI top move is pass.",
+                    ("moveInfoCount", moveInfos.Count.ToString()),
+                    ("boardSize", runtimeParams.boardSize.ToString()));
+            }
             return BuildPassDecision("moveinfos_top_pass");
         }
 
@@ -106,17 +108,19 @@ public static class DuelAiMoveSelector
 
         List<DuelAiMoveCandidate> filteredCandidates = BuildFilteredCandidates(candidates, runtimeParams);
         DuelAiMoveCandidate pickedCandidate = PickCandidate(filteredCandidates.Count > 0 ? filteredCandidates : candidates, difficultyData);
-        XNLogger.LogInfo(
-            "Duel AI move candidates ready.",
-            ("moveInfoCount", moveInfos.Count.ToString()),
-            ("boardSize", runtimeParams.boardSize.ToString()),
-            ("candidateLimit", candidateLimit.ToString()),
-            ("maxScoreLoss", runtimeParams.requestMaxScoreLoss.ToString()),
-            ("legalCount", candidates.Count.ToString()),
-            ("filteredCount", filteredCandidates.Count.ToString()),
-            ("pickedCoords", pickedCandidate.coords?.ToString() ?? "null"),
-            ("pickedScoreLoss", pickedCandidate.scoreLoss.ToString()),
-            ("pickedVisits", pickedCandidate.visits.ToString()));
+        if (LoggerConfig.ENABLE_DUEL_AI_DETAIL_LOG) {
+            XNLogger.LogInfo(
+                "Duel AI move candidates ready.",
+                ("moveInfoCount", moveInfos.Count.ToString()),
+                ("boardSize", runtimeParams.boardSize.ToString()),
+                ("candidateLimit", candidateLimit.ToString()),
+                ("maxScoreLoss", runtimeParams.requestMaxScoreLoss.ToString()),
+                ("legalCount", candidates.Count.ToString()),
+                ("filteredCount", filteredCandidates.Count.ToString()),
+                ("pickedCoords", pickedCandidate.coords?.ToString() ?? "null"),
+                ("pickedScoreLoss", pickedCandidate.scoreLoss.ToString()),
+                ("pickedVisits", pickedCandidate.visits.ToString()));
+        }
         return BuildMoveDecision(pickedCandidate.coords, "moveinfos_candidate");
     }
 
@@ -183,14 +187,16 @@ public static class DuelAiMoveSelector
         }
 
         if (hasPassPolicy && passPolicy > 0f && passPolicy > bestLegalPointPolicy) {
-            XNLogger.LogInfo(
-                "Duel AI policy fallback selected pass.",
-                ("policyCount", policy.Count.ToString()),
-                ("boardSize", runtimeParams.boardSize.ToString()),
-                ("candidateLimit", candidateLimit.ToString()),
-                ("passPolicy", passPolicy.ToString()),
-                ("bestLegalPointPolicy", bestLegalPointPolicy.ToString()),
-                ("legalCount", candidates.Count.ToString()));
+            if (LoggerConfig.ENABLE_DUEL_AI_DETAIL_LOG) {
+                XNLogger.LogInfo(
+                    "Duel AI policy fallback selected pass.",
+                    ("policyCount", policy.Count.ToString()),
+                    ("boardSize", runtimeParams.boardSize.ToString()),
+                    ("candidateLimit", candidateLimit.ToString()),
+                    ("passPolicy", passPolicy.ToString()),
+                    ("bestLegalPointPolicy", bestLegalPointPolicy.ToString()),
+                    ("legalCount", candidates.Count.ToString()));
+            }
             return BuildPassDecision("policy_pass_best");
         }
 
@@ -211,17 +217,19 @@ public static class DuelAiMoveSelector
         }
 
         DuelAiMoveCandidate pickedCandidate = PickCandidate(candidates, difficultyData);
-        XNLogger.LogInfo(
-            "Duel AI policy fallback selected move.",
-            ("policyCount", policy.Count.ToString()),
-            ("boardSize", runtimeParams.boardSize.ToString()),
-            ("candidateLimit", candidateLimit.ToString()),
-            ("hasPassPolicy", hasPassPolicy.ToString()),
-            ("passPolicy", passPolicy.ToString()),
-            ("bestLegalPointPolicy", bestLegalPointPolicy.ToString()),
-            ("legalCount", candidates.Count.ToString()),
-            ("pickedCoords", pickedCandidate.coords?.ToString() ?? "null"),
-            ("pickedWeight", pickedCandidate.visits.ToString()));
+        if (LoggerConfig.ENABLE_DUEL_AI_DETAIL_LOG) {
+            XNLogger.LogInfo(
+                "Duel AI policy fallback selected move.",
+                ("policyCount", policy.Count.ToString()),
+                ("boardSize", runtimeParams.boardSize.ToString()),
+                ("candidateLimit", candidateLimit.ToString()),
+                ("hasPassPolicy", hasPassPolicy.ToString()),
+                ("passPolicy", passPolicy.ToString()),
+                ("bestLegalPointPolicy", bestLegalPointPolicy.ToString()),
+                ("legalCount", candidates.Count.ToString()),
+                ("pickedCoords", pickedCandidate.coords?.ToString() ?? "null"),
+                ("pickedWeight", pickedCandidate.visits.ToString()));
+        }
         return BuildMoveDecision(pickedCandidate.coords, "policy_candidate");
     }
 

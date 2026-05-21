@@ -125,6 +125,10 @@ public static class DuelAiBudgetService
 
     public static void LogProbeResult(JObject result, DuelAiRuntimeParams runtimeParams)
     {
+        if (!LoggerConfig.ENABLE_DUEL_AI_DETAIL_LOG) {
+            return;
+        }
+
         DuelAiProbeStats stats = BuildProbeStats(result);
         XNLogger.LogInfo(
             "Duel AI probe analyze result.",
@@ -146,6 +150,10 @@ public static class DuelAiBudgetService
 
     public static void LogBudgetDecision(DuelAiBudgetDecision decision, DuelAiRuntimeParams runtimeParams)
     {
+        if (!LoggerConfig.ENABLE_DUEL_AI_DETAIL_LOG) {
+            return;
+        }
+
         DuelAiProbeStats stats = decision.stats;
         XNLogger.LogInfo(
             "Duel AI budget decision.",

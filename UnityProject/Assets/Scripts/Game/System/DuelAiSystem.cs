@@ -24,26 +24,33 @@ public class DuelAiSystem : SystemBase
 
     private void OnAfterAddChessToBoard(OnAfterAddChessToBoard evt)
     {
-        XNLogger.LogInfo(
-            "Duel AI observed board move.",
-            ("playerFlag", evt.playerFlag.ToString()),
-            ("coords", evt.coords?.ToString() ?? "null"),
-            ("requestVersion", requestVersion.ToString()));
+        if (LoggerConfig.ENABLE_DUEL_AI_VERBOSE_LOG) {
+            XNLogger.LogInfo(
+                "Duel AI observed board move.",
+                ("playerFlag", evt.playerFlag.ToString()),
+                ("coords", evt.coords?.ToString() ?? "null"),
+                ("requestVersion", requestVersion.ToString()));
+        }
     }
 
     private void OnRequestDuelPass(OnRequestDuelPass evt)
     {
-        XNLogger.LogInfo("Duel AI observed pass request.", ("requestVersion", requestVersion.ToString()));
+        if (LoggerConfig.ENABLE_DUEL_AI_VERBOSE_LOG) {
+            XNLogger.LogInfo("Duel AI observed pass request.", ("requestVersion", requestVersion.ToString()));
+        }
     }
 
     private void OnDuelStateChanged(OnDuelStateChanged evt)
     {
         requestVersion += 1;
-        XNLogger.LogInfo(
-            "Duel AI observed duel state changed.",
-            ("state", evt.curStateName),
-            ("requestVersion", requestVersion.ToString()),
-            ("turnInfo", BuildTurnInfoLog()));
+        if (LoggerConfig.ENABLE_DUEL_AI_VERBOSE_LOG) {
+            XNLogger.LogInfo(
+                "Duel AI observed duel state changed.",
+                ("state", evt.curStateName),
+                ("requestVersion", requestVersion.ToString()),
+                ("turnInfo", BuildTurnInfoLog()));
+        }
+
         if (evt.curStateName == DuelStateDefine.STATE_TURN_INPUT) {
             TryStartAiTurn();
         }
@@ -52,15 +59,19 @@ public class DuelAiSystem : SystemBase
     private async void TryStartAiTurn()
     {
         if (isThinking) {
-            XNLogger.LogInfo("Duel AI turn start skipped, already thinking.", ("requestVersion", requestVersion.ToString()));
+            if (LoggerConfig.ENABLE_DUEL_AI_VERBOSE_LOG) {
+                XNLogger.LogInfo("Duel AI turn start skipped, already thinking.", ("requestVersion", requestVersion.ToString()));
+            }
             return;
         }
 
         if (!IsAiTurn(out string skipReason)) {
-            XNLogger.LogInfo(
-                "Duel AI turn start skipped.",
-                ("reason", skipReason),
-                ("turnInfo", BuildTurnInfoLog()));
+            if (LoggerConfig.ENABLE_DUEL_AI_VERBOSE_LOG) {
+                XNLogger.LogInfo(
+                    "Duel AI turn start skipped.",
+                    ("reason", skipReason),
+                    ("turnInfo", BuildTurnInfoLog()));
+            }
             return;
         }
 
@@ -161,7 +172,9 @@ public class DuelAiSystem : SystemBase
         }
         finally {
             isThinking = false;
-            XNLogger.LogInfo("Duel AI thinking finished.", ("requestVersion", requestVersion.ToString()), ("turnInfo", BuildTurnInfoLog()));
+            if (LoggerConfig.ENABLE_DUEL_AI_DETAIL_LOG) {
+                XNLogger.LogInfo("Duel AI thinking finished.", ("requestVersion", requestVersion.ToString()), ("turnInfo", BuildTurnInfoLog()));
+            }
         }
     }
 

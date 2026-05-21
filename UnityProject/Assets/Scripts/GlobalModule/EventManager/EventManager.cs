@@ -20,7 +20,10 @@ public class EventManager : ModuleBase
 
     public void EmitSystemEvent<TEvent>(TEvent systemEvent) where TEvent : SystemEventBase
     {
-        XNLogger.LogInfo("Emit system event.", ("eventName", systemEvent.GetEventType()));
+        if (LoggerConfig.ENABLE_EVENT_VERBOSE_LOG) {
+            XNLogger.LogInfo("Emit system event.", ("eventName", systemEvent.GetEventType()));
+        }
+
         if (systemEventHandlers.TryGetValue(systemEvent.GetEventType(), out var handlerSet)) {
             foreach (var handler in handlerSet) {
                 handler.Execute(systemEvent);
@@ -51,7 +54,10 @@ public class EventManager : ModuleBase
 
     public void EmitEntityEvent<TEntity, TEvent>(TEntity entity, TEvent entityEvent) where TEntity : EntityBase where TEvent : EntityEventBase
     {
-        XNLogger.LogInfo("Emit entity event.", ("eventName", entityEvent.GetEventType()), ("entityType", entity.entityType));
+        if (LoggerConfig.ENABLE_EVENT_VERBOSE_LOG) {
+            XNLogger.LogInfo("Emit entity event.", ("eventName", entityEvent.GetEventType()), ("entityType", entity.entityType));
+        }
+
         if (entityEventHandlers.TryGetValue(entityEvent.GetEventType(), out var handlerSet)) {
             foreach (var handler in handlerSet) {
                 if (handler.CanHandle(entity)) {
@@ -63,7 +69,10 @@ public class EventManager : ModuleBase
 
     public void EmitEntityEvent(EntityBase entity, EntityEventBase entityEvent)
     {
-        XNLogger.LogInfo("Emit entity event.", ("eventName", entityEvent.GetEventType()), ("entityType", entity.entityType));
+        if (LoggerConfig.ENABLE_EVENT_VERBOSE_LOG) {
+            XNLogger.LogInfo("Emit entity event.", ("eventName", entityEvent.GetEventType()), ("entityType", entity.entityType));
+        }
+
         if (entityEventHandlers.TryGetValue(entityEvent.GetEventType(), out var handlerSet)) {
             foreach (var handler in handlerSet) {
                 if (handler.CanHandle(entity)) {

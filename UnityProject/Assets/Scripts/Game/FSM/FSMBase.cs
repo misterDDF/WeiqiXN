@@ -75,7 +75,9 @@ public abstract class FSMBase
             if (curState != null) {
                 curState.TryActivateTransitions();
             }
-            XNLogger.LogInfo("FSM set int parameter.", ("paramName", paramName), ("paramVal", paramVal.ToString()));
+            if (LoggerConfig.ENABLE_FSM_VERBOSE_LOG) {
+                XNLogger.LogInfo("FSM set int parameter.", ("paramName", paramName), ("paramVal", paramVal.ToString()));
+            }
         }
     }
 
@@ -86,7 +88,9 @@ public abstract class FSMBase
             if (curState != null) {
                 curState.TryActivateTransitions();
             }
-            XNLogger.LogInfo("FSM set float parameter.", ("paramName", paramName), ("paramVal", paramVal.ToString()));
+            if (LoggerConfig.ENABLE_FSM_VERBOSE_LOG) {
+                XNLogger.LogInfo("FSM set float parameter.", ("paramName", paramName), ("paramVal", paramVal.ToString()));
+            }
         }
     }
 
@@ -97,7 +101,9 @@ public abstract class FSMBase
             if (curState != null) {
                 curState.TryActivateTransitions();
             }
-            XNLogger.LogInfo("FSM set bool parameter.", ("paramName", paramName), ("paramVal", paramVal.ToString()));
+            if (LoggerConfig.ENABLE_FSM_VERBOSE_LOG) {
+                XNLogger.LogInfo("FSM set bool parameter.", ("paramName", paramName), ("paramVal", paramVal.ToString()));
+            }
         }
     }
 
@@ -109,7 +115,9 @@ public abstract class FSMBase
                 curState.TryActivateTransitions();
             }
             triggerParamDict[paramName] = false;
-            XNLogger.LogInfo("FSM set trigger parameter.", ("paramName", paramName));
+            if (LoggerConfig.ENABLE_FSM_VERBOSE_LOG) {
+                XNLogger.LogInfo("FSM set trigger parameter.", ("paramName", paramName));
+            }
         }
     }
 }

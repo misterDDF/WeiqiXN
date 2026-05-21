@@ -48,27 +48,29 @@ public static class DuelAiAnalyzeService
     {
         string requestId = $"duel-ai-{budgetMode}-{DateTime.UtcNow.Ticks}";
         JObject query = KataGoPositionJsonBuilder.BuildAiMoveAnalysisJson(duelScene, requestId, difficultyData, maxVisits);
-        XNLogger.LogInfo(
-            budgetMode == "probe" ? "Duel AI probe analyze requested." : "Duel AI analyze requested.",
-            ("requestId", requestId),
-            ("reason", reason ?? string.Empty),
-            ("moveCount", ((query["moves"] as JArray)?.Count ?? 0).ToString()),
-            ("analyzeTurns", query["analyzeTurns"]?.ToString(Newtonsoft.Json.Formatting.None) ?? "null"),
-            ("boardSize", runtimeParams.boardSize.ToString()),
-            ("budgetMode", budgetMode),
-            ("configuredMaxVisits", runtimeParams.configuredMaxVisits.ToString()),
-            ("requestMaxVisits", maxVisits.ToString()),
-            ("fullMaxVisits", runtimeParams.requestMaxVisits.ToString()),
-            ("probeMaxVisits", runtimeParams.probeMaxVisits.ToString()),
-            ("configuredCandidateLimit", runtimeParams.configuredCandidateLimit.ToString()),
-            ("requestCandidateLimit", runtimeParams.requestCandidateLimit.ToString()),
-            ("configuredMaxScoreLoss", runtimeParams.configuredMaxScoreLoss.ToString()),
-            ("requestMaxScoreLoss", runtimeParams.requestMaxScoreLoss.ToString()),
-            ("includePolicy", query["includePolicy"]?.ToString() ?? "null"),
-            ("humanProfileRequested", difficultyData.useHumanPolicy.ToString()),
-            ("humanProfileEnabled", KataGoBootstrap.CanUseHumanSlProfile().ToString()),
-            ("humanSLProfile", difficultyData.humanSLProfile ?? "none"),
-            ("humanProfileSent", (query["overrideSettings"]?["humanSLProfile"] != null).ToString()));
+        if (LoggerConfig.ENABLE_DUEL_AI_DETAIL_LOG) {
+            XNLogger.LogInfo(
+                budgetMode == "probe" ? "Duel AI probe analyze requested." : "Duel AI analyze requested.",
+                ("requestId", requestId),
+                ("reason", reason ?? string.Empty),
+                ("moveCount", ((query["moves"] as JArray)?.Count ?? 0).ToString()),
+                ("analyzeTurns", query["analyzeTurns"]?.ToString(Newtonsoft.Json.Formatting.None) ?? "null"),
+                ("boardSize", runtimeParams.boardSize.ToString()),
+                ("budgetMode", budgetMode),
+                ("configuredMaxVisits", runtimeParams.configuredMaxVisits.ToString()),
+                ("requestMaxVisits", maxVisits.ToString()),
+                ("fullMaxVisits", runtimeParams.requestMaxVisits.ToString()),
+                ("probeMaxVisits", runtimeParams.probeMaxVisits.ToString()),
+                ("configuredCandidateLimit", runtimeParams.configuredCandidateLimit.ToString()),
+                ("requestCandidateLimit", runtimeParams.requestCandidateLimit.ToString()),
+                ("configuredMaxScoreLoss", runtimeParams.configuredMaxScoreLoss.ToString()),
+                ("requestMaxScoreLoss", runtimeParams.requestMaxScoreLoss.ToString()),
+                ("includePolicy", query["includePolicy"]?.ToString() ?? "null"),
+                ("humanProfileRequested", difficultyData.useHumanPolicy.ToString()),
+                ("humanProfileEnabled", KataGoBootstrap.CanUseHumanSlProfile().ToString()),
+                ("humanSLProfile", difficultyData.humanSLProfile ?? "none"),
+                ("humanProfileSent", (query["overrideSettings"]?["humanSLProfile"] != null).ToString()));
+        }
 
         JObject result = await KataGoBootstrap.AnalyzeAsync(query);
         if (budgetMode == "probe") {
