@@ -1,4 +1,3 @@
-using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -6,20 +5,18 @@ using XNClient.ChessBoard;
 
 public class DuelPage : UIPageWithBinder<DuelPageUI>
 {
-    private const float ActionNoticeHoldSeconds = 2.2f;
-    private const float ActionNoticeFadeSeconds = 0.28f;
-
     public override string pageName => UIPage.GetPageName<DuelPage>();
-    public GameObject aimChessPreview;
-    public RectCoordinates aimCoords = new RectCoordinates(-1, -1);
-    private PlayerFlag aimChessPreviewPlayerFlag;
-    private bool isOwnershipVisible;
+
+    private DuelPageBoardInputController boardInput;
+    private DuelPageHudView hudView;
     private int pendingScorePopupRequestId;
-    private float actionNoticeHideStartTime = -1f;
 
     protected override void OnLoaded()
     {
         base.OnLoaded();
+
+        boardInput = new DuelPageBoardInputController();
+        hudView = new DuelPageHudView(binder);
 
         RegisterSystemEvent<OnDuelStateChanged>(OnDuelStateChanged);
         RegisterSystemEvent<OnDuelOwnershipResult>(OnDuelOwnershipResult);
@@ -38,11 +35,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     {
         base.OnOpen();
 
-        SetSettingsPanelVisible(false);
-        SetOwnershipActive(false);
-        SetOwnershipResultPanelVisible(false);
-        SetGameEndResultPanelVisible(false);
-        SetActionNoticeVisible(false);
+        hudView.Reset();
         RefreshDuelHud();
     }
 
@@ -51,120 +44,21 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         base.OnUpdate();
 
         RefreshDuelHud();
-        RefreshActionNotice();
+        hudView.RefreshActionNotice();
 
-        if (IsSettingsPanelVisible()) {
-            aimCoords.SetValue(-1, -1);
-            SetAimChessPreviewActive(false);
-            return;
-        }
+        SceneBase mainScene = Global.Instance.sceneManager.mainScene;
+        SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
+        boardInput.Refresh(mainScene, compDuel, hudView.IsSettingsPanelVisible());
 
-        aimCoords.SetValue(-1, -1);
-        var mainScene = Global.Instance.sceneManager.mainScene;
-        var compDuel = mainScene.GetComponent<SceneComponentDuel>();
-        if (CanAcceptHumanTurnInput(mainScene, compDuel)) {
-            RefreshAimChessPreview(mainScene, compDuel);
-        } else {
-            SetAimChessPreviewActive(false);
-        }
-
-        if (UnityEngine.Input.GetKeyDown(KeyCode.Mouse0) && !IsPointerOverUI()) {
+        if (Input.GetKeyDown(KeyCode.Mouse0) && !IsPointerOverUI()) {
             OnMouse0Down();
         }
     }
 
     protected override void OnClose()
     {
+        boardInput.Dispose();
         base.OnClose();
-        if (aimChessPreview != null) {
-            GameObject.DestroyImmediate(aimChessPreview);
-            aimChessPreview = null;
-        }
-    }
-
-    private void RefreshAimChessPreview(SceneBase mainScene, SceneComponentDuel compDuel)
-    {
-        Player curPlayer = mainScene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
-        if (curPlayer == null) {
-            SetAimChessPreviewActive(false);
-            return;
-        }
-
-        Ray mouseRay = Global.Instance.uiManager.uiCamera.ScreenPointToRay(Input.mousePosition);
-        if (!Physics.Raycast(mouseRay.origin, mouseRay.direction, out var hitInfo, 500)) {
-            SetAimChessPreviewActive(false);
-            return;
-        }
-
-        var compChessBoard = mainScene.GetComponent<SceneComponentChessBoard>();
-        if (compChessBoard == null) {
-            SetAimChessPreviewActive(false);
-            return;
-        }
-
-        Transform gridTransform = compChessBoard.chessBoardGrid.transform;
-        Vector3 localHitPoint = gridTransform.InverseTransformPoint(hitInfo.point);
-        float cellSideLength = ChessBoardConfig.rectCellSideLength;
-
-        int nearestCellX = Mathf.RoundToInt(localHitPoint.x / cellSideLength - 0.5f);
-        int nearestCellZ = compChessBoard.chessBoardGrid.gridSize - 1 - Mathf.RoundToInt(localHitPoint.z / cellSideLength - 0.5f);
-
-        int maxCellIndex = Mathf.Max(compChessBoard.chessBoardGrid.gridSize - 1, 0);
-        nearestCellX = Mathf.Clamp(nearestCellX, 0, maxCellIndex);
-        nearestCellZ = Mathf.Clamp(nearestCellZ, 0, maxCellIndex);
-
-        RectCoordinates nearestCoords = new RectCoordinates(nearestCellX, nearestCellZ);
-        int posIndex = compChessBoard.GetPosIndexByCoords(nearestCoords);
-        if (posIndex < 0 || !DuelMoveRule.CheckMoveLegal(compChessBoard, (PlayerFlag)curPlayer.playerFlag.value, nearestCoords)) {
-            SetAimChessPreviewActive(false);
-            return;
-        }
-
-        EnsureAimChessPreview((PlayerFlag)curPlayer.playerFlag.value);
-        if (aimChessPreview == null) {
-            return;
-        }
-
-        Vector3 nearestCellCenterLocalPos = compChessBoard.chessBoardGrid.GetCellCenterLocalPosition(nearestCellX, nearestCellZ);
-        aimChessPreview.transform.position = gridTransform.TransformPoint(nearestCellCenterLocalPos);
-        aimCoords.SetValue(nearestCoords.x, nearestCoords.z);
-        SetAimChessPreviewActive(true);
-    }
-
-    private void EnsureAimChessPreview(PlayerFlag playerFlag)
-    {
-        if (aimChessPreview != null && aimChessPreviewPlayerFlag == playerFlag) {
-            return;
-        }
-
-        if (aimChessPreview != null) {
-            GameObject.DestroyImmediate(aimChessPreview);
-            aimChessPreview = null;
-        }
-
-        string gamePrefabTypeId = DuelUtils.GetGamePrefabTypeIdWithPlayerFlag(playerFlag);
-        var gamePrefabCfg = GamePrefabDataType.GetConfigData(gamePrefabTypeId);
-        if (gamePrefabCfg == null) {
-            return;
-        }
-
-        aimChessPreview = Global.Instance.resourceManager.LoadGamePrefab(gamePrefabCfg.resPath);
-        if (aimChessPreview == null) {
-            return;
-        }
-
-        aimChessPreviewPlayerFlag = playerFlag;
-        SetAimChessPreviewActive(false);
-        foreach (var collider in aimChessPreview.GetComponentsInChildren<Collider>()) {
-            collider.enabled = false;
-        }
-    }
-
-    private void SetAimChessPreviewActive(bool isActive)
-    {
-        if (aimChessPreview != null) {
-            aimChessPreview.SetActive(isActive);
-        }
     }
 
     public void OnDuelStateChanged(OnDuelStateChanged evt)
@@ -174,16 +68,12 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
     public void OnDuelOwnershipResult(OnDuelOwnershipResult evt)
     {
-        SetText(binder.txt_ownership_black_points, $"黑方目数: {FormatPointCount(evt.blackPoints)}");
-        SetText(binder.txt_ownership_white_points, $"白方目数: {FormatPointCount(evt.whitePoints)}（贴目后）");
-        SetOwnershipActive(true);
-        SetOwnershipResultPanelVisible(true);
+        hudView.OnDuelOwnershipResult(evt);
     }
 
     public void OnClearDuelOwnership(OnClearDuelOwnership evt)
     {
-        SetOwnershipActive(false);
-        SetOwnershipResultPanelVisible(false);
+        hudView.ClearOwnership();
     }
 
     public void OnDuelScoreResult(OnDuelScoreResult evt)
@@ -197,7 +87,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             ConfirmPopup.UpdateOpenContent(
                 pendingScorePopupRequestId,
                 "确认数子结果",
-                BuildScoreConfirmContent(scoreResult),
+                hudView.BuildScoreConfirmContent(scoreResult),
                 () => EmitSystemEvent(new OnConfirmDuelScore(scoreResult)),
                 true
             );
@@ -208,7 +98,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     public void OnDuelScoreFailed(OnDuelScoreFailed evt)
     {
         if (!evt.requireConfirm) {
-            ShowActionNotice("数子失败，已回到对局");
+            hudView.ShowActionNotice("数子失败，已回到对局");
             return;
         }
 
@@ -224,14 +114,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
     public void OnDuelPassAccepted(OnDuelPassAccepted evt)
     {
-        if (evt.consecutivePassCount >= 2) {
-            ShowActionNotice("双方连续虚手，正在数子...");
-            return;
-        }
-
-        string playerText = evt.playerFlag == PlayerFlag.Player1 ? "黑方" : "白方";
-        string aiText = evt.isAiPlayer ? "（AI）" : string.Empty;
-        ShowActionNotice($"{playerText}{aiText}虚手");
+        hudView.OnDuelPassAccepted(evt);
     }
 
     public void OnDuelTakeBackResult(OnDuelTakeBackResult evt)
@@ -240,69 +123,34 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             return;
         }
 
-        ShowActionNotice(evt.message);
+        hudView.ShowActionNotice(evt.message);
     }
 
     public void OnAfterAddChessToBoard(OnAfterAddChessToBoard evt)
     {
-        string playerText = evt.playerFlag == PlayerFlag.Player1 ? "黑方" : "白方";
-        string aiText = IsAiPlayer(evt.playerFlag) ? "（AI）" : string.Empty;
-        ShowActionNotice($"{playerText}{aiText}落子 {FormatBoardPoint(evt.coords)}");
+        hudView.OnAfterAddChessToBoard(evt);
     }
 
     public void OnDuelSaveResult(OnDuelSaveResult evt)
     {
-        ShowActionNotice(evt != null && evt.success ? "对局已保存" : "对局保存失败");
+        hudView.ShowActionNotice(evt != null && evt.success ? "对局已保存" : "对局保存失败");
     }
 
     public void RefreshDuelHud()
     {
-        var mainScene = Global.Instance.sceneManager.mainScene;
-        var compDuel = mainScene.GetComponent<SceneComponentDuel>();
-        if (compDuel == null) {
-            SetResignButtonVisible(false);
-            return;
-        }
-
-        Player blackPlayer = mainScene.GetEntity<Player>(compDuel.player1Guid.value);
-        Player whitePlayer = mainScene.GetEntity<Player>(compDuel.player2Guid.value);
-        string curTurnPlayerGuid = compDuel.duelFSM.isActivated ? compDuel.curTurnPlayerGuid.value : string.Empty;
-
-        RefreshPlayerInfoPanel(
-            binder.txt_black_title,
-            binder.txt_black_hold_time,
-            binder.txt_black_byoyomi_count,
-            binder.txt_black_byoyomi_time,
-            compDuel,
-            blackPlayer,
-            curTurnPlayerGuid,
-            "黑方"
-        );
-        RefreshPlayerInfoPanel(
-            binder.txt_white_title,
-            binder.txt_white_hold_time,
-            binder.txt_white_byoyomi_count,
-            binder.txt_white_byoyomi_time,
-            compDuel,
-            whitePlayer,
-            curTurnPlayerGuid,
-            "白方"
-        );
-
-        RefreshGameEndResultPanel(mainScene, compDuel);
-        RefreshSettingsActionVisibility(mainScene, compDuel);
+        hudView.Refresh(Global.Instance.sceneManager.mainScene);
     }
 
     public void OnMouse0Down()
     {
-        if (IsSettingsPanelVisible()) {
+        if (hudView.IsSettingsPanelVisible()) {
             return;
         }
 
-        var mainScene = Global.Instance.sceneManager.mainScene;
-        var compDuel = mainScene.GetComponent<SceneComponentDuel>();
-        if (CanAcceptHumanTurnInput(mainScene, compDuel) && aimCoords.x >= 0 && aimCoords.z >= 0) {
-            EmitSystemEvent(new OnAddChessToBoard(aimCoords.Clone()));
+        SceneBase mainScene = Global.Instance.sceneManager.mainScene;
+        SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
+        if (boardInput.TryGetMoveCoords(mainScene, compDuel, out RectCoordinates coords)) {
+            EmitSystemEvent(new OnAddChessToBoard(coords));
         }
     }
 
@@ -322,23 +170,20 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
     public void OnClickBtnOwnership()
     {
-        if (isOwnershipVisible) {
+        if (hudView.IsOwnershipVisible) {
             EmitSystemEvent(new OnRequestClearDuelOwnership());
             return;
         }
 
-        SetOwnershipActive(true);
-        SetOwnershipResultPanelVisible(false);
-        SetText(binder.txt_ownership_black_points, "黑方目数: 计算中...");
-        SetText(binder.txt_ownership_white_points, "白方目数: 计算中...");
+        hudView.BeginOwnershipRequest();
         EmitSystemEvent(new OnRequestDuelOwnership());
     }
 
     public void OnClickBtnPass()
     {
-        var mainScene = Global.Instance.sceneManager.mainScene;
-        var compDuel = mainScene.GetComponent<SceneComponentDuel>();
-        if (!CanAcceptHumanTurnInput(mainScene, compDuel)) {
+        SceneBase mainScene = Global.Instance.sceneManager.mainScene;
+        SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
+        if (!DuelPageInteractionState.CanAcceptHumanTurnInput(mainScene, compDuel)) {
             return;
         }
 
@@ -347,13 +192,13 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
     public void OnClickBtnRequestScore()
     {
-        var mainScene = Global.Instance.sceneManager.mainScene;
-        var compDuel = mainScene.GetComponent<SceneComponentDuel>();
+        SceneBase mainScene = Global.Instance.sceneManager.mainScene;
+        SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
         if (compDuel != null && compDuel.isScoring) {
             return;
         }
 
-        CloseSettingsPanel();
+        hudView.CloseSettingsPanel();
         pendingScorePopupRequestId = ConfirmPopup.Show(
             "确认数子结果",
             "数子中...",
@@ -368,23 +213,23 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
     public void OnClickBtnTakeBack()
     {
-        CloseSettingsPanel();
+        hudView.CloseSettingsPanel();
         EmitSystemEvent(new OnRequestDuelTakeBack());
     }
 
     public void OnClickBtnResign()
     {
-        var mainScene = Global.Instance.sceneManager.mainScene;
-        var compDuel = mainScene.GetComponent<SceneComponentDuel>();
-        if (!CanResign(mainScene, compDuel)) {
-            SetResignButtonVisible(false);
+        SceneBase mainScene = Global.Instance.sceneManager.mainScene;
+        SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
+        if (!DuelPageInteractionState.CanResign(mainScene, compDuel)) {
+            hudView.SetResignButtonVisible(false);
             return;
         }
 
-        CloseSettingsPanel();
+        hudView.CloseSettingsPanel();
 
         Player curPlayer = mainScene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
-        string playerText = GetPlayerDisplayName(curPlayer, compDuel, compDuel?.curTurnPlayerGuid.value);
+        string playerText = hudView.GetPlayerDisplayName(curPlayer, compDuel, compDuel.curTurnPlayerGuid.value);
 
         ConfirmPopup.Show(
             "确认认输",
@@ -398,7 +243,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
     private void BindPrefabHud()
     {
-        AddButtonListener(binder.btn_duel_settings, OpenSettingsPanel);
+        AddButtonListener(binder.btn_duel_settings, hudView.OpenSettingsPanel);
         AddButtonListener(binder.btn_duel_ownership, OnClickBtnOwnership);
         AddButtonListener(binder.btn_duel_pass, OnClickBtnPass);
         AddButtonListener(binder.btn_settings_request_score, OnClickBtnRequestScore);
@@ -406,386 +251,13 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         AddButtonListener(binder.btn_settings_resign, OnClickBtnResign);
         AddButtonListener(binder.btn_settings_save, OnClickBtnSave);
         AddButtonListener(binder.btn_settings_exit, OnClickBtnExit);
-        AddButtonListener(binder.btn_settings_close, CloseSettingsPanel);
-    }
-
-    private void RefreshPlayerInfoPanel(
-        TextMeshProUGUI titleText,
-        TextMeshProUGUI holdText,
-        TextMeshProUGUI byoyomiCountText,
-        TextMeshProUGUI byoyomiTimeText,
-        SceneComponentDuel compDuel,
-        Player player,
-        string curTurnPlayerGuid,
-        string title
-    )
-    {
-        bool isCurTurnPlayer = player != null && player.guid == curTurnPlayerGuid;
-        bool isAi = IsAiPlayer(player, compDuel);
-        string playerTypeText = isAi ? "AI" : "人类";
-        string turnText = isCurTurnPlayer ? " · 行棋中" : string.Empty;
-        SetText(titleText, $"{title} · {playerTypeText}{turnText}");
-
-        var compDuelInfo = player?.GetComponent<ComponentDuelInfo>();
-        bool isByoyomiEnabled = IsByoyomiEnabled(compDuel, compDuelInfo);
-        SetTextVisible(byoyomiCountText, isByoyomiEnabled);
-        SetTextVisible(byoyomiTimeText, isByoyomiEnabled);
-
-        if (compDuelInfo == null) {
-            SetText(holdText, "主时间 --");
-            if (isByoyomiEnabled) {
-                SetText(byoyomiCountText, "剩余读秒 --");
-                SetText(byoyomiTimeText, "读秒时间 --");
-            }
-            return;
-        }
-
-        SetText(holdText, $"主时间 {FormatSeconds(compDuelInfo.holdLeftSeconds.value, compDuelInfo.isInfiniteTime.value)}");
-        if (!isByoyomiEnabled) {
-            return;
-        }
-
-        SetText(byoyomiCountText, $"剩余读秒 {compDuelInfo.byoyomiLeftCount.value} 次");
-        SetText(byoyomiTimeText, $"读秒时间 {FormatSeconds(compDuelInfo.byoyomiLeftSeconds.value, false)}");
-    }
-
-    private string FormatSeconds(int seconds, bool isInfinite)
-    {
-        if (isInfinite || seconds < 0) {
-            return "--";
-        }
-
-        int safeSeconds = Mathf.Max(seconds, 0);
-        int minutes = safeSeconds / 60;
-        int remainSeconds = safeSeconds % 60;
-        return $"{minutes:00}:{remainSeconds:00}";
-    }
-
-    private string FormatPointCount(float pointCount)
-    {
-        return Mathf.Approximately(pointCount, Mathf.Round(pointCount))
-            ? Mathf.RoundToInt(pointCount).ToString()
-            : pointCount.ToString("0.0");
-    }
-
-    private string FormatBoardPoint(RectCoordinates coords)
-    {
-        var mainScene = Global.Instance.sceneManager.mainScene;
-        var compChessBoard = mainScene?.GetComponent<SceneComponentChessBoard>();
-        int boardSize = compChessBoard?.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : 19;
-        try {
-            return KataGoPositionJsonBuilder.ToKataGoPoint(coords, boardSize);
-        }
-        catch (System.Exception) {
-            return coords?.ToString() ?? "--";
-        }
-    }
-
-    private string BuildScoreConfirmContent(DuelScoreResult scoreResult)
-    {
-        string winnerText;
-        if (scoreResult.winnerFlag == PlayerFlag.Player1) {
-            winnerText = $"黑方胜 {FormatPointCount(scoreResult.margin)} 目";
-        } else if (scoreResult.winnerFlag == PlayerFlag.Player2) {
-            winnerText = $"白方胜 {FormatPointCount(scoreResult.margin)} 目";
-        } else {
-            winnerText = "双方和棋";
-        }
-
-        return $"黑方: {FormatPointCount(scoreResult.blackScore)} 目\n白方: {FormatPointCount(scoreResult.whiteScore)} 目（含贴目 {FormatPointCount(scoreResult.komi)}）\n结果: {winnerText}";
-    }
-
-    private void RefreshSettingsActionVisibility(SceneBase mainScene, SceneComponentDuel compDuel)
-    {
-        bool canAcceptHumanTurnInput = CanAcceptHumanTurnInput(mainScene, compDuel);
-        bool isGameEnd = compDuel?.duelFSM?.curState != null && compDuel.duelFSM.curState.stateName == DuelStateDefine.STATE_GAME_END;
-        bool canRequestScore = compDuel != null && !compDuel.isScoring && !isGameEnd;
-        bool canTakeBack = CanTakeBack(compDuel);
-        SetButtonInteractable(binder.btn_duel_pass, canAcceptHumanTurnInput);
-        SetButtonInteractable(binder.btn_settings_request_score, canRequestScore);
-        SetButtonInteractable(binder.btn_settings_take_back, canTakeBack);
-        SetResignButtonVisible(CanResign(mainScene, compDuel));
-    }
-
-    private bool CanTakeBack(SceneComponentDuel compDuel)
-    {
-        if (compDuel == null || compDuel.duelFSM == null || !compDuel.duelFSM.isActivated || compDuel.isScoring) {
-            return false;
-        }
-
-        int moveCount = DuelMoveHistory.Count(compDuel.kataGoMoves);
-        if (moveCount <= 0) {
-            return false;
-        }
-
-        if (!compDuel.isAiDuel.value) {
-            return true;
-        }
-
-        string humanPlayerGuid = compDuel.player1Guid.value == compDuel.aiPlayerGuid.value
-            ? compDuel.player2Guid.value
-            : compDuel.player1Guid.value;
-        int requiredMoveCount = compDuel.curTurnPlayerGuid.value == humanPlayerGuid ? 2 : 1;
-        return moveCount >= requiredMoveCount;
-    }
-
-    private bool CanResign(SceneBase mainScene, SceneComponentDuel compDuel)
-    {
-        if (mainScene == null || compDuel == null || compDuel.duelFSM == null || !compDuel.duelFSM.isActivated) {
-            return false;
-        }
-
-        if (compDuel.isScoring) {
-            return false;
-        }
-
-        if (compDuel.duelFSM.curState == null || compDuel.duelFSM.curState.stateName != DuelStateDefine.STATE_TURN_INPUT) {
-            return false;
-        }
-
-        if (string.IsNullOrEmpty(compDuel.curTurnPlayerGuid.value)) {
-            return false;
-        }
-
-        return CanAcceptHumanTurnInput(mainScene, compDuel)
-            && mainScene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value) != null;
-    }
-
-    private bool CanAcceptHumanTurnInput(SceneBase mainScene, SceneComponentDuel compDuel)
-    {
-        if (mainScene == null || compDuel == null || compDuel.duelFSM == null || !compDuel.duelFSM.isActivated) {
-            return false;
-        }
-
-        if (compDuel.duelFSM.curState == null || compDuel.duelFSM.curState.stateName != DuelStateDefine.STATE_TURN_INPUT) {
-            return false;
-        }
-
-        return !compDuel.isAiDuel.value
-            || string.IsNullOrEmpty(compDuel.aiPlayerGuid.value)
-            || compDuel.curTurnPlayerGuid.value != compDuel.aiPlayerGuid.value;
-    }
-
-    private void RefreshGameEndResultPanel(SceneBase mainScene, SceneComponentDuel compDuel)
-    {
-        if (compDuel == null || compDuel.duelFSM == null || compDuel.duelFSM.curState == null) {
-            SetGameEndResultPanelVisible(false);
-            return;
-        }
-
-        if (compDuel.duelFSM.curState.stateName != DuelStateDefine.STATE_GAME_END) {
-            SetGameEndResultPanelVisible(false);
-            return;
-        }
-
-        Player winner = mainScene.GetEntity<Player>(compDuel.winnerGuid.value);
-        string winnerText = GetPlayerDisplayName(winner, compDuel, compDuel.winnerGuid.value);
-        string reasonText = BuildGameEndReasonText(mainScene, compDuel);
-
-        SetText(binder.txt_game_end_winner, string.IsNullOrEmpty(compDuel.winnerGuid.value) ? "双方和棋" : $"{winnerText}胜出");
-        SetText(binder.txt_game_end_reason, reasonText);
-        SetGameEndResultPanelVisible(true);
-    }
-
-    private string BuildGameEndReasonText(SceneBase mainScene, SceneComponentDuel compDuel)
-    {
-        if (compDuel == null) {
-            return string.Empty;
-        }
-
-        if (compDuel.gameEndReason.value == DuelGameEndReason.Timeout) {
-            Player loser = mainScene.GetEntity<Player>(compDuel.timeoutLoserGuid.value);
-            return $"{GetPlayerDisplayName(loser, compDuel, compDuel.timeoutLoserGuid.value)}超时判负";
-        }
-
-        if (compDuel.gameEndReason.value == DuelGameEndReason.Resign) {
-            Player loser = mainScene.GetEntity<Player>(compDuel.resignLoserGuid.value);
-            return $"{GetPlayerDisplayName(loser, compDuel, compDuel.resignLoserGuid.value)}认输";
-        }
-
-        if (compDuel.gameEndReason.value == DuelGameEndReason.Score
-            || compDuel.gameEndReason.value == DuelGameEndReason.ConsecutivePass) {
-            return $"领先 {FormatPointCount(compDuel.finalScoreMargin.value)} 目";
-        }
-
-        return "对局结束";
-    }
-
-    private string GetPlayerDisplayName(Player player, SceneComponentDuel compDuel, string playerGuid)
-    {
-        if (player != null) {
-            return (PlayerFlag)player.playerFlag.value == PlayerFlag.Player1 ? "黑方" : "白方";
-        }
-
-        if (compDuel != null && !string.IsNullOrEmpty(playerGuid)) {
-            if (playerGuid == compDuel.player1Guid.value) {
-                return "黑方";
-            }
-            if (playerGuid == compDuel.player2Guid.value) {
-                return "白方";
-            }
-        }
-
-        return "当前方";
-    }
-
-    private bool IsAiPlayer(PlayerFlag playerFlag)
-    {
-        var mainScene = Global.Instance.sceneManager.mainScene;
-        var compDuel = mainScene?.GetComponent<SceneComponentDuel>();
-        if (compDuel == null || !compDuel.isAiDuel.value || string.IsNullOrEmpty(compDuel.aiPlayerGuid.value)) {
-            return false;
-        }
-
-        string playerGuid = playerFlag == PlayerFlag.Player1 ? compDuel.player1Guid.value : compDuel.player2Guid.value;
-        return playerGuid == compDuel.aiPlayerGuid.value;
-    }
-
-    private bool IsAiPlayer(Player player, SceneComponentDuel compDuel)
-    {
-        return player != null
-            && compDuel != null
-            && compDuel.isAiDuel.value
-            && !string.IsNullOrEmpty(compDuel.aiPlayerGuid.value)
-            && player.guid == compDuel.aiPlayerGuid.value;
-    }
-
-    private bool IsByoyomiEnabled(SceneComponentDuel compDuel, ComponentDuelInfo compDuelInfo)
-    {
-        if (compDuelInfo != null && compDuelInfo.isInfiniteTime.value) {
-            return false;
-        }
-
-        var byoyomiCountData = compDuel != null
-            ? DuelByoyomiCountDataType.GetConfigData(compDuel.byoyomiCountCfgId.value)
-            : null;
-        if (byoyomiCountData != null) {
-            return byoyomiCountData.count > 0;
-        }
-
-        return compDuelInfo != null && compDuelInfo.byoyomiLeftCount.value > 0;
-    }
-
-    private void OpenSettingsPanel()
-    {
-        SetSettingsPanelVisible(true);
-    }
-
-    private void CloseSettingsPanel()
-    {
-        SetSettingsPanelVisible(false);
-    }
-
-    private void SetSettingsPanelVisible(bool isVisible)
-    {
-        if (binder.panel_duel_settings != null) {
-            binder.panel_duel_settings.SetActive(isVisible);
-        }
-    }
-
-    private void SetOwnershipResultPanelVisible(bool isVisible)
-    {
-        if (binder.panel_duel_ownership_result != null) {
-            binder.panel_duel_ownership_result.SetActive(isVisible);
-        }
-    }
-
-    private void SetGameEndResultPanelVisible(bool isVisible)
-    {
-        if (binder.panel_game_end_result != null) {
-            binder.panel_game_end_result.SetActive(isVisible);
-        }
-    }
-
-    private void ShowActionNotice(string message)
-    {
-        SetText(binder.txt_duel_action_notice, message);
-        SetActionNoticeVisible(true);
-        if (binder.canvas_duel_action_notice != null) {
-            binder.canvas_duel_action_notice.alpha = 1f;
-        }
-        actionNoticeHideStartTime = Time.unscaledTime + ActionNoticeHoldSeconds;
-    }
-
-    private void RefreshActionNotice()
-    {
-        if (binder.panel_duel_action_notice == null || !binder.panel_duel_action_notice.activeSelf || actionNoticeHideStartTime < 0f) {
-            return;
-        }
-
-        float fadeElapsed = Time.unscaledTime - actionNoticeHideStartTime;
-        if (fadeElapsed < 0f) {
-            return;
-        }
-
-        float fadeProgress = ActionNoticeFadeSeconds <= 0f ? 1f : Mathf.Clamp01(fadeElapsed / ActionNoticeFadeSeconds);
-        if (binder.canvas_duel_action_notice != null) {
-            binder.canvas_duel_action_notice.alpha = 1f - fadeProgress;
-        }
-
-        if (fadeProgress >= 1f) {
-            SetActionNoticeVisible(false);
-        }
-    }
-
-    private void SetActionNoticeVisible(bool isVisible)
-    {
-        if (binder.panel_duel_action_notice != null) {
-            binder.panel_duel_action_notice.SetActive(isVisible);
-        }
-        if (!isVisible) {
-            actionNoticeHideStartTime = -1f;
-        }
-    }
-
-    private void SetResignButtonVisible(bool isVisible)
-    {
-        if (binder.btn_settings_resign != null) {
-            binder.btn_settings_resign.gameObject.SetActive(isVisible);
-        }
-    }
-
-    private void SetButtonInteractable(Button button, bool interactable)
-    {
-        if (button != null) {
-            button.interactable = interactable;
-        }
-    }
-
-    private void SetOwnershipActive(bool isActive)
-    {
-        isOwnershipVisible = isActive;
-        SetOwnershipButtonText(isActive);
-    }
-
-    private void SetOwnershipButtonText(bool isVisible)
-    {
-        SetText(binder.txt_duel_ownership_button, isVisible ? "关闭" : "形势");
-    }
-
-    private bool IsSettingsPanelVisible()
-    {
-        return binder.panel_duel_settings != null && binder.panel_duel_settings.activeSelf;
+        AddButtonListener(binder.btn_settings_close, hudView.CloseSettingsPanel);
     }
 
     private void AddButtonListener(Button button, UnityEngine.Events.UnityAction action)
     {
         if (button != null) {
             button.onClick.AddListener(action);
-        }
-    }
-
-    private void SetText(TextMeshProUGUI text, string value)
-    {
-        if (text != null) {
-            text.text = value;
-        }
-    }
-
-    private void SetTextVisible(TextMeshProUGUI text, bool isVisible)
-    {
-        if (text != null && text.gameObject.activeSelf != isVisible) {
-            text.gameObject.SetActive(isVisible);
         }
     }
 

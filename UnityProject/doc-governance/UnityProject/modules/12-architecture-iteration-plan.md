@@ -99,7 +99,7 @@
 | P2-2 | 拆 AI 分析请求 | `DuelAiAnalyzeService` 已集中 KataGo AI 请求构造、probe/full 请求调度和结果元信息返回 | OpenCL/Eigen fallback 不受影响 |
 | P2-3 | 拆预算策略 | `DuelAiBudgetService` 已集中棋盘尺寸参数解析、probe/full budget 决策和预算日志 | 不同棋盘尺寸预算仍按配置解析 |
 | P2-4 | 拆候选选择 | `DuelAiMoveSelector` 已集中 moveInfos/policy 解析、合法性筛选和加权选择 | 难度配置行为保持一致 |
-| P2-5 | 拆 UI 输入与展示 | 棋盘输入、HUD、数子弹窗、终局面板职责分离 | 按钮、提示、结算面板行为不变 |
+| P2-5 | 拆 UI 输入与展示 | `DuelPageBoardInputController`、`DuelPageHudView` 和 `DuelPageInteractionState` 已分别承接棋盘输入预览、HUD/面板展示和输入可用性判断 | 按钮、提示、结算面板行为不变 |
 | P2-6 | 降低热路径日志 | 事件、FSM、AI 细节日志改为可控输出 | Console 不再被常规事件刷屏 |
 
 ### 阶段退出条件
