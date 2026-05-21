@@ -53,7 +53,7 @@
 - `DuelFSM` 当前定义本地回合循环：`GameStart -> TurnStart -> TurnInput -> TurnEnd -> TurnStart`，回合输入可以通过落子完成或超时进入回合结束。
 - `DuelStateTurnInput` 按当前玩家的持有时间或读秒状态每秒递减一次；无限时间不会启动回合倒计时。
 - `DuelStateTurnEnd` 在玩家 1 和玩家 2 之间切换 `curTurnPlayerGuid`。
-- `DuelPage` 显示黑方和白方的持有时间、读秒次数和读秒时间；它根据鼠标位置计算最近棋盘坐标，显示落点 VFX，非 UI 区域左键触发 `OnAddChessToBoard`，右下角设置按钮打开对局设置面板，右下角形式按钮触发 `OnRequestDuelOwnership`，形式按钮旁的虚手按钮触发 `OnRequestDuelPass`，形式按钮上方的结果面板显示 ownership 统计出的双方目数，设置面板中的保存按钮触发 `OnSaveDuelScene`，请求数子按钮触发 `OnRequestDuelScore`，认输按钮仅在当前对局处于回合输入且当前行棋玩家有效时显示，点击后通过二次确认触发 `OnConfirmDuelResign`，退出按钮回到主菜单。进入 `GameEnd` 后，页面右侧中部的结算结果面板会显示黑/白方胜出和结束原因。
+- `DuelPage` 显示黑方和白方的持有时间、读秒次数和读秒时间；它根据鼠标位置计算最近棋盘坐标，只有该点通过本地落子规则时才显示落点 VFX，非 UI 区域左键只在已有合法预览坐标时触发 `OnAddChessToBoard`，右下角设置按钮打开对局设置面板，右下角形式按钮触发 `OnRequestDuelOwnership`，形式按钮旁的虚手按钮触发 `OnRequestDuelPass`，形式按钮上方的结果面板显示 ownership 统计出的双方目数，设置面板中的保存按钮触发 `OnSaveDuelScene`，请求数子按钮触发 `OnRequestDuelScore`，认输按钮仅在当前对局处于回合输入且当前行棋玩家有效时显示，点击后通过二次确认触发 `OnConfirmDuelResign`，退出按钮回到主菜单。进入 `GameEnd` 后，页面右侧中部的结算结果面板会显示黑/白方胜出和结束原因。
 - `DuelPage` 会通过短暂 HUD 提示显示成功落子、虚手、双方连续虚手进入数子和连续虚手数子失败回到对局；落子提示使用棋盘坐标，电脑对局中由 AI 触发的落子或虚手会显示 AI 标记。
 - 电脑对局的 AI 回合中，`DuelPage` 不接受人类棋盘落子、虚手或认输输入；AI 由 `DuelAiSystem` 请求 KataGo 候选点，KataGo 明确建议 `pass` 时走现有虚手事件，否则通过本地落子规则筛选后走正常落子事件。启用动态预算的难度会先请求低访问次数 probe，再依据当前手数、`rootInfo.scoreLead`、`rootInfo.winrate`、首选和次选 `scoreLoss` 差距等配表阈值决定是否升级完整预算。
 - 落子只有在目标坐标位于棋盘内、目标位置为空、当前回合玩家存在时才会继续处理。
@@ -81,7 +81,7 @@
 - 玩家标记通过 `DuelUtils.GetGamePrefabTypeIdWithPlayerFlag` 映射到黑白棋子预制体。
 - 对局棋盘恢复权威是槽位目录中 `DuelRecord.json` 的 KataGo 标准 `moves`，场景存档不再保存 `SceneComponentChessBoard.chessInfoDict`。
 - `chessInfoDict` 和 `lastChessInfoDict` 跳过保存检查，只作为运行时棋盘缓存和局面对比状态；读档时由记录文件回放重建。
-- 非法落子当前只做逻辑回退，没有用户可见提示。
+- 非法落子不显示预览棋子，页面不额外弹出“无法落子”提示；真实落子被规则拒绝时系统仍保留 `OnDuelMoveRejected` 边界事件。
 - 死子确认、复盘、匹配、房间、重连和网络同步当前未实现；数子、虚手、认输和基础终局结果 UI 已有本地原型实现，但尚未覆盖死子确认或完整线上裁定模型。当前阶段“请求数子”和连续虚手终局只依赖 KataGo `ownership` 结算，KataGo 不可用或无结果时不产生数子结果。
 
 ## Validation and Maintenance

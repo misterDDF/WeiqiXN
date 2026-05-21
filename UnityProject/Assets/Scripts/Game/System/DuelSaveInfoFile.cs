@@ -49,7 +49,7 @@ public static class DuelSaveInfoFile
         {
             ["saveSlotIndex"] = saveSlotIndex,
             ["savedAtUtc"] = DateTime.UtcNow.ToString("o"),
-            ["moveCount"] = compDuel?.kataGoMoves?.Count ?? 0,
+            ["moveCount"] = DuelMoveHistory.Count(compDuel?.kataGoMoves),
             ["board"] = new JObject
             {
                 ["cfgId"] = boardCfgId,

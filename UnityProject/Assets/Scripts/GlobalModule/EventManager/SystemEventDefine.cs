@@ -225,3 +225,18 @@ public class OnAfterAddChessToBoard : SystemEventBase
         this.coords = coords;
     }
 }
+
+public class OnDuelMoveRejected : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnDuelMoveRejected>();
+
+    public PlayerFlag playerFlag;
+    public RectCoordinates coords;
+    public DuelMoveRejectReason rejectReason;
+    public OnDuelMoveRejected(PlayerFlag playerFlag, RectCoordinates coords, DuelMoveRejectReason rejectReason)
+    {
+        this.playerFlag = playerFlag;
+        this.coords = coords;
+        this.rejectReason = rejectReason;
+    }
+}

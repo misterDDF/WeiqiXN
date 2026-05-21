@@ -23,7 +23,7 @@ public static class KataGoPositionJsonBuilder
     public static JObject BuildOwnershipAnalysisJson(DuelScene duelScene, string requestId, int maxVisits = DefaultMaxVisits)
     {
         SceneComponentDuel compDuel = duelScene.GetComponent<SceneComponentDuel>();
-        if (compDuel != null && compDuel.kataGoMoves.Count > 0) {
+        if (compDuel != null && DuelMoveHistory.Count(compDuel.kataGoMoves) > 0) {
             return BuildAnalysisJsonWithMoveHistory(duelScene, requestId, maxVisits);
         }
 
@@ -135,20 +135,12 @@ public static class KataGoPositionJsonBuilder
 
     private static JArray BuildMovesArray(DuelScene duelScene)
     {
-        JArray moves = new JArray();
         SceneComponentDuel compDuel = duelScene.GetComponent<SceneComponentDuel>();
         if (compDuel == null) {
-            return moves;
+            return DuelMoveHistory.CreateEmpty();
         }
 
-        foreach (JToken moveToken in compDuel.kataGoMoves) {
-            JArray move = moveToken as JArray;
-            if (move != null && move.Count >= 2) {
-                moves.Add(new JArray(move[0]?.ToString(), move[1]?.ToString()));
-            }
-        }
-
-        return moves;
+        return DuelMoveHistory.BuildKataGoMovesArray(compDuel.kataGoMoves);
     }
 
     private static JArray BuildInitialStonesArray(DuelScene duelScene)

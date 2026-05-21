@@ -37,30 +37,22 @@ public class SceneComponentDuel : SceneComponentBase
 
     public void ResetKataGoMoves()
     {
-        kataGoMoves = new JArray();
+        kataGoMoves = DuelMoveHistory.CreateEmpty();
     }
 
     public void AppendKataGoMove(PlayerFlag playerFlag, RectCoordinates coords, int boardSize)
     {
-        kataGoMoves.Add(new JArray(
-            KataGoPositionJsonBuilder.ToKataGoColor(playerFlag),
-            KataGoPositionJsonBuilder.ToKataGoPoint(coords, boardSize)
-        ));
+        DuelMoveHistory.AppendMove(kataGoMoves, playerFlag, coords, boardSize);
     }
 
     public void AppendKataGoPass(PlayerFlag playerFlag)
     {
-        kataGoMoves.Add(new JArray(
-            KataGoPositionJsonBuilder.ToKataGoColor(playerFlag),
-            KataGoPositionJsonBuilder.PassPoint
-        ));
+        DuelMoveHistory.AppendPass(kataGoMoves, playerFlag);
     }
 
     public void RemoveLastKataGoMove()
     {
-        if (kataGoMoves != null && kataGoMoves.Count > 0) {
-            kataGoMoves.RemoveAt(kataGoMoves.Count - 1);
-        }
+        DuelMoveHistory.RemoveLast(kataGoMoves);
     }
 
     public void CacheOwnershipScore(DuelOwnershipSystem.OwnershipScore score, JArray ownership)

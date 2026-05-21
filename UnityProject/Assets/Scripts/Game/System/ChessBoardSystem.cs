@@ -88,19 +88,17 @@ public class ChessBoardSystem : SystemBase
 
         PlayerFlag playerFlag = (PlayerFlag)curPlayer.playerFlag.value;
         string chessGuid = EntityUtils.CreateGuidWithEntityType(EntityBase.GetEntityType<Chess>());
-        if (!DuelMoveRule.TryApplyMove(
+        DuelMoveResult moveResult = DuelMoveRule.BuildMoveResult(
             compChessBoard,
-            playerFlag,
-            evt.coords,
-            chessGuid,
-            out SavableObjectDict<ChessInfo> cachedChessInfoDict,
-            out List<int> pendingRemovePosIndexes
-        )) {
+            new DuelMoveCommand(playerFlag, evt.coords, chessGuid)
+        );
+        if (!moveResult.accepted) {
+            scene.EmitSystemEvent(new OnDuelMoveRejected(playerFlag, evt.coords?.Clone(), moveResult.rejectReason));
             return;
         }
 
-        foreach (var removePosIndex in pendingRemovePosIndexes) {
-            if (cachedChessInfoDict.TryGetValue(removePosIndex.ToString(), out var chessInfo)) {
+        foreach (var removePosIndex in moveResult.pendingRemovePosIndexes) {
+            if (moveResult.previousChessInfoDict.TryGetValue(removePosIndex.ToString(), out var chessInfo)) {
                 var chess = scene.GetEntity<Chess>(chessInfo.chessGuid.value);
                 if (chess != null) {
                     chess.Destroy();
@@ -108,7 +106,7 @@ public class ChessBoardSystem : SystemBase
             }
         }
 
-        compChessBoard.lastChessInfoDict = cachedChessInfoDict;
+        DuelMoveRule.ApplyMoveResult(compChessBoard, moveResult);
         EntityUtils.CreateChess(scene, chessGuid, playerFlag, evt.coords);
         DrawLatestMoveMarker(compChessBoard, playerFlag, evt.coords);
         int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : chessBoardData?.boardSize ?? 19;
@@ -277,12 +275,16 @@ public class ChessBoardSystem : SystemBase
     private bool ApplyRecordMove(SceneComponentChessBoard compChessBoard, SceneComponentDuel compDuel, PlayerFlag playerFlag, RectCoordinates coords, int boardSize)
     {
         string chessGuid = EntityUtils.CreateGuidWithEntityType(EntityBase.GetEntityType<Chess>());
-        if (!DuelMoveRule.TryApplyMove(compChessBoard, playerFlag, coords, chessGuid, out var cachedChessInfoDict, out _)) {
+        DuelMoveResult moveResult = DuelMoveRule.BuildMoveResult(
+            compChessBoard,
+            new DuelMoveCommand(playerFlag, coords, chessGuid)
+        );
+        if (!moveResult.accepted) {
             XNLogger.LogError("Invalid record move position, restore move skipped.", ("coords", coords?.ToString() ?? "null"));
             return false;
         }
 
-        compChessBoard.lastChessInfoDict = cachedChessInfoDict;
+        DuelMoveRule.ApplyMoveResult(compChessBoard, moveResult);
         compDuel.AppendKataGoMove(playerFlag, coords, boardSize);
         return true;
     }

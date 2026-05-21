@@ -458,7 +458,7 @@ public class DuelAiSystem : SystemBase
     private int GetMoveCount()
     {
         SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
-        return compDuel?.kataGoMoves?.Count ?? 0;
+        return DuelMoveHistory.Count(compDuel?.kataGoMoves);
     }
 
     private int GetBoardSize()

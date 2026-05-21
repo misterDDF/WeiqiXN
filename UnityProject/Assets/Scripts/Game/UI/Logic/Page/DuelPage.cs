@@ -114,7 +114,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         RectCoordinates nearestCoords = new RectCoordinates(nearestCellX, nearestCellZ);
         int posIndex = compChessBoard.GetPosIndexByCoords(nearestCoords);
-        if (posIndex < 0 || compChessBoard.chessInfoDict.ContainsKey(posIndex.ToString())) {
+        if (posIndex < 0 || !DuelMoveRule.CheckMoveLegal(compChessBoard, (PlayerFlag)curPlayer.playerFlag.value, nearestCoords)) {
             SetAimChessPreviewActive(false);
             return;
         }
@@ -295,7 +295,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         var mainScene = Global.Instance.sceneManager.mainScene;
         var compDuel = mainScene.GetComponent<SceneComponentDuel>();
-        if (CanAcceptHumanTurnInput(mainScene, compDuel)) {
+        if (CanAcceptHumanTurnInput(mainScene, compDuel) && aimCoords.x >= 0 && aimCoords.z >= 0) {
             EmitSystemEvent(new OnAddChessToBoard(aimCoords.Clone()));
         }
     }
@@ -507,7 +507,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             return false;
         }
 
-        int moveCount = compDuel.kataGoMoves?.Count ?? 0;
+        int moveCount = DuelMoveHistory.Count(compDuel.kataGoMoves);
         if (moveCount <= 0) {
             return false;
         }

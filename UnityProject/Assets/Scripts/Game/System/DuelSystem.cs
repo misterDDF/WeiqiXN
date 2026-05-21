@@ -249,15 +249,15 @@ public class DuelSystem : SystemBase
             return;
         }
 
-        int moveCount = compDuel.kataGoMoves?.Count ?? 0;
+        int moveCount = DuelMoveHistory.Count(compDuel.kataGoMoves);
         int removeCount = GetTakeBackMoveCount(compDuel);
         if (removeCount <= 0 || moveCount < removeCount) {
             EmitTakeBackResult(false, "无可悔棋的手数");
             return;
         }
 
-        JArray originalMoves = CloneMoves(compDuel.kataGoMoves, moveCount);
-        JArray remainMoves = CloneMoves(compDuel.kataGoMoves, moveCount - removeCount);
+        JArray originalMoves = DuelMoveHistory.Clone(compDuel.kataGoMoves, moveCount);
+        JArray remainMoves = DuelMoveHistory.TakeAfterRemovingLast(compDuel.kataGoMoves, removeCount);
 
         if (!RebuildBoardFromMoves(compChessBoard, compDuel, remainMoves)) {
             XNLogger.LogError("Duel take back failed, board rebuild failed.");
@@ -274,7 +274,7 @@ public class DuelSystem : SystemBase
         compDuel.finalBlackScore.value = 0f;
         compDuel.finalWhiteScore.value = 0f;
         compDuel.finalScoreMargin.value = 0f;
-        compDuel.consecutivePassCount.value = CountTrailingPasses(compDuel.kataGoMoves);
+        compDuel.consecutivePassCount.value = DuelMoveHistory.CountTrailingPasses(compDuel.kataGoMoves);
         compDuel.ClearOwnershipScoreCache();
         compChessBoard.chessBoardGrid?.ClearOwnership();
 
@@ -395,43 +395,25 @@ public class DuelSystem : SystemBase
         return true;
     }
 
-    private JArray CloneMoves(JArray moves, int count)
-    {
-        JArray clonedMoves = new JArray();
-        if (moves == null) {
-            return clonedMoves;
-        }
-
-        int safeCount = Math.Min(Math.Max(count, 0), moves.Count);
-        for (int i = 0; i < safeCount; i++) {
-            clonedMoves.Add(moves[i].DeepClone());
-        }
-
-        return clonedMoves;
-    }
-
     private bool ReplayMove(SceneComponentChessBoard compChessBoard, SceneComponentDuel compDuel, PlayerFlag playerFlag, RectCoordinates coords, int boardSize)
     {
         string chessGuid = EntityUtils.CreateGuidWithEntityType(EntityBase.GetEntityType<Chess>());
-        if (!DuelMoveRule.TryApplyMove(
+        DuelMoveResult moveResult = DuelMoveRule.BuildMoveResult(
             compChessBoard,
-            playerFlag,
-            coords,
-            chessGuid,
-            out SavableObjectDict<ChessInfo> cachedChessInfoDict,
-            out List<int> pendingRemovePosIndexes
-        )) {
+            new DuelMoveCommand(playerFlag, coords, chessGuid)
+        );
+        if (!moveResult.accepted) {
             return false;
         }
 
-        foreach (int removePosIndex in pendingRemovePosIndexes) {
-            if (cachedChessInfoDict.TryGetValue(removePosIndex.ToString(), out ChessInfo chessInfo)) {
+        foreach (int removePosIndex in moveResult.pendingRemovePosIndexes) {
+            if (moveResult.previousChessInfoDict.TryGetValue(removePosIndex.ToString(), out ChessInfo chessInfo)) {
                 Chess chess = scene.GetEntity<Chess>(chessInfo.chessGuid.value);
                 chess?.Destroy();
             }
         }
 
-        compChessBoard.lastChessInfoDict = cachedChessInfoDict;
+        DuelMoveRule.ApplyMoveResult(compChessBoard, moveResult);
         EntityUtils.CreateChess(scene, chessGuid, playerFlag, coords);
         compDuel.AppendKataGoMove(playerFlag, coords, boardSize);
         return true;
@@ -452,29 +434,6 @@ public class DuelSystem : SystemBase
     private string GetNextTurnPlayerGuid(SceneComponentDuel compDuel, int moveCount)
     {
         return moveCount % 2 == 0 ? compDuel.player1Guid.value : compDuel.player2Guid.value;
-    }
-
-    private int CountTrailingPasses(JArray moves)
-    {
-        if (moves == null) {
-            return 0;
-        }
-
-        int count = 0;
-        for (int i = moves.Count - 1; i >= 0; i--) {
-            JArray move = moves[i] as JArray;
-            if (move == null || move.Count < 2) {
-                break;
-            }
-
-            if (!string.Equals(move[1]?.ToString(), KataGoPositionJsonBuilder.PassPoint, StringComparison.OrdinalIgnoreCase)) {
-                break;
-            }
-
-            count += 1;
-        }
-
-        return count;
     }
 
     private void EmitTakeBackResult(bool success, string message, int removedMoveCount = 0)

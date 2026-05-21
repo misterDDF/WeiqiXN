@@ -253,7 +253,6 @@ RectTransform:
   - {fileID: 2400}
   - {fileID: 2500}
   - {fileID: 2600}
-  - {fileID: 2700}
   - {fileID: 2800}
   m_Father: {fileID: 2100}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}

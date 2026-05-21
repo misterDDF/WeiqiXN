@@ -20,15 +20,15 @@
 - `Global` 和 `GlobalModule` 提供跨场景服务，包括 UI、资源加载、事件、定时器、场景加载、存档、红点和日志接入。
 - `MainMenuScene`、`DuelScene` 等场景类负责项目层场景组合：创建场景组件、添加系统、打开对应 UI。
 - 场景组件负责保存场景状态和固定引用。`SceneComponentChessBoard` 拥有棋盘配置、运行时棋盘缓存、`RectGrid` 和对局虚拟相机引用；`SceneComponentDuel` 拥有对局玩家 guid、对局状态机、电脑对局配置、连续虚手数、终局结果字段和运行时 KataGo 标准 `moves` 手顺。
-- 系统负责行为。`ChessBoardSystem` 负责棋盘初始化、落子合法性、提子、棋子实体放置和相机设置；`DuelSystem` 负责本地玩家创建、电脑对局状态初始化、状态机更新、虚手、数子结算请求和终局触发：当前“请求数子”和双方连续虚手只使用 KataGo `ownership` 统计结果作为结算口径，失败时不产生数子结果；`DuelSaveSystem` 负责对局保存触发；`DuelOwnershipSystem` 负责响应形势请求、向 KataGo 请求 `ownership`、按同一阈值统计双方控制点数，并把 overlay 结果交给棋盘表现层、把目数结果通过事件交给 UI 展示；`DuelAiSystem` 负责在电脑对局的 AI 回合请求 KataGo 候选点、按本地规则筛选合法点，并通过正常落子事件进入现有棋盘和回合流程。`SceneComponentDuel` 保存一份运行时 ownership 结果缓存，供形势展示和数子结算在局面未变化时复用；合法落子或虚手会使该缓存失效。
+- 系统负责行为。`ChessBoardSystem` 负责棋盘初始化、落子结果应用、提子、棋子实体放置和相机设置；`DuelMoveRule` 负责构建落子命令结果，输出 accepted/rejected、拒绝原因、上一局面、下一局面和待移除位置；真实落子、读档回放和悔棋回放都只应用 accepted result。`DuelSystem` 负责本地玩家创建、电脑对局状态初始化、状态机更新、虚手、悔棋、数子结算请求和终局触发：当前“请求数子”和双方连续虚手只使用 KataGo `ownership` 统计结果作为结算口径，失败时不产生数子结果；`DuelSaveSystem` 负责对局保存触发；`DuelOwnershipSystem` 负责响应形势请求、向 KataGo 请求 `ownership`、按同一阈值统计双方控制点数，并把 overlay 结果交给棋盘表现层、把目数结果通过事件交给 UI 展示；`DuelAiSystem` 负责在电脑对局的 AI 回合请求 KataGo 候选点、按本地规则筛选合法点，并通过正常落子事件进入现有棋盘和回合流程。`SceneComponentDuel` 保存一份运行时 ownership 结果缓存，供形势展示和数子结算在局面未变化时复用；合法落子或虚手会使该缓存失效。
 - 实体表示运行时游戏对象。`Chess` 是带 Unity `GameObject` 的棋子实体；`Player` 是回合归属实体，并通过组件保存对局信息。
-- 事件连接 UI、系统和实体。UI 发出 `OnAddChessToBoard`、`OnSaveDuelScene` 等系统事件；系统发出 `OnAfterAddChessToBoard` 等领域结果事件。
+- 事件连接 UI、系统和实体。UI 发出 `OnAddChessToBoard`、`OnSaveDuelScene` 等系统事件；系统发出 `OnAfterAddChessToBoard`、`OnDuelMoveRejected` 等领域结果事件，UI 只展示结果，不重复承担棋规判断。
 - `DuelFSM` 表示本地回合生命周期，回合开始、输入、超时和结束由状态机管理，而不是由 UI 直接切换。
 - `Assets/Config/DataJson` 是当前棋盘、场景、UI 页面、预制体和 TMP sprite 的数据来源。
 - 资源加载通过 `ResourceManager` 和配置 id 抽象；编辑器环境使用 AssetDatabase，非编辑器环境使用 AssetBundle。
 - 存档通过 `SavableObj`、`SavableField` 和可保存集合持久化场景与用户状态；对局棋盘恢复权威单独落在 KataGo analysis JSON 记录文件中，读档时由 `moves` 回放重建运行时棋盘缓存。
 - KataGo 接入作为 Windows Unity Editor 和 Windows PC 包共用的本地子进程适配器存在：Unity 侧负责启动 `katago analysis`、通过 Win32 pipe 交换 stdin/stdout JSON、解析第一版形势按钮所需的 `ownership` 和电脑对局所需的 `moveInfos`，并把启动失败、超时、缺少模型或配置文件等情况转成可诊断状态。KataGo 运行源目录位于仓库根 `KataGo/`，Windows PC 构建成功后复制到包体根目录 `<BuildRoot>/KataGo/`，不进入 Unity `Assets` 导入体系。Windows 下优先尝试 OpenCL 引擎，初始化或 smoke test 失败时在适配器内部 fallback 到 Eigen AVX2 CPU 引擎；若启动时检测到游戏根目录不可写，则弹窗提示、跳过 OpenCL，并用 CPU 引擎的 `analysis_nowrite.cfg` 关闭 KataGo 文件写入。形势展示由 UI 发事件、系统请求分析、棋盘表现层绘制 overlay；电脑对局由 `DuelAiSystem` 读取分析结果再发出领域落子事件，不让 KataGo 适配器直接修改棋盘规则状态。
-- 游戏侧手顺格式应直接使用 KataGo 标准 `moves` 数组项，不再维护额外字符串棋谱格式或转换层。合法落子记录标准点位，虚手记录 `pass`；KataGo analysis JSON 生成优先输出 `moves`，是形势按钮、记录文件和后续复盘分析的统一路径；当前盘面 `initialStones` 快照入口只作为调试或无手顺场景使用。
+- 游戏侧手顺格式应直接使用 KataGo 标准 `moves` 数组项，不再维护额外字符串棋谱格式或转换层。`DuelMoveHistory` 是当前手顺访问边界，负责创建、追加、克隆、截断、尾部虚手统计和输出 KataGo `moves`；合法落子记录标准点位，虚手记录 `pass`；KataGo analysis JSON 生成优先输出 `moves`，是形势按钮、记录文件和后续复盘分析的统一路径；当前盘面 `initialStones` 快照入口只作为调试或无手顺场景使用。
 
 ## Coordinate Contract
 
@@ -43,7 +43,7 @@
 - 自定义 PlayerLoop 桥接让核心逻辑集中在模块层，但维护者需要理解非 Mono 系统也会逐帧更新。
 - UI 通过事件与系统通信，避免页面直接修改棋盘内部状态，但事件定义会成为玩法合同的一部分。
 - 棋盘运行状态使用字典缓存，便于规则校验和实体同步；持久化恢复以 KataGo 标准记录文件为权威，避免场景存档和棋谱出现两份棋盘来源。
-- 当前落子校验会先修改缓存棋盘状态，再在非法时回滚。这让规则处理贴近棋盘状态，但联机复用时需要把领域命令校验入口进一步稳定下来。
+- 当前落子校验通过 `DuelMoveRule.BuildMoveResult()` 在临时棋盘缓存上模拟，结束后恢复原棋盘引用，再由外层系统应用 accepted result。这个结构降低了真实落子、AI 检查、读档回放和悔棋回放的分叉风险；代价是规则结果仍依赖 `SceneComponentChessBoard` 和 `SavableObjectDict<ChessInfo>`，后续若要服务端或非 Unity 进程复用，还需要继续抽出纯棋盘状态模型。
 - 电脑对局复用本地双玩家、FSM 和落子事件，能降低对现有本地对局基线的影响；代价是 AI 可用性取决于本地 KataGo 子进程、模型和难度配置，后续客户端打包仍需要单独处理资源分发和平台支持。
 - 当前 FSM 适合本地热座对局。联机对局需要明确权威方和同步边界，不能让两个客户端各自自由认定最终棋盘。
 - 数据驱动棋盘尺寸可以避免为不同棋盘复制场景，但规则与 UI 必须持续使用一致的配置 id。
@@ -62,7 +62,7 @@
 **架构护栏**
 
 - 不要把权威玩法状态修改直接写进 UI 页面类；UI 应该发出命令或事件，并展示状态。
-- 不要绕过 `ChessBoardSystem` 的落子校验来实现联机。现有合法落子路径必须继续作为本地基线，或被明确提取为共享规则服务。
+- 不要绕过 `DuelMoveRule` 的落子结果模型来实现联机、AI 或回放。现有合法落子路径必须继续作为本地基线，或被明确提取为共享规则服务。
 - 不要让网络代码直接耦合 Unity 预制体实例化；网络命令应描述领域动作，而不是描述预制体操作。
 - 除非在线架构明确选择并记录客户端锁步，否则不要让远端客户端独立决定最终棋盘状态。
 - 当前原型阶段“请求数子”和双方连续虚手复用 KataGo `ownership` 作为结算口径，以和形势展示保持一致；KataGo 不可用或无结果时不产生数子结果，也没有本地结算回退。后续补齐死子确认后，再评估是否把正式数子收回到本地规则和明确的计分流程。第一版也不要把 `rootInfo.scoreLead`、胜率或最佳选点纳入形势按钮或终局产品输出。
