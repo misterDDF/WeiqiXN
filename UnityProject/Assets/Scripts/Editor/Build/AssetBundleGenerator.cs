@@ -21,7 +21,7 @@ public class AssetBundleGenerator
     private const string KataGoCpuEngineName = "eigenavx2";
     private const string KataGoModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
 
-    [MenuItem("Assets/打包/打PC包")]
+    [MenuItem(CustomEditorMenuPaths.Build + "/打PC包")]
     public static void BuildWindows()
     {
         BuildAssetBundlesForTarget(BuildTarget.StandaloneWindows64);
@@ -42,7 +42,7 @@ public class AssetBundleGenerator
         Debug.Log($"Windows Player打包完成！输出路径：{buildOutputPath}");
     }
 
-    [MenuItem("Assets/打包/打WebGL包")]
+    [MenuItem(CustomEditorMenuPaths.Build + "/打WebGL包")]
     public static void BuildWebGL()
     {
         BuildAssetBundlesForTarget(BuildTarget.WebGL);
@@ -136,13 +136,13 @@ public class AssetBundleGenerator
         Debug.Log($"AssetBundle清单生成完成：{manifestFilePath}");
     }
 
-    [MenuItem("Assets/打包/打包预处理/检查json表打包标签")]
+    [MenuItem(CustomEditorMenuPaths.BuildPreprocess + "/检查json表打包标签")]
     public static void PackAllJsonCfgFiles()
     {
         PackAssetsByType(BuildConfig.PATH_PACK_JSON, "TextAsset", BuildConfig.AB_LABEL_JSON);
     }
 
-    [MenuItem("Assets/打包/打包预处理/检查model资源打包标签")]
+    [MenuItem(CustomEditorMenuPaths.BuildPreprocess + "/检查model资源打包标签")]
     public static void PackAllModelFiles()
     {
         string rootFolderPath = FullPathToAssetPath(BuildConfig.PATH_PACK_MODEL);
@@ -198,7 +198,7 @@ public class AssetBundleGenerator
         Debug.Log($"新增/更新 {newImportCount} 个model资源标签，按类型打包 {packedModelTypeCount} 个目录");
     }
 
-    [MenuItem("Assets/打包/打包预处理/检查scene资源打包标签")]
+    [MenuItem(CustomEditorMenuPaths.BuildPreprocess + "/检查scene资源打包标签")]
     public static void PackAllSceneFiles()
     {
         PackAssetsByType(BuildConfig.PATH_PACK_SCENE, "SceneAsset", BuildConfig.AB_LABEL_SCENE);
@@ -260,14 +260,14 @@ public class AssetBundleGenerator
         Debug.Log($"新增/更新 {newImportCount} 个资源标签，按场景打包 {packedSceneCount} 个目录");
     }
 
-    [MenuItem("Assets/打包/打包预处理/检查UI资源打包标签")]
+    [MenuItem(CustomEditorMenuPaths.BuildPreprocess + "/检查UI资源打包标签")]
     public static void PackAllUIPrefabFiles()
     {
         PackAssetsByType(BuildConfig.PATH_PACK_UI_PREFAB, "GameObject", BuildConfig.AB_LABEL_UI_PREFAB);
         PackAssetsByType(BuildConfig.PATH_PACK_UI_TEXTUER, "Texture2D", BuildConfig.AB_LABEL_UI_TEXTURE);
     }
 
-    [MenuItem("Assets/打包/打包预处理/检查调试资源打包标签")]
+    [MenuItem(CustomEditorMenuPaths.BuildPreprocess + "/检查调试资源打包标签")]
     public static void PackDebugConsolePrefab()
     {
         AssetImporter importer = AssetImporter.GetAtPath(BuildConfig.PATH_DEBUG_CONSOLE_PREFAB);
@@ -284,7 +284,7 @@ public class AssetBundleGenerator
         }
     }
 
-    [MenuItem("Assets/打包/打包预处理/检查运行时显式资源表")]
+    [MenuItem(CustomEditorMenuPaths.BuildPreprocess + "/检查运行时显式资源表")]
     public static void PackRuntimeAssetTable()
     {
         TextAsset configAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(BuildConfig.PATH_RUNTIME_ASSET_CONFIG);

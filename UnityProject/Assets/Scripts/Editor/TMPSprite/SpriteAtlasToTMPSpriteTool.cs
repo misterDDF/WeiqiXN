@@ -21,7 +21,7 @@ public class SpriteAtlasToTMPSpriteTool
     {
         string platformName;
         switch (buildTarget) {
-            // ×¢ÒâÕâ¸öplatformName×Ö·û´®ÊÇunity¶¨ËÀµÄ£¬²»ÄÜËæ±ãĞ´
+            // æ³¨æ„è¿™ä¸ªplatformNameå­—ç¬¦ä¸²æ˜¯unityå®šæ­»çš„ï¼Œä¸èƒ½éšä¾¿å†™
             case BuildTarget.Android:
                 platformName = "Android";
                 break;
@@ -43,7 +43,7 @@ public class SpriteAtlasToTMPSpriteTool
     private static readonly string STANDARD_SPRITEATLAS_PATH = "Assets/UI/UITexture/Standard.spriteatlas";
     private static readonly string TMP_SPRITE_PATH = "Assets/UI/TextMesh Pro/Sprites/";
 
-    [MenuItem("Assets/Í¼¼¯µ¼³ö¹¤¾ß/°´ÎÄ¼ş¼Ğ´´½¨Í¼¼¯", true)]
+    [MenuItem(CustomEditorMenuPaths.SpriteAtlasTools + "/æŒ‰æ–‡ä»¶å¤¹åˆ›å»ºå›¾é›†", true)]
     public static bool ExportFolderspriteAtlasCondition()
     {
         if (Selection.objects.Length != 1) {
@@ -53,7 +53,7 @@ public class SpriteAtlasToTMPSpriteTool
         return Directory.Exists(AssetDatabase.GetAssetPath(selectObj));
     }
 
-    [MenuItem("Assets/Í¼¼¯µ¼³ö¹¤¾ß/°´ÎÄ¼ş¼Ğ´´½¨Í¼¼¯")]
+    [MenuItem(CustomEditorMenuPaths.SpriteAtlasTools + "/æŒ‰æ–‡ä»¶å¤¹åˆ›å»ºå›¾é›†")]
     public static void ExportFolderSpriteAtlas()
     {
         var selectObj = Selection.objects[0];
@@ -61,7 +61,7 @@ public class SpriteAtlasToTMPSpriteTool
         if (Directory.Exists(dirPath)) {
             DirectoryInfo rootDirInfo = new DirectoryInfo(dirPath);
             SpriteAtlas sa = new SpriteAtlas();
-            // µ¼³öÍ¼¼¯Ê±Ä¬ÈÏ¸´ÖÆÒ»·İ±ê×©Í¼¼¯°¸ÀıµÄÅäÖÃ
+            // å¯¼å‡ºå›¾é›†æ—¶é»˜è®¤å¤åˆ¶ä¸€ä»½æ ‡ç –å›¾é›†æ¡ˆä¾‹çš„é…ç½®
             var standardSpriteAtlas = AssetDatabase.LoadAssetAtPath<SpriteAtlas>(STANDARD_SPRITEATLAS_PATH);
             if (standardSpriteAtlas != null) {
                 sa.SetPackingSettings(standardSpriteAtlas.GetPackingSettings());
@@ -73,13 +73,13 @@ public class SpriteAtlasToTMPSpriteTool
 
             TraverseSpriteAtlas(rootDirInfo, ref sa);
 
-            // µ¥´òÒ»¸öÍ¼¼¯Ê±»áÓĞÉñÃØµÄm_PackedSprites»º´æÃ»ÇåµÄÎÊÌâ£¬µ¼ÖÂºóĞøÈ¡spriteUVÊ±unityÈÏÎªsprite not packed£¬Ã»ÕÒµ½ºÃµÄ½â¾ö·½°¸£¬Ä¿Ç°ÖØĞÂpackAllÒ»±éÊÇÄÜ½â¾öÎÊÌâµÄ
+            // å•æ‰“ä¸€ä¸ªå›¾é›†æ—¶ä¼šæœ‰ç¥ç§˜çš„m_PackedSpritesç¼“å­˜æ²¡æ¸…çš„é—®é¢˜ï¼Œå¯¼è‡´åç»­å–spriteUVæ—¶unityè®¤ä¸ºsprite not packedï¼Œæ²¡æ‰¾åˆ°å¥½çš„è§£å†³æ–¹æ¡ˆï¼Œç›®å‰é‡æ–°packAllä¸€éæ˜¯èƒ½è§£å†³é—®é¢˜çš„
             SpriteAtlasUtility.PackAllAtlases(EditorUserBuildSettings.activeBuildTarget);
             SpriteAtlasUtility.CleanupAtlasPacking();
         }
     }
 
-    [MenuItem("Assets/spriteAtlas×ªTMP sprite asset", true)]
+    [MenuItem(CustomEditorMenuPaths.Root + "/spriteAtlasè½¬TMP sprite asset", true)]
     public static bool SpriteAtlasToTMPSpriteCondition()
     {
         foreach (Object obj in Selection.objects) {
@@ -90,24 +90,24 @@ public class SpriteAtlasToTMPSpriteTool
         return false;
     }
 
-    [MenuItem("Assets/spriteAtlas×ªTMP sprite asset")]
+    [MenuItem(CustomEditorMenuPaths.Root + "/spriteAtlasè½¬TMP sprite asset")]
     public static void SpriteAtlasToTMPSpriteAction()
     {
         foreach (Object obj in Selection.objects) {
             if (obj is SpriteAtlas atlas) {
                 try {
                     SpriteAtlasToTMPSprite(atlas);
-                    EditorUtility.DisplayDialog("µ¼³ö³É¹¦", "µ¼³ö³É¹¦", "¹Ø±Õ");
+                    EditorUtility.DisplayDialog("å¯¼å‡ºæˆåŠŸ", "å¯¼å‡ºæˆåŠŸ", "å…³é—­");
                 }
                 catch (Exception e) {
                     XNLogger.LogError("SpriteAtlas convert to tmp sprite asset failed.", ("err", e.Message));
-                    EditorUtility.DisplayDialog("µ¼³öÊ§°Ü", "µ¼³öÊ§°Ü£¬²é¿´¿ØÖÆÌ¨±¨´í£¡", "¹Ø±Õ");
+                    EditorUtility.DisplayDialog("å¯¼å‡ºå¤±è´¥", "å¯¼å‡ºå¤±è´¥ï¼ŒæŸ¥çœ‹æ§åˆ¶å°æŠ¥é”™ï¼", "å…³é—­");
                 }
             }
         }
     }
 
-    // µİ¹é±éÀúÎÄ¼ş¼ĞÏÂµÄËùÓĞsprite/texture¼ÓÈëÍ¼¼¯
+    // é€’å½’éå†æ–‡ä»¶å¤¹ä¸‹çš„æ‰€æœ‰sprite/textureåŠ å…¥å›¾é›†
     private static void TraverseSpriteAtlas(DirectoryInfo dirInfo, ref SpriteAtlas sa)
     {
         var childDirs = dirInfo.GetDirectories();
@@ -126,7 +126,7 @@ public class SpriteAtlasToTMPSpriteTool
         }
     }
 
-    // Ò»¸ö½«Í¼¼¯×ª³Étmp²åÍ¼Æ¬ĞèÒªµÄsprite assetµÄ¼òÒ×¹¤¾ß£¬×¢ÒâÖ»¶Ôv1°æ±¾µÄtextruePackerÉúĞ§
+    // ä¸€ä¸ªå°†å›¾é›†è½¬æˆtmpæ’å›¾ç‰‡éœ€è¦çš„sprite assetçš„ç®€æ˜“å·¥å…·ï¼Œæ³¨æ„åªå¯¹v1ç‰ˆæœ¬çš„textruePackerç”Ÿæ•ˆ
     //https://github.com/MingLQing/SpriteAtlasToTMPSprite
     public static void SpriteAtlasToTMPSprite(SpriteAtlas atlas)
     {
@@ -276,7 +276,7 @@ public class SpriteAtlasToTMPSpriteTool
 
         populateSpriteTablesMethod.Invoke(null, new object[] { spriteDataObject, spriteCharacterTable, spriteGlyphTable });
 
-        // ¶Á±íÉèÖÃ×Ô¶¨ÒåcharacterµÄglyph²ÎÊı
+        // è¯»è¡¨è®¾ç½®è‡ªå®šä¹‰characterçš„glyphå‚æ•°
         foreach (var character in spriteCharacterTable) {
             TmpSpriteDataType tmpSpriteData = TmpSpriteDataType.GetConfigData(character.name);
             if (tmpSpriteData != null) {

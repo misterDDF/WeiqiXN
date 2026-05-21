@@ -6,6 +6,8 @@
 - `Assets/Scripts/Editor/UI/CSCodeGenerator.cs`
 - `Assets/Scripts/Editor/Inspector/UIBinderEditor_Inspector.cs`
 - `Assets/Scripts/Editor/Inspector/UIBinderBase_Inspector.cs`
+- `Assets/Scripts/Editor/CustomEditorMenuPaths.cs`
+- `Assets/Scripts/Editor/KataGoOpenClWarmupCleaner.cs`
 - `Assets/Scripts/Editor/Build/AssetBundleGenerator.cs`
 - `Assets/Scripts/Editor/Build/BuildConfig.cs`
 - `Assets/Scripts/Editor/TMPSprite/SpriteAtlasToTMPSpriteTool.cs`
@@ -25,6 +27,7 @@
 - 生成脚本会自动刷新 AssetDatabase。
 - 项目已有多份生成的 `*PageUI.cs` 和页面逻辑类。
 - AssetBundle、TMP sprite、TextureArray 等编辑器工具文件已经存在。
+- 项目自维护编辑器菜单统一挂在 Unity 顶部菜单 `自定义功能` 下；迁移既有菜单时保留去掉原 `Assets/` 前缀后的多层结构，例如 `Assets/打包/打PC包` 对应 `自定义功能/打包/打PC包`。KataGo OpenCL 预热缓存可通过 `自定义功能/KataGo/清除opencl预热文件` 清除。
 - 编辑器自动化优先通过 Unity MCP 执行。C# 编译验证优先使用 MCP `recompile_scripts` 并读取 Unity Console；不再把 `dotnet build UnityProject.sln` 作为常规验证路径。
 - 场景对象、材质、资源导入等 MCP 已覆盖的编辑器操作应优先走 MCP。既有复杂 prefab asset 的层级编辑只有在 MCP 工具能完整覆盖时才直接用 MCP；否则应使用 Unity 编辑器脚本、编辑器菜单或人工 prefab 编辑，再通过 MCP 做导入和编译验证，避免手写复杂 prefab YAML。
 - KataGo 流程当前目标是跑通 Windows Unity Editor 和 Windows PC 包内的本地子进程调用和 JSON 解析。

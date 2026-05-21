@@ -5,7 +5,7 @@ public class TextureArrayWizard : ScriptableWizard
 {
     public Texture2D[] textures;
 
-    [MenuItem("Assets/Create/Texture Array")]
+    [MenuItem(CustomEditorMenuPaths.Root + "/Create/Texture Array")]
     private static void CreatWizard()
     {
         ScriptableWizard.DisplayWizard<TextureArrayWizard>("Create Texture Array", "Create");
