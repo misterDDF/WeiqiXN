@@ -1,5 +1,6 @@
 using System;
 using TMPro;
+using UnityEngine;
 using UnityEngine.UI;
 using XNLogger = XNClient.Logger.XNLogger;
 
@@ -16,6 +17,10 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
     private static int requestSequence;
 
     private ConfirmPopupRequest currentRequest;
+    private Vector2 defaultConfirmButtonPosition;
+    private Vector2 defaultConfirmButtonSize;
+    private Vector2 defaultCancelButtonPosition;
+    private bool hasCachedButtonLayout;
 
     public override string pageName => UIPage.GetPageName<ConfirmPopup>();
 
@@ -30,7 +35,22 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
     )
     {
         int requestId = ++requestSequence;
-        pendingRequest = new ConfirmPopupRequest(requestId, title, content, confirmText, cancelText, onConfirm, onCancel, canConfirm);
+        pendingRequest = new ConfirmPopupRequest(requestId, title, content, confirmText, cancelText, onConfirm, onCancel, canConfirm, true);
+        pendingUpdateRequest = null;
+        Global.Instance.uiManager.ShowPage<ConfirmPopup>();
+        return requestId;
+    }
+
+    public static int ShowTip(
+        string title,
+        string content,
+        Action onConfirm = null,
+        string confirmText = DefaultConfirmText,
+        bool canConfirm = true
+    )
+    {
+        int requestId = ++requestSequence;
+        pendingRequest = new ConfirmPopupRequest(requestId, title, content, confirmText, DefaultCancelText, onConfirm, null, canConfirm, false);
         pendingUpdateRequest = null;
         Global.Instance.uiManager.ShowPage<ConfirmPopup>();
         return requestId;
@@ -57,7 +77,8 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
             current?.cancelText ?? DefaultCancelText,
             onConfirm,
             current?.onCancel,
-            canConfirm
+            canConfirm,
+            current == null || current.showCancelButton
         );
         openedPopup?.ApplyPendingUpdate();
         openedPopup?.RefreshContent();
@@ -74,6 +95,7 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
 
         AddButtonListener(binder.btn_confirm, OnClickBtnConfirm);
         AddButtonListener(binder.btn_cancel, OnClickBtnCancel);
+        CacheButtonLayout();
     }
 
     protected override void OnOpen()
@@ -123,6 +145,7 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         SetText(binder.txt_confirm, currentRequest?.confirmText ?? DefaultConfirmText);
         SetText(binder.txt_cancel, currentRequest?.cancelText ?? DefaultCancelText);
         SetConfirmInteractable(currentRequest == null || currentRequest.canConfirm);
+        SetCancelVisible(currentRequest == null || currentRequest.showCancelButton);
     }
 
     private void AddButtonListener(Button button, UnityEngine.Events.UnityAction action)
@@ -144,6 +167,56 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         if (binder.btn_confirm != null) {
             binder.btn_confirm.interactable = canConfirm;
         }
+    }
+
+    private void SetCancelVisible(bool visible)
+    {
+        if (binder.btn_cancel != null) {
+            binder.btn_cancel.gameObject.SetActive(visible);
+        }
+
+        ApplyButtonLayout(visible);
+    }
+
+    private void CacheButtonLayout()
+    {
+        if (hasCachedButtonLayout || binder.btn_confirm == null || binder.btn_cancel == null) {
+            return;
+        }
+
+        RectTransform confirmRect = binder.btn_confirm.transform as RectTransform;
+        RectTransform cancelRect = binder.btn_cancel.transform as RectTransform;
+        if (confirmRect == null || cancelRect == null) {
+            return;
+        }
+
+        defaultConfirmButtonPosition = confirmRect.anchoredPosition;
+        defaultConfirmButtonSize = confirmRect.sizeDelta;
+        defaultCancelButtonPosition = cancelRect.anchoredPosition;
+        hasCachedButtonLayout = true;
+    }
+
+    private void ApplyButtonLayout(bool showCancelButton)
+    {
+        if (!hasCachedButtonLayout || binder.btn_confirm == null || binder.btn_cancel == null) {
+            return;
+        }
+
+        RectTransform confirmRect = binder.btn_confirm.transform as RectTransform;
+        RectTransform cancelRect = binder.btn_cancel.transform as RectTransform;
+        if (confirmRect == null || cancelRect == null) {
+            return;
+        }
+
+        if (showCancelButton) {
+            confirmRect.anchoredPosition = defaultConfirmButtonPosition;
+            confirmRect.sizeDelta = defaultConfirmButtonSize;
+            cancelRect.anchoredPosition = defaultCancelButtonPosition;
+            return;
+        }
+
+        confirmRect.anchoredPosition = new Vector2(0f, defaultConfirmButtonPosition.y);
+        confirmRect.sizeDelta = new Vector2(Mathf.Max(defaultConfirmButtonSize.x, 190f), defaultConfirmButtonSize.y);
     }
 
     private void ApplyPendingUpdate()
@@ -186,6 +259,7 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
             DefaultCancelText,
             null,
             null,
+            true,
             true
         );
 
@@ -197,6 +271,7 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         public readonly Action onConfirm;
         public readonly Action onCancel;
         public readonly bool canConfirm;
+        public readonly bool showCancelButton;
 
         public ConfirmPopupRequest(
             int requestId,
@@ -206,7 +281,8 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
             string cancelText,
             Action onConfirm,
             Action onCancel,
-            bool canConfirm
+            bool canConfirm,
+            bool showCancelButton
         )
         {
             this.requestId = requestId;
@@ -217,6 +293,7 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
             this.onConfirm = onConfirm;
             this.onCancel = onCancel;
             this.canConfirm = canConfirm;
+            this.showCancelButton = showCancelButton;
         }
     }
 }

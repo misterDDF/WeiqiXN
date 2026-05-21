@@ -27,6 +27,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         RegisterSystemEvent<OnDuelScoreResult>(OnDuelScoreResult);
         RegisterSystemEvent<OnDuelScoreFailed>(OnDuelScoreFailed);
         RegisterSystemEvent<OnDuelPassAccepted>(OnDuelPassAccepted);
+        RegisterSystemEvent<OnDuelTakeBackResult>(OnDuelTakeBackResult);
         RegisterSystemEvent<OnAfterAddChessToBoard>(OnAfterAddChessToBoard);
 
         BindPrefabHud();
@@ -232,6 +233,15 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         ShowActionNotice($"{playerText}{aiText}虚手");
     }
 
+    public void OnDuelTakeBackResult(OnDuelTakeBackResult evt)
+    {
+        if (evt == null || string.IsNullOrEmpty(evt.message)) {
+            return;
+        }
+
+        ShowActionNotice(evt.message);
+    }
+
     public void OnAfterAddChessToBoard(OnAfterAddChessToBoard evt)
     {
         string playerText = evt.playerFlag == PlayerFlag.Player1 ? "黑方" : "白方";
@@ -257,6 +267,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             binder.txt_black_hold_time,
             binder.txt_black_byoyomi_count,
             binder.txt_black_byoyomi_time,
+            compDuel,
             blackPlayer,
             curTurnPlayerGuid,
             "黑方"
@@ -266,6 +277,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             binder.txt_white_hold_time,
             binder.txt_white_byoyomi_count,
             binder.txt_white_byoyomi_time,
+            compDuel,
             whitePlayer,
             curTurnPlayerGuid,
             "白方"
@@ -311,6 +323,8 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         SetOwnershipActive(true);
         SetOwnershipResultPanelVisible(false);
+        SetText(binder.txt_ownership_black_points, "黑方目数: 计算中...");
+        SetText(binder.txt_ownership_white_points, "白方目数: 计算中...");
         EmitSystemEvent(new OnRequestDuelOwnership());
     }
 
@@ -346,6 +360,12 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         EmitSystemEvent(new OnRequestDuelScore());
     }
 
+    public void OnClickBtnTakeBack()
+    {
+        CloseSettingsPanel();
+        EmitSystemEvent(new OnRequestDuelTakeBack());
+    }
+
     public void OnClickBtnResign()
     {
         var mainScene = Global.Instance.sceneManager.mainScene;
@@ -376,6 +396,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         AddButtonListener(binder.btn_duel_ownership, OnClickBtnOwnership);
         AddButtonListener(binder.btn_duel_pass, OnClickBtnPass);
         AddButtonListener(binder.btn_settings_request_score, OnClickBtnRequestScore);
+        AddButtonListener(binder.btn_settings_take_back, OnClickBtnTakeBack);
         AddButtonListener(binder.btn_settings_resign, OnClickBtnResign);
         AddButtonListener(binder.btn_settings_save, OnClickBtnSave);
         AddButtonListener(binder.btn_settings_exit, OnClickBtnExit);
@@ -387,25 +408,39 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         TextMeshProUGUI holdText,
         TextMeshProUGUI byoyomiCountText,
         TextMeshProUGUI byoyomiTimeText,
+        SceneComponentDuel compDuel,
         Player player,
         string curTurnPlayerGuid,
         string title
     )
     {
         bool isCurTurnPlayer = player != null && player.guid == curTurnPlayerGuid;
-        SetText(titleText, isCurTurnPlayer ? $"{title}  行棋中" : title);
+        bool isAi = IsAiPlayer(player, compDuel);
+        string playerTypeText = isAi ? "AI" : "人类";
+        string turnText = isCurTurnPlayer ? " · 行棋中" : string.Empty;
+        SetText(titleText, $"{title} · {playerTypeText}{turnText}");
 
         var compDuelInfo = player?.GetComponent<ComponentDuelInfo>();
+        bool isByoyomiEnabled = IsByoyomiEnabled(compDuel, compDuelInfo);
+        SetTextVisible(byoyomiCountText, isByoyomiEnabled);
+        SetTextVisible(byoyomiTimeText, isByoyomiEnabled);
+
         if (compDuelInfo == null) {
-            SetText(holdText, "持有时间: --");
-            SetText(byoyomiCountText, "读秒次数: --");
-            SetText(byoyomiTimeText, "读秒时间: --");
+            SetText(holdText, "主时间 --");
+            if (isByoyomiEnabled) {
+                SetText(byoyomiCountText, "剩余读秒 --");
+                SetText(byoyomiTimeText, "读秒时间 --");
+            }
             return;
         }
 
-        SetText(holdText, $"持有时间: {FormatSeconds(compDuelInfo.holdLeftSeconds.value, compDuelInfo.isInfiniteTime.value)}");
-        SetText(byoyomiCountText, $"读秒次数: {compDuelInfo.byoyomiLeftCount.value}");
-        SetText(byoyomiTimeText, $"读秒时间: {FormatSeconds(compDuelInfo.byoyomiLeftSeconds.value, false)}");
+        SetText(holdText, $"主时间 {FormatSeconds(compDuelInfo.holdLeftSeconds.value, compDuelInfo.isInfiniteTime.value)}");
+        if (!isByoyomiEnabled) {
+            return;
+        }
+
+        SetText(byoyomiCountText, $"剩余读秒 {compDuelInfo.byoyomiLeftCount.value} 次");
+        SetText(byoyomiTimeText, $"读秒时间 {FormatSeconds(compDuelInfo.byoyomiLeftSeconds.value, false)}");
     }
 
     private string FormatSeconds(int seconds, bool isInfinite)
@@ -456,7 +491,36 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
     private void RefreshSettingsActionVisibility(SceneBase mainScene, SceneComponentDuel compDuel)
     {
+        bool canAcceptHumanTurnInput = CanAcceptHumanTurnInput(mainScene, compDuel);
+        bool isGameEnd = compDuel?.duelFSM?.curState != null && compDuel.duelFSM.curState.stateName == DuelStateDefine.STATE_GAME_END;
+        bool canRequestScore = compDuel != null && !compDuel.isScoring && !isGameEnd;
+        bool canTakeBack = CanTakeBack(compDuel);
+        SetButtonInteractable(binder.btn_duel_pass, canAcceptHumanTurnInput);
+        SetButtonInteractable(binder.btn_settings_request_score, canRequestScore);
+        SetButtonInteractable(binder.btn_settings_take_back, canTakeBack);
         SetResignButtonVisible(CanResign(mainScene, compDuel));
+    }
+
+    private bool CanTakeBack(SceneComponentDuel compDuel)
+    {
+        if (compDuel == null || compDuel.duelFSM == null || !compDuel.duelFSM.isActivated || compDuel.isScoring) {
+            return false;
+        }
+
+        int moveCount = compDuel.kataGoMoves?.Count ?? 0;
+        if (moveCount <= 0) {
+            return false;
+        }
+
+        if (!compDuel.isAiDuel.value) {
+            return true;
+        }
+
+        string humanPlayerGuid = compDuel.player1Guid.value == compDuel.aiPlayerGuid.value
+            ? compDuel.player2Guid.value
+            : compDuel.player1Guid.value;
+        int requiredMoveCount = compDuel.curTurnPlayerGuid.value == humanPlayerGuid ? 2 : 1;
+        return moveCount >= requiredMoveCount;
     }
 
     private bool CanResign(SceneBase mainScene, SceneComponentDuel compDuel)
@@ -571,6 +635,31 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         return playerGuid == compDuel.aiPlayerGuid.value;
     }
 
+    private bool IsAiPlayer(Player player, SceneComponentDuel compDuel)
+    {
+        return player != null
+            && compDuel != null
+            && compDuel.isAiDuel.value
+            && !string.IsNullOrEmpty(compDuel.aiPlayerGuid.value)
+            && player.guid == compDuel.aiPlayerGuid.value;
+    }
+
+    private bool IsByoyomiEnabled(SceneComponentDuel compDuel, ComponentDuelInfo compDuelInfo)
+    {
+        if (compDuelInfo != null && compDuelInfo.isInfiniteTime.value) {
+            return false;
+        }
+
+        var byoyomiCountData = compDuel != null
+            ? DuelByoyomiCountDataType.GetConfigData(compDuel.byoyomiCountCfgId.value)
+            : null;
+        if (byoyomiCountData != null) {
+            return byoyomiCountData.count > 0;
+        }
+
+        return compDuelInfo != null && compDuelInfo.byoyomiLeftCount.value > 0;
+    }
+
     private void OpenSettingsPanel()
     {
         SetSettingsPanelVisible(true);
@@ -650,6 +739,13 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         }
     }
 
+    private void SetButtonInteractable(Button button, bool interactable)
+    {
+        if (button != null) {
+            button.interactable = interactable;
+        }
+    }
+
     private void SetOwnershipActive(bool isActive)
     {
         isOwnershipVisible = isActive;
@@ -677,6 +773,13 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     {
         if (text != null) {
             text.text = value;
+        }
+    }
+
+    private void SetTextVisible(TextMeshProUGUI text, bool isVisible)
+    {
+        if (text != null && text.gameObject.activeSelf != isVisible) {
+            text.gameObject.SetActive(isVisible);
         }
     }
 

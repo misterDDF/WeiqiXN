@@ -28,6 +28,22 @@ public abstract class FSMBase
         isActivated = true;
     }
 
+    public bool SwitchState(string stateName)
+    {
+        if (!TryGetState(stateName, out var state)) {
+            XNLogger.LogError("FSM switch state failed, state not found.", ("stateName", stateName));
+            return false;
+        }
+
+        if (curState != null) {
+            curState.OnExitState();
+        }
+
+        state.OnEnterState();
+        isActivated = true;
+        return true;
+    }
+
     public virtual void Update()
     {
         if (curState != null) {

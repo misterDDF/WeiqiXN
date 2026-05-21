@@ -29,6 +29,7 @@ public class DuelPageUI : UIBinderBase
 	public TextMeshProUGUI txt_ownership_white_points;
 	public GameObject panel_duel_settings;
 	public Button btn_settings_request_score;
+	public Button btn_settings_take_back;
 	public Button btn_settings_resign;
 	public Button btn_settings_save;
 	public Button btn_settings_exit;

@@ -1,15 +1,9 @@
 using System;
 using System.IO;
 using System.Linq;
-#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
-using System.Runtime.InteropServices;
-#endif
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
 using UnityEngine;
 using XNClient.Logger;
 using Debug = UnityEngine.Debug;
@@ -307,19 +301,8 @@ public static class KataGoBootstrap
             $"原因：{platformConfig.writeFailureReason}\n\n" +
             "如需启用 GPU AI，请将游戏移动到有写入权限的目录，或以管理员权限运行。";
 
-#if UNITY_EDITOR
-        EditorUtility.DisplayDialog(title, message, "确定");
-#elif UNITY_STANDALONE_WIN
-        MessageBoxW(IntPtr.Zero, message, title, 0);
-#else
-        Debug.LogWarning(message);
-#endif
+        ConfirmPopup.ShowTip(title, message, null, "知道了");
     }
-
-#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern int MessageBoxW(IntPtr hWnd, string lpText, string lpCaption, uint uType);
-#endif
 
     private static void StartFirstAvailableEngine(KataGoPaths[] candidates, int startCandidateIndex, CancellationToken cancellationToken)
     {

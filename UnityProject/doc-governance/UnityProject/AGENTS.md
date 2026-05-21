@@ -108,6 +108,9 @@
 - prefab、场景和资源导入相关修改应优先走 Unity 编辑器能力；当现有 MCP 工具能覆盖目标 prefab 或资源操作时使用 MCP。
 - 当前 MCP 未提供完整既有 prefab asset 层级编辑能力时，不直接手写复杂 prefab YAML；应改用 Unity 编辑器脚本、明确的编辑器菜单或人工维护 prefab，再通过 MCP 执行导入、编译和日志检查。
 - 固定 UI 控件仍必须由 prefab 或场景显式维护并通过现有 Binder 绑定；MCP 只是优先编辑入口，不改变 UI 维护边界。
+- 修改既有 UI prefab 时，页面根节点、Canvas、CanvasScaler、GraphicRaycaster、主面板根节点、布局容器和棋盘承载节点默认视为受保护布局节点。除非任务明确要求调整这些节点，否则不得修改其 `RectTransform`、`Canvas`、`CanvasScaler`、`LayoutGroup` 或 `ContentSizeFitter` 配置。
+- UI prefab 修改完成后必须检查 prefab diff，确认改动只落在目标控件、目标子树和 Binder 引用上；若发现受保护布局节点出现非预期变化，必须先恢复这些变化再继续编译或交付。
+- 使用 Unity 编辑器脚本或 MCP 辅助修改 prefab 时，脚本必须按稳定路径定位目标父节点和模板节点，不得对页面根节点执行缩放、锚点、父子关系或自动布局重排操作，除非当前任务就是修复这些布局属性。
 
 ## Done Definition
 
