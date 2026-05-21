@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json.Linq;
@@ -12,7 +11,6 @@ public class DuelSystem : SystemBase
     private const string DEFAULT_BYOYOMI_COUNT_CFG_ID = "off";
     private const string DEFAULT_BYOYOMI_TIME_CFG_ID = "30s";
     private const string DEFAULT_AI_DIFFICULTY_CFG_ID = "k20_k15";
-    private const string SCORE_SOURCE_OWNERSHIP = "katago_ownership";
 
     public DuelSystem(DuelScene scene) : base(scene)
     {
@@ -190,7 +188,7 @@ public class DuelSystem : SystemBase
         DuelScoreResult scoreResult = null;
         try {
             compDuel.isScoring = true;
-            scoreResult = await CalculateOwnershipScoreResultAsync("duel-score");
+            scoreResult = await DuelOwnershipQueryService.QueryScoreResultAsync(scene as DuelScene, "duel-score");
         }
         finally {
             compDuel.isScoring = false;
@@ -318,7 +316,7 @@ public class DuelSystem : SystemBase
             DuelScoreResult scoreResult = null;
             try {
                 compDuel.isScoring = true;
-                scoreResult = await CalculateOwnershipScoreResultAsync("duel-consecutive-pass-score");
+                scoreResult = await DuelOwnershipQueryService.QueryScoreResultAsync(scene as DuelScene, "duel-consecutive-pass-score");
             }
             finally {
                 compDuel.isScoring = false;
@@ -439,60 +437,6 @@ public class DuelSystem : SystemBase
     private void EmitTakeBackResult(bool success, string message, int removedMoveCount = 0)
     {
         scene.EmitSystemEvent(new OnDuelTakeBackResult(success, message, removedMoveCount));
-    }
-
-    private async System.Threading.Tasks.Task<DuelScoreResult> CalculateOwnershipScoreResultAsync(string requestIdPrefix)
-    {
-        DuelScene duelScene = scene as DuelScene;
-        if (duelScene == null) {
-            XNLogger.LogError("Duel ownership score failed, scene is not DuelScene.");
-            return null;
-        }
-
-        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
-        if (compDuel != null && compDuel.hasOwnershipScoreCache) {
-            DuelOwnershipSystem.OwnershipScore cachedScore = compDuel.GetCachedOwnershipScore();
-            return BuildScoreResult(cachedScore.blackPoints, cachedScore.whitePoints, cachedScore.komi, SCORE_SOURCE_OWNERSHIP);
-        }
-
-        try {
-            string requestId = $"{requestIdPrefix}-{DateTime.UtcNow.Ticks}";
-            JObject query = KataGoPositionJsonBuilder.BuildOwnershipAnalysisJson(duelScene, requestId);
-            JArray ownership = await KataGoBootstrap.AnalyzeOwnershipAsync(query);
-            if (ownership == null) {
-                XNLogger.LogWarn("Duel ownership score failed, ownership result is empty.", ("requestId", requestId));
-                return null;
-            }
-
-            DuelOwnershipSystem.OwnershipScore score = DuelOwnershipSystem.CalculateOwnershipScore(ownership, query);
-            compDuel?.CacheOwnershipScore(score, ownership);
-            return BuildScoreResult(score.blackPoints, score.whitePoints, score.komi, SCORE_SOURCE_OWNERSHIP);
-        }
-        catch (Exception ex) {
-            XNLogger.LogError("Duel ownership score failed.", ("err", ex.Message));
-            return null;
-        }
-    }
-
-    private DuelScoreResult BuildScoreResult(float blackScore, float whiteScore, float komi, string scoreSource)
-    {
-        float margin = Math.Abs(blackScore - whiteScore);
-        PlayerFlag winnerFlag = 0;
-        if (blackScore > whiteScore) {
-            winnerFlag = PlayerFlag.Player1;
-        } else if (whiteScore > blackScore) {
-            winnerFlag = PlayerFlag.Player2;
-        }
-
-        return new DuelScoreResult
-        {
-            blackScore = blackScore,
-            whiteScore = whiteScore,
-            komi = komi,
-            margin = margin,
-            winnerFlag = winnerFlag,
-            scoreSource = scoreSource,
-        };
     }
 
     private void EndGameByScore(DuelScoreResult scoreResult, string reason)

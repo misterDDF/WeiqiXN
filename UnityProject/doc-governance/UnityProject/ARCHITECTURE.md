@@ -20,7 +20,7 @@
 - `Global` 和 `GlobalModule` 提供跨场景服务，包括 UI、资源加载、事件、定时器、场景加载、存档、红点和日志接入。
 - `MainMenuScene`、`DuelScene` 等场景类负责项目层场景组合：创建场景组件、添加系统、打开对应 UI。
 - 场景组件负责保存场景状态和固定引用。`SceneComponentChessBoard` 拥有棋盘配置、运行时棋盘缓存、`RectGrid` 和对局虚拟相机引用；`SceneComponentDuel` 拥有对局玩家 guid、对局状态机、电脑对局配置、连续虚手数、终局结果字段和运行时 KataGo 标准 `moves` 手顺。
-- 系统负责行为。`ChessBoardSystem` 负责棋盘初始化、落子结果应用、提子、棋子实体放置和相机设置；`DuelMoveRule` 负责构建落子命令结果，输出 accepted/rejected、拒绝原因、上一局面、下一局面和待移除位置；真实落子、读档回放和悔棋回放都只应用 accepted result。`DuelSystem` 负责本地玩家创建、电脑对局状态初始化、状态机更新、虚手、悔棋、数子结算请求和终局触发：当前“请求数子”和双方连续虚手只使用 KataGo `ownership` 统计结果作为结算口径，失败时不产生数子结果；`DuelSaveSystem` 负责对局保存触发；`DuelOwnershipSystem` 负责响应形势请求、向 KataGo 请求 `ownership`、按同一阈值统计双方控制点数，并把 overlay 结果交给棋盘表现层、把目数结果通过事件交给 UI 展示；`DuelAiSystem` 负责在电脑对局的 AI 回合请求 KataGo 候选点、按本地规则筛选合法点，并通过正常落子事件进入现有棋盘和回合流程。`SceneComponentDuel` 保存一份运行时 ownership 结果缓存，供形势展示和数子结算在局面未变化时复用；合法落子或虚手会使该缓存失效。
+- 系统负责行为。`ChessBoardSystem` 负责棋盘初始化、落子结果应用、提子、棋子实体放置和相机设置；`DuelMoveRule` 负责构建落子命令结果，输出 accepted/rejected、拒绝原因、上一局面、下一局面和待移除位置；真实落子、读档回放和悔棋回放都只应用 accepted result。`DuelSystem` 负责本地玩家创建、电脑对局状态初始化、状态机更新、虚手、悔棋、数子结算请求和终局触发：当前“请求数子”和双方连续虚手只使用 KataGo `ownership` 统计结果作为结算口径，失败时不产生数子结果；`DuelSaveSystem` 负责对局保存触发并通过 `OnDuelSaveResult` 暴露保存成功/失败；`DuelOwnershipSystem` 负责响应形势请求并绘制 overlay；`DuelOwnershipQueryService` 负责集中向 KataGo 请求 `ownership`、按同一阈值统计双方控制点数、构建数子结果并复用缓存；`DuelAiSystem` 负责在电脑对局的 AI 回合请求 KataGo 候选点、按本地规则筛选合法点，并通过正常落子事件进入现有棋盘和回合流程。`SceneComponentDuel` 保存一份运行时 ownership 结果缓存，供形势展示和数子结算在局面未变化时复用；合法落子或虚手会使该缓存失效。
 - 实体表示运行时游戏对象。`Chess` 是带 Unity `GameObject` 的棋子实体；`Player` 是回合归属实体，并通过组件保存对局信息。
 - 事件连接 UI、系统和实体。UI 发出 `OnAddChessToBoard`、`OnSaveDuelScene` 等系统事件；系统发出 `OnAfterAddChessToBoard`、`OnDuelMoveRejected` 等领域结果事件，UI 只展示结果，不重复承担棋规判断。
 - `DuelFSM` 表示本地回合生命周期，回合开始、输入、超时和结束由状态机管理，而不是由 UI 直接切换。

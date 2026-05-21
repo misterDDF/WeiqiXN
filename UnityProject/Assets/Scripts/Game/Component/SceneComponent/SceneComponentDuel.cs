@@ -55,7 +55,7 @@ public class SceneComponentDuel : SceneComponentBase
         DuelMoveHistory.RemoveLast(kataGoMoves);
     }
 
-    public void CacheOwnershipScore(DuelOwnershipSystem.OwnershipScore score, JArray ownership)
+    public void CacheOwnershipScore(DuelOwnershipScore score, JArray ownership)
     {
         hasOwnershipScoreCache = true;
         cachedOwnershipBlackPoints = score.blackPoints;
@@ -64,9 +64,9 @@ public class SceneComponentDuel : SceneComponentBase
         cachedOwnership = ownership != null ? new JArray(ownership) : null;
     }
 
-    public DuelOwnershipSystem.OwnershipScore GetCachedOwnershipScore()
+    public DuelOwnershipScore GetCachedOwnershipScore()
     {
-        return new DuelOwnershipSystem.OwnershipScore
+        return new DuelOwnershipScore
         {
             blackPoints = cachedOwnershipBlackPoints,
             whitePoints = cachedOwnershipWhitePoints,
@@ -82,4 +82,11 @@ public class SceneComponentDuel : SceneComponentBase
         cachedOwnershipKomi = 0f;
         cachedOwnership = null;
     }
+}
+
+public struct DuelOwnershipScore
+{
+    public float blackPoints;
+    public float whitePoints;
+    public float komi;
 }

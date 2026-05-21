@@ -73,9 +73,9 @@
 | --- | --- | --- | --- |
 | P1-1 | 封装手顺访问 | `DuelMoveHistory` 已集中创建、追加、克隆、截断、尾部虚手统计和 KataGo `moves` 输出 | 保存、读档、ownership 请求仍输出相同 JSON 结构 |
 | P1-1a | 收敛悔棋/回放边界 | 悔棋截断和尾部虚手统计已通过 `DuelMoveHistory`，回放仍走规则结果应用口径 | 悔棋一手、AI 对局悔两手、虚手后悔棋均保持当前行为 |
-| P1-2 | 收敛 ownership 查询 | `DuelOwnershipQuery`、`DuelScoreService` 或等价服务 | 形势按钮、请求数子、连续虚手共用同一查询和缓存口径 |
-| P1-3 | 收敛数子结果模型 | ownership 分数、贴目、胜者、来源字段统一构建 | UI 展示和 GameEnd 字段保持一致 |
-| P1-4 | 调整保存流程 | 保存成功/失败有明确事件；避免 scene data 保存失败时静默留下不一致状态 | 保存失败可诊断；读档仍能通过记录文件恢复棋盘 |
+| P1-2 | 收敛 ownership 查询 | `DuelOwnershipQueryService` 已集中 KataGo ownership 请求、缓存读取、阈值统计和查询失败日志 | 形势按钮、请求数子、连续虚手共用同一查询和缓存口径 |
+| P1-3 | 收敛数子结果模型 | `DuelOwnershipQueryService` 统一构建 ownership 分数、贴目、胜者、目差和 `scoreSource` | UI 展示和 GameEnd 字段保持一致 |
+| P1-4 | 调整保存流程 | `OnDuelSaveResult` 已暴露保存成功/失败；`GameSaveManager.SaveDataAsync` 返回保存结果并用 finally 释放保存锁和弹窗 | 保存失败可诊断；读档仍能通过记录文件恢复棋盘 |
 | P1-5 | 更新读档一致性检查 | 记录文件、棋盘尺寸、场景存档字段不一致时有明确日志和恢复策略 | 缺记录、尺寸不匹配、非法手顺均能定位 |
 
 ### 阶段退出条件

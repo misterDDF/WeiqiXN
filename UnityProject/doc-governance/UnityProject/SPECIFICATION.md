@@ -65,7 +65,7 @@
 - `OnRequestDuelScore` 会先显示“数子中...”确认弹窗且禁用确认按钮，再按 KataGo `ownership` 统计结果更新确认内容；若 KataGo 不可用或无结果，则显示失败且不进入终局。玩家确认后进入 `GameEnd`，取消则继续当前对局。
 - `OnConfirmDuelResign` 会把当前行棋方记录为认输方，另一方记录为胜者，并进入 `GameEnd`。
 - `GameEnd` 结果面板按终局原因显示结果：数子和连续虚手显示领先目数，超时显示黑/白方超时判负，认输显示黑/白方认输。
-- `DuelSaveSystem` 响应 `OnSaveDuelScene`，先通过 `KataGoDuelRecordFile.Save` 保存棋盘记录文件，再通过 `DuelSaveInfoFile.Save` 保存槽位摘要信息，成功后再通过 `GameSaveManager.SaveDataAsync` 把当前场景状态保存到 `GameSaveConfig.GetDuelSceneSavePath(0)`。
+- `DuelSaveSystem` 响应 `OnSaveDuelScene`，先通过 `KataGoDuelRecordFile.Save` 保存棋盘记录文件，再通过 `DuelSaveInfoFile.Save` 保存槽位摘要信息，成功后再通过 `GameSaveManager.SaveDataAsync` 把当前场景状态保存到 `GameSaveConfig.GetDuelSceneSavePath(0)`；任一步失败或全部成功后都会发出 `OnDuelSaveResult`。
 - 保存与读取使用 `SavableObj`、`SavableField`、可保存集合和 JSON 文件；Unity Editor 下存档根目录是仓库根目录的 `save/`，PC Standalone 下存档根目录是游戏包体根目录的 `save/`，其他非 Editor 平台默认使用 `Application.persistentDataPath`；对局槽位目录为 `save/0/`、`save/1/` 等，继续对局需要槽位内的 `DuelScene.json`、`DuelRecord.json` 和 `SaveInfo.json` 同时存在。`SaveInfo.json` 记录存档时间、槽位、棋盘配置、时间配置和当前手数。
 - 当前包依赖包括 Unity 内置模块、URP、Cinemachine、TextMesh Pro、UGUI、Newtonsoft JSON、AssetBundle Browser 和开发工具包。
 - `Packages/manifest.json` 中没有网络或多人相关依赖。

@@ -29,6 +29,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         RegisterSystemEvent<OnDuelPassAccepted>(OnDuelPassAccepted);
         RegisterSystemEvent<OnDuelTakeBackResult>(OnDuelTakeBackResult);
         RegisterSystemEvent<OnAfterAddChessToBoard>(OnAfterAddChessToBoard);
+        RegisterSystemEvent<OnDuelSaveResult>(OnDuelSaveResult);
 
         BindPrefabHud();
     }
@@ -247,6 +248,11 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         string playerText = evt.playerFlag == PlayerFlag.Player1 ? "黑方" : "白方";
         string aiText = IsAiPlayer(evt.playerFlag) ? "（AI）" : string.Empty;
         ShowActionNotice($"{playerText}{aiText}落子 {FormatBoardPoint(evt.coords)}");
+    }
+
+    public void OnDuelSaveResult(OnDuelSaveResult evt)
+    {
+        ShowActionNotice(evt != null && evt.success ? "对局已保存" : "对局保存失败");
     }
 
     public void RefreshDuelHud()

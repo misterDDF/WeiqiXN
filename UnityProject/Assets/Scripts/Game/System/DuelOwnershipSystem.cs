@@ -1,14 +1,9 @@
 using System;
-using System.Threading.Tasks;
-using Newtonsoft.Json.Linq;
-using XNClient.ChessBoard;
 using XNClient.Logger;
 
 public class DuelOwnershipSystem : SystemBase
 {
     public override string systemName => GetSystemName<DuelOwnershipSystem>();
-
-    public const float OwnershipThreshold = 0.2f;
 
     private bool isAnalyzing;
     private int requestVersion;
@@ -62,19 +57,12 @@ public class DuelOwnershipSystem : SystemBase
             int currentRequestVersion = requestVersion;
             ClearOwnershipOverlay();
 
-            string requestId = $"duel-ownership-{DateTime.UtcNow.Ticks}";
-            JObject query = KataGoPositionJsonBuilder.BuildOwnershipAnalysisJson(duelScene, requestId);
-            SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
-            JArray ownership = compDuel?.cachedOwnership != null ? new JArray(compDuel.cachedOwnership) : null;
-            bool hasScoreCache = compDuel != null && compDuel.hasOwnershipScoreCache && ownership != null;
-            if (!hasScoreCache) {
-                ownership = await KataGoBootstrap.AnalyzeOwnershipAsync(query);
-            }
+            DuelOwnershipQueryResult queryResult = await DuelOwnershipQueryService.QueryOwnershipAsync(duelScene, "duel-ownership", true);
             if (currentRequestVersion != requestVersion) {
                 return;
             }
 
-            if (ownership == null) {
+            if (queryResult == null || queryResult.ownership == null) {
                 ClearOwnershipAndNotify();
                 return;
             }
@@ -85,10 +73,12 @@ public class DuelOwnershipSystem : SystemBase
                 return;
             }
 
-            compChessBoard.chessBoardGrid.DrawOwnership(ownership, OwnershipThreshold);
-            OwnershipScore score = hasScoreCache ? compDuel.GetCachedOwnershipScore() : CalculateOwnershipScore(ownership, query);
-            compDuel?.CacheOwnershipScore(score, ownership);
-            scene.EmitSystemEvent(new OnDuelOwnershipResult(score.blackPoints, score.whitePoints, score.komi));
+            compChessBoard.chessBoardGrid.DrawOwnership(queryResult.ownership, DuelOwnershipQueryService.OwnershipThreshold);
+            scene.EmitSystemEvent(new OnDuelOwnershipResult(
+                queryResult.score.blackPoints,
+                queryResult.score.whitePoints,
+                queryResult.score.komi
+            ));
         }
         catch (Exception ex) {
             XNLogger.LogError("Duel ownership analyze failed.", ("err", ex.Message));
@@ -116,40 +106,5 @@ public class DuelOwnershipSystem : SystemBase
     {
         SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
         compDuel?.ClearOwnershipScoreCache();
-    }
-
-    public static OwnershipScore CalculateOwnershipScore(JArray ownership, JObject query)
-    {
-        float blackPoints = 0f;
-        float whitePoints = 0f;
-        foreach (JToken ownershipToken in ownership) {
-            if (!float.TryParse(ownershipToken?.ToString(), out float ownershipValue)) {
-                continue;
-            }
-
-            if (ownershipValue > OwnershipThreshold) {
-                blackPoints += 1f;
-            } else if (ownershipValue < -OwnershipThreshold) {
-                whitePoints += 1f;
-            }
-        }
-
-        float komi = 0f;
-        float.TryParse(query?["komi"]?.ToString(), out komi);
-        whitePoints += komi;
-
-        return new OwnershipScore
-        {
-            blackPoints = blackPoints,
-            whitePoints = whitePoints,
-            komi = komi,
-        };
-    }
-
-    public struct OwnershipScore
-    {
-        public float blackPoints;
-        public float whitePoints;
-        public float komi;
     }
 }
