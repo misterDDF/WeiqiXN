@@ -26,11 +26,11 @@
 - `RectGrid` 可以绘制和清除 ownership overlay：形势分析结果会按 KataGo `ownership` 行序直接在棋盘交叉点显示黑白小方块，低于当前阈值的中立或未明确控制点不绘制；同色相邻控制点之间会用对应颜色细线连接；overlay 位于棋子模型上方，只作为 AI 预测控制区域的表现层，不写入棋盘规则状态。
 - `RectGrid` 会在最新一手棋子上方绘制三角标记，标记高度与 ownership overlay 一致；黑棋使用白色三角，白棋使用黑色三角。最新手标记只作为表现层，不写入棋盘规则状态。
 - `SceneComponentChessBoard` 负责棋盘配置 id、运行时当前棋子信息、上一局面棋子信息、棋盘引用和虚拟相机引用；棋子字典不再作为持久化棋盘权威。
-- `ChessBoardSystem.Init()` 根据棋盘配置初始化网格，设置相机俯视棋盘，并在读档时通过 KataGo 记录文件回放恢复运行时棋盘缓存和棋子实体。
+- `ChessBoardSystem.Init()` 根据棋盘配置初始化网格，设置相机俯视棋盘；读档/继续对局暂不作为当前正式功能。
 - `OnAddChessToBoard` 是当前落子主入口。
 - `DuelMoveRule` 提供领域落子命令和结果模型：`DuelMoveCommand` 描述落子方、坐标和棋子 guid；`DuelMoveResult` 描述是否接受、拒绝原因、上一局面、下一局面和待移除位置；`DuelMoveRejectReason` 记录非法原因。
 - `DuelMoveRule.BuildMoveResult()` 先在临时棋盘缓存上模拟落子并生成结果，结束后恢复原棋盘引用；AI 候选检查和非法性判断不会保留模拟状态。`TryBuildMoveResult()` 作为兼容入口保留，但后续新调用优先使用结果对象本身。
-- `DuelMoveRule.ApplyMoveResult()` 是当前统一应用口径；真实落子、读档回放和悔棋回放都只应用 accepted result。
+- `DuelMoveRule.ApplyMoveResult()` 是当前统一应用口径；真实落子和悔棋回放都只应用 accepted result。
 - 真实落子被拒绝时，`ChessBoardSystem` 会发出 `OnDuelMoveRejected`，携带落子方、坐标和 `DuelMoveRejectReason`；当前 `DuelPage` 不显示额外非法落子文案，而是在预览阶段只对合法点显示预览棋子。
 - 已检查目标位置是否在棋盘内、是否为空、当前玩家是否存在。
 - 已通过 BFS 检查相邻对方棋串是否无气并提子。
@@ -38,7 +38,7 @@
 - 已检查单独落子是否有气。
 - 已用 `lastChessInfoDict` 和当前棋盘状态比较来阻止完全重复局面。
 - KataGo 编辑器验证不参与当前落子合法性；它应读取标准 `moves` 或调试快照做 AI 形势分析和当前 ownership 数子结算。
-- 合法落子成功后会记录一条 KataGo 标准 `moves` 数组项，例如 `["B","Q16"]`；虚手会记录 `["B","pass"]` 或 `["W","pass"]`。保存对局时该手顺写入单独的 KataGo analysis JSON 记录文件，读档时棋盘由该记录文件回放恢复，`pass` 项不改变棋盘状态。
+- 合法落子成功后会记录一条 KataGo 标准 `moves` 数组项，例如 `["B","Q16"]`；虚手会记录 `["B","pass"]` 或 `["W","pass"]`。保存对局时该手顺写入单独的 KataGo analysis JSON 记录文件，`pass` 项不改变棋盘状态。
 
 ## 设计观察
 
