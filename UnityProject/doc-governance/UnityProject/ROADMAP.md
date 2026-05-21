@@ -13,6 +13,8 @@
 
 **活跃目标**
 
+- 当前阶段的架构优化按 [modules/12-architecture-iteration-plan.md](modules/12-architecture-iteration-plan.md) 推进；该表只承载执行明细，阶段目标和范围仍以本文为准。
+- 当前架构优化主线只收敛本地对局、AI、UI、结算、手顺和存档边界，为后续联机开发降低混乱度；本阶段不接网络 SDK、不实现传输层、房间、匹配或重连。
 - 在 Windows Unity Editor 和 Windows PC 包中继续验证本地 KataGo ownership 链路：启动本地 `katago analysis` 子进程，向 stdin 发送当前对局 JSON，读取 `ownership`、失败状态，并验证棋盘 overlay 表现。
 - 将 AI 控制区域与当前结算口径保持一致：第一版形势按钮已接入 `ownership` 请求、棋盘黑白小方块 overlay 和按钮上方的双方目数面板；请求数子和双方连续虚手也复用 KataGo `ownership` 统计目数，不展示胜率、目差或最佳选点。
 - 为本地对局建立可重复的手动验证流程。
