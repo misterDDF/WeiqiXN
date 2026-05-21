@@ -35,6 +35,7 @@
 - `DuelPage.prefab` 设置面板会提供“请求数子”和“认输”入口；请求数子会先弹出通用确认面板显示“数子中...”，确认按钮不可点击。`DuelSystem` 请求 KataGo `ownership`，复用形势按钮的阈值和贴目口径自动计算黑白分数、胜者和目差；KataGo 不可用或无结果时不产生数子结果，弹窗显示失败且不允许确认。结果通过 `OnDuelScoreResult` 更新同一个确认面板，确认后进入 `GameEnd`，取消则保持当前对局。认输按钮只在回合输入且当前行棋玩家有效时显示，点击后先弹出通用二次确认，确认后当前行棋方判负并进入 `GameEnd`。
 - `SceneComponentDuel` 维护运行时 ownership 结果缓存；形势展示和请求数子在局面未变化时复用缓存，合法落子或虚手会清除缓存。
 - `DuelPage` 在 AI 回合不接受人类棋盘落子、虚手或认输输入，避免人与 AI 同时驱动同一个回合。
+- `DuelPage.prefab` 维护动作提示 HUD；`DuelPage` 在成功落子、虚手、双方连续虚手进入数子和连续虚手数子失败时短暂显示提示，落子提示使用 KataGo 棋盘坐标，AI 行棋会带 AI 标记。
 - `DuelPage.prefab` 右侧中部维护结算结果面板，进入 `GameEnd` 后显示黑/白方胜出和结束原因；数子或连续虚手显示领先目数，超时显示黑/白方超时判负，认输显示黑/白方认输。
 
 ## 设计观察
@@ -62,6 +63,7 @@ FSM 让本地对局流程清晰可扩展。`WaitAction` 和 `GameEnd` 已有状�
 - `TurnInput` now counts down the current player's remaining hold time. After hold time reaches zero, byoyomi starts only when the selected byoyomi count is greater than zero.
 - Every byoyomi period timeout consumes one remaining byoyomi count. When the count is exhausted, `SceneComponentDuel.timeoutLoserGuid` and `winnerGuid` are recorded and the FSM enters `GameEnd`.
 - `DuelPage` shows black-player time information in the upper-left panel and white-player time information in the upper-right panel, while save and exit actions live in an in-duel settings panel opened from the lower-right settings button.
+- `DuelPage` 会在成功落子、虚手、双方连续虚手进入数子和连续虚手数子失败时短暂显示动作提示；落子提示使用围棋坐标，AI 行棋会带 AI 标记。
 - `GameEnd` is now reachable through timeout loss, scoring, consecutive pass, and resign; scoring currently depends on KataGo `ownership`, while dead-stone confirmation, review flows, and online adjudication remain out of scope.
 - Computer duel uses the same board, time-control, FSM, save, scoring, pass, and resign flow as local duel. The only turn-owner difference is that `DuelAiSystem` drives Player2 / white turns from KataGo candidates selected by `duel_ai_difficulty`.
 - AI turn logs include the board size, configured and requested visit count, configured and requested candidate limit, configured and requested score-loss threshold, probe result summary, and `use_probe` / `upgrade_full` budget decision so board-size-specific runtime budgets can be checked from Unity Console logs.

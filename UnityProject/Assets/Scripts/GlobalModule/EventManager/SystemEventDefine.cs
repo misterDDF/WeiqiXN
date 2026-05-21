@@ -108,6 +108,24 @@ public class OnRequestDuelPass : SystemEventBase
     public override string GetEventType() => GetEventType<OnRequestDuelPass>();
 }
 
+public class OnDuelPassAccepted : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnDuelPassAccepted>();
+
+    public string playerGuid;
+    public PlayerFlag playerFlag;
+    public bool isAiPlayer;
+    public int consecutivePassCount;
+
+    public OnDuelPassAccepted(string playerGuid, PlayerFlag playerFlag, bool isAiPlayer, int consecutivePassCount)
+    {
+        this.playerGuid = playerGuid;
+        this.playerFlag = playerFlag;
+        this.isAiPlayer = isAiPlayer;
+        this.consecutivePassCount = consecutivePassCount;
+    }
+}
+
 public class OnDuelScoreResult : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnDuelScoreResult>();

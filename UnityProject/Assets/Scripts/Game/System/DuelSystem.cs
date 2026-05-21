@@ -254,8 +254,15 @@ public class DuelSystem : SystemBase
             return;
         }
 
-        compDuel.AppendKataGoPass((PlayerFlag)curPlayer.playerFlag.value);
+        PlayerFlag curPlayerFlag = (PlayerFlag)curPlayer.playerFlag.value;
+        compDuel.AppendKataGoPass(curPlayerFlag);
         compDuel.consecutivePassCount.value += 1;
+        scene.EmitSystemEvent(new OnDuelPassAccepted(
+            curPlayer.guid,
+            curPlayerFlag,
+            compDuel.isAiDuel.value && curPlayer.guid == compDuel.aiPlayerGuid.value,
+            compDuel.consecutivePassCount.value
+        ));
 
         if (compDuel.consecutivePassCount.value >= 2) {
             DuelScoreResult scoreResult = null;
