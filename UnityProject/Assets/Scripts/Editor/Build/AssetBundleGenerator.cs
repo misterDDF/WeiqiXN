@@ -20,12 +20,15 @@ public class AssetBundleGenerator
     private const string KataGoOpenClEngineName = "opencl";
     private const string KataGoCpuEngineName = "eigenavx2";
     private const string KataGoModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
+    private const string KataGoAnalysisConfigFileName = "analysis_example.cfg";
+    private const string KataGoNoWriteAnalysisConfigFileName = "analysis_nowrite.cfg";
 
     [MenuItem(CustomEditorMenuPaths.Build + "/打PC包")]
     public static void BuildWindows()
     {
         BuildAssetBundlesForTarget(BuildTarget.StandaloneWindows64);
-        ValidateWindowsKataGoStreamingAssets();
+        string kataGoSourceRoot = ResolveKataGoSourceRoot();
+        ValidateWindowsKataGoRuntimeSource(kataGoSourceRoot);
 
         PrepareBuildRootDirectory(BuildConfig.BUILD_PATH_ROOT);
         PlayerSettings.SetScriptingBackend(BuildTargetGroup.Standalone, ScriptingImplementation.IL2CPP);
@@ -39,6 +42,7 @@ public class AssetBundleGenerator
             throw new Exception($"Build windows player failed, outputPath: {buildOutputPath}, result: {report.summary.result}.");
         }
 
+        CopyKataGoRuntimeToWindowsBuild(kataGoSourceRoot);
         Debug.Log($"Windows Player打包完成！输出路径：{buildOutputPath}");
     }
 
@@ -427,13 +431,18 @@ public class AssetBundleGenerator
         Directory.CreateDirectory(fullBuildRootPath);
     }
 
-    private static void ValidateWindowsKataGoStreamingAssets()
+    private static string ResolveKataGoSourceRoot()
     {
-        string kataGoRoot = Path.Combine(Application.streamingAssetsPath, "KataGo");
+        return KataGoRuntimeEnvironment.Resolve().kataGoRoot;
+    }
+
+    private static void ValidateWindowsKataGoRuntimeSource(string kataGoRoot)
+    {
         string cpuEngineRoot = Path.Combine(kataGoRoot, "engines", "win-x64", KataGoCpuEngineName);
         string openClEngineRoot = Path.Combine(kataGoRoot, "engines", "win-x64", KataGoOpenClEngineName);
         string cpuExePath = Path.Combine(cpuEngineRoot, "katago.exe");
-        string cpuConfigPath = Path.Combine(cpuEngineRoot, "analysis_example.cfg");
+        string cpuConfigPath = Path.Combine(cpuEngineRoot, KataGoAnalysisConfigFileName);
+        string cpuNoWriteConfigPath = Path.Combine(cpuEngineRoot, KataGoNoWriteAnalysisConfigFileName);
         string modelPath = Path.Combine(kataGoRoot, "models", KataGoModelFileName);
 
         List<string> missingPaths = new List<string>();
@@ -452,13 +461,17 @@ public class AssetBundleGenerator
             missingPaths.Add(cpuConfigPath);
         }
 
+        if (!File.Exists(cpuNoWriteConfigPath)) {
+            missingPaths.Add(cpuNoWriteConfigPath);
+        }
+
         if (!File.Exists(modelPath)) {
             missingPaths.Add(modelPath);
         }
 
         if (Directory.Exists(openClEngineRoot) && Directory.GetFiles(openClEngineRoot).Length > 0) {
             string openClExePath = Path.Combine(openClEngineRoot, "katago.exe");
-            string openClConfigPath = Path.Combine(openClEngineRoot, "analysis_example.cfg");
+            string openClConfigPath = Path.Combine(openClEngineRoot, KataGoAnalysisConfigFileName);
             if (!File.Exists(openClExePath)) {
                 missingPaths.Add(openClExePath);
             }
@@ -473,8 +486,65 @@ public class AssetBundleGenerator
 
         if (missingPaths.Count > 0) {
             throw new FileNotFoundException(
-                "Windows build requires KataGo CPU fallback runtime and any bundled OpenCL entry files under Assets/StreamingAssets/KataGo. Missing paths: "
+                "Windows build requires KataGo CPU fallback runtime and any bundled OpenCL entry files under the repository KataGo directory. Missing paths: "
                 + string.Join(", ", missingPaths));
         }
+    }
+
+    private static void CopyKataGoRuntimeToWindowsBuild(string kataGoSourceRoot)
+    {
+        string buildOutputPath = Path.GetFullPath(BuildConfig.BUILD_PATH_WINDOWS);
+        string buildRoot = Path.GetDirectoryName(buildOutputPath);
+        string kataGoTargetRoot = Path.Combine(buildRoot, KataGoRuntimeEnvironment.DirectoryName);
+
+        if (Directory.Exists(kataGoTargetRoot)) {
+            string normalizedBuildRoot = Path.GetFullPath(buildRoot);
+            string normalizedTargetRoot = Path.GetFullPath(kataGoTargetRoot);
+            if (!normalizedTargetRoot.StartsWith(normalizedBuildRoot, StringComparison.OrdinalIgnoreCase)) {
+                throw new InvalidOperationException($"Refuse to delete KataGo target outside build root: {normalizedTargetRoot}");
+            }
+
+            Directory.Delete(kataGoTargetRoot, true);
+        }
+
+        CopyDirectory(kataGoSourceRoot, kataGoTargetRoot);
+        Debug.Log($"KataGo runtime copied to Windows build root: {kataGoTargetRoot}");
+    }
+
+    private static void CopyDirectory(string sourceDirectory, string targetDirectory)
+    {
+        Directory.CreateDirectory(targetDirectory);
+
+        foreach (string sourceFilePath in Directory.GetFiles(sourceDirectory)) {
+            if (ShouldSkipKataGoRuntimeCopy(sourceFilePath)) {
+                continue;
+            }
+
+            string targetFilePath = Path.Combine(targetDirectory, Path.GetFileName(sourceFilePath));
+            File.Copy(sourceFilePath, targetFilePath, true);
+        }
+
+        foreach (string sourceSubDirectory in Directory.GetDirectories(sourceDirectory)) {
+            if (ShouldSkipKataGoRuntimeCopy(sourceSubDirectory)) {
+                continue;
+            }
+
+            string targetSubDirectory = Path.Combine(targetDirectory, Path.GetFileName(sourceSubDirectory));
+            CopyDirectory(sourceSubDirectory, targetSubDirectory);
+        }
+    }
+
+    private static bool ShouldSkipKataGoRuntimeCopy(string path)
+    {
+        string name = Path.GetFileName(path);
+        if (string.Equals(name, "analysis_logs", StringComparison.OrdinalIgnoreCase)) {
+            return true;
+        }
+
+        if (string.Equals(name, "KataGoData", StringComparison.OrdinalIgnoreCase)) {
+            return true;
+        }
+
+        return string.Equals(Path.GetExtension(path), ".meta", StringComparison.OrdinalIgnoreCase);
     }
 }

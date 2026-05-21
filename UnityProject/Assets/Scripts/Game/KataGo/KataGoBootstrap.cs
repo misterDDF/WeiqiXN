@@ -1,9 +1,15 @@
 using System;
 using System.IO;
 using System.Linq;
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+using System.Runtime.InteropServices;
+#endif
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 using UnityEngine;
 using XNClient.Logger;
 using Debug = UnityEngine.Debug;
@@ -17,6 +23,8 @@ public static class KataGoBootstrap
     private const string OpenClEngineName = "opencl";
     private const string CpuEngineName = "eigenavx2";
     private const string ModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
+    private const string AnalysisConfigFileName = "analysis_example.cfg";
+    private const string NoWriteAnalysisConfigFileName = "analysis_nowrite.cfg";
     private const int OpenClSmokeTestTimeoutMs = 300000;
     private const int CpuSmokeTestTimeoutMs = 45000;
     private const int SmokeTestProgressPollMs = 250;
@@ -35,6 +43,7 @@ public static class KataGoBootstrap
     private static int activeCandidateIndex = -1;
     private static bool hasActivePaths;
     private static bool isStarted;
+    private static bool gameRootWriteWarningShown;
 #endif
     private static CancellationTokenSource cancellationTokenSource;
     private static Task startupTask;
@@ -60,6 +69,14 @@ public static class KataGoBootstrap
         }
 
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+        if (!platformConfig.canWriteGameRoot) {
+            ShowGameRootWriteWarning(platformConfig);
+            XNLogger.LogWarn(
+                "KataGo game root write check failed, OpenCL will be skipped.",
+                ("gameRoot", platformConfig.gameRoot),
+                ("reason", platformConfig.writeFailureReason));
+        }
+
         KataGoPaths[] candidates = ResolveCandidatePaths(platformConfig);
         if (candidates.Length == 0) {
             SetStartupStatus("AI模型预热失败", "没有可用的 KataGo 引擎候选。", 1f, true, true, false, null);
@@ -145,13 +162,17 @@ public static class KataGoBootstrap
     private static PlatformConfig ResolvePlatformConfig()
     {
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
-        string kataGoRoot = Path.Combine(Application.streamingAssetsPath, "KataGo");
+        KataGoRuntimeEnvironment.RuntimeInfo runtimeInfo = KataGoRuntimeEnvironment.Resolve();
+        string kataGoRoot = runtimeInfo.kataGoRoot;
         return new PlatformConfig
         {
             isSupported = true,
             unsupportedReason = null,
+            gameRoot = runtimeInfo.gameRoot,
             kataGoRoot = kataGoRoot,
             engineRoot = Path.Combine(kataGoRoot, "engines", "win-x64"),
+            canWriteGameRoot = runtimeInfo.canWriteGameRoot,
+            writeFailureReason = runtimeInfo.writeFailureReason,
         };
 #else
         return new PlatformConfig
@@ -165,24 +186,39 @@ public static class KataGoBootstrap
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
     private static KataGoPaths[] ResolveCandidatePaths(PlatformConfig platformConfig)
     {
+        if (!platformConfig.canWriteGameRoot) {
+            XNLogger.LogWarn(
+                "KataGo OpenCL skipped because game root is not writable.",
+                ("gameRoot", platformConfig.gameRoot),
+                ("reason", platformConfig.writeFailureReason));
+            return new[]
+            {
+                ResolvePaths(platformConfig, CpuEngineName, CpuSmokeTestTimeoutMs, true),
+            };
+        }
+
         return new[]
         {
-            ResolvePaths(platformConfig, OpenClEngineName, OpenClSmokeTestTimeoutMs),
-            ResolvePaths(platformConfig, CpuEngineName, CpuSmokeTestTimeoutMs),
+            ResolvePaths(platformConfig, OpenClEngineName, OpenClSmokeTestTimeoutMs, false),
+            ResolvePaths(platformConfig, CpuEngineName, CpuSmokeTestTimeoutMs, false),
         };
     }
 
-    private static KataGoPaths ResolvePaths(PlatformConfig platformConfig, string engineName, int smokeTestTimeoutMs)
+    private static KataGoPaths ResolvePaths(PlatformConfig platformConfig, string engineName, int smokeTestTimeoutMs, bool noWriteMode)
     {
         string engineRoot = Path.Combine(platformConfig.engineRoot, engineName);
+        string configFileName = noWriteMode && engineName == CpuEngineName
+            ? NoWriteAnalysisConfigFileName
+            : AnalysisConfigFileName;
         return new KataGoPaths
         {
             exePath = Path.Combine(engineRoot, "katago.exe"),
-            configPath = Path.Combine(engineRoot, "analysis_example.cfg"),
+            configPath = Path.Combine(engineRoot, configFileName),
             modelPath = Path.Combine(platformConfig.kataGoRoot, "models", ModelFileName),
             workingDirectory = engineRoot,
             engineName = engineName,
             smokeTestTimeoutMs = smokeTestTimeoutMs,
+            noWriteMode = noWriteMode,
         };
     }
 
@@ -257,6 +293,34 @@ public static class KataGoBootstrap
         }
     }
 
+    private static void ShowGameRootWriteWarning(PlatformConfig platformConfig)
+    {
+        if (gameRootWriteWarningShown) {
+            return;
+        }
+
+        gameRootWriteWarningShown = true;
+        string title = "AI 模型权限提示";
+        string message =
+            "当前游戏目录没有写入权限，GPU AI 预热缓存无法保存，本次将使用 CPU AI。\n\n" +
+            $"目录：{platformConfig.gameRoot}\n" +
+            $"原因：{platformConfig.writeFailureReason}\n\n" +
+            "如需启用 GPU AI，请将游戏移动到有写入权限的目录，或以管理员权限运行。";
+
+#if UNITY_EDITOR
+        EditorUtility.DisplayDialog(title, message, "确定");
+#elif UNITY_STANDALONE_WIN
+        MessageBoxW(IntPtr.Zero, message, title, 0);
+#else
+        Debug.LogWarning(message);
+#endif
+    }
+
+#if UNITY_STANDALONE_WIN && !UNITY_EDITOR
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int MessageBoxW(IntPtr hWnd, string lpText, string lpCaption, uint uType);
+#endif
+
     private static void StartFirstAvailableEngine(KataGoPaths[] candidates, int startCandidateIndex, CancellationToken cancellationToken)
     {
         StopProcess();
@@ -282,7 +346,7 @@ public static class KataGoBootstrap
             float candidateEndProgress = GetCandidateEndProgress(i, candidates.Length);
             SetStartupStatus(
                 "AI模型预热中...",
-                BuildCandidateDetail(paths.engineName, i > 0),
+                BuildCandidateDetail(paths, i > 0),
                 candidateStartProgress,
                 false,
                 false,
@@ -320,6 +384,8 @@ public static class KataGoBootstrap
                     "KataGo engine selected.",
                     ("engine", paths.engineName),
                     ("exePath", paths.exePath),
+                    ("configPath", paths.configPath),
+                    ("noWriteMode", paths.noWriteMode.ToString()),
                     ("modelPath", paths.modelPath));
                 return;
             }
@@ -352,6 +418,8 @@ public static class KataGoBootstrap
                 "KataGo process started.",
                 ("engine", paths.engineName),
                 ("exePath", paths.exePath),
+                ("configPath", paths.configPath),
+                ("noWriteMode", paths.noWriteMode.ToString()),
                 ("modelPath", paths.modelPath));
 
             RunSmokeTest(paths, progressStart, progressEnd, cancellationToken);
@@ -421,6 +489,14 @@ public static class KataGoBootstrap
     {
         string requestId = $"editor-smoke-{boardSize}";
         JObject query = BuildSmokeTestQuery(requestId, boardSize);
+        SetStartupStatus(
+            "AI模型预热中...",
+            BuildSmokeTestStageDetail(paths, boardSize, boardIndex),
+            progressStart,
+            false,
+            false,
+            false,
+            paths.engineName);
         process.WriteLine(query.ToString(Newtonsoft.Json.Formatting.None));
 
         DateTime deadline = DateTime.UtcNow.AddMilliseconds(paths.smokeTestTimeoutMs);
@@ -465,7 +541,7 @@ public static class KataGoBootstrap
 
             SetStartupStatus(
                 "AI模型预热中...",
-                $"{paths.engineName} 引擎 {boardSize}路棋盘预热完成。",
+                $"{paths.engineName} 引擎 {boardSize}路棋盘验证完成。",
                 progressEnd,
                 false,
                 false,
@@ -510,12 +586,43 @@ public static class KataGoBootstrap
         float progress = Mathf.Lerp(progressStart, progressEnd, smokeProgress);
         SetStartupStatus(
             "AI模型预热中...",
-            $"{paths.engineName} 引擎正在预热 {boardSize}路棋盘，首次启动可能需要数分钟。",
+            BuildSmokeTestProgressDetail(paths, boardSize, boardIndex),
             progress,
             false,
             false,
             false,
             paths.engineName);
+    }
+
+    private static string BuildSmokeTestStageDetail(KataGoPaths paths, int boardSize, int boardIndex)
+    {
+        if (IsOpenClInitializationStage(paths, boardIndex)) {
+            return "正在初始化 GPU KataGo 引擎并执行 OpenCL 调优，首次启动可能需要数分钟。";
+        }
+
+        if (paths.noWriteMode && paths.engineName == CpuEngineName) {
+            return $"游戏目录不可写，正在使用 CPU 引擎验证 {boardSize}路棋盘。";
+        }
+
+        return $"{paths.engineName} 引擎正在验证 {boardSize}路棋盘。";
+    }
+
+    private static string BuildSmokeTestProgressDetail(KataGoPaths paths, int boardSize, int boardIndex)
+    {
+        if (IsOpenClInitializationStage(paths, boardIndex)) {
+            return "正在初始化 GPU KataGo 引擎并执行 OpenCL 调优，完成后会继续验证 9路、13路、19路棋盘。";
+        }
+
+        if (paths.noWriteMode && paths.engineName == CpuEngineName) {
+            return $"游戏目录不可写，正在使用 CPU 引擎验证 {boardSize}路棋盘。";
+        }
+
+        return $"{paths.engineName} 引擎正在验证 {boardSize}路棋盘。";
+    }
+
+    private static bool IsOpenClInitializationStage(KataGoPaths paths, int boardIndex)
+    {
+        return paths.engineName == OpenClEngineName && boardIndex == 0;
     }
 
     private static float GetSmokeTestProgressWeightBefore(int boardIndex)
@@ -558,9 +665,13 @@ public static class KataGoBootstrap
         return candidateIndex == 0 ? 0.82f : 0.94f;
     }
 
-    private static string BuildCandidateDetail(string engineName, bool isFallback)
+    private static string BuildCandidateDetail(KataGoPaths paths, bool isFallback)
     {
-        if (engineName == OpenClEngineName) {
+        if (paths.noWriteMode && paths.engineName == CpuEngineName) {
+            return "游戏目录不可写，已跳过 GPU 预热，正在预热 CPU KataGo 引擎。";
+        }
+
+        if (paths.engineName == OpenClEngineName) {
             return "正在优先预热 GPU KataGo 引擎。";
         }
 
@@ -568,7 +679,7 @@ public static class KataGoBootstrap
             return "GPU 引擎不可用，正在预热 CPU KataGo 引擎。";
         }
 
-        return $"正在预热 {engineName} KataGo 引擎。";
+        return $"正在预热 {paths.engineName} KataGo 引擎。";
     }
 
     private static JObject Analyze(JObject query, int timeoutMs)
@@ -740,6 +851,7 @@ public static class KataGoBootstrap
         public string workingDirectory;
         public string engineName;
         public int smokeTestTimeoutMs;
+        public bool noWriteMode;
 
         public bool IsValid(out string reason)
         {
@@ -819,7 +931,10 @@ public static class KataGoBootstrap
     {
         public bool isSupported;
         public string unsupportedReason;
+        public string gameRoot;
         public string kataGoRoot;
         public string engineRoot;
+        public bool canWriteGameRoot;
+        public string writeFailureReason;
     }
 }

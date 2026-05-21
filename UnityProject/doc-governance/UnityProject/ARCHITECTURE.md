@@ -27,7 +27,7 @@
 - `Assets/Config/DataJson` 是当前棋盘、场景、UI 页面、预制体和 TMP sprite 的数据来源。
 - 资源加载通过 `ResourceManager` 和配置 id 抽象；编辑器环境使用 AssetDatabase，非编辑器环境使用 AssetBundle。
 - 存档通过 `SavableObj`、`SavableField` 和可保存集合持久化场景与用户状态；对局棋盘恢复权威单独落在 KataGo analysis JSON 记录文件中，读档时由 `moves` 回放重建运行时棋盘缓存。
-- KataGo 接入作为 Windows Unity Editor 和 Windows PC 包共用的本地子进程适配器存在：Unity 侧负责启动 `katago analysis`、通过 Win32 pipe 交换 stdin/stdout JSON、解析第一版形势按钮所需的 `ownership` 和电脑对局所需的 `moveInfos`，并把启动失败、超时、缺少模型或配置文件等情况转成可诊断状态。Windows 下优先尝试 OpenCL 引擎，初始化或 smoke test 失败时在适配器内部 fallback 到 Eigen AVX2 CPU 引擎，上层系统不感知具体引擎类型。形势展示由 UI 发事件、系统请求分析、棋盘表现层绘制 overlay；电脑对局由 `DuelAiSystem` 读取分析结果再发出领域落子事件，不让 KataGo 适配器直接修改棋盘规则状态。
+- KataGo 接入作为 Windows Unity Editor 和 Windows PC 包共用的本地子进程适配器存在：Unity 侧负责启动 `katago analysis`、通过 Win32 pipe 交换 stdin/stdout JSON、解析第一版形势按钮所需的 `ownership` 和电脑对局所需的 `moveInfos`，并把启动失败、超时、缺少模型或配置文件等情况转成可诊断状态。KataGo 运行源目录位于仓库根 `KataGo/`，Windows PC 构建成功后复制到包体根目录 `<BuildRoot>/KataGo/`，不进入 Unity `Assets` 导入体系。Windows 下优先尝试 OpenCL 引擎，初始化或 smoke test 失败时在适配器内部 fallback 到 Eigen AVX2 CPU 引擎；若启动时检测到游戏根目录不可写，则弹窗提示、跳过 OpenCL，并用 CPU 引擎的 `analysis_nowrite.cfg` 关闭 KataGo 文件写入。形势展示由 UI 发事件、系统请求分析、棋盘表现层绘制 overlay；电脑对局由 `DuelAiSystem` 读取分析结果再发出领域落子事件，不让 KataGo 适配器直接修改棋盘规则状态。
 - 游戏侧手顺格式应直接使用 KataGo 标准 `moves` 数组项，不再维护额外字符串棋谱格式或转换层。合法落子记录标准点位，虚手记录 `pass`；KataGo analysis JSON 生成优先输出 `moves`，是形势按钮、记录文件和后续复盘分析的统一路径；当前盘面 `initialStones` 快照入口只作为调试或无手顺场景使用。
 
 ## Coordinate Contract
@@ -47,7 +47,7 @@
 - 电脑对局复用本地双玩家、FSM 和落子事件，能降低对现有本地对局基线的影响；代价是 AI 可用性取决于本地 KataGo 子进程、模型和难度配置，后续客户端打包仍需要单独处理资源分发和平台支持。
 - 当前 FSM 适合本地热座对局。联机对局需要明确权威方和同步边界，不能让两个客户端各自自由认定最终棋盘。
 - 数据驱动棋盘尺寸可以避免为不同棋盘复制场景，但规则与 UI 必须持续使用一致的配置 id。
-- KataGo 本地子进程可以避免形势判断依赖网络服务，但会引入平台二进制、模型文件、首次初始化耗时和资源分发问题；这些问题应在编辑器验证跑通后再进入客户端打包决策。
+- KataGo 本地子进程可以避免形势判断依赖网络服务，但会引入平台二进制、模型文件、首次初始化耗时、目录写权限和资源分发问题；当前策略是把 KataGo 放在 Unity `Assets` 外并在 Windows 构建后复制到包体根目录，目录不可写时自动降级为 CPU no-write 模式。
 - 记录文件采用可直接提交给 KataGo analysis engine 的 JSON 结构，会把存档恢复和 ownership 请求骨架耦合到同一份标准格式；代价是读档必须保证记录文件与场景存档同时存在并且棋盘尺寸一致。
 
 ## Guardrails

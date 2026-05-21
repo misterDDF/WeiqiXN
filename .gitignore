@@ -20,3 +20,6 @@ UnityProject/Assets/UI/Font/SourceHanSansSC-Regular SDF.asset
 UnityProject/Assets/StreamingAssets/KataGo/**/analysis_logs/
 UnityProject/Assets/StreamingAssets/KataGo/**/KataGoData/
 UnityProject/Assets/StreamingAssets/KataGo/**/KataGoData.meta
+KataGo/**/analysis_logs/
+KataGo/**/KataGoData/
+KataGo/**/KataGoData.meta
