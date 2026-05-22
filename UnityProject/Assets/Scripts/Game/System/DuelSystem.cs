@@ -56,6 +56,7 @@ public class DuelSystem : SystemBase
                 InitPlayerTimeControl(compDuel, player2);
 
                 compDuel.duelFSM.Activate();
+                scene.GetSystem<DuelInputAuthoritySystem>()?.RefreshLocalInputAuthority();
             }
         } else {
             var compDuel = scene.GetComponent<SceneComponentDuel>();
@@ -68,6 +69,7 @@ public class DuelSystem : SystemBase
                 Player player2 = EntityUtils.CreatePlayer(scene, compDuel.player2Guid.value, PlayerFlag.Player2);
 
                 compDuel.duelFSM.Activate(DuelStateDefine.STATE_TURN_INPUT);
+                scene.GetSystem<DuelInputAuthoritySystem>()?.RefreshLocalInputAuthority();
             }
         }
     }
