@@ -955,6 +955,10 @@ public class DuelSystem : SystemBase
             return;
         }
 
+        if (!compDuel.isAiDuel.value && !compDuel.isLanDuel.value) {
+            return;
+        }
+
         PlayerFlag localPlayerFlag = DuelUtils.GetValidPlayerFlag((PlayerFlag)compDuel.localPlayerFlag.value);
         string localPlayerGuid = GetPlayerGuidByFlag(compDuel, localPlayerFlag);
         if (string.IsNullOrEmpty(localPlayerGuid)) {
