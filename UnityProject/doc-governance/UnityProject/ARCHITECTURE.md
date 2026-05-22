@@ -29,6 +29,7 @@
 - `LanRoomService` 是第一版局域网房间服务入口，负责 host 侧 TCP 监听、UDP 房间广播、client 侧 UDP 搜索、TCP 加入握手、最小准备状态交换、host 开局命令和最小对局消息搬运；`LanRoomPopup` 在收到开局状态后进入带 LAN 标记的 `DuelScene`。当前服务承载房间发现、连接状态、落子、棋盘快照、计时、超时和认输消息搬运，不直接操作 UI 预制体；棋盘权威推进和终局接受由 host 侧 `LanDuelSystem` / `DuelSystem` 通过现有规则与终局入口完成。
 - `lan_room_config` 只承载局域网房间运行参数，例如 UDP/TCP 端口、连接超时、人数上限、广播间隔和缓冲区大小。LAN 协议名直接使用 `LanRoomProtocol` 枚举名，接收侧按协议字符串查找 `OnXxx` 函数，不把协议字符串放入配表。
 - 联机相关的会话、房间、座位、准备、命令校验、权威状态推进和快照广播应收敛到单一会话核心；第一版可以作为 host 进程中的嵌入式 server core 运行，后续若拆分进程也必须保持同一套命令和快照合同。
+- LAN 对局当前已把输入权下发、正常落子、虚手、认输、确认式数子和确认式悔棋收敛到 host 权威命令合同：客户端只提交命令或确认响应，host 校验版本、当前行棋方和对端确认结果后广播接受、拒绝、快照或终局结果。`DuelInputAuthority` 只读取 `SceneComponentDuel.localInputPlayerFlag`，该字段在 LAN 下由 host 的 `InputAuthority` 消息驱动。
 - `Assets/Config/DataJson` 是当前棋盘、场景、UI 页面、预制体和 TMP sprite 的数据来源。
 - 日志开关集中在 `LoggerConfig`。事件分发、FSM 参数/状态转移、AI 观察日志和 AI 分析细节日志归入诊断级输出；错误、警告、关键启动、AI 回合开始和最终落子/虚手决策归入常规输出。诊断级输出由 `ENABLE_EVENT_VERBOSE_LOG`、`ENABLE_FSM_VERBOSE_LOG`、`ENABLE_DUEL_AI_VERBOSE_LOG` 和 `ENABLE_DUEL_AI_DETAIL_LOG` 控制。
 - 资源加载通过 `ResourceManager` 和配置 id 抽象；编辑器环境使用 AssetDatabase，非编辑器环境使用 AssetBundle。
