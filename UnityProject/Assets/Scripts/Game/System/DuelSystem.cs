@@ -308,6 +308,8 @@ public class DuelSystem : SystemBase
 
         compDuel.isScoring = false;
         scene.GetSystem<DuelInputAuthoritySystem>()?.RefreshLocalInputAuthority();
+        LanDuelScoreFailureReason reason = evt != null ? evt.failure.reason : LanDuelScoreFailureReason.Unknown;
+        scene.EmitSystemEvent(new OnDuelScoreFailed(false, BuildLanScoreFailureMessage(reason)));
     }
 
     private void OnApplyLanDuelTakeBack(OnApplyLanDuelTakeBack evt)
@@ -615,13 +617,14 @@ public class DuelSystem : SystemBase
 
         DuelScoreResult scoreResult = await QueryScoreResult(compDuel, "lan-duel-score");
         if (scoreResult == null) {
-            Global.Instance.lanRoomService?.BroadcastScoreFailed(request.actionId);
-            scene.EmitSystemEvent(new OnDuelScoreFailed(true));
+            Global.Instance.lanRoomService?.BroadcastScoreFailed(
+                request.actionId,
+                request.requesterFlag,
+                LanDuelScoreFailureReason.CalculationFailed);
             return;
         }
 
-        Global.Instance.lanRoomService?.BroadcastScoreResult(BuildLanScoreResultMessage(request.actionId, scoreResult));
-        EndGameByScore(scoreResult, DuelGameEndReason.Score);
+        Global.Instance.lanRoomService?.BroadcastScoreResult(BuildLanScoreResultMessage(request, scoreResult));
     }
 
     private async System.Threading.Tasks.Task<DuelScoreResult> QueryScoreResult(SceneComponentDuel compDuel, string requestTag)
@@ -798,10 +801,11 @@ public class DuelSystem : SystemBase
         compDuel.duelFSM.SetParamterTrigger(DuelParamDefine.TRIGGER_PARAM_GAME_END);
     }
 
-    private LanDuelScoreResultMessage BuildLanScoreResultMessage(int actionId, DuelScoreResult scoreResult)
+    private LanDuelScoreResultMessage BuildLanScoreResultMessage(LanDuelScoreRequestMessage request, DuelScoreResult scoreResult)
     {
         return new LanDuelScoreResultMessage(
-            actionId,
+            request.actionId,
+            request.requesterFlag,
             scoreResult.blackScore,
             scoreResult.whiteScore,
             scoreResult.komi,
@@ -821,6 +825,21 @@ public class DuelSystem : SystemBase
             winnerFlag = result.winnerFlag,
             scoreSource = result.scoreSource,
         };
+    }
+
+    private string BuildLanScoreFailureMessage(LanDuelScoreFailureReason reason)
+    {
+        if (reason == LanDuelScoreFailureReason.RequestRejected) {
+            return "对方拒绝数子";
+        }
+        if (reason == LanDuelScoreFailureReason.ResultRejected) {
+            return "有一方不接受结果";
+        }
+        if (reason == LanDuelScoreFailureReason.InvalidRequest) {
+            return "当前无法请求数子";
+        }
+
+        return "数子失败，已回到对局";
     }
 
 }

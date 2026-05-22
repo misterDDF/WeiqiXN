@@ -16,6 +16,7 @@ public class DuelAuthoritySystem : SystemBase
         scene.RegisterSystemEvent<OnSubmitDuelPass>(OnSubmitDuelPass);
         scene.RegisterSystemEvent<OnSubmitDuelScore>(OnSubmitDuelScore);
         scene.RegisterSystemEvent<OnSubmitLanDuelScoreConfirm>(OnSubmitLanDuelScoreConfirm);
+        scene.RegisterSystemEvent<OnSubmitLanDuelScoreResultConfirm>(OnSubmitLanDuelScoreResultConfirm);
         scene.RegisterSystemEvent<OnSubmitDuelTakeBack>(OnSubmitDuelTakeBack);
         scene.RegisterSystemEvent<OnSubmitLanDuelTakeBackConfirm>(OnSubmitLanDuelTakeBackConfirm);
     }
@@ -122,7 +123,9 @@ public class DuelAuthoritySystem : SystemBase
         }
 
         if (compDuel.isLanDuel.value) {
-            SubmitLanScore(compDuel);
+            if (!SubmitLanScore(compDuel)) {
+                scene.EmitSystemEvent(new OnDuelScoreFailed(false, "当前无法请求数子"));
+            }
             return;
         }
 
@@ -154,6 +157,21 @@ public class DuelAuthoritySystem : SystemBase
         }
 
         Global.Instance.lanRoomService.SubmitScoreConfirmResponse(evt.request, confirmerFlag, evt.accepted);
+    }
+
+    private void OnSubmitLanDuelScoreResultConfirm(OnSubmitLanDuelScoreResultConfirm evt)
+    {
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
+        if (compDuel == null || evt == null || evt.result.requesterFlag == 0 || Global.Instance.lanRoomService == null) {
+            return;
+        }
+
+        PlayerFlag confirmerFlag = ResolveLocalPlayerFlagForLanConfirm(compDuel);
+        if (confirmerFlag == 0) {
+            return;
+        }
+
+        Global.Instance.lanRoomService.SubmitScoreResultConfirmResponse(evt.result, confirmerFlag, evt.accepted);
     }
 
     private PlayerFlag ResolveLocalPlayerFlagForLanConfirm(SceneComponentDuel compDuel)

@@ -147,6 +147,16 @@ public partial class LanRoomService
         HandleScoreResultMessage(message);
     }
 
+    private void OnScoreResultConfirmResponse(LanRoomProtocolMessage message)
+    {
+        HandleScoreResultConfirmResponseMessage(message);
+    }
+
+    private void OnScoreResultAccepted(LanRoomProtocolMessage message)
+    {
+        HandleAcceptedScoreResultMessage(message);
+    }
+
     private void OnScoreFailed(LanRoomProtocolMessage message)
     {
         HandleScoreFailedMessage(message);

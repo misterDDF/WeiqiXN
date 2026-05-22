@@ -148,6 +148,20 @@ public class OnSubmitLanDuelScoreConfirm : SystemEventBase
     }
 }
 
+public class OnSubmitLanDuelScoreResultConfirm : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnSubmitLanDuelScoreResultConfirm>();
+
+    public LanDuelScoreResultMessage result;
+    public bool accepted;
+
+    public OnSubmitLanDuelScoreResultConfirm(LanDuelScoreResultMessage result, bool accepted)
+    {
+        this.result = result;
+        this.accepted = accepted;
+    }
+}
+
 public class OnSubmitDuelTakeBack : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnSubmitDuelTakeBack>();
@@ -229,9 +243,11 @@ public class OnDuelScoreFailed : SystemEventBase
     public override string GetEventType() => GetEventType<OnDuelScoreFailed>();
 
     public bool requireConfirm;
-    public OnDuelScoreFailed(bool requireConfirm)
+    public string message;
+    public OnDuelScoreFailed(bool requireConfirm, string message = null)
     {
         this.requireConfirm = requireConfirm;
+        this.message = message;
     }
 }
 
@@ -393,6 +409,17 @@ public class OnLanDuelScoreConfirmRequest : SystemEventBase
     }
 }
 
+public class OnLanDuelScoreResultConfirmRequest : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnLanDuelScoreResultConfirmRequest>();
+
+    public LanDuelScoreResultMessage result;
+    public OnLanDuelScoreResultConfirmRequest(LanDuelScoreResultMessage result)
+    {
+        this.result = result;
+    }
+}
+
 public class OnLanDuelTakeBackConfirmRequest : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnLanDuelTakeBackConfirmRequest>();
@@ -434,4 +461,15 @@ public class OnApplyLanDuelScoreResult : SystemEventBase
 public class OnApplyLanDuelScoreFailed : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnApplyLanDuelScoreFailed>();
+
+    public LanDuelScoreFailedMessage failure;
+    public OnApplyLanDuelScoreFailed()
+    {
+        failure = default;
+    }
+
+    public OnApplyLanDuelScoreFailed(LanDuelScoreFailedMessage failure)
+    {
+        this.failure = failure;
+    }
 }

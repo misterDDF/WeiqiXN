@@ -28,7 +28,9 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         RegisterSystemEvent<OnDuelTakeBackResult>(OnDuelTakeBackResult);
         RegisterSystemEvent<OnAfterAddChessToBoard>(OnAfterAddChessToBoard);
         RegisterSystemEvent<OnDuelSaveResult>(OnDuelSaveResult);
+        RegisterSystemEvent<OnApplyLanDuelScoreRequest>(OnApplyLanDuelScoreRequest);
         RegisterSystemEvent<OnLanDuelScoreConfirmRequest>(OnLanDuelScoreConfirmRequest);
+        RegisterSystemEvent<OnLanDuelScoreResultConfirmRequest>(OnLanDuelScoreResultConfirmRequest);
         RegisterSystemEvent<OnLanDuelTakeBackConfirmRequest>(OnLanDuelTakeBackConfirmRequest);
 
         BindPrefabHud();
@@ -61,6 +63,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
     protected override void OnClose()
     {
+        ClosePendingScorePopup();
         ClosePendingTakeBackPopup();
         boardInput.Dispose();
         base.OnClose();
@@ -103,7 +106,14 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     public void OnDuelScoreFailed(OnDuelScoreFailed evt)
     {
         if (!evt.requireConfirm) {
-            hudView.ShowActionNotice("数子失败，已回到对局");
+            ClosePendingScorePopup();
+            string message = string.IsNullOrEmpty(evt.message) ? "数子失败，已回到对局" : evt.message;
+            SceneComponentDuel compDuel = Global.Instance.sceneManager.mainScene?.GetComponent<SceneComponentDuel>();
+            if (compDuel != null && compDuel.isLanDuel.value) {
+                ConfirmPopup.ShowTip("数子未通过", message, null, "确认");
+            } else {
+                hudView.ShowActionNotice(message);
+            }
             return;
         }
 
@@ -142,6 +152,21 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         hudView.ShowActionNotice(evt != null && evt.success ? "对局已保存" : "对局保存失败");
     }
 
+    public void OnApplyLanDuelScoreRequest(OnApplyLanDuelScoreRequest evt)
+    {
+        if (evt == null || pendingScorePopupRequestId <= 0) {
+            return;
+        }
+
+        ConfirmPopup.UpdateOpenContent(
+            pendingScorePopupRequestId,
+            "数子中",
+            "对方已同意数子，正在计算结果。",
+            null,
+            false
+        );
+    }
+
     public void OnLanDuelScoreConfirmRequest(OnLanDuelScoreConfirmRequest evt)
     {
         if (evt == null) {
@@ -155,6 +180,23 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             () => EmitSystemEvent(new OnSubmitLanDuelScoreConfirm(evt.request, false)),
             "同意数子",
             "继续对局"
+        );
+    }
+
+    public void OnLanDuelScoreResultConfirmRequest(OnLanDuelScoreResultConfirmRequest evt)
+    {
+        if (evt == null) {
+            return;
+        }
+
+        ClosePendingScorePopup();
+        pendingScorePopupRequestId = ConfirmPopup.Show(
+            "确认数子结果",
+            hudView.BuildScoreConfirmContent(BuildScoreResult(evt.result)),
+            () => EmitSystemEvent(new OnSubmitLanDuelScoreResultConfirm(evt.result, true)),
+            () => EmitSystemEvent(new OnSubmitLanDuelScoreResultConfirm(evt.result, false)),
+            "接受结果",
+            "不接受"
         );
     }
 
@@ -238,6 +280,15 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         }
 
         hudView.CloseSettingsPanel();
+        if (compDuel.isLanDuel.value) {
+            pendingScorePopupRequestId = ConfirmPopup.ShowBlocking(
+                "等待数子确认",
+                "已发送数子请求，正在等待对方同意。"
+            );
+            EmitSystemEvent(new OnSubmitDuelScore());
+            return;
+        }
+
         pendingScorePopupRequestId = ConfirmPopup.Show(
             "确认数子结果",
             "数子中...",
@@ -340,6 +391,29 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         ConfirmPopup.CloseIfOpen(pendingTakeBackPopupRequestId);
         pendingTakeBackPopupRequestId = 0;
+    }
+
+    private void ClosePendingScorePopup()
+    {
+        if (pendingScorePopupRequestId <= 0) {
+            return;
+        }
+
+        ConfirmPopup.CloseIfOpen(pendingScorePopupRequestId);
+        pendingScorePopupRequestId = 0;
+    }
+
+    private DuelScoreResult BuildScoreResult(LanDuelScoreResultMessage result)
+    {
+        return new DuelScoreResult
+        {
+            blackScore = result.blackScore,
+            whiteScore = result.whiteScore,
+            komi = result.komi,
+            margin = result.margin,
+            winnerFlag = result.winnerFlag,
+            scoreSource = result.scoreSource,
+        };
     }
 
     private bool IsPointerOverUI()

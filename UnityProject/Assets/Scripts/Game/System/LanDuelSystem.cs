@@ -5,6 +5,9 @@ public class LanDuelSystem : SystemBase
     public override string systemName => GetSystemName<LanDuelSystem>();
     private float nextTimeStateBroadcastTime;
     private const float TimeStateBroadcastIntervalSeconds = 1f;
+    private readonly Dictionary<int, LanDuelScoreRequestMessage> pendingScoreRequests = new Dictionary<int, LanDuelScoreRequestMessage>();
+    private readonly Dictionary<int, LanDuelScoreResultMessage> pendingScoreResults = new Dictionary<int, LanDuelScoreResultMessage>();
+    private readonly Dictionary<int, HashSet<PlayerFlag>> pendingScoreResultAcceptances = new Dictionary<int, HashSet<PlayerFlag>>();
     private readonly Dictionary<int, LanDuelTakeBackRequestMessage> pendingTakeBackRequests = new Dictionary<int, LanDuelTakeBackRequestMessage>();
 
     public LanDuelSystem(DuelScene scene) : base(scene)
@@ -26,6 +29,7 @@ public class LanDuelSystem : SystemBase
             ProcessSubmittedResigns(compDuel);
             ProcessSubmittedScores(compDuel);
             ProcessScoreConfirmResponses(compDuel);
+            ProcessScoreResultConfirmResponses(compDuel);
             ProcessSubmittedTakeBacks(compDuel);
             ProcessTakeBackConfirmResponses(compDuel);
             BroadcastCurrentTimeState(compDuel);
@@ -122,14 +126,26 @@ public class LanDuelSystem : SystemBase
         }
 
         while (Global.Instance.lanRoomService.TryDequeueScoreResult(out LanDuelScoreResultMessage result)) {
-            if ((LanRoomRole)compDuel.lanRole.value == LanRoomRole.Host) {
-                continue;
-            }
+            pendingScoreResults[result.actionId] = result;
+            scene.EmitSystemEvent(new OnLanDuelScoreResultConfirmRequest(result));
+        }
+
+        while (Global.Instance.lanRoomService.TryDequeueAcceptedScoreResult(out LanDuelScoreResultMessage result)) {
+            ClearPendingScoreResult(result.actionId);
             scene.EmitSystemEvent(new OnApplyLanDuelScoreResult(result));
         }
 
-        while (Global.Instance.lanRoomService.TryDequeueScoreFailure(out _)) {
-            scene.EmitSystemEvent(new OnApplyLanDuelScoreFailed());
+        while (Global.Instance.lanRoomService.TryDequeueScoreFailure(out LanDuelScoreFailedMessage failure)) {
+            PlayerFlag localPlayerFlag = ResolveLocalPlayerFlag(compDuel);
+            if (failure.reason != LanDuelScoreFailureReason.ResultRejected &&
+                failure.reason != LanDuelScoreFailureReason.CalculationFailed &&
+                failure.requesterFlag != 0 &&
+                failure.requesterFlag != localPlayerFlag) {
+                continue;
+            }
+
+            ClearPendingScoreResult(failure.actionId);
+            scene.EmitSystemEvent(new OnApplyLanDuelScoreFailed(failure));
         }
 
         while (Global.Instance.lanRoomService.TryDequeueTakeBackConfirmRequest(out LanDuelTakeBackRequestMessage request)) {
@@ -216,10 +232,15 @@ public class LanDuelSystem : SystemBase
 
         while (Global.Instance.lanRoomService.TryDequeueSubmittedScore(out LanDuelScoreRequestMessage request)) {
             if (!duelSystem.CanAcceptLanDuelScore(compDuel, request)) {
-                Global.Instance.lanRoomService.BroadcastScoreFailed(request.actionId);
+                ClearPendingScoreResult(request.actionId);
+                Global.Instance.lanRoomService.BroadcastScoreFailed(
+                    request.actionId,
+                    request.requesterFlag,
+                    LanDuelScoreFailureReason.InvalidRequest);
                 continue;
             }
 
+            pendingScoreRequests[request.actionId] = request;
             Global.Instance.lanRoomService.BroadcastScoreConfirmRequest(request);
         }
     }
@@ -232,17 +253,64 @@ public class LanDuelSystem : SystemBase
         }
 
         while (Global.Instance.lanRoomService.TryDequeueScoreConfirmResponse(out LanDuelScoreConfirmMessage response)) {
-            LanDuelScoreRequestMessage request = new LanDuelScoreRequestMessage(
-                response.actionId,
-                compDuel.lanBoardVersion.value,
-                response.requesterFlag);
-            if (!response.accepted || !IsValidScoreConfirm(compDuel, response)) {
-                Global.Instance.lanRoomService.BroadcastScoreFailed(response.actionId);
+            if (!pendingScoreRequests.TryGetValue(response.actionId, out LanDuelScoreRequestMessage request)) {
+                Global.Instance.lanRoomService.BroadcastScoreFailed(
+                    response.actionId,
+                    response.requesterFlag,
+                    LanDuelScoreFailureReason.InvalidRequest);
+                continue;
+            }
+
+            if (!response.accepted ||
+                response.requesterFlag != request.requesterFlag ||
+                !IsValidScoreConfirm(compDuel, response)) {
+                ClearPendingScoreResult(response.actionId);
+                Global.Instance.lanRoomService.BroadcastScoreFailed(
+                    response.actionId,
+                    request.requesterFlag,
+                    LanDuelScoreFailureReason.RequestRejected);
                 continue;
             }
 
             Global.Instance.lanRoomService.BroadcastAcceptedScoreRequest(request);
             duelSystem.AcceptLanDuelScoreRequest(request);
+        }
+    }
+
+    private void ProcessScoreResultConfirmResponses(SceneComponentDuel compDuel)
+    {
+        while (Global.Instance.lanRoomService.TryDequeueScoreResultConfirmResponse(out LanDuelScoreResultConfirmMessage response)) {
+            if (!pendingScoreRequests.TryGetValue(response.actionId, out LanDuelScoreRequestMessage request) ||
+                !pendingScoreResults.TryGetValue(response.actionId, out LanDuelScoreResultMessage result) ||
+                response.requesterFlag != request.requesterFlag ||
+                !IsValidScoreResultConfirm(response)) {
+                Global.Instance.lanRoomService.BroadcastScoreFailed(
+                    response.actionId,
+                    response.requesterFlag,
+                    LanDuelScoreFailureReason.InvalidRequest);
+                continue;
+            }
+
+            if (!response.accepted) {
+                ClearPendingScoreResult(response.actionId);
+                Global.Instance.lanRoomService.BroadcastScoreFailed(
+                    response.actionId,
+                    request.requesterFlag,
+                    LanDuelScoreFailureReason.ResultRejected);
+                scene.GetSystem<DuelInputAuthoritySystem>()?.RefreshLocalInputAuthority();
+                continue;
+            }
+
+            if (!pendingScoreResultAcceptances.TryGetValue(response.actionId, out HashSet<PlayerFlag> acceptedFlags)) {
+                acceptedFlags = new HashSet<PlayerFlag>();
+                pendingScoreResultAcceptances[response.actionId] = acceptedFlags;
+            }
+
+            acceptedFlags.Add(response.confirmerFlag);
+            if (acceptedFlags.Contains(PlayerFlag.Player1) && acceptedFlags.Contains(PlayerFlag.Player2)) {
+                ClearPendingScoreResult(response.actionId);
+                Global.Instance.lanRoomService.BroadcastAcceptedScoreResult(result);
+            }
         }
     }
 
@@ -337,6 +405,18 @@ public class LanDuelSystem : SystemBase
 
         return (response.requesterFlag == PlayerFlag.Player1 && response.confirmerFlag == PlayerFlag.Player2) ||
             (response.requesterFlag == PlayerFlag.Player2 && response.confirmerFlag == PlayerFlag.Player1);
+    }
+
+    private bool IsValidScoreResultConfirm(LanDuelScoreResultConfirmMessage response)
+    {
+        return response.confirmerFlag == PlayerFlag.Player1 || response.confirmerFlag == PlayerFlag.Player2;
+    }
+
+    private void ClearPendingScoreResult(int actionId)
+    {
+        pendingScoreRequests.Remove(actionId);
+        pendingScoreResults.Remove(actionId);
+        pendingScoreResultAcceptances.Remove(actionId);
     }
 
     private void BroadcastCurrentTimeState(SceneComponentDuel compDuel)

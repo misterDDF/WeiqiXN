@@ -20,6 +20,8 @@ public enum LanRoomProtocol
     ScoreConfirmResponse,
     ScoreRequestAccepted,
     ScoreResult,
+    ScoreResultConfirmResponse,
+    ScoreResultAccepted,
     ScoreFailed,
     SubmitTakeBack,
     TakeBackConfirmRequest,
