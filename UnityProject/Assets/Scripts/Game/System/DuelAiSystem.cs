@@ -8,6 +8,7 @@ public class DuelAiSystem : SystemBase
 
     private int requestVersion;
     private bool isThinking;
+    private bool hasCheckedInitialTurn;
 
     public DuelAiSystem(DuelScene scene) : base(scene)
     {
@@ -20,6 +21,25 @@ public class DuelAiSystem : SystemBase
         scene.RegisterSystemEvent<OnAfterAddChessToBoard>(OnAfterAddChessToBoard);
         scene.RegisterSystemEvent<OnRequestDuelPass>(OnRequestDuelPass);
         XNLogger.LogInfo("Duel AI system initialized.");
+    }
+
+    public override void OnUpdate()
+    {
+        base.OnUpdate();
+
+        if (hasCheckedInitialTurn) {
+            return;
+        }
+
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
+        if (compDuel?.duelFSM == null || !compDuel.duelFSM.isActivated) {
+            return;
+        }
+
+        hasCheckedInitialTurn = true;
+        if (compDuel.duelFSM.curState != null && compDuel.duelFSM.curState.stateName == DuelStateDefine.STATE_TURN_INPUT) {
+            TryStartAiTurn();
+        }
     }
 
     private void OnAfterAddChessToBoard(OnAfterAddChessToBoard evt)

@@ -32,9 +32,9 @@ public class DuelScene : SceneBase
         AddSystem(new DuelOwnershipSystem(this));
         AddSystem(new DuelAuthoritySystem(this));
         AddSystem(new DuelInputAuthoritySystem(this));
+        AddSystem(new DuelAiSystem(this));
         AddSystem(new DuelSystem(this));
         AddSystem(new LanDuelSystem(this));
-        AddSystem(new DuelAiSystem(this));
 
         Global.Instance.uiManager.ShowPage<DuelPage>();
     }
