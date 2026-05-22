@@ -24,6 +24,7 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
         AddButtonListener(binder.btn_create_room, OnClickBtnCreateRoom);
         AddButtonListener(binder.btn_search_room, OnClickBtnSearchRoom);
         AddButtonListener(binder.btn_close, OnClickBtnClose);
+        RegisterSystemEvent<OnLanRoomPeerLeft>(OnLanRoomPeerLeft);
     }
 
     protected override void OnOpen()
@@ -99,6 +100,9 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
 
     public void OnClickBtnClose()
     {
+        if (!hasEnteredLanDuel) {
+            Global.Instance.lanRoomService?.LeaveCurrentSession(LanRoomLeaveReason.CancelRoom);
+        }
         ClosePage();
     }
 
@@ -115,6 +119,12 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
             Global.Instance.lanRoomService.SetLocalReady(true);
         }
         SetStatus(Global.Instance.lanRoomService.LastStatus);
+    }
+
+    private void OnLanRoomPeerLeft(OnLanRoomPeerLeft evt)
+    {
+        RefreshRoomList(null);
+        SetStatus(MessageText.Get("lan_room_peer_left"));
     }
 
     private void RefreshRoomList(IReadOnlyList<LanRoomInfo> rooms)

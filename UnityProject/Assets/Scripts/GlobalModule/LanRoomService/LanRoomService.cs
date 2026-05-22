@@ -52,6 +52,7 @@ public partial class LanRoomService : ModuleBase
     private readonly Queue<LanDuelTakeBackConfirmMessage> pendingTakeBackConfirmResponses = new Queue<LanDuelTakeBackConfirmMessage>();
     private readonly Queue<LanDuelTakeBackRequestMessage> pendingAcceptedTakeBacks = new Queue<LanDuelTakeBackRequestMessage>();
     private readonly Queue<LanDuelTakeBackRejectedMessage> pendingRejectedTakeBacks = new Queue<LanDuelTakeBackRejectedMessage>();
+    private readonly Queue<OnLanRoomPeerLeft> pendingPeerLeftEvents = new Queue<OnLanRoomPeerLeft>();
     private TcpClient connectedClient;
     private Thread sessionReadThread;
     private LanRoomRole currentRole = LanRoomRole.None;
@@ -90,6 +91,15 @@ public partial class LanRoomService : ModuleBase
     {
     }
 
+    public override void Update()
+    {
+        base.Update();
+
+        while (TryDequeuePeerLeftEvent(out OnLanRoomPeerLeft evt)) {
+            Global.Instance.eventManager.EmitSystemEvent(evt);
+        }
+    }
+
     public void SetStartConfig(
         string boardCfgId,
         string holdTimeCfgId,
@@ -118,23 +128,7 @@ public partial class LanRoomService : ModuleBase
             clientReady = false;
             gameStarted = false;
             nextMoveId = 1;
-            pendingSubmittedMoves.Clear();
-            pendingAcceptedMoves.Clear();
-            pendingRejectedMoves.Clear();
-            pendingBoardSnapshots.Clear();
-            pendingTimeStates.Clear();
-            pendingTimeoutLosers.Clear();
-            pendingSubmittedResigns.Clear();
-            pendingAcceptedResigns.Clear();
-            pendingInputAuthorities.Clear();
-            pendingSubmittedPasses.Clear();
-            pendingAcceptedPasses.Clear();
-            pendingSubmittedScores.Clear();
-            pendingScoreConfirmRequests.Clear();
-            pendingScoreConfirmResponses.Clear();
-            pendingAcceptedScoreRequests.Clear();
-            ClearScoreResultQueues();
-            ClearTakeBackQueues();
+            ClearDuelMessageQueues();
         }
 
         try {
@@ -181,23 +175,7 @@ public partial class LanRoomService : ModuleBase
             clientReady = false;
             gameStarted = false;
             nextMoveId = 1;
-            pendingSubmittedMoves.Clear();
-            pendingAcceptedMoves.Clear();
-            pendingRejectedMoves.Clear();
-            pendingBoardSnapshots.Clear();
-            pendingTimeStates.Clear();
-            pendingTimeoutLosers.Clear();
-            pendingSubmittedResigns.Clear();
-            pendingAcceptedResigns.Clear();
-            pendingInputAuthorities.Clear();
-            pendingSubmittedPasses.Clear();
-            pendingAcceptedPasses.Clear();
-            pendingSubmittedScores.Clear();
-            pendingScoreConfirmRequests.Clear();
-            pendingScoreConfirmResponses.Clear();
-            pendingAcceptedScoreRequests.Clear();
-            ClearScoreResultQueues();
-            ClearTakeBackQueues();
+            ClearDuelMessageQueues();
         }
 
         try {
@@ -210,6 +188,25 @@ public partial class LanRoomService : ModuleBase
 
         CloseUdpClient(broadcastClient);
         broadcastClient = null;
+        JoinThread(acceptThread);
+        JoinThread(broadcastThread);
+        JoinThread(sessionReadThread);
+        acceptThread = null;
+        broadcastThread = null;
+        sessionReadThread = null;
+        hostedRoomId = null;
+        hostedRoomName = null;
+        lastStatus = MessageText.Get("lan_room_service_stopped");
+    }
+
+    public void LeaveCurrentSession(LanRoomLeaveReason reason, bool notifyPeer = true)
+    {
+        if (notifyPeer && connectedClient != null) {
+            SendLeaveRoomMessage(reason);
+        }
+
+        StopSearchRooms();
+        StopRoom();
     }
 
     public void StartSearchRooms()
@@ -245,6 +242,8 @@ public partial class LanRoomService : ModuleBase
         isSearching = false;
         CloseUdpClient(discoveryClient);
         discoveryClient = null;
+        JoinThread(discoveryThread);
+        discoveryThread = null;
     }
 
     public List<LanRoomInfo> GetDiscoveredRooms()
@@ -290,23 +289,7 @@ public partial class LanRoomService : ModuleBase
                 clientReady = false;
                 gameStarted = false;
                 nextMoveId = 1;
-                pendingSubmittedMoves.Clear();
-                pendingAcceptedMoves.Clear();
-                pendingRejectedMoves.Clear();
-                pendingBoardSnapshots.Clear();
-                pendingTimeStates.Clear();
-                pendingTimeoutLosers.Clear();
-                pendingSubmittedResigns.Clear();
-                pendingAcceptedResigns.Clear();
-                pendingInputAuthorities.Clear();
-                pendingSubmittedPasses.Clear();
-                pendingAcceptedPasses.Clear();
-                pendingSubmittedScores.Clear();
-                pendingScoreConfirmRequests.Clear();
-                pendingScoreConfirmResponses.Clear();
-                pendingAcceptedScoreRequests.Clear();
-                ClearScoreResultQueues();
-                ClearTakeBackQueues();
+                ClearDuelMessageQueues();
             }
             StartSessionReader(client);
             SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.Ready)}|CLIENT|0");
@@ -1059,23 +1042,7 @@ public partial class LanRoomService : ModuleBase
                     clientReady = false;
                     gameStarted = false;
                     nextMoveId = 1;
-                    pendingSubmittedMoves.Clear();
-                    pendingAcceptedMoves.Clear();
-                    pendingRejectedMoves.Clear();
-                    pendingBoardSnapshots.Clear();
-                    pendingTimeStates.Clear();
-                    pendingTimeoutLosers.Clear();
-                    pendingSubmittedResigns.Clear();
-                    pendingAcceptedResigns.Clear();
-                    pendingInputAuthorities.Clear();
-                    pendingSubmittedPasses.Clear();
-                    pendingAcceptedPasses.Clear();
-                    pendingSubmittedScores.Clear();
-                    pendingScoreConfirmRequests.Clear();
-                    pendingScoreConfirmResponses.Clear();
-                    pendingAcceptedScoreRequests.Clear();
-                    ClearScoreResultQueues();
-                    ClearTakeBackQueues();
+                    ClearDuelMessageQueues();
                 }
                 StartSessionReader(client);
                 BroadcastRoomState();
@@ -1206,6 +1173,22 @@ public partial class LanRoomService : ModuleBase
         }
 
         XNLogger.LogWarn("Unknown LAN room protocol.", ("protocol", protocolMessage.protocol));
+    }
+
+    private void HandleLeaveRoomMessage(LanRoomProtocolMessage message)
+    {
+        LanRoomRole peerRole = LanRoomRole.None;
+        LanRoomLeaveReason reason = LanRoomLeaveReason.ExitDuel;
+        if (message.ArgCount > 0 && Enum.TryParse(message.GetArg(0), out LanRoomRole parsedRole)) {
+            peerRole = parsedRole;
+        }
+        if (message.ArgCount > 1 && Enum.TryParse(message.GetArg(1), out LanRoomLeaveReason parsedReason)) {
+            reason = parsedReason;
+        }
+
+        EnqueuePeerLeftEvent(peerRole, reason);
+        StopRoom();
+        lastStatus = MessageText.Get("lan_room_peer_left");
     }
 
     private void HandleReadyMessage(LanRoomProtocolMessage message)
@@ -1828,6 +1811,47 @@ public partial class LanRoomService : ModuleBase
         pendingScoreFailures.Clear();
     }
 
+    private void ClearDuelMessageQueues()
+    {
+        pendingSubmittedMoves.Clear();
+        pendingAcceptedMoves.Clear();
+        pendingRejectedMoves.Clear();
+        pendingBoardSnapshots.Clear();
+        pendingTimeStates.Clear();
+        pendingTimeoutLosers.Clear();
+        pendingSubmittedResigns.Clear();
+        pendingAcceptedResigns.Clear();
+        pendingInputAuthorities.Clear();
+        pendingSubmittedPasses.Clear();
+        pendingAcceptedPasses.Clear();
+        pendingSubmittedScores.Clear();
+        pendingScoreConfirmRequests.Clear();
+        pendingScoreConfirmResponses.Clear();
+        pendingAcceptedScoreRequests.Clear();
+        ClearScoreResultQueues();
+        ClearTakeBackQueues();
+    }
+
+    private bool TryDequeuePeerLeftEvent(out OnLanRoomPeerLeft evt)
+    {
+        lock (sessionLock) {
+            if (pendingPeerLeftEvents.Count > 0) {
+                evt = pendingPeerLeftEvents.Dequeue();
+                return true;
+            }
+        }
+
+        evt = null;
+        return false;
+    }
+
+    private void EnqueuePeerLeftEvent(LanRoomRole peerRole, LanRoomLeaveReason reason)
+    {
+        lock (sessionLock) {
+            pendingPeerLeftEvents.Enqueue(new OnLanRoomPeerLeft(peerRole, reason));
+        }
+    }
+
     private string SerializeBoardSnapshot(LanDuelBoardSnapshotMessage snapshot)
     {
         StringBuilder stonesBuilder = new StringBuilder();
@@ -1880,7 +1904,17 @@ public partial class LanRoomService : ModuleBase
         return $"{LanRoomProtocolName.ToWireName(LanRoomProtocol.TimeState)}|{(int)timeState.playerFlag}|{timeState.holdLeftSeconds}|{timeState.byoyomiLeftCount}|{timeState.byoyomiLeftSeconds}|{BoolToInt(timeState.isInByoyomi)}|{timeState.turnLeftTimes}|{timeState.hostTimestampMilliseconds}";
     }
 
+    private void SendLeaveRoomMessage(LanRoomLeaveReason reason)
+    {
+        SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.LeaveRoom)}|{currentRole}|{reason}", false);
+    }
+
     private void SendRoomMessage(string message)
+    {
+        SendRoomMessage(message, true);
+    }
+
+    private void SendRoomMessage(string message, bool disconnectOnFailure)
     {
         TcpClient client = connectedClient;
         if (client == null) {
@@ -1894,7 +1928,9 @@ public partial class LanRoomService : ModuleBase
         }
         catch (Exception e) {
             XNLogger.LogWarn("Send LAN room session message failed.", ("error", e.Message));
-            OnSessionDisconnected(client);
+            if (disconnectOnFailure) {
+                OnSessionDisconnected(client);
+            }
         }
     }
 
@@ -1918,23 +1954,7 @@ public partial class LanRoomService : ModuleBase
             }
             clientReady = false;
             gameStarted = false;
-            pendingSubmittedMoves.Clear();
-            pendingAcceptedMoves.Clear();
-            pendingRejectedMoves.Clear();
-            pendingBoardSnapshots.Clear();
-            pendingTimeStates.Clear();
-            pendingTimeoutLosers.Clear();
-            pendingSubmittedResigns.Clear();
-            pendingAcceptedResigns.Clear();
-            pendingInputAuthorities.Clear();
-            pendingSubmittedPasses.Clear();
-            pendingAcceptedPasses.Clear();
-            pendingSubmittedScores.Clear();
-            pendingScoreConfirmRequests.Clear();
-            pendingScoreConfirmResponses.Clear();
-            pendingAcceptedScoreRequests.Clear();
-            ClearScoreResultQueues();
-            ClearTakeBackQueues();
+            ClearDuelMessageQueues();
         }
         lastStatus = MessageText.Get("lan_room_disconnected");
     }
@@ -2023,6 +2043,22 @@ public partial class LanRoomService : ModuleBase
         }
         catch (Exception e) {
             XNLogger.LogWarn("Close LAN UDP client failed.", ("error", e.Message));
+        }
+    }
+
+    private void JoinThread(Thread thread)
+    {
+        if (thread == null || !thread.IsAlive || ReferenceEquals(Thread.CurrentThread, thread)) {
+            return;
+        }
+
+        try {
+            if (!thread.Join(100)) {
+                XNLogger.LogWarn("Wait LAN room thread exit timed out.", ("thread", thread.Name ?? string.Empty));
+            }
+        }
+        catch (Exception e) {
+            XNLogger.LogWarn("Wait LAN room thread exit failed.", ("error", e.Message));
         }
     }
 }
