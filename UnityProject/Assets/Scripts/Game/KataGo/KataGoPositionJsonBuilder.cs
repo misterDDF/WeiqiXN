@@ -117,12 +117,16 @@ public static class KataGoPositionJsonBuilder
     private static JObject BuildBaseAnalysisJson(DuelScene duelScene, string requestId, int maxVisits)
     {
         int boardSize = GetBoardSize(duelScene);
+        SceneComponentDuel compDuel = duelScene.GetComponent<SceneComponentDuel>();
+        float komi = compDuel != null
+            ? DuelHandicapPlacement.GetKomi(compDuel.handicapCfgId.value)
+            : DefaultKomi;
 
         JObject query = new JObject
         {
             ["id"] = requestId,
             ["rules"] = DefaultRules,
-            ["komi"] = DefaultKomi,
+            ["komi"] = komi,
             ["boardXSize"] = boardSize,
             ["boardYSize"] = boardSize,
             ["maxVisits"] = maxVisits,

@@ -67,7 +67,7 @@ public class DuelPageHudView
     public void OnDuelOwnershipResult(OnDuelOwnershipResult evt)
     {
         SetText(binder.txt_ownership_black_points, MessageText.Format("duel_ownership_black_points", FormatPointCount(evt.blackPoints)));
-        SetText(binder.txt_ownership_white_points, MessageText.Format("duel_ownership_white_points", FormatPointCount(evt.whitePoints)));
+        SetText(binder.txt_ownership_white_points, MessageText.Format(GetOwnershipWhitePointsMessageKey(), FormatPointCount(evt.whitePoints)));
         SetOwnershipActive(true);
         SetOwnershipResultPanelVisible(true);
     }
@@ -119,11 +119,45 @@ public class DuelPageHudView
         }
 
         return MessageText.Format(
-            "duel_score_confirm_content",
+            GetScoreConfirmContentMessageKey(),
             FormatPointCount(scoreResult.blackScore),
             FormatPointCount(scoreResult.whiteScore),
             FormatPointCount(scoreResult.komi),
             winnerText);
+    }
+
+    private string GetOwnershipWhitePointsMessageKey()
+    {
+        string handicapCfgId = GetCurrentHandicapCfgId();
+        if (DuelHandicapPlacement.IsSen(handicapCfgId)) {
+            return "duel_ownership_white_points_sen";
+        }
+
+        if (DuelHandicapPlacement.HasHandicap(handicapCfgId)) {
+            return "duel_ownership_white_points_handicap";
+        }
+
+        return "duel_ownership_white_points";
+    }
+
+    private string GetScoreConfirmContentMessageKey()
+    {
+        string handicapCfgId = GetCurrentHandicapCfgId();
+        if (DuelHandicapPlacement.IsSen(handicapCfgId)) {
+            return "duel_score_confirm_content_sen";
+        }
+
+        if (DuelHandicapPlacement.HasHandicap(handicapCfgId)) {
+            return "duel_score_confirm_content_handicap";
+        }
+
+        return "duel_score_confirm_content";
+    }
+
+    private string GetCurrentHandicapCfgId()
+    {
+        SceneComponentDuel compDuel = Global.Instance.sceneManager.mainScene?.GetComponent<SceneComponentDuel>();
+        return compDuel?.handicapCfgId.value ?? string.Empty;
     }
 
     public void OpenSettingsPanel()

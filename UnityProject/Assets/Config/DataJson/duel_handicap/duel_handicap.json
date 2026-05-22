@@ -4,6 +4,15 @@
     "boardCfgId": "9x9",
     "displayName": "分先",
     "handicapCount": 0,
+    "komi": 7.5,
+    "stonePoints": []
+  },
+  "9x9_sen": {
+    "id": "9x9_sen",
+    "boardCfgId": "9x9",
+    "displayName": "让先",
+    "handicapCount": 0,
+    "komi": 0.5,
     "stonePoints": []
   },
   "9x9_2": {
@@ -11,6 +20,7 @@
     "boardCfgId": "9x9",
     "displayName": "让2子",
     "handicapCount": 2,
+    "komi": 0.5,
     "stonePoints": [
       "C3",
       "G7"
@@ -21,6 +31,7 @@
     "boardCfgId": "9x9",
     "displayName": "让3子",
     "handicapCount": 3,
+    "komi": 0.5,
     "stonePoints": [
       "C3",
       "G7",
@@ -32,6 +43,7 @@
     "boardCfgId": "9x9",
     "displayName": "让4子",
     "handicapCount": 4,
+    "komi": 0.5,
     "stonePoints": [
       "C3",
       "G3",
@@ -44,6 +56,7 @@
     "boardCfgId": "9x9",
     "displayName": "让5子",
     "handicapCount": 5,
+    "komi": 0.5,
     "stonePoints": [
       "C3",
       "G3",
@@ -57,6 +70,15 @@
     "boardCfgId": "13x13",
     "displayName": "分先",
     "handicapCount": 0,
+    "komi": 7.5,
+    "stonePoints": []
+  },
+  "13x13_sen": {
+    "id": "13x13_sen",
+    "boardCfgId": "13x13",
+    "displayName": "让先",
+    "handicapCount": 0,
+    "komi": 0.5,
     "stonePoints": []
   },
   "13x13_2": {
@@ -64,6 +86,7 @@
     "boardCfgId": "13x13",
     "displayName": "让2子",
     "handicapCount": 2,
+    "komi": 0.5,
     "stonePoints": [
       "D4",
       "K10"
@@ -74,6 +97,7 @@
     "boardCfgId": "13x13",
     "displayName": "让3子",
     "handicapCount": 3,
+    "komi": 0.5,
     "stonePoints": [
       "D4",
       "K10",
@@ -85,6 +109,7 @@
     "boardCfgId": "13x13",
     "displayName": "让4子",
     "handicapCount": 4,
+    "komi": 0.5,
     "stonePoints": [
       "D4",
       "K4",
@@ -97,6 +122,7 @@
     "boardCfgId": "13x13",
     "displayName": "让5子",
     "handicapCount": 5,
+    "komi": 0.5,
     "stonePoints": [
       "D4",
       "K4",
@@ -110,6 +136,7 @@
     "boardCfgId": "13x13",
     "displayName": "让6子",
     "handicapCount": 6,
+    "komi": 0.5,
     "stonePoints": [
       "D4",
       "K4",
@@ -124,6 +151,7 @@
     "boardCfgId": "13x13",
     "displayName": "让7子",
     "handicapCount": 7,
+    "komi": 0.5,
     "stonePoints": [
       "D4",
       "K4",
@@ -139,6 +167,7 @@
     "boardCfgId": "13x13",
     "displayName": "让8子",
     "handicapCount": 8,
+    "komi": 0.5,
     "stonePoints": [
       "D4",
       "K4",
@@ -155,6 +184,7 @@
     "boardCfgId": "13x13",
     "displayName": "让9子",
     "handicapCount": 9,
+    "komi": 0.5,
     "stonePoints": [
       "D4",
       "G4",
@@ -172,6 +202,15 @@
     "boardCfgId": "19x19",
     "displayName": "分先",
     "handicapCount": 0,
+    "komi": 7.5,
+    "stonePoints": []
+  },
+  "19x19_sen": {
+    "id": "19x19_sen",
+    "boardCfgId": "19x19",
+    "displayName": "让先",
+    "handicapCount": 0,
+    "komi": 0.5,
     "stonePoints": []
   },
   "19x19_2": {
@@ -179,6 +218,7 @@
     "boardCfgId": "19x19",
     "displayName": "让2子",
     "handicapCount": 2,
+    "komi": 0.5,
     "stonePoints": [
       "D4",
       "Q16"
@@ -189,6 +229,7 @@
     "boardCfgId": "19x19",
     "displayName": "让3子",
     "handicapCount": 3,
+    "komi": 0.5,
     "stonePoints": [
       "D4",
       "Q16",
@@ -200,6 +241,7 @@
     "boardCfgId": "19x19",
     "displayName": "让4子",
     "handicapCount": 4,
+    "komi": 0.5,
     "stonePoints": [
       "D4",
       "Q16",
@@ -212,6 +254,7 @@
     "boardCfgId": "19x19",
     "displayName": "让5子",
     "handicapCount": 5,
+    "komi": 0.5,
     "stonePoints": [
       "D4",
       "Q16",
@@ -225,6 +268,7 @@
     "boardCfgId": "19x19",
     "displayName": "让6子",
     "handicapCount": 6,
+    "komi": 0.5,
     "stonePoints": [
       "D4",
       "Q16",
@@ -239,6 +283,7 @@
     "boardCfgId": "19x19",
     "displayName": "让7子",
     "handicapCount": 7,
+    "komi": 0.5,
     "stonePoints": [
       "D4",
       "Q16",
@@ -254,6 +299,7 @@
     "boardCfgId": "19x19",
     "displayName": "让8子",
     "handicapCount": 8,
+    "komi": 0.5,
     "stonePoints": [
       "D4",
       "Q16",
@@ -270,6 +316,7 @@
     "boardCfgId": "19x19",
     "displayName": "让9子",
     "handicapCount": 9,
+    "komi": 0.5,
     "stonePoints": [
       "D4",
       "D10",

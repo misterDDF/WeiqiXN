@@ -11,6 +11,7 @@ public class DuelHandicapDataType
     public string boardCfgId;  // 棋盘配置
     public string displayName;  // 显示名称
     public int handicapCount;  // 让子数
+    public float komi;  // 贴目
     public string[] stonePoints;  // 星位坐标
 
     public static Dictionary<string, DuelHandicapDataType> DuelHandicapDict;

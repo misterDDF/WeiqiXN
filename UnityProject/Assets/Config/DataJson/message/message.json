@@ -748,5 +748,25 @@
     "id": "duel_score_request_unavailable",
     "text": "当前无法请求数子",
     "remark": "无法请求数子"
+  },
+  "duel_ownership_white_points_sen": {
+    "id": "duel_ownership_white_points_sen",
+    "text": "白方目数: {0}（让先）",
+    "remark": "形势白方目数，让先贴0.5目"
+  },
+  "duel_score_confirm_content_sen": {
+    "id": "duel_score_confirm_content_sen",
+    "text": "黑方: {0} 目\n白方: {1} 目（让先，贴 {2}）\n结果: {3}",
+    "remark": "数子确认内容，让先贴0.5目"
+  },
+  "duel_ownership_white_points_handicap": {
+    "id": "duel_ownership_white_points_handicap",
+    "text": "白方目数: {0}（让子）",
+    "remark": "形势白方目数，让子贴0.5目"
+  },
+  "duel_score_confirm_content_handicap": {
+    "id": "duel_score_confirm_content_handicap",
+    "text": "黑方: {0} 目\n白方: {1} 目（让子，贴 {2}）\n结果: {3}",
+    "remark": "数子确认内容，让子贴0.5目"
   }
 }

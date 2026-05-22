@@ -5,6 +5,9 @@ using XNClient.Logger;
 
 public static class DuelHandicapPlacement
 {
+    private const float DefaultEvenGameKomi = 7.5f;
+    private const string SenCfgIdSuffix = "_sen";
+
     public static string GetDefaultCfgId(string boardCfgId)
     {
         return $"{GetValidBoardCfgId(boardCfgId)}_0";
@@ -48,6 +51,17 @@ public static class DuelHandicapPlacement
     {
         DuelHandicapDataType data = DuelHandicapDataType.GetConfigData(cfgId);
         return data != null ? data.handicapCount : 0;
+    }
+
+    public static float GetKomi(string cfgId)
+    {
+        DuelHandicapDataType data = DuelHandicapDataType.GetConfigData(cfgId);
+        return data != null ? data.komi : DefaultEvenGameKomi;
+    }
+
+    public static bool IsSen(string cfgId)
+    {
+        return !string.IsNullOrEmpty(cfgId) && cfgId.EndsWith(SenCfgIdSuffix);
     }
 
     public static bool HasHandicap(string cfgId)
@@ -121,7 +135,21 @@ public static class DuelHandicapPlacement
 
     private static int CompareHandicapCfgId(string a, string b)
     {
-        return GetHandicapCount(a).CompareTo(GetHandicapCount(b));
+        int orderCompare = GetHandicapOrder(a).CompareTo(GetHandicapOrder(b));
+        if (orderCompare != 0) {
+            return orderCompare;
+        }
+
+        return string.CompareOrdinal(a, b);
+    }
+
+    private static int GetHandicapOrder(string cfgId)
+    {
+        if (IsSen(cfgId)) {
+            return 1;
+        }
+
+        return GetHandicapCount(cfgId) * 10;
     }
 
     private static string GetValidBoardCfgId(string boardCfgId)
