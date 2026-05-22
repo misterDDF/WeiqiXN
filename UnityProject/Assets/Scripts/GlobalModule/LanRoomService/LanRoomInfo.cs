@@ -13,6 +13,7 @@ public readonly struct LanRoomInfo
     public readonly string byoyomiTimeCfgId;
     public readonly string handicapCfgId;
     public readonly PlayerFlag hostPlayerFlag;
+    public readonly string hostPlayerSideCfgId;
 
     public LanRoomInfo(string roomId, string name, string hostAddress, int tcpPort, int playerCount, int maxPlayerCount)
         : this(
@@ -28,7 +29,8 @@ public readonly struct LanRoomInfo
             "off",
             "30s",
             "9x9_0",
-            PlayerFlag.Player1)
+            PlayerFlag.Player1,
+            "black")
     {
     }
 
@@ -45,7 +47,8 @@ public readonly struct LanRoomInfo
         string byoyomiCountCfgId,
         string byoyomiTimeCfgId,
         string handicapCfgId,
-        PlayerFlag hostPlayerFlag)
+        PlayerFlag hostPlayerFlag,
+        string hostPlayerSideCfgId)
     {
         this.roomId = roomId;
         this.name = name;
@@ -60,6 +63,7 @@ public readonly struct LanRoomInfo
         this.byoyomiTimeCfgId = string.IsNullOrEmpty(byoyomiTimeCfgId) ? "30s" : byoyomiTimeCfgId;
         this.handicapCfgId = DuelHandicapPlacement.GetValidCfgId(handicapCfgId, this.boardCfgId);
         this.hostPlayerFlag = DuelUtils.GetValidPlayerFlag(hostPlayerFlag);
+        this.hostPlayerSideCfgId = GetValidHostPlayerSideCfgId(hostPlayerSideCfgId, this.hostPlayerFlag);
     }
 
     public string GetDisplayText()
@@ -101,6 +105,23 @@ public readonly struct LanRoomInfo
 
     private string GetHostPlayerFlagText()
     {
-        return hostPlayerFlag == PlayerFlag.Player2 ? "执白" : "执黑";
+        switch (hostPlayerSideCfgId) {
+            case "guess":
+                return "猜先";
+            case "white":
+                return "执白";
+            case "black":
+            default:
+                return "执黑";
+        }
+    }
+
+    private static string GetValidHostPlayerSideCfgId(string hostPlayerSideCfgId, PlayerFlag fallbackPlayerFlag)
+    {
+        if (hostPlayerSideCfgId == "guess" || hostPlayerSideCfgId == "black" || hostPlayerSideCfgId == "white") {
+            return hostPlayerSideCfgId;
+        }
+
+        return fallbackPlayerFlag == PlayerFlag.Player2 ? "white" : "black";
     }
 }

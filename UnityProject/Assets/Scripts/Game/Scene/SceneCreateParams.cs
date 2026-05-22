@@ -23,5 +23,6 @@ public class DuelSceneCreateParamas
     public bool isLanDuel;
     public LanRoomRole lanRole;
     public PlayerFlag lanHostPlayerFlag;
+    public string lanHostPlayerSideCfgId;
     public bool isLanRoomHostConfig;
 }

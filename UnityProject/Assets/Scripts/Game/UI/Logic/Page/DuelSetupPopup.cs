@@ -106,6 +106,7 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
             localPlayerFlag = isAiDuel ? localPlayerFlag : 0,
             localPlayerProfile = User.Instance.compUserInfo.BuildProfileData(),
             lanHostPlayerFlag = IsLanRoomSetup() ? lanHostPlayerFlag : PlayerFlag.Player1,
+            lanHostPlayerSideCfgId = IsLanRoomSetup() ? selectedPlayerSideCfgId : PlayerSideBlack,
         };
 
         if (confirmHandler != null) {

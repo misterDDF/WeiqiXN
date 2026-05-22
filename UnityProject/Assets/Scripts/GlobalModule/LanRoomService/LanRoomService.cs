@@ -67,6 +67,7 @@ public partial class LanRoomService : ModuleBase
     private string lanByoyomiTimeCfgId = "30s";
     private string lanHandicapCfgId = "9x9_0";
     private PlayerFlag lanHostPlayerFlag = PlayerFlag.Player1;
+    private string lanHostPlayerSideCfgId = "black";
     private UserProfileData hostPlayerProfile = UserProfileData.CreateFallback("Host");
     private UserProfileData clientPlayerProfile = UserProfileData.CreateFallback("Client");
     private string lastStatus;
@@ -80,6 +81,7 @@ public partial class LanRoomService : ModuleBase
     public string LanByoyomiTimeCfgId => lanByoyomiTimeCfgId;
     public string LanHandicapCfgId => lanHandicapCfgId;
     public PlayerFlag LanHostPlayerFlag => lanHostPlayerFlag;
+    public string LanHostPlayerSideCfgId => lanHostPlayerSideCfgId;
     public UserProfileData HostPlayerProfile => hostPlayerProfile;
     public UserProfileData ClientPlayerProfile => clientPlayerProfile;
     public LanRoomSessionState SessionState
@@ -111,7 +113,8 @@ public partial class LanRoomService : ModuleBase
         string byoyomiCountCfgId,
         string byoyomiTimeCfgId,
         string handicapCfgId,
-        PlayerFlag hostPlayerFlag)
+        PlayerFlag hostPlayerFlag,
+        string hostPlayerSideCfgId = "black")
     {
         lanBoardCfgId = string.IsNullOrEmpty(boardCfgId) ? "9x9" : boardCfgId;
         lanHoldTimeCfgId = string.IsNullOrEmpty(holdTimeCfgId) ? "infinite" : holdTimeCfgId;
@@ -119,6 +122,7 @@ public partial class LanRoomService : ModuleBase
         lanByoyomiTimeCfgId = string.IsNullOrEmpty(byoyomiTimeCfgId) ? "30s" : byoyomiTimeCfgId;
         lanHandicapCfgId = DuelHandicapPlacement.GetValidCfgId(handicapCfgId, lanBoardCfgId);
         lanHostPlayerFlag = DuelUtils.GetValidPlayerFlag(hostPlayerFlag);
+        lanHostPlayerSideCfgId = GetValidHostPlayerSideCfgId(hostPlayerSideCfgId, lanHostPlayerFlag);
     }
 
     public void SyncLocalPlayerProfile()
@@ -1113,7 +1117,7 @@ public partial class LanRoomService : ModuleBase
     {
         room = default;
         string[] parts = payload.Split('|');
-        if ((parts.Length != 7 && parts.Length != 14) || parts[0] != LanRoomProtocolName.DiscoveryPrefix) {
+        if ((parts.Length != 7 && parts.Length != 14 && parts.Length != 15) || parts[0] != LanRoomProtocolName.DiscoveryPrefix) {
             return false;
         }
 
@@ -1147,7 +1151,8 @@ public partial class LanRoomService : ModuleBase
             parts[10],
             parts[11],
             parts[12],
-            (PlayerFlag)hostPlayerFlagValue);
+            (PlayerFlag)hostPlayerFlagValue,
+            parts.Length >= 15 ? parts[14] : string.Empty);
         return true;
     }
 
@@ -1160,7 +1165,7 @@ public partial class LanRoomService : ModuleBase
             hostPlayerName = profile.name;
         }
 
-        return $"{LanRoomProtocolName.DiscoveryPrefix}|{hostedRoomId}|{hostedRoomName}|{localAddress}|{hostedTcpPort}|{GetHostedPlayerCount()}|{LanRoomConfig.MaxPlayerCount}|{EncodeText(hostPlayerName)}|{lanBoardCfgId}|{lanHoldTimeCfgId}|{lanByoyomiCountCfgId}|{lanByoyomiTimeCfgId}|{lanHandicapCfgId}|{(int)lanHostPlayerFlag}";
+        return $"{LanRoomProtocolName.DiscoveryPrefix}|{hostedRoomId}|{hostedRoomName}|{localAddress}|{hostedTcpPort}|{GetHostedPlayerCount()}|{LanRoomConfig.MaxPlayerCount}|{EncodeText(hostPlayerName)}|{lanBoardCfgId}|{lanHoldTimeCfgId}|{lanByoyomiCountCfgId}|{lanByoyomiTimeCfgId}|{lanHandicapCfgId}|{(int)lanHostPlayerFlag}|{lanHostPlayerSideCfgId}";
     }
 
     private int GetHostedPlayerCount()
@@ -1335,7 +1340,7 @@ public partial class LanRoomService : ModuleBase
 
     private void HandleStartConfigMessage(LanRoomProtocolMessage message)
     {
-        if (message.ArgCount != 4 && message.ArgCount != 6) {
+        if (message.ArgCount != 4 && message.ArgCount != 6 && message.ArgCount != 7) {
             return;
         }
 
@@ -1349,6 +1354,9 @@ public partial class LanRoomService : ModuleBase
         lanHostPlayerFlag = message.ArgCount >= 6 && int.TryParse(message.GetArg(5), out int hostPlayerFlagValue)
             ? DuelUtils.GetValidPlayerFlag((PlayerFlag)hostPlayerFlagValue)
             : PlayerFlag.Player1;
+        lanHostPlayerSideCfgId = message.ArgCount >= 7
+            ? GetValidHostPlayerSideCfgId(message.GetArg(6), lanHostPlayerFlag)
+            : GetValidHostPlayerSideCfgId(string.Empty, lanHostPlayerFlag);
         lock (sessionLock) {
             gameStarted = true;
         }
@@ -2009,7 +2017,7 @@ public partial class LanRoomService : ModuleBase
 
     private string SerializeStartConfigMessage()
     {
-        return $"{LanRoomProtocolName.ToWireName(LanRoomProtocol.StartConfig)}|{lanBoardCfgId}|{lanHoldTimeCfgId}|{lanByoyomiCountCfgId}|{lanByoyomiTimeCfgId}|{lanHandicapCfgId}|{(int)lanHostPlayerFlag}";
+        return $"{LanRoomProtocolName.ToWireName(LanRoomProtocol.StartConfig)}|{lanBoardCfgId}|{lanHoldTimeCfgId}|{lanByoyomiCountCfgId}|{lanByoyomiTimeCfgId}|{lanHandicapCfgId}|{(int)lanHostPlayerFlag}|{lanHostPlayerSideCfgId}";
     }
 
     private string SerializePlayerProfileMessage(LanRoomRole role, UserProfileData profile)
@@ -2132,6 +2140,15 @@ public partial class LanRoomService : ModuleBase
         }
 
         return "Player";
+    }
+
+    private string GetValidHostPlayerSideCfgId(string hostPlayerSideCfgId, PlayerFlag fallbackPlayerFlag)
+    {
+        if (hostPlayerSideCfgId == "guess" || hostPlayerSideCfgId == "black" || hostPlayerSideCfgId == "white") {
+            return hostPlayerSideCfgId;
+        }
+
+        return fallbackPlayerFlag == PlayerFlag.Player2 ? "white" : "black";
     }
 
     private bool ConnectWithTimeout(TcpClient client, string hostAddress, int tcpPort)
