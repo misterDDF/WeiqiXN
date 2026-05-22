@@ -41,11 +41,11 @@
 - `DuelMoveHistory` 是当前手顺访问边界，集中处理 KataGo `moves` 的创建、追加、克隆、截断、尾部虚手统计和输出；保存、ownership、AI 查询和悔棋仍保持 KataGo 标准 `moves` 结构。
 - `DuelPage` 右下角“形式”按钮会发出 `OnRequestDuelOwnership`，并在分析或显示期间切换为“关闭”；再次点击会发出 `OnRequestClearDuelOwnership`。`DuelOwnershipSystem` 通过 `DuelOwnershipQueryService` 根据当前对局生成 KataGo ownership 请求，收到结果后绘制棋盘 overlay，并通过 `OnDuelOwnershipResult` 让 UI 显示双方目数。该流程不推进 FSM，也不改变正式对局结果。
 - `DuelPage.prefab` 会在形势按钮旁提供“虚手”入口；`DuelSystem` 在回合输入状态收到虚手后记录 KataGo `pass`，第一手虚手推进到下一回合，双方连续虚手会立即按 KataGo `ownership` 结算结果进入 `GameEnd`，不弹二次确认；如果 ownership 数子失败，会回滚第二手虚手记录并保持当前对局。
-- `DuelPage.prefab` 设置面板会提供“请求数子”和“认输”入口；请求数子会先弹出通用确认面板显示“数子中...”，确认按钮不可点击。`DuelSystem` 通过 `DuelOwnershipQueryService` 请求 KataGo `ownership`，复用形势按钮的阈值和贴目口径自动计算黑白分数、胜者、目差和来源字段；KataGo 不可用或无结果时不产生数子结果，弹窗显示失败且不允许确认。结果通过 `OnDuelScoreResult` 更新同一个确认面板，确认后进入 `GameEnd`，取消则保持当前对局。认输按钮只在回合输入且当前行棋玩家有效时显示，点击后先弹出通用二次确认，确认后当前行棋方判负并进入 `GameEnd`。
+- `DuelPage.prefab` 设置面板会提供“请求数子”和“认输”入口；请求数子会先弹出通用确认面板显示“数子中...”，确认按钮不可点击。`DuelSystem` 通过 `DuelOwnershipQueryService` 请求 KataGo `ownership`，复用形势按钮的阈值和贴目口径自动计算黑白分数、胜者、目差和来源字段；KataGo 不可用或无结果时不产生数子结果，弹窗显示失败且不允许确认。结果通过 `OnDuelScoreResult` 更新同一个确认面板，确认后进入 `GameEnd`，取消则保持当前对局。认输按钮只在回合输入且本端有输入权时显示，点击后先弹出通用二次确认，确认后提交 `OnSubmitDuelResign`；本地/电脑对局直接进入认输终局，LAN 对局由 host 接受 `SubmitResign` 后广播 `ResignAccepted`，双方进入同一认输终局。
 - `DuelPage.prefab` 设置面板会提供“悔棋”入口；本地双人模式每次回退最后 1 手，电脑对局模式每次回到上次人类可行棋局面：当前为人类行棋时回退 2 手，当前为 AI 行棋时回退 1 手。悔棋以 `SceneComponentDuel.kataGoMoves` 的剩余手顺为权威来源重建棋盘、KataGo 手顺、当前行棋方和派生终局/ownership 状态；当前版本不回滚历史计时快照。
 - `SceneComponentDuel` 维护运行时 ownership 结果缓存；形势展示和请求数子在局面未变化时复用缓存，合法落子或虚手会清除缓存。
 - `DuelSaveSystem` 保存对局后会发出 `OnDuelSaveResult`，UI 只展示保存成功或失败结果；场景数据异步保存失败不再被 fire-and-forget 静默忽略。
-- `DuelPage` 在 AI 回合或 LAN 对端回合不接受人类棋盘落子；AI 回合也不接受人类虚手或认输输入，避免人与 AI 同时驱动同一个回合。虚手按钮会随 `DuelInputAuthority` 的输入权切换可点击状态，请求数子按钮会在正在数子或终局后禁用；LAN 原型尚未实现虚手、认输、数子和悔棋协议，因此这些入口在 LAN 对局中禁用。
+- `DuelPage` 在 AI 回合或 LAN 对端回合不接受人类棋盘落子；AI 回合也不接受人类虚手或认输输入，避免人与 AI 同时驱动同一个回合。虚手按钮会随 `DuelInputAuthority` 的输入权切换可点击状态，请求数子按钮会在正在数子或终局后禁用；LAN 原型尚未实现虚手、数子和悔棋协议，因此这些入口在 LAN 对局中禁用，认输已接入 host 权威协议。
 - `DuelPage` 黑白双方信息面板会显示人类/AI 身份、当前行棋状态和主时间；开启读秒时显示剩余读秒次数和读秒时间，未开启读秒时隐藏读秒信息。请求形势后会先显示“计算中”，收到 ownership 结果后更新目数。
 - `DuelPage.prefab` 维护动作提示 HUD；`DuelPage` 在成功落子、虚手、双方连续虚手进入数子和连续虚手数子失败时短暂显示提示，落子提示使用 KataGo 棋盘坐标，AI 行棋会带 AI 标记。
 - `DuelPage.prefab` 右侧中部维护结算结果面板，进入 `GameEnd` 后显示黑/白方胜出和结束原因；数子或连续虚手显示领先目数，超时显示黑/白方超时判负，认输显示黑/白方认输。

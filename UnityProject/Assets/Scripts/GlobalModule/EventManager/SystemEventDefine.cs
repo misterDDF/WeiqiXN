@@ -119,6 +119,11 @@ public class OnConfirmDuelResign : SystemEventBase
     public override string GetEventType() => GetEventType<OnConfirmDuelResign>();
 }
 
+public class OnSubmitDuelResign : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnSubmitDuelResign>();
+}
+
 public class OnRequestDuelPass : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnRequestDuelPass>();
@@ -296,6 +301,17 @@ public class OnApplyLanDuelTimeout : SystemEventBase
 
     public PlayerFlag loserFlag;
     public OnApplyLanDuelTimeout(PlayerFlag loserFlag)
+    {
+        this.loserFlag = loserFlag;
+    }
+}
+
+public class OnApplyLanDuelResign : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnApplyLanDuelResign>();
+
+    public PlayerFlag loserFlag;
+    public OnApplyLanDuelResign(PlayerFlag loserFlag)
     {
         this.loserFlag = loserFlag;
     }

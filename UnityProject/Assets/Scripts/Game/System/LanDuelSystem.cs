@@ -19,6 +19,7 @@ public class LanDuelSystem : SystemBase
 
         if ((LanRoomRole)compDuel.lanRole.value == LanRoomRole.Host) {
             ProcessSubmittedMoves();
+            ProcessSubmittedResigns(compDuel);
             BroadcastCurrentTimeState(compDuel);
         }
 
@@ -83,6 +84,35 @@ public class LanDuelSystem : SystemBase
 
         while (Global.Instance.lanRoomService.TryDequeueTimeoutLoser(out PlayerFlag loserFlag)) {
             scene.EmitSystemEvent(new OnApplyLanDuelTimeout(loserFlag));
+        }
+
+        while (Global.Instance.lanRoomService.TryDequeueAcceptedResign(out LanDuelResignMessage resign)) {
+            scene.EmitSystemEvent(new OnApplyLanDuelResign(resign.loserFlag));
+        }
+    }
+
+    private bool CanAcceptResign(SceneComponentDuel compDuel, PlayerFlag loserFlag)
+    {
+        if (compDuel == null || compDuel.duelFSM == null || !compDuel.duelFSM.isActivated) {
+            return false;
+        }
+
+        if (compDuel.duelFSM.curState == null || compDuel.duelFSM.curState.stateName != DuelStateDefine.STATE_TURN_INPUT) {
+            return false;
+        }
+
+        Player curPlayer = scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
+        return curPlayer != null && (PlayerFlag)curPlayer.playerFlag.value == loserFlag;
+    }
+
+    private void ProcessSubmittedResigns(SceneComponentDuel compDuel)
+    {
+        while (Global.Instance.lanRoomService.TryDequeueSubmittedResign(out LanDuelResignMessage resign)) {
+            if (!CanAcceptResign(compDuel, resign.loserFlag)) {
+                continue;
+            }
+
+            Global.Instance.lanRoomService.BroadcastAcceptedResign(resign);
         }
     }
 

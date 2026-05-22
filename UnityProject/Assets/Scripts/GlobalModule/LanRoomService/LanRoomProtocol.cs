@@ -10,6 +10,8 @@ public enum LanRoomProtocol
     BoardSnapshot,
     TimeState,
     PlayerTimeout,
+    SubmitResign,
+    ResignAccepted,
 }
 
 public static class LanRoomProtocolName

@@ -12,6 +12,7 @@ public class DuelAuthoritySystem : SystemBase
     {
         base.Init();
         scene.RegisterSystemEvent<OnSubmitDuelMove>(OnSubmitDuelMove);
+        scene.RegisterSystemEvent<OnSubmitDuelResign>(OnSubmitDuelResign);
     }
 
     private void OnSubmitDuelMove(OnSubmitDuelMove evt)
@@ -54,5 +55,30 @@ public class DuelAuthoritySystem : SystemBase
             inputState.localInputPlayerFlag,
             coords,
             compDuel.lanBoardVersion.value);
+    }
+
+    private void OnSubmitDuelResign(OnSubmitDuelResign evt)
+    {
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
+        if (compDuel == null || evt == null) {
+            return;
+        }
+
+        if (compDuel.isLanDuel.value) {
+            SubmitLanResign(compDuel);
+            return;
+        }
+
+        scene.EmitSystemEvent(new OnConfirmDuelResign());
+    }
+
+    private bool SubmitLanResign(SceneComponentDuel compDuel)
+    {
+        DuelInputAuthorityState inputState = DuelInputAuthority.GetLocalState(scene, compDuel);
+        if (!inputState.CanSubmitMove || Global.Instance.lanRoomService == null) {
+            return false;
+        }
+
+        return Global.Instance.lanRoomService.SubmitLocalResign(inputState.localInputPlayerFlag);
     }
 }

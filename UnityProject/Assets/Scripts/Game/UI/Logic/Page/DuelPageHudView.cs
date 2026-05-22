@@ -240,7 +240,7 @@ public class DuelPageHudView
         SetButtonInteractable(binder.btn_duel_pass, !isLanDuel && canSubmitMove);
         SetButtonInteractable(binder.btn_settings_request_score, canRequestScore);
         SetButtonInteractable(binder.btn_settings_take_back, canTakeBack);
-        SetResignButtonVisible(!isLanDuel && canSubmitMove && DuelPageInteractionState.CanResign(mainScene, compDuel));
+        SetResignButtonVisible(canSubmitMove && DuelPageInteractionState.CanResign(mainScene, compDuel));
     }
 
     private void RefreshGameEndResultPanel(SceneBase mainScene, SceneComponentDuel compDuel)

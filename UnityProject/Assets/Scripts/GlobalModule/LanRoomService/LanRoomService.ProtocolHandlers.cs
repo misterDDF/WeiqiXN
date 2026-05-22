@@ -96,4 +96,14 @@ public partial class LanRoomService
     {
         HandlePlayerTimeoutMessage(message);
     }
+
+    private void OnSubmitResign(LanRoomProtocolMessage message)
+    {
+        HandleResignMessage(message, true);
+    }
+
+    private void OnResignAccepted(LanRoomProtocolMessage message)
+    {
+        HandleResignMessage(message, false);
+    }
 }

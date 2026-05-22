@@ -230,7 +230,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
         DuelInputAuthorityState inputState = DuelInputAuthority.GetLocalState(mainScene, compDuel);
-        if (compDuel == null || compDuel.isLanDuel.value || !inputState.CanSubmitMove || !DuelPageInteractionState.CanResign(mainScene, compDuel)) {
+        if (compDuel == null || !inputState.CanSubmitMove || !DuelPageInteractionState.CanResign(mainScene, compDuel)) {
             hudView.SetResignButtonVisible(false);
             return;
         }
@@ -243,7 +243,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         ConfirmPopup.Show(
             "确认认输",
             $"确认{playerText}认输？",
-            () => EmitSystemEvent(new OnConfirmDuelResign()),
+            () => EmitSystemEvent(new OnSubmitDuelResign()),
             null,
             "确认认输",
             "继续对局"

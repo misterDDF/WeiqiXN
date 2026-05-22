@@ -32,6 +32,8 @@ public partial class LanRoomService : ModuleBase
     private readonly Queue<LanDuelBoardSnapshotMessage> pendingBoardSnapshots = new Queue<LanDuelBoardSnapshotMessage>();
     private readonly Queue<LanDuelTimeStateMessage> pendingTimeStates = new Queue<LanDuelTimeStateMessage>();
     private readonly Queue<PlayerFlag> pendingTimeoutLosers = new Queue<PlayerFlag>();
+    private readonly Queue<LanDuelResignMessage> pendingSubmittedResigns = new Queue<LanDuelResignMessage>();
+    private readonly Queue<LanDuelResignMessage> pendingAcceptedResigns = new Queue<LanDuelResignMessage>();
     private TcpClient connectedClient;
     private Thread sessionReadThread;
     private LanRoomRole currentRole = LanRoomRole.None;
@@ -84,6 +86,8 @@ public partial class LanRoomService : ModuleBase
             pendingBoardSnapshots.Clear();
             pendingTimeStates.Clear();
             pendingTimeoutLosers.Clear();
+            pendingSubmittedResigns.Clear();
+            pendingAcceptedResigns.Clear();
         }
 
         try {
@@ -136,6 +140,8 @@ public partial class LanRoomService : ModuleBase
             pendingBoardSnapshots.Clear();
             pendingTimeStates.Clear();
             pendingTimeoutLosers.Clear();
+            pendingSubmittedResigns.Clear();
+            pendingAcceptedResigns.Clear();
         }
 
         try {
@@ -233,6 +239,8 @@ public partial class LanRoomService : ModuleBase
                 pendingBoardSnapshots.Clear();
                 pendingTimeStates.Clear();
                 pendingTimeoutLosers.Clear();
+                pendingSubmittedResigns.Clear();
+                pendingAcceptedResigns.Clear();
             }
             StartSessionReader(client);
             SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.Ready)}|CLIENT|0");
@@ -320,6 +328,30 @@ public partial class LanRoomService : ModuleBase
         return true;
     }
 
+    public bool SubmitLocalResign(PlayerFlag loserFlag)
+    {
+        LanRoomRole role;
+        int actionId;
+        lock (sessionLock) {
+            role = currentRole;
+            actionId = nextMoveId++;
+        }
+
+        LanDuelResignMessage resign = new LanDuelResignMessage(actionId, loserFlag);
+        if (role == LanRoomRole.Host) {
+            EnqueueSubmittedResign(resign);
+            return true;
+        }
+
+        if (role != LanRoomRole.Client || connectedClient == null) {
+            lastStatus = "当前不在局域网对局中，无法提交认输。";
+            return false;
+        }
+
+        SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.SubmitResign)}|{resign.actionId}|{(int)resign.loserFlag}");
+        return true;
+    }
+
     public void BroadcastAcceptedMove(LanDuelMoveMessage move)
     {
         EnqueueAcceptedMove(move);
@@ -348,6 +380,12 @@ public partial class LanRoomService : ModuleBase
     {
         EnqueueTimeoutLoser(loserFlag);
         SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.PlayerTimeout)}|{(int)loserFlag}");
+    }
+
+    public void BroadcastAcceptedResign(LanDuelResignMessage resign)
+    {
+        EnqueueAcceptedResign(resign);
+        SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.ResignAccepted)}|{resign.actionId}|{(int)resign.loserFlag}");
     }
 
     public bool TryDequeueSubmittedMove(out LanDuelMoveMessage move)
@@ -425,6 +463,32 @@ public partial class LanRoomService : ModuleBase
         }
 
         loserFlag = 0;
+        return false;
+    }
+
+    public bool TryDequeueSubmittedResign(out LanDuelResignMessage resign)
+    {
+        lock (sessionLock) {
+            if (pendingSubmittedResigns.Count > 0) {
+                resign = pendingSubmittedResigns.Dequeue();
+                return true;
+            }
+        }
+
+        resign = default;
+        return false;
+    }
+
+    public bool TryDequeueAcceptedResign(out LanDuelResignMessage resign)
+    {
+        lock (sessionLock) {
+            if (pendingAcceptedResigns.Count > 0) {
+                resign = pendingAcceptedResigns.Dequeue();
+                return true;
+            }
+        }
+
+        resign = default;
         return false;
     }
 
@@ -516,6 +580,8 @@ public partial class LanRoomService : ModuleBase
                     pendingBoardSnapshots.Clear();
                     pendingTimeStates.Clear();
                     pendingTimeoutLosers.Clear();
+                    pendingSubmittedResigns.Clear();
+                    pendingAcceptedResigns.Clear();
                 }
                 StartSessionReader(client);
                 BroadcastRoomState();
@@ -758,6 +824,22 @@ public partial class LanRoomService : ModuleBase
             (DuelMoveRejectReason)rejectReasonValue));
     }
 
+    private void HandleResignMessage(LanRoomProtocolMessage message, bool isSubmit)
+    {
+        if (message.ArgCount != 2 ||
+            !int.TryParse(message.GetArg(0), out int actionId) ||
+            !int.TryParse(message.GetArg(1), out int loserFlagValue)) {
+            return;
+        }
+
+        LanDuelResignMessage resign = new LanDuelResignMessage(actionId, (PlayerFlag)loserFlagValue);
+        if (isSubmit) {
+            EnqueueSubmittedResign(resign);
+        } else {
+            EnqueueAcceptedResign(resign);
+        }
+    }
+
     private void EnqueueRejectedMove(LanDuelMoveRejectMessage move)
     {
         lock (sessionLock) {
@@ -863,6 +945,20 @@ public partial class LanRoomService : ModuleBase
         }
     }
 
+    private void EnqueueSubmittedResign(LanDuelResignMessage resign)
+    {
+        lock (sessionLock) {
+            pendingSubmittedResigns.Enqueue(resign);
+        }
+    }
+
+    private void EnqueueAcceptedResign(LanDuelResignMessage resign)
+    {
+        lock (sessionLock) {
+            pendingAcceptedResigns.Enqueue(resign);
+        }
+    }
+
     private string SerializeBoardSnapshot(LanDuelBoardSnapshotMessage snapshot)
     {
         StringBuilder stonesBuilder = new StringBuilder();
@@ -942,6 +1038,8 @@ public partial class LanRoomService : ModuleBase
             pendingBoardSnapshots.Clear();
             pendingTimeStates.Clear();
             pendingTimeoutLosers.Clear();
+            pendingSubmittedResigns.Clear();
+            pendingAcceptedResigns.Clear();
         }
         lastStatus = "房间连接已断开。";
     }

@@ -29,6 +29,7 @@ public class DuelSystem : SystemBase
         scene.RegisterSystemEvent<OnRequestDuelTakeBack>(OnRequestDuelTakeBack);
         scene.RegisterSystemEvent<OnApplyLanDuelTimeState>(OnApplyLanDuelTimeState);
         scene.RegisterSystemEvent<OnApplyLanDuelTimeout>(OnApplyLanDuelTimeout);
+        scene.RegisterSystemEvent<OnApplyLanDuelResign>(OnApplyLanDuelResign);
 
         // 非读档进来的需要手动初始化
         if (scene.sceneCreateParams.saveFilePath == null) {
@@ -238,6 +239,21 @@ public class DuelSystem : SystemBase
         compDuel.duelFSM.SetParamterTrigger(DuelParamDefine.TRIGGER_PARAM_GAME_END);
     }
 
+    private void OnApplyLanDuelResign(OnApplyLanDuelResign evt)
+    {
+        var compDuel = scene.GetComponent<SceneComponentDuel>();
+        if (compDuel == null || !compDuel.isLanDuel.value || evt == null) {
+            return;
+        }
+
+        Player loser = GetPlayerByFlag(compDuel, evt.loserFlag);
+        if (loser == null) {
+            return;
+        }
+
+        EndGameByResign(compDuel, loser.guid);
+    }
+
     private async void OnRequestDuelScore(OnRequestDuelScore evt)
     {
         var compDuel = scene.GetComponent<SceneComponentDuel>();
@@ -288,14 +304,7 @@ public class DuelSystem : SystemBase
             return;
         }
 
-        string winnerGuid = loserGuid == compDuel.player1Guid.value
-            ? compDuel.player2Guid.value
-            : compDuel.player1Guid.value;
-
-        compDuel.resignLoserGuid.value = loserGuid;
-        compDuel.winnerGuid.value = winnerGuid;
-        compDuel.gameEndReason.value = DuelGameEndReason.Resign;
-        compDuel.duelFSM.SetParamterTrigger(DuelParamDefine.TRIGGER_PARAM_GAME_END);
+        EndGameByResign(compDuel, loserGuid);
     }
 
     private void OnRequestDuelTakeBack(OnRequestDuelTakeBack evt)
@@ -540,6 +549,22 @@ public class DuelSystem : SystemBase
             compDuel.winnerGuid.value = string.Empty;
         }
 
+        compDuel.duelFSM.SetParamterTrigger(DuelParamDefine.TRIGGER_PARAM_GAME_END);
+    }
+
+    private void EndGameByResign(SceneComponentDuel compDuel, string loserGuid)
+    {
+        if (compDuel == null || string.IsNullOrEmpty(loserGuid)) {
+            return;
+        }
+
+        string winnerGuid = loserGuid == compDuel.player1Guid.value
+            ? compDuel.player2Guid.value
+            : compDuel.player1Guid.value;
+
+        compDuel.resignLoserGuid.value = loserGuid;
+        compDuel.winnerGuid.value = winnerGuid;
+        compDuel.gameEndReason.value = DuelGameEndReason.Resign;
         compDuel.duelFSM.SetParamterTrigger(DuelParamDefine.TRIGGER_PARAM_GAME_END);
     }
 
