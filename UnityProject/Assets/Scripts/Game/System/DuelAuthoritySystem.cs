@@ -124,7 +124,7 @@ public class DuelAuthoritySystem : SystemBase
 
         if (compDuel.isLanDuel.value) {
             if (!SubmitLanScore(compDuel)) {
-                scene.EmitSystemEvent(new OnDuelScoreFailed(false, "当前无法请求数子"));
+                scene.EmitSystemEvent(new OnDuelScoreFailed(false, MessageText.Get("duel_score_request_unavailable")));
             }
             return;
         }
@@ -196,7 +196,7 @@ public class DuelAuthoritySystem : SystemBase
 
         if (compDuel.isLanDuel.value) {
             if (!SubmitLanTakeBack(compDuel)) {
-                scene.EmitSystemEvent(new OnDuelTakeBackResult(false, "当前无法悔棋"));
+                scene.EmitSystemEvent(new OnDuelTakeBackResult(false, MessageText.Get("duel_take_back_unavailable")));
             }
             return;
         }

@@ -106,7 +106,10 @@ public class Global
         }
 #endif
 
-        LoadingPage.SetProgress("AI模型预热中...", "正在启动本地 KataGo 分析引擎。", 0.05f);
+        LoadingPage.SetProgress(
+            MessageText.Get("katago_warmup_status"),
+            MessageText.Get("katago_starting_detail"),
+            0.05f);
         uiManager.ShowPage<LoadingPage>();
         kataGoWarmupStartTime = Time.realtimeSinceStartup;
         KataGoBootstrap.Start();
@@ -140,7 +143,10 @@ public class Global
                 ("detail", kataGoStatus.detailText));
         }
 
-        LoadingPage.SetProgress("场景加载中...", "正在进入主菜单。", 0.95f);
+        LoadingPage.SetProgress(
+            MessageText.Get("scene_loading_status"),
+            MessageText.Get("scene_enter_main_menu"),
+            0.95f);
         sceneManager.EnterMainScene(SceneConfig.MAIN_MENU_SCENE_TYPE_ID, SceneCreateParams.Default);
         User.Instance.Init();
         startupState = StartupState.Running;

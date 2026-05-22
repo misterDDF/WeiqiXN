@@ -57,7 +57,7 @@ public static class KataGoBootstrap
 
         PlatformConfig platformConfig = ResolvePlatformConfig();
         if (!platformConfig.isSupported) {
-            SetStartupStatus("AI模型不可用", platformConfig.unsupportedReason, 1f, true, false, true, null);
+            SetStartupStatus(MessageText.Get("katago_unavailable_status"), platformConfig.unsupportedReason, 1f, true, false, true, null);
             XNLogger.LogWarn("KataGo startup skipped.", ("reason", platformConfig.unsupportedReason));
             return;
         }
@@ -73,14 +73,14 @@ public static class KataGoBootstrap
 
         KataGoPaths[] candidates = ResolveCandidatePaths(platformConfig);
         if (candidates.Length == 0) {
-            SetStartupStatus("AI模型预热失败", "没有可用的 KataGo 引擎候选。", 1f, true, true, false, null);
+            SetStartupStatus(MessageText.Get("katago_failed_status"), MessageText.Get("katago_no_engine_candidates"), 1f, true, true, false, null);
             XNLogger.LogError("KataGo startup skipped.", ("reason", "No KataGo engine candidates resolved."));
             return;
         }
 
         StartProcessTask(candidates);
 #else
-        SetStartupStatus("AI模型不可用", "Local process startup is not compiled for this platform.", 1f, true, false, true, null);
+        SetStartupStatus(MessageText.Get("katago_unavailable_status"), MessageText.Get("katago_local_process_not_compiled"), 1f, true, false, true, null);
         XNLogger.LogWarn("KataGo startup skipped.", ("reason", "Local process startup is not compiled for this platform."));
 #endif
     }
@@ -224,7 +224,7 @@ public static class KataGoBootstrap
         isStarted = true;
         cancellationTokenSource?.Dispose();
         cancellationTokenSource = new CancellationTokenSource();
-        SetStartupStatus("AI模型预热中...", "正在检测本机可用的 KataGo 引擎。", 0.05f, false, false, false, null);
+        SetStartupStatus(MessageText.Get("katago_warmup_status"), MessageText.Get("katago_detecting_engine"), 0.05f, false, false, false, null);
         startupTask = Task.Run(() => StartFirstAvailableEngine(candidates, 0, cancellationTokenSource.Token));
     }
 
@@ -245,7 +245,7 @@ public static class KataGoBootstrap
         activeCandidateIndex = -1;
         hasActivePaths = false;
         isStarted = false;
-        SetStartupStatus("AI模型未启动", string.Empty, 0f, true, false, true, null);
+        SetStartupStatus(MessageText.Get("katago_not_started_status"), string.Empty, 0f, true, false, true, null);
     }
 
     private static async Task<bool> EnsureProcessReadyAsync()
@@ -270,7 +270,7 @@ public static class KataGoBootstrap
 
         cancellationTokenSource?.Dispose();
         cancellationTokenSource = new CancellationTokenSource();
-        SetStartupStatus("AI模型预热中...", "KataGo 进程已退出，正在重新启动。", 0.05f, false, false, false, hasActivePaths ? activePaths.engineName : null);
+        SetStartupStatus(MessageText.Get("katago_warmup_status"), MessageText.Get("katago_restarting_process"), 0.05f, false, false, false, hasActivePaths ? activePaths.engineName : null);
         startupTask = Task.Run(() => StartFirstAvailableEngine(candidates, restartIndex, cancellationTokenSource.Token));
         await startupTask;
 
@@ -294,14 +294,11 @@ public static class KataGoBootstrap
         }
 
         gameRootWriteWarningShown = true;
-        string title = "AI 模型权限提示";
+        string title = MessageText.Get("katago_permission_title");
         string message =
-            "当前游戏目录没有写入权限，GPU AI 预热缓存无法保存，本次将使用 CPU AI。\n\n" +
-            $"目录：{platformConfig.gameRoot}\n" +
-            $"原因：{platformConfig.writeFailureReason}\n\n" +
-            "如需启用 GPU AI，请将游戏移动到有写入权限的目录，或以管理员权限运行。";
+            MessageText.Format("katago_permission_content", platformConfig.gameRoot, platformConfig.writeFailureReason);
 
-        ConfirmPopup.ShowTip(title, message, null, "知道了");
+        ConfirmPopup.ShowTip(title, message, null, MessageText.Get("common_got_it"));
     }
 
     private static void StartFirstAvailableEngine(KataGoPaths[] candidates, int startCandidateIndex, CancellationToken cancellationToken)
@@ -311,7 +308,7 @@ public static class KataGoBootstrap
         activeCandidateIndex = -1;
 
         if (candidates == null || candidates.Length == 0) {
-            SetStartupStatus("AI模型预热失败", "没有可用的 KataGo 引擎候选。", 1f, true, true, false, null);
+            SetStartupStatus(MessageText.Get("katago_failed_status"), MessageText.Get("katago_no_engine_candidates"), 1f, true, true, false, null);
             XNLogger.LogError("KataGo startup failed, no engine candidate is available.");
             return;
         }
@@ -320,7 +317,7 @@ public static class KataGoBootstrap
         for (int i = safeStartIndex; i < candidates.Length; i++) {
             if (cancellationToken.IsCancellationRequested) {
                 StopProcess();
-                SetStartupStatus("AI模型预热已取消", string.Empty, 1f, true, true, false, null);
+                SetStartupStatus(MessageText.Get("katago_cancelled_status"), string.Empty, 1f, true, true, false, null);
                 return;
             }
 
@@ -328,7 +325,7 @@ public static class KataGoBootstrap
             float candidateStartProgress = GetCandidateStartProgress(i, candidates.Length);
             float candidateEndProgress = GetCandidateEndProgress(i, candidates.Length);
             SetStartupStatus(
-                "AI模型预热中...",
+                MessageText.Get("katago_warmup_status"),
                 BuildCandidateDetail(paths, i > 0),
                 candidateStartProgress,
                 false,
@@ -338,8 +335,8 @@ public static class KataGoBootstrap
 
             if (!paths.IsValid(out string invalidReason)) {
                 SetStartupStatus(
-                    "AI模型预热中...",
-                    $"跳过 {paths.engineName} 引擎：{invalidReason}",
+                    MessageText.Get("katago_warmup_status"),
+                    MessageText.Format("katago_skip_engine", paths.engineName, invalidReason),
                     candidateEndProgress,
                     false,
                     false,
@@ -355,14 +352,14 @@ public static class KataGoBootstrap
             if (TryStartAndSmokeTest(paths, candidateStartProgress, candidateEndProgress, cancellationToken)) {
                 if (cancellationToken.IsCancellationRequested) {
                     StopProcess();
-                    SetStartupStatus("AI模型预热已取消", string.Empty, 1f, true, true, false, null);
+                    SetStartupStatus(MessageText.Get("katago_cancelled_status"), string.Empty, 1f, true, true, false, null);
                     return;
                 }
 
                 activePaths = paths;
                 activeCandidateIndex = i;
                 hasActivePaths = true;
-                SetStartupStatus("AI模型预热完成", $"{paths.engineName} 引擎 9路、13路、19路棋盘预热完成。", 1f, true, false, false, paths.engineName);
+                SetStartupStatus(MessageText.Get("katago_complete_status"), MessageText.Format("katago_all_boards_complete", paths.engineName), 1f, true, false, false, paths.engineName);
                 XNLogger.LogInfo(
                     "KataGo engine selected.",
                     ("engine", paths.engineName),
@@ -381,7 +378,7 @@ public static class KataGoBootstrap
             }
         }
 
-        SetStartupStatus("AI模型预热失败", "GPU 和 CPU KataGo 引擎都不可用。", 1f, true, true, false, null);
+        SetStartupStatus(MessageText.Get("katago_failed_status"), MessageText.Get("katago_all_engines_unavailable"), 1f, true, true, false, null);
         XNLogger.LogError("KataGo startup failed, no engine candidate is available.");
     }
 
@@ -390,8 +387,8 @@ public static class KataGoBootstrap
         try {
             StartProcess(paths);
             SetStartupStatus(
-                "AI模型预热中...",
-                $"{paths.engineName} 引擎已启动，正在加载模型并执行首个分析请求。",
+                MessageText.Get("katago_warmup_status"),
+                MessageText.Format("katago_engine_started_loading", paths.engineName),
                 progressStart,
                 false,
                 false,
@@ -410,13 +407,13 @@ public static class KataGoBootstrap
         }
         catch (OperationCanceledException) {
             StopProcess();
-            SetStartupStatus("AI模型预热已取消", string.Empty, 1f, true, true, false, paths.engineName);
+            SetStartupStatus(MessageText.Get("katago_cancelled_status"), string.Empty, 1f, true, true, false, paths.engineName);
             return false;
         }
         catch (Exception ex) {
             SetStartupStatus(
-                "AI模型预热中...",
-                $"{paths.engineName} 引擎不可用，准备尝试下一个候选。",
+                MessageText.Get("katago_warmup_status"),
+                MessageText.Format("katago_engine_unavailable_next", paths.engineName),
                 progressEnd,
                 false,
                 false,
@@ -459,8 +456,8 @@ public static class KataGoBootstrap
         }
 
         SetStartupStatus(
-            "AI模型预热中...",
-            $"{paths.engineName} 引擎 9路、13路、19路棋盘预热完成。",
+            MessageText.Get("katago_warmup_status"),
+            MessageText.Format("katago_all_boards_complete", paths.engineName),
             progressEnd,
             false,
             false,
@@ -473,7 +470,7 @@ public static class KataGoBootstrap
         string requestId = $"editor-smoke-{boardSize}";
         JObject query = BuildSmokeTestQuery(requestId, boardSize);
         SetStartupStatus(
-            "AI模型预热中...",
+            MessageText.Get("katago_warmup_status"),
             BuildSmokeTestStageDetail(paths, boardSize, boardIndex),
             progressStart,
             false,
@@ -523,8 +520,8 @@ public static class KataGoBootstrap
             JArray ownership = result["ownership"] as JArray;
 
             SetStartupStatus(
-                "AI模型预热中...",
-                $"{paths.engineName} 引擎 {boardSize}路棋盘验证完成。",
+                MessageText.Get("katago_warmup_status"),
+                MessageText.Format("katago_board_complete", paths.engineName, boardSize),
                 progressEnd,
                 false,
                 false,
@@ -568,7 +565,7 @@ public static class KataGoBootstrap
         float smokeProgress = Mathf.Clamp01((float)(elapsedMs / estimatedBoardMs));
         float progress = Mathf.Lerp(progressStart, progressEnd, smokeProgress);
         SetStartupStatus(
-            "AI模型预热中...",
+            MessageText.Get("katago_warmup_status"),
             BuildSmokeTestProgressDetail(paths, boardSize, boardIndex),
             progress,
             false,
@@ -580,27 +577,27 @@ public static class KataGoBootstrap
     private static string BuildSmokeTestStageDetail(KataGoPaths paths, int boardSize, int boardIndex)
     {
         if (IsOpenClInitializationStage(paths, boardIndex)) {
-            return "正在初始化 GPU KataGo 引擎并执行 OpenCL 调优，首次启动可能需要数分钟。";
+            return MessageText.Get("katago_opencl_first_init");
         }
 
         if (paths.noWriteMode && paths.engineName == CpuEngineName) {
-            return $"游戏目录不可写，正在使用 CPU 引擎验证 {boardSize}路棋盘。";
+            return MessageText.Format("katago_cpu_verify_no_write", boardSize);
         }
 
-        return $"{paths.engineName} 引擎正在验证 {boardSize}路棋盘。";
+        return MessageText.Format("katago_engine_verify_board", paths.engineName, boardSize);
     }
 
     private static string BuildSmokeTestProgressDetail(KataGoPaths paths, int boardSize, int boardIndex)
     {
         if (IsOpenClInitializationStage(paths, boardIndex)) {
-            return "正在初始化 GPU KataGo 引擎并执行 OpenCL 调优，完成后会继续验证 9路、13路、19路棋盘。";
+            return MessageText.Get("katago_opencl_progress_init");
         }
 
         if (paths.noWriteMode && paths.engineName == CpuEngineName) {
-            return $"游戏目录不可写，正在使用 CPU 引擎验证 {boardSize}路棋盘。";
+            return MessageText.Format("katago_cpu_verify_no_write", boardSize);
         }
 
-        return $"{paths.engineName} 引擎正在验证 {boardSize}路棋盘。";
+        return MessageText.Format("katago_engine_verify_board", paths.engineName, boardSize);
     }
 
     private static bool IsOpenClInitializationStage(KataGoPaths paths, int boardIndex)
@@ -651,18 +648,18 @@ public static class KataGoBootstrap
     private static string BuildCandidateDetail(KataGoPaths paths, bool isFallback)
     {
         if (paths.noWriteMode && paths.engineName == CpuEngineName) {
-            return "游戏目录不可写，已跳过 GPU 预热，正在预热 CPU KataGo 引擎。";
+            return MessageText.Get("katago_no_write_cpu_warmup");
         }
 
         if (paths.engineName == OpenClEngineName) {
-            return "正在优先预热 GPU KataGo 引擎。";
+            return MessageText.Get("katago_gpu_warmup");
         }
 
         if (isFallback) {
-            return "GPU 引擎不可用，正在预热 CPU KataGo 引擎。";
+            return MessageText.Get("katago_gpu_unavailable_cpu_warmup");
         }
 
-        return $"正在预热 {paths.engineName} KataGo 引擎。";
+        return MessageText.Format("katago_engine_warmup", paths.engineName);
     }
 
     private static JObject Analyze(JObject query, int timeoutMs)
@@ -875,7 +872,7 @@ public static class KataGoBootstrap
     public struct KataGoStartupStatus
     {
         public static readonly KataGoStartupStatus NotStarted = new KataGoStartupStatus(
-            "AI模型等待启动",
+            MessageText.Get("katago_wait_start_status"),
             string.Empty,
             0f,
             false,

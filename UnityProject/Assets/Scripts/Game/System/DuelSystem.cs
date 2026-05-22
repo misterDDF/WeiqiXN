@@ -315,13 +315,13 @@ public class DuelSystem : SystemBase
     private void OnApplyLanDuelTakeBack(OnApplyLanDuelTakeBack evt)
     {
         if (evt == null || !ApplyLanDuelTakeBack(evt.request)) {
-            EmitTakeBackResult(false, "悔棋失败");
+            EmitTakeBackResult(false, MessageText.Get("duel_take_back_failed"));
         }
     }
 
     private void OnLanDuelTakeBackRejected(OnLanDuelTakeBackRejected evt)
     {
-        EmitTakeBackResult(false, "对方拒绝悔棋");
+        EmitTakeBackResult(false, MessageText.Get("duel_take_back_opponent_rejected"));
         scene.GetSystem<DuelInputAuthoritySystem>()?.RefreshLocalInputAuthority();
     }
 
@@ -375,19 +375,19 @@ public class DuelSystem : SystemBase
         var compDuel = scene.GetComponent<SceneComponentDuel>();
         var compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
         if (compDuel == null || compChessBoard == null || compDuel.duelFSM == null || !compDuel.duelFSM.isActivated) {
-            EmitTakeBackResult(false, "当前无法悔棋");
+            EmitTakeBackResult(false, MessageText.Get("duel_take_back_unavailable"));
             return;
         }
 
         if (compDuel.isScoring) {
-            EmitTakeBackResult(false, "数子中，暂不能悔棋");
+            EmitTakeBackResult(false, MessageText.Get("duel_take_back_scoring_blocked"));
             return;
         }
 
         int moveCount = DuelMoveHistory.Count(compDuel.kataGoMoves);
         int removeCount = GetTakeBackMoveCount(compDuel);
         if (removeCount <= 0 || moveCount < removeCount) {
-            EmitTakeBackResult(false, "无可悔棋的手数");
+            EmitTakeBackResult(false, MessageText.Get("duel_take_back_no_moves"));
             return;
         }
 
@@ -397,7 +397,7 @@ public class DuelSystem : SystemBase
         if (!RebuildBoardFromMoves(compChessBoard, compDuel, remainMoves)) {
             XNLogger.LogError("Duel take back failed, board rebuild failed.");
             RebuildBoardFromMoves(compChessBoard, compDuel, originalMoves);
-            EmitTakeBackResult(false, "悔棋失败");
+            EmitTakeBackResult(false, MessageText.Get("duel_take_back_failed"));
             return;
         }
 
@@ -415,7 +415,7 @@ public class DuelSystem : SystemBase
         compChessBoard.chessBoardGrid?.ClearOwnership();
 
         compDuel.duelFSM.SwitchState(DuelStateDefine.STATE_TURN_INPUT);
-        EmitTakeBackResult(true, removeCount >= 2 ? "已回退两手棋" : "已悔棋", removeCount);
+        EmitTakeBackResult(true, BuildTakeBackSuccessMessage(removeCount), removeCount);
     }
 
     public bool CanAcceptLanDuelTakeBack(SceneComponentDuel compDuel, LanDuelTakeBackRequestMessage request)
@@ -437,7 +437,7 @@ public class DuelSystem : SystemBase
         var compDuel = scene.GetComponent<SceneComponentDuel>();
         var compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
         if (compDuel != null && compDuel.lanBoardVersion.value == request.boardVersion + 1) {
-            EmitTakeBackResult(true, request.removeCount >= 2 ? "已回退两手棋" : "已悔棋", request.removeCount);
+            EmitTakeBackResult(true, BuildTakeBackSuccessMessage(request.removeCount), request.removeCount);
             return true;
         }
 
@@ -466,7 +466,7 @@ public class DuelSystem : SystemBase
         compChessBoard.chessBoardGrid?.ClearOwnership();
 
         compDuel.duelFSM.SwitchState(DuelStateDefine.STATE_TURN_INPUT);
-        EmitTakeBackResult(true, request.removeCount >= 2 ? "已回退两手棋" : "已悔棋", request.removeCount);
+        EmitTakeBackResult(true, BuildTakeBackSuccessMessage(request.removeCount), request.removeCount);
         return moveCount > DuelMoveHistory.Count(compDuel.kataGoMoves);
     }
 
@@ -830,16 +830,23 @@ public class DuelSystem : SystemBase
     private string BuildLanScoreFailureMessage(LanDuelScoreFailureReason reason)
     {
         if (reason == LanDuelScoreFailureReason.RequestRejected) {
-            return "对方拒绝数子";
+            return MessageText.Get("duel_score_opponent_rejected");
         }
         if (reason == LanDuelScoreFailureReason.ResultRejected) {
-            return "有一方不接受结果";
+            return MessageText.Get("duel_score_result_rejected");
         }
         if (reason == LanDuelScoreFailureReason.InvalidRequest) {
-            return "当前无法请求数子";
+            return MessageText.Get("duel_score_request_unavailable");
         }
 
-        return "数子失败，已回到对局";
+        return MessageText.Get("duel_score_failed_back_to_game");
+    }
+
+    private string BuildTakeBackSuccessMessage(int removeCount)
+    {
+        return removeCount >= 2
+            ? MessageText.Get("duel_take_back_two_moves_success")
+            : MessageText.Get("duel_take_back_success");
     }
 
 }

@@ -4,7 +4,7 @@ using UnityEngine;
 public class LoadingPage : UIPageWithBinder<LoadingPageUI>
 {
     private static LoadingPage activePage;
-    private static LoadingProgressData currentProgress = new LoadingProgressData("加载中...", string.Empty, 0f);
+    private static LoadingProgressData currentProgress = new LoadingProgressData(MessageText.Get("loading_default"), string.Empty, 0f);
 
     public override string pageName => UIPage.GetPageName<LoadingPage>();
 

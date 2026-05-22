@@ -59,7 +59,7 @@ public partial class LanRoomService
         lock (sessionLock) {
             gameStarted = true;
         }
-        lastStatus = "主机已开始对局。";
+        lastStatus = MessageText.Get("lan_room_host_started_game");
     }
 
     private void OnStartConfig(LanRoomProtocolMessage message)

@@ -25,6 +25,7 @@
 - `duel_ai_difficulty.json` 已配置电脑对局难度选项、KataGo human policy profile、基础访问次数、基础候选点数量、失误率、采样温度、基础最大亏损目数、访问权重、提前虚手开关、思考延迟，以及 9 路、13 路、19 路分别使用的实时访问上限、候选点数量、最大亏损目数覆盖值和动态预算阈值。
 - `scene.json` 已配置 MainMenu 和 Duel。
 - `ui_page.json` 已配置 LoadingPage、MainMenuPage、SavingPopup、UserInfoPopup、DuelSetupPopup、DuelPage。
+- `message.json` 已配置运行时 UI 展示文案，包括通用弹窗按钮、Loading 状态、局域网房间状态、对局 HUD 和操作反馈文案；代码侧通过 `MessageText` 消费。
 
 ## 设计观察
 
@@ -55,3 +56,4 @@
 - The runtime asset table is consumed by `AssetBundleGenerator.PackRuntimeAssetTable`, which validates each listed asset and sets the configured AssetBundle label before building bundles.
 - The current runtime asset entries are the shared black and white chess-board materials used by ownership overlay and latest-move marker rendering.
 - LAN room runtime parameter configs are exported from `ConfigExporter/xlsx/lan_room_config.xlsx`. The exported JSON lives under `Assets/Config/DataJson/lan_room_config/`, and the generated data type lives under `Assets/Config/DataType/lan_room_config/`. The table contains ports, timeout, max player count, broadcast interval, and buffer sizes; LAN protocol strings are code-owned by `LanRoomProtocol`.
+- Runtime UI message configs are exported from `ConfigExporter/xlsx/message.xlsx`. The exported JSON lives under `Assets/Config/DataJson/message/`, and the generated data type lives under `Assets/Config/DataType/message/`. The table contains player-facing runtime text; protocol strings, logs, editor menu text, and prefab-owned fixed initial text are not part of this table.

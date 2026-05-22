@@ -1,4 +1,5 @@
 using UnityEngine.UI;
+using System;
 using System.Collections.Generic;
 using TMPro;
 
@@ -10,18 +11,28 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     private const string DefaultAiDifficultyCfgId = "k20_k15";
 
     private static bool pendingOpenAiDuel;
+    private static Action<DuelSceneCreateParamas> pendingConfirmHandler;
 
     private string selectedBoardCfgId = "9x9";
     private string selectedHoldTimeCfgId = "5m";
     private string selectedByoyomiCountCfgId = ByoyomiOffCfgId;
     private string selectedByoyomiTimeCfgId = "30s";
     private bool isAiDuel;
+    private Action<DuelSceneCreateParamas> confirmHandler;
     private string selectedAiDifficultyCfgId = DefaultAiDifficultyCfgId;
     private readonly List<string> aiDifficultyCfgIds = new List<string>();
 
     public static void Open(bool isAiDuel)
     {
         pendingOpenAiDuel = isAiDuel;
+        pendingConfirmHandler = null;
+        Global.Instance.uiManager.ShowPage<DuelSetupPopup>();
+    }
+
+    public static void OpenForLanRoom(Action<DuelSceneCreateParamas> onConfirmed)
+    {
+        pendingOpenAiDuel = false;
+        pendingConfirmHandler = onConfirmed;
         Global.Instance.uiManager.ShowPage<DuelSetupPopup>();
     }
 
@@ -43,6 +54,8 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         base.OnOpen();
 
         isAiDuel = pendingOpenAiDuel;
+        confirmHandler = pendingConfirmHandler;
+        pendingConfirmHandler = null;
         RefreshAiDifficultyDropdown();
         RefreshSelectionState();
     }
@@ -66,17 +79,27 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     {
         NormalizeTimeControlSelection();
 
+        DuelSceneCreateParamas duelParams = new DuelSceneCreateParamas()
+        {
+            boardCfgId = selectedBoardCfgId,
+            holdTimeCfgId = selectedHoldTimeCfgId,
+            byoyomiCountCfgId = selectedByoyomiCountCfgId,
+            byoyomiTimeCfgId = selectedByoyomiTimeCfgId,
+            isAiDuel = isAiDuel,
+            aiDifficultyCfgId = isAiDuel ? selectedAiDifficultyCfgId : string.Empty,
+        };
+
+        if (confirmHandler != null) {
+            Action<DuelSceneCreateParamas> handler = confirmHandler;
+            confirmHandler = null;
+            ClosePage();
+            handler.Invoke(duelParams);
+            return;
+        }
+
         SceneCreateParams sceneCreateParams = new SceneCreateParams()
         {
-            duelSceneCreateParamas = new DuelSceneCreateParamas()
-            {
-                boardCfgId = selectedBoardCfgId,
-                holdTimeCfgId = selectedHoldTimeCfgId,
-                byoyomiCountCfgId = selectedByoyomiCountCfgId,
-                byoyomiTimeCfgId = selectedByoyomiTimeCfgId,
-                isAiDuel = isAiDuel,
-                aiDifficultyCfgId = isAiDuel ? selectedAiDifficultyCfgId : string.Empty,
-            }
+            duelSceneCreateParamas = duelParams
         };
         Global.Instance.sceneManager.EnterMainScene(SceneConfig.DUEL_SCENE_TYPE_ID, sceneCreateParams);
     }

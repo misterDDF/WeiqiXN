@@ -25,13 +25,21 @@ public readonly struct LanRoomSessionState
     public string GetDisplayText()
     {
         if (role == LanRoomRole.None) {
-            return "尚未进入房间。";
+            return MessageText.Get("lan_room_not_joined");
         }
 
-        string roleText = role == LanRoomRole.Host ? "主机" : "客户端";
-        string hostText = hostReady ? "主机已准备" : "主机未准备";
-        string clientText = clientReady ? "客机已准备" : "客机未准备";
-        string startText = gameStarted ? "已开局" : "未开局";
-        return $"{roleText}  {hostText}  {clientText}  {startText}";
+        string roleText = role == LanRoomRole.Host
+            ? MessageText.Get("lan_room_role_host")
+            : MessageText.Get("lan_room_role_client");
+        string hostText = hostReady
+            ? MessageText.Get("lan_room_host_ready")
+            : MessageText.Get("lan_room_host_not_ready");
+        string clientText = clientReady
+            ? MessageText.Get("lan_room_client_ready")
+            : MessageText.Get("lan_room_client_not_ready");
+        string startText = gameStarted
+            ? MessageText.Get("lan_room_game_started")
+            : MessageText.Get("lan_room_game_not_started");
+        return MessageText.Format("lan_room_session_state", roleText, hostText, clientText, startText);
     }
 }

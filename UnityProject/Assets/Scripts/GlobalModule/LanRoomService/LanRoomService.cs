@@ -63,11 +63,11 @@ public partial class LanRoomService : ModuleBase
     private string lanHoldTimeCfgId = "5m";
     private string lanByoyomiCountCfgId = "off";
     private string lanByoyomiTimeCfgId = "30s";
-    private string lastStatus = "局域网房间服务未启动。";
+    private string lastStatus;
 
     public bool IsHosting => isHosting;
     public bool IsSearching => isSearching;
-    public string LastStatus => lastStatus;
+    public string LastStatus => string.IsNullOrEmpty(lastStatus) ? MessageText.Get("lan_room_service_stopped") : lastStatus;
     public string LanBoardCfgId => lanBoardCfgId;
     public string LanHoldTimeCfgId => lanHoldTimeCfgId;
     public string LanByoyomiCountCfgId => lanByoyomiCountCfgId;
@@ -86,11 +86,19 @@ public partial class LanRoomService : ModuleBase
     {
     }
 
+    public void SetStartConfig(string boardCfgId, string holdTimeCfgId, string byoyomiCountCfgId, string byoyomiTimeCfgId)
+    {
+        lanBoardCfgId = string.IsNullOrEmpty(boardCfgId) ? "9x9" : boardCfgId;
+        lanHoldTimeCfgId = string.IsNullOrEmpty(holdTimeCfgId) ? "5m" : holdTimeCfgId;
+        lanByoyomiCountCfgId = string.IsNullOrEmpty(byoyomiCountCfgId) ? "off" : byoyomiCountCfgId;
+        lanByoyomiTimeCfgId = string.IsNullOrEmpty(byoyomiTimeCfgId) ? "30s" : byoyomiTimeCfgId;
+    }
+
     public bool CreateRoom(string roomName)
     {
         StopRoom();
         hostedRoomId = Guid.NewGuid().ToString("N");
-        hostedRoomName = string.IsNullOrEmpty(roomName) ? "局域网房间" : roomName;
+        hostedRoomName = string.IsNullOrEmpty(roomName) ? MessageText.Get("lan_room_default_name") : roomName;
         hostedTcpPort = LanRoomConfig.TcpListenPort;
         lock (sessionLock) {
             currentRole = LanRoomRole.Host;
@@ -138,12 +146,12 @@ public partial class LanRoomService : ModuleBase
             };
             broadcastThread.Start();
 
-            lastStatus = $"已创建房间 {hostedRoomName}，等待玩家加入。";
+            lastStatus = MessageText.Format("lan_room_created_waiting", hostedRoomName);
             XNLogger.LogInfo("LAN room created.", ("roomId", hostedRoomId), ("tcpPort", hostedTcpPort.ToString()));
             return true;
         }
         catch (Exception e) {
-            lastStatus = $"创建房间失败：{e.Message}";
+            lastStatus = MessageText.Format("lan_room_create_failed", e.Message);
             XNLogger.LogError("Create LAN room failed.", ("error", e.ToString()));
             StopRoom();
             return false;
@@ -211,10 +219,10 @@ public partial class LanRoomService : ModuleBase
             };
             discoveryThread.Start();
 
-            lastStatus = "正在搜索局域网房间。";
+            lastStatus = MessageText.Get("lan_room_searching");
         }
         catch (Exception e) {
-            lastStatus = $"搜索房间失败：{e.Message}";
+            lastStatus = MessageText.Format("lan_room_search_failed", e.Message);
             XNLogger.LogError("Start LAN room search failed.", ("error", e.ToString()));
             StopSearchRooms();
         }
@@ -243,7 +251,7 @@ public partial class LanRoomService : ModuleBase
             TcpClient client = new TcpClient();
             if (!ConnectWithTimeout(client, room.hostAddress, room.tcpPort)) {
                 client.Close();
-                lastStatus = $"连接房间失败：连接超时。";
+                lastStatus = MessageText.Get("lan_room_connect_timeout");
                 return false;
             }
 
@@ -258,7 +266,7 @@ public partial class LanRoomService : ModuleBase
             string response = Encoding.UTF8.GetString(buffer, 0, readLength).Trim();
             if (!response.StartsWith(LanRoomProtocolName.HostAccept, StringComparison.Ordinal)) {
                 client.Close();
-                lastStatus = $"连接房间失败：主机拒绝连接。";
+                lastStatus = MessageText.Get("lan_room_connect_rejected");
                 return false;
             }
 
@@ -289,12 +297,12 @@ public partial class LanRoomService : ModuleBase
             }
             StartSessionReader(client);
             SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.Ready)}|CLIENT|0");
-            lastStatus = $"已连接房间 {room.name}。";
+            lastStatus = MessageText.Format("lan_room_connected", room.name);
             XNLogger.LogInfo("LAN room connected.", ("roomId", room.roomId), ("host", room.hostAddress));
             return true;
         }
         catch (Exception e) {
-            lastStatus = $"连接房间失败：{e.Message}";
+            lastStatus = MessageText.Format("lan_room_connect_failed", e.Message);
             XNLogger.LogError("Connect LAN room failed.", ("error", e.ToString()));
             return false;
         }
@@ -310,7 +318,7 @@ public partial class LanRoomService : ModuleBase
             } else if (role == LanRoomRole.Client) {
                 clientReady = ready;
             } else {
-                lastStatus = "尚未进入房间，无法准备。";
+                lastStatus = MessageText.Get("lan_room_ready_not_joined");
                 return;
             }
         }
@@ -321,7 +329,7 @@ public partial class LanRoomService : ModuleBase
             SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.Ready)}|CLIENT|{BoolToInt(ready)}");
         }
 
-        lastStatus = ready ? "已准备。" : "已取消准备。";
+        lastStatus = ready ? MessageText.Get("lan_room_ready") : MessageText.Get("lan_room_ready_cancelled");
     }
 
     public bool TryStartGame()
@@ -335,13 +343,13 @@ public partial class LanRoomService : ModuleBase
         }
 
         if (!canStart) {
-            lastStatus = "双方准备后才能由主机开始对局。";
+            lastStatus = MessageText.Get("lan_room_start_requires_ready");
             return false;
         }
 
         SendRoomMessage(SerializeStartConfigMessage());
         BroadcastRoomState();
-        lastStatus = "已发送开局命令。";
+        lastStatus = MessageText.Get("lan_room_start_command_sent");
         return true;
     }
 
@@ -365,7 +373,7 @@ public partial class LanRoomService : ModuleBase
         }
 
         if (role != LanRoomRole.Client || connectedClient == null) {
-            lastStatus = "当前不在局域网对局中，无法提交落子。";
+            lastStatus = MessageText.Get("lan_room_submit_move_not_in_duel");
             return false;
         }
 
@@ -389,7 +397,7 @@ public partial class LanRoomService : ModuleBase
         }
 
         if (role != LanRoomRole.Client || connectedClient == null) {
-            lastStatus = "当前不在局域网对局中，无法提交认输。";
+            lastStatus = MessageText.Get("lan_room_submit_resign_not_in_duel");
             return false;
         }
 
@@ -413,7 +421,7 @@ public partial class LanRoomService : ModuleBase
         }
 
         if (role != LanRoomRole.Client || connectedClient == null) {
-            lastStatus = "当前不在局域网对局中，无法提交虚手。";
+            lastStatus = MessageText.Get("lan_room_submit_pass_not_in_duel");
             return false;
         }
 
@@ -437,7 +445,7 @@ public partial class LanRoomService : ModuleBase
         }
 
         if (role != LanRoomRole.Client || connectedClient == null) {
-            lastStatus = "当前不在局域网对局中，无法请求数子。";
+            lastStatus = MessageText.Get("lan_room_submit_score_not_in_duel");
             return false;
         }
 
@@ -459,7 +467,7 @@ public partial class LanRoomService : ModuleBase
         }
 
         if (role != LanRoomRole.Client || connectedClient == null) {
-            lastStatus = "当前不在局域网对局中，无法回复数子确认。";
+            lastStatus = MessageText.Get("lan_room_score_confirm_not_in_duel");
             return false;
         }
 
@@ -481,7 +489,7 @@ public partial class LanRoomService : ModuleBase
         }
 
         if (role != LanRoomRole.Client || connectedClient == null) {
-            lastStatus = "当前不在局域网对局中，无法回复数子结果确认。";
+            lastStatus = MessageText.Get("lan_room_score_result_confirm_not_in_duel");
             return false;
         }
 
@@ -505,7 +513,7 @@ public partial class LanRoomService : ModuleBase
         }
 
         if (role != LanRoomRole.Client || connectedClient == null) {
-            lastStatus = "当前不在局域网对局中，无法请求悔棋。";
+            lastStatus = MessageText.Get("lan_room_take_back_not_in_duel");
             return false;
         }
 
@@ -527,7 +535,7 @@ public partial class LanRoomService : ModuleBase
         }
 
         if (role != LanRoomRole.Client || connectedClient == null) {
-            lastStatus = "当前不在局域网对局中，无法回复悔棋确认。";
+            lastStatus = MessageText.Get("lan_room_take_back_confirm_not_in_duel");
             return false;
         }
 
@@ -1058,7 +1066,7 @@ public partial class LanRoomService : ModuleBase
                 }
                 StartSessionReader(client);
                 BroadcastRoomState();
-                lastStatus = "已有玩家加入房间，等待双方准备。";
+                lastStatus = MessageText.Get("lan_room_player_joined_waiting_ready");
                 XNLogger.LogInfo("LAN room client joined.", ("roomId", hostedRoomId));
             }
             catch (ObjectDisposedException) {
@@ -1237,7 +1245,7 @@ public partial class LanRoomService : ModuleBase
         lock (sessionLock) {
             gameStarted = true;
         }
-        lastStatus = "主机已开始对局。";
+        lastStatus = MessageText.Get("lan_room_host_started_game");
     }
 
     private void BroadcastRoomState()
@@ -1909,7 +1917,7 @@ public partial class LanRoomService : ModuleBase
             ClearScoreResultQueues();
             ClearTakeBackQueues();
         }
-        lastStatus = "房间连接已断开。";
+        lastStatus = MessageText.Get("lan_room_disconnected");
     }
 
     private int BoolToInt(bool value)

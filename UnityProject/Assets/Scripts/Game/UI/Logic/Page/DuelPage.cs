@@ -94,7 +94,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         if (evt.requireConfirm) {
             ConfirmPopup.UpdateOpenContent(
                 pendingScorePopupRequestId,
-                "确认数子结果",
+                MessageText.Get("duel_score_confirm_title"),
                 hudView.BuildScoreConfirmContent(scoreResult),
                 () => EmitSystemEvent(new OnConfirmDuelScore(scoreResult)),
                 true
@@ -107,10 +107,10 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     {
         if (!evt.requireConfirm) {
             ClosePendingScorePopup();
-            string message = string.IsNullOrEmpty(evt.message) ? "数子失败，已回到对局" : evt.message;
+            string message = string.IsNullOrEmpty(evt.message) ? MessageText.Get("duel_score_failed_back_to_game") : evt.message;
             SceneComponentDuel compDuel = Global.Instance.sceneManager.mainScene?.GetComponent<SceneComponentDuel>();
             if (compDuel != null && compDuel.isLanDuel.value) {
-                ConfirmPopup.ShowTip("数子未通过", message, null, "确认");
+                ConfirmPopup.ShowTip(MessageText.Get("duel_score_not_accepted_title"), message, null, MessageText.Get("common_confirm"));
             } else {
                 hudView.ShowActionNotice(message);
             }
@@ -119,8 +119,8 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         ConfirmPopup.UpdateOpenContent(
             pendingScorePopupRequestId,
-            "确认数子结果",
-            "数子失败，请稍后重试。",
+            MessageText.Get("duel_score_confirm_title"),
+            MessageText.Get("duel_score_retry_later"),
             null,
             false
         );
@@ -149,7 +149,9 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
     public void OnDuelSaveResult(OnDuelSaveResult evt)
     {
-        hudView.ShowActionNotice(evt != null && evt.success ? "对局已保存" : "对局保存失败");
+        hudView.ShowActionNotice(evt != null && evt.success
+            ? MessageText.Get("duel_save_success")
+            : MessageText.Get("duel_save_failed"));
     }
 
     public void OnApplyLanDuelScoreRequest(OnApplyLanDuelScoreRequest evt)
@@ -160,8 +162,8 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         ConfirmPopup.UpdateOpenContent(
             pendingScorePopupRequestId,
-            "数子中",
-            "对方已同意数子，正在计算结果。",
+            MessageText.Get("duel_scoring_title"),
+            MessageText.Get("duel_score_opponent_accepted"),
             null,
             false
         );
@@ -174,12 +176,12 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         }
 
         ConfirmPopup.Show(
-            "确认数子",
-            "对方请求数子，是否同意结束对局并按当前局面计算结果？",
+            MessageText.Get("duel_score_request_title"),
+            MessageText.Get("duel_score_request_content"),
             () => EmitSystemEvent(new OnSubmitLanDuelScoreConfirm(evt.request, true)),
             () => EmitSystemEvent(new OnSubmitLanDuelScoreConfirm(evt.request, false)),
-            "同意数子",
-            "继续对局"
+            MessageText.Get("duel_score_accept_request"),
+            MessageText.Get("duel_continue_game")
         );
     }
 
@@ -191,12 +193,12 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         ClosePendingScorePopup();
         pendingScorePopupRequestId = ConfirmPopup.Show(
-            "确认数子结果",
+            MessageText.Get("duel_score_confirm_title"),
             hudView.BuildScoreConfirmContent(BuildScoreResult(evt.result)),
             () => EmitSystemEvent(new OnSubmitLanDuelScoreResultConfirm(evt.result, true)),
             () => EmitSystemEvent(new OnSubmitLanDuelScoreResultConfirm(evt.result, false)),
-            "接受结果",
-            "不接受"
+            MessageText.Get("duel_score_accept_result"),
+            MessageText.Get("duel_score_reject_result")
         );
     }
 
@@ -207,12 +209,12 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         }
 
         ConfirmPopup.Show(
-            "确认悔棋",
-            "对方请求悔棋，是否同意回退上一手？",
+            MessageText.Get("duel_take_back_title"),
+            MessageText.Get("duel_take_back_request_content"),
             () => EmitSystemEvent(new OnSubmitLanDuelTakeBackConfirm(evt.request, true)),
             () => EmitSystemEvent(new OnSubmitLanDuelTakeBackConfirm(evt.request, false)),
-            "同意悔棋",
-            "拒绝"
+            MessageText.Get("duel_take_back_accept"),
+            MessageText.Get("common_reject")
         );
     }
 
@@ -243,8 +245,8 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     public void OnClickBtnExit()
     {
         ConfirmPopup.Show(
-            "退出对局",
-            "确认退出当前对局？",
+            MessageText.Get("duel_exit_title"),
+            MessageText.Get("duel_exit_content"),
             () => Global.Instance.sceneManager.EnterMainScene(SceneConfig.MAIN_MENU_SCENE_TYPE_ID, SceneCreateParams.Default)
         );
     }
@@ -282,20 +284,20 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         hudView.CloseSettingsPanel();
         if (compDuel.isLanDuel.value) {
             pendingScorePopupRequestId = ConfirmPopup.ShowBlocking(
-                "等待数子确认",
-                "已发送数子请求，正在等待对方同意。"
+                MessageText.Get("duel_score_wait_title"),
+                MessageText.Get("duel_score_wait_content")
             );
             EmitSystemEvent(new OnSubmitDuelScore());
             return;
         }
 
         pendingScorePopupRequestId = ConfirmPopup.Show(
-            "确认数子结果",
-            "数子中...",
+            MessageText.Get("duel_score_confirm_title"),
+            MessageText.Get("duel_scoring_content"),
             null,
             null,
-            "确认结果",
-            "继续对局",
+            MessageText.Get("duel_score_confirm_result"),
+            MessageText.Get("duel_continue_game"),
             false
         );
         EmitSystemEvent(new OnSubmitDuelScore());
@@ -311,12 +313,14 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         hudView.CloseSettingsPanel();
         ConfirmPopup.Show(
-            "确认悔棋",
-            compDuel.isLanDuel.value ? "确认向对方请求悔棋？" : "确认悔棋？",
+            MessageText.Get("duel_take_back_title"),
+            compDuel.isLanDuel.value
+                ? MessageText.Get("duel_take_back_lan_confirm_content")
+                : MessageText.Get("duel_take_back_local_confirm_content"),
             () => SubmitConfirmedTakeBack(),
             null,
-            "确认悔棋",
-            "取消"
+            MessageText.Get("duel_take_back_confirm"),
+            MessageText.Get("common_cancel")
         );
     }
 
@@ -336,12 +340,12 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         string playerText = hudView.GetPlayerDisplayName(curPlayer, compDuel, compDuel.curTurnPlayerGuid.value);
 
         ConfirmPopup.Show(
-            "确认认输",
-            $"确认{playerText}认输？",
+            MessageText.Get("duel_resign_title"),
+            MessageText.Format("duel_resign_content", playerText),
             () => EmitSystemEvent(new OnSubmitDuelResign()),
             null,
-            "确认认输",
-            "继续对局"
+            MessageText.Get("duel_resign_confirm"),
+            MessageText.Get("duel_continue_game")
         );
     }
 
@@ -375,8 +379,8 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         if (compDuel.isLanDuel.value) {
             pendingTakeBackPopupRequestId = ConfirmPopup.ShowBlocking(
-                "等待悔棋确认",
-                "已发送悔棋请求，正在等待对方同意。"
+                MessageText.Get("duel_take_back_wait_title"),
+                MessageText.Get("duel_take_back_wait_content")
             );
         }
 

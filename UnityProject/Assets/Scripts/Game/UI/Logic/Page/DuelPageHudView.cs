@@ -47,7 +47,7 @@ public class DuelPageHudView
             compDuel,
             blackPlayer,
             curTurnPlayerGuid,
-            "黑方"
+            MessageText.Get("duel_player_black")
         );
         RefreshPlayerInfoPanel(
             binder.txt_white_title,
@@ -57,7 +57,7 @@ public class DuelPageHudView
             compDuel,
             whitePlayer,
             curTurnPlayerGuid,
-            "白方"
+            MessageText.Get("duel_player_white")
         );
 
         RefreshGameEndResultPanel(mainScene, compDuel);
@@ -66,8 +66,8 @@ public class DuelPageHudView
 
     public void OnDuelOwnershipResult(OnDuelOwnershipResult evt)
     {
-        SetText(binder.txt_ownership_black_points, $"黑方目数: {FormatPointCount(evt.blackPoints)}");
-        SetText(binder.txt_ownership_white_points, $"白方目数: {FormatPointCount(evt.whitePoints)}（贴目后）");
+        SetText(binder.txt_ownership_black_points, MessageText.Format("duel_ownership_black_points", FormatPointCount(evt.blackPoints)));
+        SetText(binder.txt_ownership_white_points, MessageText.Format("duel_ownership_white_points", FormatPointCount(evt.whitePoints)));
         SetOwnershipActive(true);
         SetOwnershipResultPanelVisible(true);
     }
@@ -82,41 +82,48 @@ public class DuelPageHudView
     {
         SetOwnershipActive(true);
         SetOwnershipResultPanelVisible(false);
-        SetText(binder.txt_ownership_black_points, "黑方目数: 计算中...");
-        SetText(binder.txt_ownership_white_points, "白方目数: 计算中...");
+        SetText(binder.txt_ownership_black_points, MessageText.Get("duel_ownership_black_calculating"));
+        SetText(binder.txt_ownership_white_points, MessageText.Get("duel_ownership_white_calculating"));
     }
 
     public void OnDuelPassAccepted(OnDuelPassAccepted evt)
     {
         if (evt.consecutivePassCount >= 2) {
-            ShowActionNotice("双方连续虚手，正在数子...");
+            ShowActionNotice(MessageText.Get("duel_pass_consecutive_scoring"));
             return;
         }
 
-        string playerText = evt.playerFlag == PlayerFlag.Player1 ? "黑方" : "白方";
-        string aiText = evt.isAiPlayer ? "（AI）" : string.Empty;
-        ShowActionNotice($"{playerText}{aiText}虚手");
+        string playerText = GetPlayerFlagText(evt.playerFlag);
+        string aiText = evt.isAiPlayer ? MessageText.Get("duel_ai_suffix") : string.Empty;
+        ShowActionNotice(MessageText.Format("duel_pass_notice", playerText, aiText));
     }
 
     public void OnAfterAddChessToBoard(OnAfterAddChessToBoard evt)
     {
-        string playerText = evt.playerFlag == PlayerFlag.Player1 ? "黑方" : "白方";
-        string aiText = DuelPageInteractionState.IsAiPlayer(Global.Instance.sceneManager.mainScene, evt.playerFlag) ? "（AI）" : string.Empty;
-        ShowActionNotice($"{playerText}{aiText}落子 {FormatBoardPoint(evt.coords)}");
+        string playerText = GetPlayerFlagText(evt.playerFlag);
+        string aiText = DuelPageInteractionState.IsAiPlayer(Global.Instance.sceneManager.mainScene, evt.playerFlag)
+            ? MessageText.Get("duel_ai_suffix")
+            : string.Empty;
+        ShowActionNotice(MessageText.Format("duel_move_notice", playerText, aiText, FormatBoardPoint(evt.coords)));
     }
 
     public string BuildScoreConfirmContent(DuelScoreResult scoreResult)
     {
         string winnerText;
         if (scoreResult.winnerFlag == PlayerFlag.Player1) {
-            winnerText = $"黑方胜 {FormatPointCount(scoreResult.margin)} 目";
+            winnerText = MessageText.Format("duel_score_black_win", FormatPointCount(scoreResult.margin));
         } else if (scoreResult.winnerFlag == PlayerFlag.Player2) {
-            winnerText = $"白方胜 {FormatPointCount(scoreResult.margin)} 目";
+            winnerText = MessageText.Format("duel_score_white_win", FormatPointCount(scoreResult.margin));
         } else {
-            winnerText = "双方和棋";
+            winnerText = MessageText.Get("duel_score_draw");
         }
 
-        return $"黑方: {FormatPointCount(scoreResult.blackScore)} 目\n白方: {FormatPointCount(scoreResult.whiteScore)} 目（含贴目 {FormatPointCount(scoreResult.komi)}）\n结果: {winnerText}";
+        return MessageText.Format(
+            "duel_score_confirm_content",
+            FormatPointCount(scoreResult.blackScore),
+            FormatPointCount(scoreResult.whiteScore),
+            FormatPointCount(scoreResult.komi),
+            winnerText);
     }
 
     public void OpenSettingsPanel()
@@ -168,19 +175,19 @@ public class DuelPageHudView
     public string GetPlayerDisplayName(Player player, SceneComponentDuel compDuel, string playerGuid)
     {
         if (player != null) {
-            return (PlayerFlag)player.playerFlag.value == PlayerFlag.Player1 ? "黑方" : "白方";
+            return GetPlayerFlagText((PlayerFlag)player.playerFlag.value);
         }
 
         if (compDuel != null && !string.IsNullOrEmpty(playerGuid)) {
             if (playerGuid == compDuel.player1Guid.value) {
-                return "黑方";
+                return MessageText.Get("duel_player_black");
             }
             if (playerGuid == compDuel.player2Guid.value) {
-                return "白方";
+                return MessageText.Get("duel_player_white");
             }
         }
 
-        return "当前方";
+        return MessageText.Get("duel_player_current");
     }
 
     public void SetResignButtonVisible(bool isVisible)
@@ -203,9 +210,9 @@ public class DuelPageHudView
     {
         bool isCurTurnPlayer = player != null && player.guid == curTurnPlayerGuid;
         bool isAi = DuelPageInteractionState.IsAiPlayer(player, compDuel);
-        string playerTypeText = isAi ? "AI" : "人类";
-        string turnText = isCurTurnPlayer ? " · 行棋中" : string.Empty;
-        SetText(titleText, $"{title} · {playerTypeText}{turnText}");
+        string playerTypeText = isAi ? MessageText.Get("duel_player_type_ai") : MessageText.Get("duel_player_type_human");
+        string turnText = isCurTurnPlayer ? MessageText.Get("duel_turn_suffix") : string.Empty;
+        SetText(titleText, MessageText.Format("duel_player_title", title, playerTypeText, turnText));
 
         ComponentDuelInfo compDuelInfo = player?.GetComponent<ComponentDuelInfo>();
         bool isByoyomiEnabled = DuelPageInteractionState.IsByoyomiEnabled(compDuel, compDuelInfo);
@@ -213,21 +220,21 @@ public class DuelPageHudView
         SetTextVisible(byoyomiTimeText, isByoyomiEnabled);
 
         if (compDuelInfo == null) {
-            SetText(holdText, "主时间 --");
+            SetText(holdText, MessageText.Get("duel_hold_time_empty"));
             if (isByoyomiEnabled) {
-                SetText(byoyomiCountText, "剩余读秒 --");
-                SetText(byoyomiTimeText, "读秒时间 --");
+                SetText(byoyomiCountText, MessageText.Get("duel_byoyomi_count_empty"));
+                SetText(byoyomiTimeText, MessageText.Get("duel_byoyomi_time_empty"));
             }
             return;
         }
 
-        SetText(holdText, $"主时间 {FormatSeconds(compDuelInfo.holdLeftSeconds.value, compDuelInfo.isInfiniteTime.value)}");
+        SetText(holdText, MessageText.Format("duel_hold_time", FormatSeconds(compDuelInfo.holdLeftSeconds.value, compDuelInfo.isInfiniteTime.value)));
         if (!isByoyomiEnabled) {
             return;
         }
 
-        SetText(byoyomiCountText, $"剩余读秒 {compDuelInfo.byoyomiLeftCount.value} 次");
-        SetText(byoyomiTimeText, $"读秒时间 {FormatSeconds(compDuelInfo.byoyomiLeftSeconds.value, false)}");
+        SetText(byoyomiCountText, MessageText.Format("duel_byoyomi_count", compDuelInfo.byoyomiLeftCount.value));
+        SetText(byoyomiTimeText, MessageText.Format("duel_byoyomi_time", FormatSeconds(compDuelInfo.byoyomiLeftSeconds.value, false)));
     }
 
     private void RefreshSettingsActionVisibility(SceneBase mainScene, SceneComponentDuel compDuel)
@@ -261,7 +268,9 @@ public class DuelPageHudView
         string winnerText = GetPlayerDisplayName(winner, compDuel, compDuel.winnerGuid.value);
         string reasonText = BuildGameEndReasonText(mainScene, compDuel);
 
-        SetText(binder.txt_game_end_winner, string.IsNullOrEmpty(compDuel.winnerGuid.value) ? "双方和棋" : $"{winnerText}胜出");
+        SetText(binder.txt_game_end_winner, string.IsNullOrEmpty(compDuel.winnerGuid.value)
+            ? MessageText.Get("duel_score_draw")
+            : MessageText.Format("duel_game_end_winner", winnerText));
         SetText(binder.txt_game_end_reason, reasonText);
         SetGameEndResultPanelVisible(true);
     }
@@ -274,20 +283,20 @@ public class DuelPageHudView
 
         if (compDuel.gameEndReason.value == DuelGameEndReason.Timeout) {
             Player loser = mainScene.GetEntity<Player>(compDuel.timeoutLoserGuid.value);
-            return $"{GetPlayerDisplayName(loser, compDuel, compDuel.timeoutLoserGuid.value)}超时判负";
+            return MessageText.Format("duel_game_end_timeout", GetPlayerDisplayName(loser, compDuel, compDuel.timeoutLoserGuid.value));
         }
 
         if (compDuel.gameEndReason.value == DuelGameEndReason.Resign) {
             Player loser = mainScene.GetEntity<Player>(compDuel.resignLoserGuid.value);
-            return $"{GetPlayerDisplayName(loser, compDuel, compDuel.resignLoserGuid.value)}认输";
+            return MessageText.Format("duel_game_end_resign", GetPlayerDisplayName(loser, compDuel, compDuel.resignLoserGuid.value));
         }
 
         if (compDuel.gameEndReason.value == DuelGameEndReason.Score
             || compDuel.gameEndReason.value == DuelGameEndReason.ConsecutivePass) {
-            return $"领先 {FormatPointCount(compDuel.finalScoreMargin.value)} 目";
+            return MessageText.Format("duel_game_end_score", FormatPointCount(compDuel.finalScoreMargin.value));
         }
 
-        return "对局结束";
+        return MessageText.Get("duel_game_end_default");
     }
 
     private string FormatSeconds(int seconds, bool isInfinite)
@@ -318,7 +327,7 @@ public class DuelPageHudView
             return KataGoPositionJsonBuilder.ToKataGoPoint(coords, boardSize);
         }
         catch (System.Exception) {
-            return coords?.ToString() ?? "--";
+            return coords?.ToString() ?? MessageText.Get("common_empty_value");
         }
     }
 
@@ -363,7 +372,9 @@ public class DuelPageHudView
     private void SetOwnershipActive(bool isActive)
     {
         IsOwnershipVisible = isActive;
-        SetText(binder.txt_duel_ownership_button, isActive ? "关闭" : "形势");
+        SetText(binder.txt_duel_ownership_button, isActive
+            ? MessageText.Get("common_close")
+            : MessageText.Get("duel_ownership_button"));
     }
 
     private void SetText(TextMeshProUGUI text, string value)
@@ -378,5 +389,12 @@ public class DuelPageHudView
         if (text != null && text.gameObject.activeSelf != isVisible) {
             text.gameObject.SetActive(isVisible);
         }
+    }
+
+    private string GetPlayerFlagText(PlayerFlag playerFlag)
+    {
+        return playerFlag == PlayerFlag.Player1
+            ? MessageText.Get("duel_player_black")
+            : MessageText.Get("duel_player_white");
     }
 }

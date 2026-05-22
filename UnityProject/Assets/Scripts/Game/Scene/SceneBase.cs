@@ -54,7 +54,10 @@ public class SceneBase : SavableObj, ITimerAttacher, IEventReceiver, IResourceLo
     {
         if (!isLoaded && unitySceneLoadAsync != null) {
             float progress = Mathf.Clamp01(unitySceneLoadAsync.progress / 0.9f);
-            LoadingPage.SetProgress("场景加载中...", $"正在加载 {configData.unitySceneName}", progress);
+            LoadingPage.SetProgress(
+                MessageText.Get("scene_loading_status"),
+                MessageText.Format("scene_loading_detail", configData.unitySceneName),
+                progress);
             return;
         }
 
@@ -215,7 +218,10 @@ public class SceneBase : SavableObj, ITimerAttacher, IEventReceiver, IResourceLo
         UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnUnitySceneLoaded;
         try {
             unitySceneLoadAsync = UnityEngine.SceneManagement.SceneManager.LoadSceneAsync(configData.unitySceneName);
-            LoadingPage.SetProgress("场景加载中...", $"正在加载 {configData.unitySceneName}", 0f);
+            LoadingPage.SetProgress(
+                MessageText.Get("scene_loading_status"),
+                MessageText.Format("scene_loading_detail", configData.unitySceneName),
+                0f);
             if (!LoadingPage.hasActivePage) {
                 Global.Instance.uiManager.ShowPage<LoadingPage>();
             }

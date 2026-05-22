@@ -30,7 +30,7 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
     {
         base.OnOpen();
 
-        SetStatus("请选择创建房间或搜索房间。");
+        SetStatus(MessageText.Get("lan_room_choose_action"));
         RefreshRoomList(null);
         hasEnteredLanDuel = false;
     }
@@ -60,13 +60,23 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
 
     public void OnClickBtnCreateRoom()
     {
+        DuelSetupPopup.OpenForLanRoom(CreateRoomWithConfig);
+    }
+
+    private void CreateRoomWithConfig(DuelSceneCreateParamas duelParams)
+    {
         if (Global.Instance.lanRoomService == null) {
-            SetStatus("局域网房间服务未初始化。");
+            SetStatus(MessageText.Get("lan_room_service_not_ready"));
             return;
         }
 
         Global.Instance.lanRoomService.StopSearchRooms();
-        Global.Instance.lanRoomService.CreateRoom("我的局域网房间");
+        Global.Instance.lanRoomService.SetStartConfig(
+            duelParams.boardCfgId,
+            duelParams.holdTimeCfgId,
+            duelParams.byoyomiCountCfgId,
+            duelParams.byoyomiTimeCfgId);
+        Global.Instance.lanRoomService.CreateRoom(MessageText.Get("lan_room_default_host_name"));
         Global.Instance.lanRoomService.SetLocalReady(true);
         RefreshRoomList(null);
         SetStatus(Global.Instance.lanRoomService.LastStatus);
@@ -75,7 +85,7 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
     public void OnClickBtnSearchRoom()
     {
         if (Global.Instance.lanRoomService == null) {
-            SetStatus("局域网房间服务未初始化。");
+            SetStatus(MessageText.Get("lan_room_service_not_ready"));
             return;
         }
 
@@ -93,11 +103,11 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
     private void OnClickRoom(LanRoomInfo room)
     {
         if (Global.Instance.lanRoomService == null) {
-            SetStatus("局域网房间服务未初始化。");
+            SetStatus(MessageText.Get("lan_room_service_not_ready"));
             return;
         }
 
-        SetStatus($"正在连接 {room.name} ({room.hostAddress}:{room.tcpPort})。");
+        SetStatus(MessageText.Format("lan_room_connecting", room.name, room.hostAddress, room.tcpPort));
         Global.Instance.lanRoomService.StopSearchRooms();
         if (Global.Instance.lanRoomService.ConnectToRoom(room)) {
             Global.Instance.lanRoomService.SetLocalReady(true);

@@ -6,10 +6,10 @@ using XNLogger = XNClient.Logger.XNLogger;
 
 public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
 {
-    private const string DefaultTitle = "确认";
+    private const string DefaultTitleKey = "common_confirm";
     private const string DefaultContent = "";
-    private const string DefaultConfirmText = "确认";
-    private const string DefaultCancelText = "取消";
+    private const string DefaultConfirmTextKey = "common_confirm";
+    private const string DefaultCancelTextKey = "common_cancel";
 
     private static ConfirmPopupRequest pendingRequest;
     private static ConfirmPopupRequest pendingUpdateRequest;
@@ -29,8 +29,8 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         string content,
         Action onConfirm,
         Action onCancel = null,
-        string confirmText = DefaultConfirmText,
-        string cancelText = DefaultCancelText,
+        string confirmText = null,
+        string cancelText = null,
         bool canConfirm = true
     )
     {
@@ -45,12 +45,12 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         string title,
         string content,
         Action onConfirm = null,
-        string confirmText = DefaultConfirmText,
+        string confirmText = null,
         bool canConfirm = true
     )
     {
         int requestId = ++requestSequence;
-        pendingRequest = new ConfirmPopupRequest(requestId, title, content, confirmText, DefaultCancelText, onConfirm, null, canConfirm, true, false);
+        pendingRequest = new ConfirmPopupRequest(requestId, title, content, confirmText, null, onConfirm, null, canConfirm, true, false);
         pendingUpdateRequest = null;
         Global.Instance.uiManager.ShowPage<ConfirmPopup>();
         return requestId;
@@ -59,7 +59,7 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
     public static int ShowBlocking(string title, string content)
     {
         int requestId = ++requestSequence;
-        pendingRequest = new ConfirmPopupRequest(requestId, title, content, DefaultConfirmText, DefaultCancelText, null, null, false, false, false);
+        pendingRequest = new ConfirmPopupRequest(requestId, title, content, null, null, null, null, false, false, false);
         pendingUpdateRequest = null;
         Global.Instance.uiManager.ShowPage<ConfirmPopup>();
         return requestId;
@@ -348,4 +348,8 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
             this.showCancelButton = showCancelButton;
         }
     }
+
+    private static string DefaultTitle => MessageText.Get(DefaultTitleKey);
+    private static string DefaultConfirmText => MessageText.Get(DefaultConfirmTextKey);
+    private static string DefaultCancelText => MessageText.Get(DefaultCancelTextKey);
 }

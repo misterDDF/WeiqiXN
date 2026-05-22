@@ -1,0 +1,752 @@
+{
+  "common_confirm": {
+    "id": "common_confirm",
+    "text": "确认",
+    "remark": "通用确认按钮/标题"
+  },
+  "common_cancel": {
+    "id": "common_cancel",
+    "text": "取消",
+    "remark": "通用取消按钮"
+  },
+  "common_reject": {
+    "id": "common_reject",
+    "text": "拒绝",
+    "remark": "通用拒绝按钮"
+  },
+  "common_close": {
+    "id": "common_close",
+    "text": "关闭",
+    "remark": "通用关闭按钮"
+  },
+  "common_got_it": {
+    "id": "common_got_it",
+    "text": "知道了",
+    "remark": "通用知道了按钮"
+  },
+  "common_empty_value": {
+    "id": "common_empty_value",
+    "text": "--",
+    "remark": "通用空值显示"
+  },
+  "loading_default": {
+    "id": "loading_default",
+    "text": "加载中...",
+    "remark": "默认加载状态"
+  },
+  "scene_loading_status": {
+    "id": "scene_loading_status",
+    "text": "场景加载中...",
+    "remark": "场景加载状态"
+  },
+  "scene_enter_main_menu": {
+    "id": "scene_enter_main_menu",
+    "text": "正在进入主菜单。",
+    "remark": "进入主菜单加载详情"
+  },
+  "scene_loading_detail": {
+    "id": "scene_loading_detail",
+    "text": "正在加载 {0}",
+    "remark": "场景加载详情，0=Unity scene 名"
+  },
+  "katago_warmup_status": {
+    "id": "katago_warmup_status",
+    "text": "AI模型预热中...",
+    "remark": "KataGo 预热中状态"
+  },
+  "katago_starting_detail": {
+    "id": "katago_starting_detail",
+    "text": "正在启动本地 KataGo 分析引擎。",
+    "remark": "KataGo 启动详情"
+  },
+  "katago_unavailable_status": {
+    "id": "katago_unavailable_status",
+    "text": "AI模型不可用",
+    "remark": "KataGo 不可用状态"
+  },
+  "katago_failed_status": {
+    "id": "katago_failed_status",
+    "text": "AI模型预热失败",
+    "remark": "KataGo 预热失败状态"
+  },
+  "katago_no_engine_candidates": {
+    "id": "katago_no_engine_candidates",
+    "text": "没有可用的 KataGo 引擎候选。",
+    "remark": "KataGo 无候选引擎"
+  },
+  "katago_local_process_not_compiled": {
+    "id": "katago_local_process_not_compiled",
+    "text": "Local process startup is not compiled for this platform.",
+    "remark": "非本地进程平台提示"
+  },
+  "katago_detecting_engine": {
+    "id": "katago_detecting_engine",
+    "text": "正在检测本机可用的 KataGo 引擎。",
+    "remark": "KataGo 检测引擎"
+  },
+  "katago_not_started_status": {
+    "id": "katago_not_started_status",
+    "text": "AI模型未启动",
+    "remark": "KataGo 未启动状态"
+  },
+  "katago_restarting_process": {
+    "id": "katago_restarting_process",
+    "text": "KataGo 进程已退出，正在重新启动。",
+    "remark": "KataGo 重启进程"
+  },
+  "katago_permission_title": {
+    "id": "katago_permission_title",
+    "text": "AI 模型权限提示",
+    "remark": "KataGo 权限弹窗标题"
+  },
+  "katago_permission_content": {
+    "id": "katago_permission_content",
+    "text": "当前游戏目录没有写入权限，GPU AI 预热缓存无法保存，本次将使用 CPU AI。\n\n目录：{0}\n原因：{1}\n\n如需启用 GPU AI，请将游戏移动到有写入权限的目录，或以管理员权限运行。",
+    "remark": "KataGo 权限弹窗内容，0=目录，1=原因"
+  },
+  "katago_cancelled_status": {
+    "id": "katago_cancelled_status",
+    "text": "AI模型预热已取消",
+    "remark": "KataGo 预热取消状态"
+  },
+  "katago_skip_engine": {
+    "id": "katago_skip_engine",
+    "text": "跳过 {0} 引擎：{1}",
+    "remark": "跳过引擎详情，0=引擎，1=原因"
+  },
+  "katago_complete_status": {
+    "id": "katago_complete_status",
+    "text": "AI模型预热完成",
+    "remark": "KataGo 预热完成状态"
+  },
+  "katago_all_boards_complete": {
+    "id": "katago_all_boards_complete",
+    "text": "{0} 引擎 9路、13路、19路棋盘预热完成。",
+    "remark": "全部棋盘预热完成，0=引擎"
+  },
+  "katago_all_engines_unavailable": {
+    "id": "katago_all_engines_unavailable",
+    "text": "GPU 和 CPU KataGo 引擎都不可用。",
+    "remark": "全部引擎不可用"
+  },
+  "katago_engine_started_loading": {
+    "id": "katago_engine_started_loading",
+    "text": "{0} 引擎已启动，正在加载模型并执行首个分析请求。",
+    "remark": "引擎启动加载模型，0=引擎"
+  },
+  "katago_engine_unavailable_next": {
+    "id": "katago_engine_unavailable_next",
+    "text": "{0} 引擎不可用，准备尝试下一个候选。",
+    "remark": "引擎失败切换，0=引擎"
+  },
+  "katago_board_complete": {
+    "id": "katago_board_complete",
+    "text": "{0} 引擎 {1}路棋盘验证完成。",
+    "remark": "棋盘验证完成，0=引擎，1=棋盘路数"
+  },
+  "katago_opencl_first_init": {
+    "id": "katago_opencl_first_init",
+    "text": "正在初始化 GPU KataGo 引擎并执行 OpenCL 调优，首次启动可能需要数分钟。",
+    "remark": "OpenCL 首次调优详情"
+  },
+  "katago_cpu_verify_no_write": {
+    "id": "katago_cpu_verify_no_write",
+    "text": "游戏目录不可写，正在使用 CPU 引擎验证 {0}路棋盘。",
+    "remark": "不可写 CPU 验证，0=棋盘路数"
+  },
+  "katago_engine_verify_board": {
+    "id": "katago_engine_verify_board",
+    "text": "{0} 引擎正在验证 {1}路棋盘。",
+    "remark": "引擎验证棋盘，0=引擎，1=棋盘路数"
+  },
+  "katago_opencl_progress_init": {
+    "id": "katago_opencl_progress_init",
+    "text": "正在初始化 GPU KataGo 引擎并执行 OpenCL 调优，完成后会继续验证 9路、13路、19路棋盘。",
+    "remark": "OpenCL 调优进度详情"
+  },
+  "katago_no_write_cpu_warmup": {
+    "id": "katago_no_write_cpu_warmup",
+    "text": "游戏目录不可写，已跳过 GPU 预热，正在预热 CPU KataGo 引擎。",
+    "remark": "不可写跳过 GPU"
+  },
+  "katago_gpu_warmup": {
+    "id": "katago_gpu_warmup",
+    "text": "正在优先预热 GPU KataGo 引擎。",
+    "remark": "GPU 优先预热"
+  },
+  "katago_gpu_unavailable_cpu_warmup": {
+    "id": "katago_gpu_unavailable_cpu_warmup",
+    "text": "GPU 引擎不可用，正在预热 CPU KataGo 引擎。",
+    "remark": "GPU 不可用转 CPU"
+  },
+  "katago_engine_warmup": {
+    "id": "katago_engine_warmup",
+    "text": "正在预热 {0} KataGo 引擎。",
+    "remark": "引擎预热，0=引擎"
+  },
+  "katago_wait_start_status": {
+    "id": "katago_wait_start_status",
+    "text": "AI模型等待启动",
+    "remark": "KataGo 等待启动状态"
+  },
+  "lan_room_choose_action": {
+    "id": "lan_room_choose_action",
+    "text": "请选择创建房间或搜索房间。",
+    "remark": "房间页默认状态"
+  },
+  "lan_room_service_not_ready": {
+    "id": "lan_room_service_not_ready",
+    "text": "局域网房间服务未初始化。",
+    "remark": "房间服务未初始化"
+  },
+  "lan_room_default_host_name": {
+    "id": "lan_room_default_host_name",
+    "text": "我的局域网房间",
+    "remark": "创建房间默认名称"
+  },
+  "lan_room_connecting": {
+    "id": "lan_room_connecting",
+    "text": "正在连接 {0} ({1}:{2})。",
+    "remark": "正在连接房间，0=房间名，1=地址，2=端口"
+  },
+  "lan_room_not_joined": {
+    "id": "lan_room_not_joined",
+    "text": "尚未进入房间。",
+    "remark": "尚未进入房间状态"
+  },
+  "lan_room_role_host": {
+    "id": "lan_room_role_host",
+    "text": "主机",
+    "remark": "房间角色主机"
+  },
+  "lan_room_role_client": {
+    "id": "lan_room_role_client",
+    "text": "客户端",
+    "remark": "房间角色客户端"
+  },
+  "lan_room_host_ready": {
+    "id": "lan_room_host_ready",
+    "text": "主机已准备",
+    "remark": "主机已准备"
+  },
+  "lan_room_host_not_ready": {
+    "id": "lan_room_host_not_ready",
+    "text": "主机未准备",
+    "remark": "主机未准备"
+  },
+  "lan_room_client_ready": {
+    "id": "lan_room_client_ready",
+    "text": "客户端已准备",
+    "remark": "客户端已准备"
+  },
+  "lan_room_client_not_ready": {
+    "id": "lan_room_client_not_ready",
+    "text": "客户端未准备",
+    "remark": "客户端未准备"
+  },
+  "lan_room_game_started": {
+    "id": "lan_room_game_started",
+    "text": "已开局",
+    "remark": "已开局状态"
+  },
+  "lan_room_game_not_started": {
+    "id": "lan_room_game_not_started",
+    "text": "未开局",
+    "remark": "未开局状态"
+  },
+  "lan_room_session_state": {
+    "id": "lan_room_session_state",
+    "text": "{0}  {1}  {2}  {3}",
+    "remark": "房间会话状态，0=角色，1=主机准备，2=客户端准备，3=开局"
+  },
+  "lan_room_host_started_game": {
+    "id": "lan_room_host_started_game",
+    "text": "主机已开始对局。",
+    "remark": "主机开始对局"
+  },
+  "lan_room_service_stopped": {
+    "id": "lan_room_service_stopped",
+    "text": "局域网房间服务未启动。",
+    "remark": "房间服务未启动"
+  },
+  "lan_room_default_name": {
+    "id": "lan_room_default_name",
+    "text": "局域网房间",
+    "remark": "服务默认房间名"
+  },
+  "lan_room_created_waiting": {
+    "id": "lan_room_created_waiting",
+    "text": "已创建房间 {0}，等待玩家加入。",
+    "remark": "创建房间成功，0=房间名"
+  },
+  "lan_room_create_failed": {
+    "id": "lan_room_create_failed",
+    "text": "创建房间失败：{0}",
+    "remark": "创建房间失败，0=错误"
+  },
+  "lan_room_searching": {
+    "id": "lan_room_searching",
+    "text": "正在搜索局域网房间。",
+    "remark": "搜索房间中"
+  },
+  "lan_room_search_failed": {
+    "id": "lan_room_search_failed",
+    "text": "搜索房间失败：{0}",
+    "remark": "搜索房间失败，0=错误"
+  },
+  "lan_room_connect_timeout": {
+    "id": "lan_room_connect_timeout",
+    "text": "连接房间失败：连接超时。",
+    "remark": "连接超时"
+  },
+  "lan_room_connect_rejected": {
+    "id": "lan_room_connect_rejected",
+    "text": "连接房间失败：主机拒绝连接。",
+    "remark": "连接被拒绝"
+  },
+  "lan_room_connected": {
+    "id": "lan_room_connected",
+    "text": "已连接房间 {0}。",
+    "remark": "已连接房间，0=房间名"
+  },
+  "lan_room_connect_failed": {
+    "id": "lan_room_connect_failed",
+    "text": "连接房间失败：{0}",
+    "remark": "连接房间失败，0=错误"
+  },
+  "lan_room_ready_not_joined": {
+    "id": "lan_room_ready_not_joined",
+    "text": "尚未进入房间，无法准备。",
+    "remark": "未入房准备失败"
+  },
+  "lan_room_ready": {
+    "id": "lan_room_ready",
+    "text": "已准备。",
+    "remark": "已准备"
+  },
+  "lan_room_ready_cancelled": {
+    "id": "lan_room_ready_cancelled",
+    "text": "已取消准备。",
+    "remark": "取消准备"
+  },
+  "lan_room_start_requires_ready": {
+    "id": "lan_room_start_requires_ready",
+    "text": "双方准备后才能由主机开始对局。",
+    "remark": "开局准备不足"
+  },
+  "lan_room_start_command_sent": {
+    "id": "lan_room_start_command_sent",
+    "text": "已发送开局命令。",
+    "remark": "发送开局命令"
+  },
+  "lan_room_submit_move_not_in_duel": {
+    "id": "lan_room_submit_move_not_in_duel",
+    "text": "当前不在局域网对局中，无法提交落子。",
+    "remark": "不在 LAN 对局提交落子"
+  },
+  "lan_room_submit_resign_not_in_duel": {
+    "id": "lan_room_submit_resign_not_in_duel",
+    "text": "当前不在局域网对局中，无法提交认输。",
+    "remark": "不在 LAN 对局提交认输"
+  },
+  "lan_room_submit_pass_not_in_duel": {
+    "id": "lan_room_submit_pass_not_in_duel",
+    "text": "当前不在局域网对局中，无法提交虚手。",
+    "remark": "不在 LAN 对局提交虚手"
+  },
+  "lan_room_submit_score_not_in_duel": {
+    "id": "lan_room_submit_score_not_in_duel",
+    "text": "当前不在局域网对局中，无法请求数子。",
+    "remark": "不在 LAN 对局请求数子"
+  },
+  "lan_room_score_confirm_not_in_duel": {
+    "id": "lan_room_score_confirm_not_in_duel",
+    "text": "当前不在局域网对局中，无法回复数子确认。",
+    "remark": "不在 LAN 对局回复数子确认"
+  },
+  "lan_room_score_result_confirm_not_in_duel": {
+    "id": "lan_room_score_result_confirm_not_in_duel",
+    "text": "当前不在局域网对局中，无法回复数子结果确认。",
+    "remark": "不在 LAN 对局回复数子结果确认"
+  },
+  "lan_room_take_back_not_in_duel": {
+    "id": "lan_room_take_back_not_in_duel",
+    "text": "当前不在局域网对局中，无法请求悔棋。",
+    "remark": "不在 LAN 对局请求悔棋"
+  },
+  "lan_room_take_back_confirm_not_in_duel": {
+    "id": "lan_room_take_back_confirm_not_in_duel",
+    "text": "当前不在局域网对局中，无法回复悔棋确认。",
+    "remark": "不在 LAN 对局回复悔棋确认"
+  },
+  "lan_room_player_joined_waiting_ready": {
+    "id": "lan_room_player_joined_waiting_ready",
+    "text": "已有玩家加入房间，等待双方准备。",
+    "remark": "玩家加入等待准备"
+  },
+  "lan_room_disconnected": {
+    "id": "lan_room_disconnected",
+    "text": "房间连接已断开。",
+    "remark": "房间断开"
+  },
+  "duel_player_black": {
+    "id": "duel_player_black",
+    "text": "黑方",
+    "remark": "黑方显示名"
+  },
+  "duel_player_white": {
+    "id": "duel_player_white",
+    "text": "白方",
+    "remark": "白方显示名"
+  },
+  "duel_player_current": {
+    "id": "duel_player_current",
+    "text": "当前方",
+    "remark": "当前方显示名"
+  },
+  "duel_player_type_ai": {
+    "id": "duel_player_type_ai",
+    "text": "AI",
+    "remark": "AI 玩家类型"
+  },
+  "duel_player_type_human": {
+    "id": "duel_player_type_human",
+    "text": "人类",
+    "remark": "人类玩家类型"
+  },
+  "duel_turn_suffix": {
+    "id": "duel_turn_suffix",
+    "text": " · 行棋中",
+    "remark": "行棋中标题后缀"
+  },
+  "duel_player_title": {
+    "id": "duel_player_title",
+    "text": "{0} · {1}{2}",
+    "remark": "玩家标题，0=方位，1=类型，2=行棋后缀"
+  },
+  "duel_ownership_black_points": {
+    "id": "duel_ownership_black_points",
+    "text": "黑方目数: {0}",
+    "remark": "形势黑方目数"
+  },
+  "duel_ownership_white_points": {
+    "id": "duel_ownership_white_points",
+    "text": "白方目数: {0}（贴目后）",
+    "remark": "形势白方目数"
+  },
+  "duel_ownership_black_calculating": {
+    "id": "duel_ownership_black_calculating",
+    "text": "黑方目数: 计算中...",
+    "remark": "形势黑方计算中"
+  },
+  "duel_ownership_white_calculating": {
+    "id": "duel_ownership_white_calculating",
+    "text": "白方目数: 计算中...",
+    "remark": "形势白方计算中"
+  },
+  "duel_pass_consecutive_scoring": {
+    "id": "duel_pass_consecutive_scoring",
+    "text": "双方连续虚手，正在数子...",
+    "remark": "连续虚手提示"
+  },
+  "duel_ai_suffix": {
+    "id": "duel_ai_suffix",
+    "text": "（AI）",
+    "remark": "AI 行棋后缀"
+  },
+  "duel_pass_notice": {
+    "id": "duel_pass_notice",
+    "text": "{0}{1}虚手",
+    "remark": "虚手提示，0=玩家，1=AI 后缀"
+  },
+  "duel_move_notice": {
+    "id": "duel_move_notice",
+    "text": "{0}{1}落子 {2}",
+    "remark": "落子提示，0=玩家，1=AI 后缀，2=坐标"
+  },
+  "duel_score_black_win": {
+    "id": "duel_score_black_win",
+    "text": "黑方胜 {0} 目",
+    "remark": "数子黑胜"
+  },
+  "duel_score_white_win": {
+    "id": "duel_score_white_win",
+    "text": "白方胜 {0} 目",
+    "remark": "数子白胜"
+  },
+  "duel_score_draw": {
+    "id": "duel_score_draw",
+    "text": "双方和棋",
+    "remark": "和棋"
+  },
+  "duel_score_confirm_content": {
+    "id": "duel_score_confirm_content",
+    "text": "黑方: {0} 目\n白方: {1} 目（含贴目 {2}）\n结果: {3}",
+    "remark": "数子确认内容"
+  },
+  "duel_hold_time_empty": {
+    "id": "duel_hold_time_empty",
+    "text": "主时间 --",
+    "remark": "主时间空值"
+  },
+  "duel_byoyomi_count_empty": {
+    "id": "duel_byoyomi_count_empty",
+    "text": "剩余读秒 --",
+    "remark": "读秒次数空值"
+  },
+  "duel_byoyomi_time_empty": {
+    "id": "duel_byoyomi_time_empty",
+    "text": "读秒时间 --",
+    "remark": "读秒时间空值"
+  },
+  "duel_hold_time": {
+    "id": "duel_hold_time",
+    "text": "主时间 {0}",
+    "remark": "主时间，0=时间"
+  },
+  "duel_byoyomi_count": {
+    "id": "duel_byoyomi_count",
+    "text": "剩余读秒 {0} 次",
+    "remark": "读秒次数，0=次数"
+  },
+  "duel_byoyomi_time": {
+    "id": "duel_byoyomi_time",
+    "text": "读秒时间 {0}",
+    "remark": "读秒时间，0=时间"
+  },
+  "duel_game_end_winner": {
+    "id": "duel_game_end_winner",
+    "text": "{0}胜出",
+    "remark": "终局胜者，0=玩家"
+  },
+  "duel_game_end_timeout": {
+    "id": "duel_game_end_timeout",
+    "text": "{0}超时判负",
+    "remark": "终局超时，0=玩家"
+  },
+  "duel_game_end_resign": {
+    "id": "duel_game_end_resign",
+    "text": "{0}认输",
+    "remark": "终局认输，0=玩家"
+  },
+  "duel_game_end_score": {
+    "id": "duel_game_end_score",
+    "text": "领先 {0} 目",
+    "remark": "终局数子领先"
+  },
+  "duel_game_end_default": {
+    "id": "duel_game_end_default",
+    "text": "对局结束",
+    "remark": "默认终局原因"
+  },
+  "duel_ownership_button": {
+    "id": "duel_ownership_button",
+    "text": "形势",
+    "remark": "形势按钮"
+  },
+  "duel_score_confirm_title": {
+    "id": "duel_score_confirm_title",
+    "text": "确认数子结果",
+    "remark": "数子结果确认标题"
+  },
+  "duel_score_failed_back_to_game": {
+    "id": "duel_score_failed_back_to_game",
+    "text": "数子失败，已回到对局",
+    "remark": "数子失败返回对局"
+  },
+  "duel_score_not_accepted_title": {
+    "id": "duel_score_not_accepted_title",
+    "text": "数子未通过",
+    "remark": "数子未通过标题"
+  },
+  "duel_score_retry_later": {
+    "id": "duel_score_retry_later",
+    "text": "数子失败，请稍后重试。",
+    "remark": "数子重试提示"
+  },
+  "duel_save_success": {
+    "id": "duel_save_success",
+    "text": "对局已保存",
+    "remark": "保存成功提示"
+  },
+  "duel_save_failed": {
+    "id": "duel_save_failed",
+    "text": "对局保存失败",
+    "remark": "保存失败提示"
+  },
+  "duel_scoring_title": {
+    "id": "duel_scoring_title",
+    "text": "数子中",
+    "remark": "数子中标题"
+  },
+  "duel_score_opponent_accepted": {
+    "id": "duel_score_opponent_accepted",
+    "text": "对方已同意数子，正在计算结果。",
+    "remark": "对方同意数子"
+  },
+  "duel_score_request_title": {
+    "id": "duel_score_request_title",
+    "text": "确认数子",
+    "remark": "数子请求标题"
+  },
+  "duel_score_request_content": {
+    "id": "duel_score_request_content",
+    "text": "对方请求数子，是否同意结束对局并按当前局面计算结果？",
+    "remark": "数子请求内容"
+  },
+  "duel_score_accept_request": {
+    "id": "duel_score_accept_request",
+    "text": "同意数子",
+    "remark": "同意数子按钮"
+  },
+  "duel_continue_game": {
+    "id": "duel_continue_game",
+    "text": "继续对局",
+    "remark": "继续对局按钮"
+  },
+  "duel_score_accept_result": {
+    "id": "duel_score_accept_result",
+    "text": "接受结果",
+    "remark": "接受数子结果按钮"
+  },
+  "duel_score_reject_result": {
+    "id": "duel_score_reject_result",
+    "text": "不接受",
+    "remark": "不接受数子结果按钮"
+  },
+  "duel_take_back_title": {
+    "id": "duel_take_back_title",
+    "text": "确认悔棋",
+    "remark": "悔棋确认标题"
+  },
+  "duel_take_back_request_content": {
+    "id": "duel_take_back_request_content",
+    "text": "对方请求悔棋，是否同意回退上一手？",
+    "remark": "悔棋请求内容"
+  },
+  "duel_take_back_accept": {
+    "id": "duel_take_back_accept",
+    "text": "同意悔棋",
+    "remark": "同意悔棋按钮"
+  },
+  "duel_exit_title": {
+    "id": "duel_exit_title",
+    "text": "退出对局",
+    "remark": "退出对局标题"
+  },
+  "duel_exit_content": {
+    "id": "duel_exit_content",
+    "text": "确认退出当前对局？",
+    "remark": "退出对局内容"
+  },
+  "duel_score_wait_title": {
+    "id": "duel_score_wait_title",
+    "text": "等待数子确认",
+    "remark": "等待数子标题"
+  },
+  "duel_score_wait_content": {
+    "id": "duel_score_wait_content",
+    "text": "已发送数子请求，正在等待对方同意。",
+    "remark": "等待数子内容"
+  },
+  "duel_scoring_content": {
+    "id": "duel_scoring_content",
+    "text": "数子中...",
+    "remark": "数子中内容"
+  },
+  "duel_score_confirm_result": {
+    "id": "duel_score_confirm_result",
+    "text": "确认结果",
+    "remark": "确认数子结果按钮"
+  },
+  "duel_take_back_lan_confirm_content": {
+    "id": "duel_take_back_lan_confirm_content",
+    "text": "确认向对方请求悔棋？",
+    "remark": "LAN 悔棋提交确认"
+  },
+  "duel_take_back_local_confirm_content": {
+    "id": "duel_take_back_local_confirm_content",
+    "text": "确认悔棋？",
+    "remark": "本地悔棋确认"
+  },
+  "duel_take_back_confirm": {
+    "id": "duel_take_back_confirm",
+    "text": "确认悔棋",
+    "remark": "确认悔棋按钮"
+  },
+  "duel_resign_title": {
+    "id": "duel_resign_title",
+    "text": "确认认输",
+    "remark": "认输确认标题"
+  },
+  "duel_resign_content": {
+    "id": "duel_resign_content",
+    "text": "确认{0}认输？",
+    "remark": "认输确认内容，0=玩家"
+  },
+  "duel_resign_confirm": {
+    "id": "duel_resign_confirm",
+    "text": "确认认输",
+    "remark": "确认认输按钮"
+  },
+  "duel_take_back_wait_title": {
+    "id": "duel_take_back_wait_title",
+    "text": "等待悔棋确认",
+    "remark": "等待悔棋标题"
+  },
+  "duel_take_back_wait_content": {
+    "id": "duel_take_back_wait_content",
+    "text": "已发送悔棋请求，正在等待对方同意。",
+    "remark": "等待悔棋内容"
+  },
+  "duel_take_back_failed": {
+    "id": "duel_take_back_failed",
+    "text": "悔棋失败",
+    "remark": "悔棋失败"
+  },
+  "duel_take_back_opponent_rejected": {
+    "id": "duel_take_back_opponent_rejected",
+    "text": "对方拒绝悔棋",
+    "remark": "对方拒绝悔棋"
+  },
+  "duel_take_back_unavailable": {
+    "id": "duel_take_back_unavailable",
+    "text": "当前无法悔棋",
+    "remark": "无法悔棋"
+  },
+  "duel_take_back_scoring_blocked": {
+    "id": "duel_take_back_scoring_blocked",
+    "text": "数子中，暂不能悔棋",
+    "remark": "数子阻止悔棋"
+  },
+  "duel_take_back_no_moves": {
+    "id": "duel_take_back_no_moves",
+    "text": "无可悔棋的手数",
+    "remark": "无可悔棋手数"
+  },
+  "duel_take_back_two_moves_success": {
+    "id": "duel_take_back_two_moves_success",
+    "text": "已回退两手棋",
+    "remark": "回退两手成功"
+  },
+  "duel_take_back_success": {
+    "id": "duel_take_back_success",
+    "text": "已悔棋",
+    "remark": "悔棋成功"
+  },
+  "duel_score_opponent_rejected": {
+    "id": "duel_score_opponent_rejected",
+    "text": "对方拒绝数子",
+    "remark": "对方拒绝数子"
+  },
+  "duel_score_result_rejected": {
+    "id": "duel_score_result_rejected",
+    "text": "有一方不接受结果",
+    "remark": "数子结果被拒绝"
+  },
+  "duel_score_request_unavailable": {
+    "id": "duel_score_request_unavailable",
+    "text": "当前无法请求数子",
+    "remark": "无法请求数子"
+  }
+}
