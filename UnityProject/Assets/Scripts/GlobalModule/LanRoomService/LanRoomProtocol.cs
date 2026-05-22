@@ -12,6 +12,20 @@ public enum LanRoomProtocol
     PlayerTimeout,
     SubmitResign,
     ResignAccepted,
+    InputAuthority,
+    SubmitPass,
+    PassAccepted,
+    SubmitScore,
+    ScoreConfirmRequest,
+    ScoreConfirmResponse,
+    ScoreRequestAccepted,
+    ScoreResult,
+    ScoreFailed,
+    SubmitTakeBack,
+    TakeBackConfirmRequest,
+    TakeBackConfirmResponse,
+    TakeBackAccepted,
+    TakeBackRejected,
 }
 
 public static class LanRoomProtocolName

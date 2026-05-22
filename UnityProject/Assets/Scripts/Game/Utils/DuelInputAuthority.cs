@@ -23,18 +23,15 @@ public static class DuelInputAuthority
             return default;
         }
 
-        PlayerFlag curPlayerFlag = (PlayerFlag)curPlayer.playerFlag.value;
-        if (compDuel.isLanDuel.value) {
-            return CanLocalLanRoleControl(compDuel, curPlayerFlag)
-                ? new DuelInputAuthorityState(curPlayerFlag)
-                : default;
-        }
-
-        if (compDuel.isAiDuel.value && curPlayer.guid == compDuel.aiPlayerGuid.value) {
+        PlayerFlag localInputPlayerFlag = (PlayerFlag)compDuel.localInputPlayerFlag.value;
+        if (localInputPlayerFlag == 0) {
             return default;
         }
 
-        return new DuelInputAuthorityState(curPlayerFlag);
+        PlayerFlag curPlayerFlag = (PlayerFlag)curPlayer.playerFlag.value;
+        return localInputPlayerFlag == curPlayerFlag
+            ? new DuelInputAuthorityState(localInputPlayerFlag)
+            : default;
     }
 
     private static bool CanAcceptTurnInputState(SceneComponentDuel compDuel)
@@ -47,10 +44,4 @@ public static class DuelInputAuthority
             && !string.IsNullOrEmpty(compDuel.curTurnPlayerGuid.value);
     }
 
-    private static bool CanLocalLanRoleControl(SceneComponentDuel compDuel, PlayerFlag curPlayerFlag)
-    {
-        LanRoomRole role = (LanRoomRole)compDuel.lanRole.value;
-        return (role == LanRoomRole.Host && curPlayerFlag == PlayerFlag.Player1) ||
-            (role == LanRoomRole.Client && curPlayerFlag == PlayerFlag.Player2);
-    }
 }

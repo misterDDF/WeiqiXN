@@ -106,4 +106,74 @@ public partial class LanRoomService
     {
         HandleResignMessage(message, false);
     }
+
+    private void OnInputAuthority(LanRoomProtocolMessage message)
+    {
+        HandleInputAuthorityMessage(message);
+    }
+
+    private void OnSubmitPass(LanRoomProtocolMessage message)
+    {
+        HandlePassMessage(message, true);
+    }
+
+    private void OnPassAccepted(LanRoomProtocolMessage message)
+    {
+        HandlePassMessage(message, false);
+    }
+
+    private void OnSubmitScore(LanRoomProtocolMessage message)
+    {
+        HandleScoreRequestMessage(message, true);
+    }
+
+    private void OnScoreConfirmRequest(LanRoomProtocolMessage message)
+    {
+        HandleScoreConfirmRequestMessage(message);
+    }
+
+    private void OnScoreConfirmResponse(LanRoomProtocolMessage message)
+    {
+        HandleScoreConfirmResponseMessage(message);
+    }
+
+    private void OnScoreRequestAccepted(LanRoomProtocolMessage message)
+    {
+        HandleScoreRequestMessage(message, false);
+    }
+
+    private void OnScoreResult(LanRoomProtocolMessage message)
+    {
+        HandleScoreResultMessage(message);
+    }
+
+    private void OnScoreFailed(LanRoomProtocolMessage message)
+    {
+        HandleScoreFailedMessage(message);
+    }
+
+    private void OnSubmitTakeBack(LanRoomProtocolMessage message)
+    {
+        HandleTakeBackRequestMessage(message, true);
+    }
+
+    private void OnTakeBackConfirmRequest(LanRoomProtocolMessage message)
+    {
+        HandleTakeBackRequestMessage(message, false);
+    }
+
+    private void OnTakeBackConfirmResponse(LanRoomProtocolMessage message)
+    {
+        HandleTakeBackConfirmResponseMessage(message);
+    }
+
+    private void OnTakeBackAccepted(LanRoomProtocolMessage message)
+    {
+        HandleTakeBackAcceptedMessage(message);
+    }
+
+    private void OnTakeBackRejected(LanRoomProtocolMessage message)
+    {
+        HandleTakeBackRejectedMessage(message);
+    }
 }

@@ -124,6 +124,49 @@ public class OnSubmitDuelResign : SystemEventBase
     public override string GetEventType() => GetEventType<OnSubmitDuelResign>();
 }
 
+public class OnSubmitDuelPass : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnSubmitDuelPass>();
+}
+
+public class OnSubmitDuelScore : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnSubmitDuelScore>();
+}
+
+public class OnSubmitLanDuelScoreConfirm : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnSubmitLanDuelScoreConfirm>();
+
+    public LanDuelScoreRequestMessage request;
+    public bool accepted;
+
+    public OnSubmitLanDuelScoreConfirm(LanDuelScoreRequestMessage request, bool accepted)
+    {
+        this.request = request;
+        this.accepted = accepted;
+    }
+}
+
+public class OnSubmitDuelTakeBack : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnSubmitDuelTakeBack>();
+}
+
+public class OnSubmitLanDuelTakeBackConfirm : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnSubmitLanDuelTakeBackConfirm>();
+
+    public LanDuelTakeBackRequestMessage request;
+    public bool accepted;
+
+    public OnSubmitLanDuelTakeBackConfirm(LanDuelTakeBackRequestMessage request, bool accepted)
+    {
+        this.request = request;
+        this.accepted = accepted;
+    }
+}
+
 public class OnRequestDuelPass : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnRequestDuelPass>();
@@ -315,4 +358,80 @@ public class OnApplyLanDuelResign : SystemEventBase
     {
         this.loserFlag = loserFlag;
     }
+}
+
+public class OnApplyLanDuelPass : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnApplyLanDuelPass>();
+
+    public LanDuelPassMessage pass;
+    public OnApplyLanDuelPass(LanDuelPassMessage pass)
+    {
+        this.pass = pass;
+    }
+}
+
+public class OnApplyLanDuelScoreRequest : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnApplyLanDuelScoreRequest>();
+
+    public LanDuelScoreRequestMessage request;
+    public OnApplyLanDuelScoreRequest(LanDuelScoreRequestMessage request)
+    {
+        this.request = request;
+    }
+}
+
+public class OnLanDuelScoreConfirmRequest : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnLanDuelScoreConfirmRequest>();
+
+    public LanDuelScoreRequestMessage request;
+    public OnLanDuelScoreConfirmRequest(LanDuelScoreRequestMessage request)
+    {
+        this.request = request;
+    }
+}
+
+public class OnLanDuelTakeBackConfirmRequest : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnLanDuelTakeBackConfirmRequest>();
+
+    public LanDuelTakeBackRequestMessage request;
+    public OnLanDuelTakeBackConfirmRequest(LanDuelTakeBackRequestMessage request)
+    {
+        this.request = request;
+    }
+}
+
+public class OnApplyLanDuelTakeBack : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnApplyLanDuelTakeBack>();
+
+    public LanDuelTakeBackRequestMessage request;
+    public OnApplyLanDuelTakeBack(LanDuelTakeBackRequestMessage request)
+    {
+        this.request = request;
+    }
+}
+
+public class OnLanDuelTakeBackRejected : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnLanDuelTakeBackRejected>();
+}
+
+public class OnApplyLanDuelScoreResult : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnApplyLanDuelScoreResult>();
+
+    public LanDuelScoreResultMessage result;
+    public OnApplyLanDuelScoreResult(LanDuelScoreResultMessage result)
+    {
+        this.result = result;
+    }
+}
+
+public class OnApplyLanDuelScoreFailed : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnApplyLanDuelScoreFailed>();
 }

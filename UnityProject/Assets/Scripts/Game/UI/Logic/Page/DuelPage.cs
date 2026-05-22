@@ -27,6 +27,8 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         RegisterSystemEvent<OnDuelTakeBackResult>(OnDuelTakeBackResult);
         RegisterSystemEvent<OnAfterAddChessToBoard>(OnAfterAddChessToBoard);
         RegisterSystemEvent<OnDuelSaveResult>(OnDuelSaveResult);
+        RegisterSystemEvent<OnLanDuelScoreConfirmRequest>(OnLanDuelScoreConfirmRequest);
+        RegisterSystemEvent<OnLanDuelTakeBackConfirmRequest>(OnLanDuelTakeBackConfirmRequest);
 
         BindPrefabHud();
     }
@@ -137,6 +139,38 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         hudView.ShowActionNotice(evt != null && evt.success ? "对局已保存" : "对局保存失败");
     }
 
+    public void OnLanDuelScoreConfirmRequest(OnLanDuelScoreConfirmRequest evt)
+    {
+        if (evt == null) {
+            return;
+        }
+
+        ConfirmPopup.Show(
+            "确认数子",
+            "对方请求数子，是否同意结束对局并按当前局面计算结果？",
+            () => EmitSystemEvent(new OnSubmitLanDuelScoreConfirm(evt.request, true)),
+            () => EmitSystemEvent(new OnSubmitLanDuelScoreConfirm(evt.request, false)),
+            "同意数子",
+            "继续对局"
+        );
+    }
+
+    public void OnLanDuelTakeBackConfirmRequest(OnLanDuelTakeBackConfirmRequest evt)
+    {
+        if (evt == null) {
+            return;
+        }
+
+        ConfirmPopup.Show(
+            "确认悔棋",
+            "对方请求悔棋，是否同意回退上一手？",
+            () => EmitSystemEvent(new OnSubmitLanDuelTakeBackConfirm(evt.request, true)),
+            () => EmitSystemEvent(new OnSubmitLanDuelTakeBackConfirm(evt.request, false)),
+            "同意悔棋",
+            "拒绝"
+        );
+    }
+
     public void RefreshDuelHud()
     {
         hudView.Refresh(Global.Instance.sceneManager.mainScene);
@@ -185,18 +219,18 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     {
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
-        if (compDuel == null || compDuel.isLanDuel.value || !DuelInputAuthority.GetLocalState(mainScene, compDuel).CanSubmitMove) {
+        if (compDuel == null || !DuelInputAuthority.GetLocalState(mainScene, compDuel).CanSubmitMove) {
             return;
         }
 
-        EmitSystemEvent(new OnRequestDuelPass());
+        EmitSystemEvent(new OnSubmitDuelPass());
     }
 
     public void OnClickBtnRequestScore()
     {
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
-        if (compDuel == null || compDuel.isLanDuel.value || compDuel.isScoring) {
+        if (compDuel == null || compDuel.isScoring || !DuelInputAuthority.GetLocalState(mainScene, compDuel).CanSubmitMove) {
             return;
         }
 
@@ -210,19 +244,19 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             "继续对局",
             false
         );
-        EmitSystemEvent(new OnRequestDuelScore());
+        EmitSystemEvent(new OnSubmitDuelScore());
     }
 
     public void OnClickBtnTakeBack()
     {
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
-        if (compDuel == null || compDuel.isLanDuel.value) {
+        if (compDuel == null) {
             return;
         }
 
         hudView.CloseSettingsPanel();
-        EmitSystemEvent(new OnRequestDuelTakeBack());
+        EmitSystemEvent(new OnSubmitDuelTakeBack());
     }
 
     public void OnClickBtnResign()

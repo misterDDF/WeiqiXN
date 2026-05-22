@@ -146,7 +146,7 @@ public class DuelAiSystem : SystemBase
                     ("requestId", analyzeResult.requestId ?? string.Empty),
                     ("budgetMode", analyzeResult.budgetMode ?? string.Empty),
                     ("budgetDecision", analyzeResult.decisionReason ?? string.Empty));
-                scene.EmitSystemEvent(new OnRequestDuelPass());
+                scene.EmitSystemEvent(new OnSubmitDuelPass());
                 return;
             }
 
@@ -158,7 +158,7 @@ public class DuelAiSystem : SystemBase
                     ("isBoardFull", isBoardFull.ToString()),
                     ("requestId", analyzeResult.requestId ?? string.Empty),
                     ("reason", decision.reason ?? string.Empty));
-                scene.EmitSystemEvent(new OnRequestDuelPass());
+                scene.EmitSystemEvent(new OnSubmitDuelPass());
                 return;
             }
 

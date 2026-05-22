@@ -32,20 +32,20 @@
 - 回合倒计时归零时触发 `TURN_TIMEOUT`，进入 `TurnEnd`。
 - 成功落子后 `OnAfterAddChessToBoard` 触发 `TURN_INPUT_FINISH`，进入 `TurnEnd`。
 - `TurnEnd` 切换当前玩家，然后触发下一轮 `TurnStart`。
-- `DuelInputAuthority` 是当前本端人类输入权限的集中解析入口：本地热座跟随当前回合玩家，电脑对局在 AI 回合不给本端人类输入权，LAN 原型按 host=Player1、client=Player2 派生本端可输入方。后续如果 host 下发控制状态，页面预览、点击提交和 LAN 提交前置权限应替换这里的数据来源，而不是在 UI 中新增单机/联机分支。
-- `DuelAuthoritySystem` 是正常落子的统一提交入口：页面和 AI 提交 `OnSubmitDuelMove`，本地/电脑对局直接转入本进程权威落子应用，LAN 对局按 `DuelInputAuthority` 给出的本端输入方提交到 `LanRoomService`，由房间服务决定本端 host 入队还是远端 TCP 发送。
-- `DuelAiSystem` 在电脑对局的 AI 回合读取 `duel_ai_difficulty` 配置，只负责 AI 回合触发、取消检查和提交 `OnSubmitDuelMove` 或 `OnRequestDuelPass`。`DuelAiAnalyzeService` 负责构造并发送 KataGo AI 分析请求；`DuelAiBudgetService` 负责按当前棋盘路数解析 `realtimeMaxVisits9/13/19`、`candidateLimit9/13/19` 和 `maxScoreLoss9/13/19`，并决定动态预算下使用 probe 结果或升级完整预算；`DuelAiMoveSelector` 负责解析 `moveInfos`/`policy`、处理 KataGo 建议 `pass`、筛选本地规则允许的候选点并按难度配置加权选点。分析结果不可用时不擅自结束对局；没有可用候选点时，仅在难度配置允许提前虚手或棋盘已满时发出兜底虚手。
+- `DuelInputAuthority` 是当前本端人类输入权限的集中读取入口；它只读取 `SceneComponentDuel.localInputPlayerFlag`，不在 UI 中派生 LAN 座位。`DuelInputAuthoritySystem` 负责刷新该字段：本地热座跟随当前回合玩家，电脑对局在 AI 回合不给本端人类输入权，LAN 对局由 host 广播 `InputAuthority` 后双方应用。
+- `DuelAuthoritySystem` 是正常落子、虚手、数子、悔棋和认输的统一提交入口：页面和 AI 提交 `OnSubmitDuelMove` / `OnSubmitDuelPass` 等命令，本地/电脑对局直接转入本进程权威应用，LAN 对局按 `DuelInputAuthority` 给出的本端输入方提交到 `LanRoomService`，由房间服务决定本端 host 入队还是远端 TCP 发送。
+- `DuelAiSystem` 在电脑对局的 AI 回合读取 `duel_ai_difficulty` 配置，只负责 AI 回合触发、取消检查和提交 `OnSubmitDuelMove` 或 `OnSubmitDuelPass`。`DuelAiAnalyzeService` 负责构造并发送 KataGo AI 分析请求；`DuelAiBudgetService` 负责按当前棋盘路数解析 `realtimeMaxVisits9/13/19`、`candidateLimit9/13/19` 和 `maxScoreLoss9/13/19`，并决定动态预算下使用 probe 结果或升级完整预算；`DuelAiMoveSelector` 负责解析 `moveInfos`/`policy`、处理 KataGo 建议 `pass`、筛选本地规则允许的候选点并按难度配置加权选点。分析结果不可用时不擅自结束对局；没有可用候选点时，仅在难度配置允许提前虚手或棋盘已满时发出兜底虚手。
 - `DuelMoveRule` 提供共享落子规则入口和结果模型，`ChessBoardSystem` 用 accepted `DuelMoveResult` 执行真实落子，`DuelAiMoveSelector` 用同一规则入口检查候选点合法性；AI 检查候选点不能保留模拟产生的棋盘状态。
 - `DuelPage` 的预览棋子只在 `DuelInputAuthority` 授予本端输入权且 `DuelMoveRule.CheckMoveLegal()` 通过时显示；非法位置、AI 回合和 LAN 对端回合都不创建预览棋子，也不额外显示“无法落子”文案。真实落子被规则拒绝时，`ChessBoardSystem` 仍发出 `OnDuelMoveRejected` 作为系统边界事件。
 - 悔棋回放通过 `DuelMoveRule.BuildMoveResult()` 生成 accepted result，再用同一应用口径更新棋盘缓存和棋子实体，避免真实落子与悔棋路径分叉。
 - `DuelMoveHistory` 是当前手顺访问边界，集中处理 KataGo `moves` 的创建、追加、克隆、截断、尾部虚手统计和输出；保存、ownership、AI 查询和悔棋仍保持 KataGo 标准 `moves` 结构。
 - `DuelPage` 右下角“形式”按钮会发出 `OnRequestDuelOwnership`，并在分析或显示期间切换为“关闭”；再次点击会发出 `OnRequestClearDuelOwnership`。`DuelOwnershipSystem` 通过 `DuelOwnershipQueryService` 根据当前对局生成 KataGo ownership 请求，收到结果后绘制棋盘 overlay，并通过 `OnDuelOwnershipResult` 让 UI 显示双方目数。该流程不推进 FSM，也不改变正式对局结果。
 - `DuelPage.prefab` 会在形势按钮旁提供“虚手”入口；`DuelSystem` 在回合输入状态收到虚手后记录 KataGo `pass`，第一手虚手推进到下一回合，双方连续虚手会立即按 KataGo `ownership` 结算结果进入 `GameEnd`，不弹二次确认；如果 ownership 数子失败，会回滚第二手虚手记录并保持当前对局。
-- `DuelPage.prefab` 设置面板会提供“请求数子”和“认输”入口；请求数子会先弹出通用确认面板显示“数子中...”，确认按钮不可点击。`DuelSystem` 通过 `DuelOwnershipQueryService` 请求 KataGo `ownership`，复用形势按钮的阈值和贴目口径自动计算黑白分数、胜者、目差和来源字段；KataGo 不可用或无结果时不产生数子结果，弹窗显示失败且不允许确认。结果通过 `OnDuelScoreResult` 更新同一个确认面板，确认后进入 `GameEnd`，取消则保持当前对局。认输按钮只在回合输入且本端有输入权时显示，点击后先弹出通用二次确认，确认后提交 `OnSubmitDuelResign`；本地/电脑对局直接进入认输终局，LAN 对局由 host 接受 `SubmitResign` 后广播 `ResignAccepted`，双方进入同一认输终局。
-- `DuelPage.prefab` 设置面板会提供“悔棋”入口；本地双人模式每次回退最后 1 手，电脑对局模式每次回到上次人类可行棋局面：当前为人类行棋时回退 2 手，当前为 AI 行棋时回退 1 手。悔棋以 `SceneComponentDuel.kataGoMoves` 的剩余手顺为权威来源重建棋盘、KataGo 手顺、当前行棋方和派生终局/ownership 状态；当前版本不回滚历史计时快照。
+- `DuelPage.prefab` 设置面板会提供“请求数子”和“认输”入口；请求数子会先弹出通用确认面板显示“数子中...”，确认按钮不可点击。`DuelSystem` 通过 `DuelOwnershipQueryService` 请求 KataGo `ownership`，复用形势按钮的阈值和贴目口径自动计算黑白分数、胜者、目差和来源字段；KataGo 不可用或无结果时不产生数子结果，弹窗显示失败且不允许确认。结果通过 `OnDuelScoreResult` 更新同一个确认面板，确认后进入 `GameEnd`，取消则保持当前对局。LAN 数子先由 host 转发 `ScoreConfirmRequest` 给对端并等待 `ScoreConfirmResponse`，同意后才广播 `ScoreRequestAccepted` 并执行 host 侧数子，随后广播 `ScoreResult` 或 `ScoreFailed`。认输按钮只在回合输入且本端有输入权时显示，点击后先弹出通用二次确认，确认后提交 `OnSubmitDuelResign`；本地/电脑对局直接进入认输终局，LAN 对局由 host 接受 `SubmitResign` 后广播 `ResignAccepted`，双方进入同一认输终局。
+- `DuelPage.prefab` 设置面板会提供“悔棋”入口；本地双人模式每次回退最后 1 手，电脑对局模式每次回到上次人类可行棋局面：当前为人类行棋时回退 2 手，当前为 AI 行棋时回退 1 手。LAN 悔棋先由 host 转发 `TakeBackConfirmRequest` 给对端并等待 `TakeBackConfirmResponse`，同意后广播 `TakeBackAccepted`，双方以 `SceneComponentDuel.kataGoMoves` 的剩余手顺为权威来源重建棋盘、KataGo 手顺、当前行棋方和派生终局/ownership 状态；拒绝则广播 `TakeBackRejected`。当前版本不回滚历史计时快照。
 - `SceneComponentDuel` 维护运行时 ownership 结果缓存；形势展示和请求数子在局面未变化时复用缓存，合法落子或虚手会清除缓存。
 - `DuelSaveSystem` 保存对局后会发出 `OnDuelSaveResult`，UI 只展示保存成功或失败结果；场景数据异步保存失败不再被 fire-and-forget 静默忽略。
-- `DuelPage` 在 AI 回合或 LAN 对端回合不接受人类棋盘落子；AI 回合也不接受人类虚手或认输输入，避免人与 AI 同时驱动同一个回合。虚手按钮会随 `DuelInputAuthority` 的输入权切换可点击状态，请求数子按钮会在正在数子或终局后禁用；LAN 原型尚未实现虚手、数子和悔棋协议，因此这些入口在 LAN 对局中禁用，认输已接入 host 权威协议。
+- `DuelPage` 在 AI 回合或 LAN 对端回合不接受人类棋盘落子；AI 回合也不接受人类虚手或认输输入，避免人与 AI 同时驱动同一个回合。虚手、数子、悔棋和认输按钮会随 `DuelInputAuthority` 的输入权或对局状态切换可用性；LAN 数子和悔棋请求到达时会弹出对端确认窗口，确认结果回传 host 后再执行。
 - `DuelPage` 黑白双方信息面板会显示人类/AI 身份、当前行棋状态和主时间；开启读秒时显示剩余读秒次数和读秒时间，未开启读秒时隐藏读秒信息。请求形势后会先显示“计算中”，收到 ownership 结果后更新目数。
 - `DuelPage.prefab` 维护动作提示 HUD；`DuelPage` 在成功落子、虚手、双方连续虚手进入数子和连续虚手数子失败时短暂显示提示，落子提示使用 KataGo 棋盘坐标，AI 行棋会带 AI 标记。
 - `DuelPage.prefab` 右侧中部维护结算结果面板，进入 `GameEnd` 后显示黑/白方胜出和结束原因；数子或连续虚手显示领先目数，超时显示黑/白方超时判负，认输显示黑/白方认输。
@@ -60,7 +60,7 @@ FSM 让本地对局流程清晰可扩展。`WaitAction` 和 `GameEnd` 已有状�
 - `GameEnd` 已可由超时、确认数子、双方连续虚手或认输进入，并保存 `winnerGuid`、终局原因和终局分数；当前数子只复用 KataGo `ownership` 口径，仍缺少死子确认流程和线上裁定模型。
 - 终局后仍缺少复盘、重新开始或返回主菜单的专门结果操作入口。
 - 电脑对局依赖本地 KataGo analysis 进程和模型；KataGo 不可用时 AI 无法行棋，但本地规则和人工对局基线不应被替换。KataGo 分析超时后适配器会停止当前进程，下一次分析请求会尝试自动重启。
-- 联机时当前玩家、倒计时、落子确认和悔棋都必须由权威状态驱动，不能只依赖本地 FSM 触发。联机悔棋规则暂记录为：发起方请求回到发起方上次落子前，对方需要在确认窗口同意后才能执行；拒绝时悔棋方收到提示“对方不同意悔棋”。当前尚未实现联机运行时流程。
+- 联机时当前玩家、倒计时、落子确认、虚手、数子和悔棋都由 host 权威状态驱动，客户端只提交命令或确认响应。当前仍缺少断线重连后的完整状态恢复。
 
 ## 后续建议
 

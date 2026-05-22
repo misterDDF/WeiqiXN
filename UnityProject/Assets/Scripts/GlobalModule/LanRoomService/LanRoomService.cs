@@ -34,6 +34,20 @@ public partial class LanRoomService : ModuleBase
     private readonly Queue<PlayerFlag> pendingTimeoutLosers = new Queue<PlayerFlag>();
     private readonly Queue<LanDuelResignMessage> pendingSubmittedResigns = new Queue<LanDuelResignMessage>();
     private readonly Queue<LanDuelResignMessage> pendingAcceptedResigns = new Queue<LanDuelResignMessage>();
+    private readonly Queue<LanDuelInputAuthorityMessage> pendingInputAuthorities = new Queue<LanDuelInputAuthorityMessage>();
+    private readonly Queue<LanDuelPassMessage> pendingSubmittedPasses = new Queue<LanDuelPassMessage>();
+    private readonly Queue<LanDuelPassMessage> pendingAcceptedPasses = new Queue<LanDuelPassMessage>();
+    private readonly Queue<LanDuelScoreRequestMessage> pendingSubmittedScores = new Queue<LanDuelScoreRequestMessage>();
+    private readonly Queue<LanDuelScoreRequestMessage> pendingScoreConfirmRequests = new Queue<LanDuelScoreRequestMessage>();
+    private readonly Queue<LanDuelScoreConfirmMessage> pendingScoreConfirmResponses = new Queue<LanDuelScoreConfirmMessage>();
+    private readonly Queue<LanDuelScoreRequestMessage> pendingAcceptedScoreRequests = new Queue<LanDuelScoreRequestMessage>();
+    private readonly Queue<LanDuelScoreResultMessage> pendingScoreResults = new Queue<LanDuelScoreResultMessage>();
+    private readonly Queue<int> pendingScoreFailures = new Queue<int>();
+    private readonly Queue<LanDuelTakeBackRequestMessage> pendingSubmittedTakeBacks = new Queue<LanDuelTakeBackRequestMessage>();
+    private readonly Queue<LanDuelTakeBackRequestMessage> pendingTakeBackConfirmRequests = new Queue<LanDuelTakeBackRequestMessage>();
+    private readonly Queue<LanDuelTakeBackConfirmMessage> pendingTakeBackConfirmResponses = new Queue<LanDuelTakeBackConfirmMessage>();
+    private readonly Queue<LanDuelTakeBackRequestMessage> pendingAcceptedTakeBacks = new Queue<LanDuelTakeBackRequestMessage>();
+    private readonly Queue<int> pendingRejectedTakeBacks = new Queue<int>();
     private TcpClient connectedClient;
     private Thread sessionReadThread;
     private LanRoomRole currentRole = LanRoomRole.None;
@@ -88,6 +102,16 @@ public partial class LanRoomService : ModuleBase
             pendingTimeoutLosers.Clear();
             pendingSubmittedResigns.Clear();
             pendingAcceptedResigns.Clear();
+            pendingInputAuthorities.Clear();
+            pendingSubmittedPasses.Clear();
+            pendingAcceptedPasses.Clear();
+            pendingSubmittedScores.Clear();
+            pendingScoreConfirmRequests.Clear();
+            pendingScoreConfirmResponses.Clear();
+            pendingAcceptedScoreRequests.Clear();
+            pendingScoreResults.Clear();
+            pendingScoreFailures.Clear();
+            ClearTakeBackQueues();
         }
 
         try {
@@ -142,6 +166,16 @@ public partial class LanRoomService : ModuleBase
             pendingTimeoutLosers.Clear();
             pendingSubmittedResigns.Clear();
             pendingAcceptedResigns.Clear();
+            pendingInputAuthorities.Clear();
+            pendingSubmittedPasses.Clear();
+            pendingAcceptedPasses.Clear();
+            pendingSubmittedScores.Clear();
+            pendingScoreConfirmRequests.Clear();
+            pendingScoreConfirmResponses.Clear();
+            pendingAcceptedScoreRequests.Clear();
+            pendingScoreResults.Clear();
+            pendingScoreFailures.Clear();
+            ClearTakeBackQueues();
         }
 
         try {
@@ -241,6 +275,16 @@ public partial class LanRoomService : ModuleBase
                 pendingTimeoutLosers.Clear();
                 pendingSubmittedResigns.Clear();
                 pendingAcceptedResigns.Clear();
+                pendingInputAuthorities.Clear();
+                pendingSubmittedPasses.Clear();
+                pendingAcceptedPasses.Clear();
+                pendingSubmittedScores.Clear();
+                pendingScoreConfirmRequests.Clear();
+                pendingScoreConfirmResponses.Clear();
+                pendingAcceptedScoreRequests.Clear();
+                pendingScoreResults.Clear();
+                pendingScoreFailures.Clear();
+                ClearTakeBackQueues();
             }
             StartSessionReader(client);
             SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.Ready)}|CLIENT|0");
@@ -352,6 +396,122 @@ public partial class LanRoomService : ModuleBase
         return true;
     }
 
+    public bool SubmitLocalPass(PlayerFlag playerFlag, int boardVersion)
+    {
+        LanRoomRole role;
+        int actionId;
+        lock (sessionLock) {
+            role = currentRole;
+            actionId = nextMoveId++;
+        }
+
+        LanDuelPassMessage pass = new LanDuelPassMessage(actionId, boardVersion, playerFlag);
+        if (role == LanRoomRole.Host) {
+            EnqueueSubmittedPass(pass);
+            return true;
+        }
+
+        if (role != LanRoomRole.Client || connectedClient == null) {
+            lastStatus = "当前不在局域网对局中，无法提交虚手。";
+            return false;
+        }
+
+        SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.SubmitPass)}|{pass.actionId}|{pass.boardVersion}|{(int)pass.playerFlag}");
+        return true;
+    }
+
+    public bool SubmitLocalScore(PlayerFlag requesterFlag, int boardVersion)
+    {
+        LanRoomRole role;
+        int actionId;
+        lock (sessionLock) {
+            role = currentRole;
+            actionId = nextMoveId++;
+        }
+
+        LanDuelScoreRequestMessage request = new LanDuelScoreRequestMessage(actionId, boardVersion, requesterFlag);
+        if (role == LanRoomRole.Host) {
+            EnqueueSubmittedScore(request);
+            return true;
+        }
+
+        if (role != LanRoomRole.Client || connectedClient == null) {
+            lastStatus = "当前不在局域网对局中，无法请求数子。";
+            return false;
+        }
+
+        SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.SubmitScore)}|{request.actionId}|{request.boardVersion}|{(int)request.requesterFlag}");
+        return true;
+    }
+
+    public bool SubmitScoreConfirmResponse(LanDuelScoreRequestMessage request, PlayerFlag confirmerFlag, bool accepted)
+    {
+        LanRoomRole role;
+        lock (sessionLock) {
+            role = currentRole;
+        }
+
+        LanDuelScoreConfirmMessage response = new LanDuelScoreConfirmMessage(request.actionId, request.requesterFlag, confirmerFlag, accepted);
+        if (role == LanRoomRole.Host) {
+            EnqueueScoreConfirmResponse(response);
+            return true;
+        }
+
+        if (role != LanRoomRole.Client || connectedClient == null) {
+            lastStatus = "当前不在局域网对局中，无法回复数子确认。";
+            return false;
+        }
+
+        SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.ScoreConfirmResponse)}|{response.actionId}|{(int)response.requesterFlag}|{(int)response.confirmerFlag}|{BoolToInt(response.accepted)}");
+        return true;
+    }
+
+    public bool SubmitLocalTakeBack(PlayerFlag requesterFlag, int boardVersion, int removeCount)
+    {
+        LanRoomRole role;
+        int actionId;
+        lock (sessionLock) {
+            role = currentRole;
+            actionId = nextMoveId++;
+        }
+
+        LanDuelTakeBackRequestMessage request = new LanDuelTakeBackRequestMessage(actionId, boardVersion, requesterFlag, removeCount);
+        if (role == LanRoomRole.Host) {
+            EnqueueSubmittedTakeBack(request);
+            return true;
+        }
+
+        if (role != LanRoomRole.Client || connectedClient == null) {
+            lastStatus = "当前不在局域网对局中，无法请求悔棋。";
+            return false;
+        }
+
+        SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.SubmitTakeBack)}|{request.actionId}|{request.boardVersion}|{(int)request.requesterFlag}|{request.removeCount}");
+        return true;
+    }
+
+    public bool SubmitTakeBackConfirmResponse(LanDuelTakeBackRequestMessage request, PlayerFlag confirmerFlag, bool accepted)
+    {
+        LanRoomRole role;
+        lock (sessionLock) {
+            role = currentRole;
+        }
+
+        LanDuelTakeBackConfirmMessage response = new LanDuelTakeBackConfirmMessage(request.actionId, request.requesterFlag, confirmerFlag, accepted);
+        if (role == LanRoomRole.Host) {
+            EnqueueTakeBackConfirmResponse(response);
+            return true;
+        }
+
+        if (role != LanRoomRole.Client || connectedClient == null) {
+            lastStatus = "当前不在局域网对局中，无法回复悔棋确认。";
+            return false;
+        }
+
+        SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.TakeBackConfirmResponse)}|{response.actionId}|{(int)response.requesterFlag}|{(int)response.confirmerFlag}|{BoolToInt(response.accepted)}");
+        return true;
+    }
+
     public void BroadcastAcceptedMove(LanDuelMoveMessage move)
     {
         EnqueueAcceptedMove(move);
@@ -386,6 +546,69 @@ public partial class LanRoomService : ModuleBase
     {
         EnqueueAcceptedResign(resign);
         SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.ResignAccepted)}|{resign.actionId}|{(int)resign.loserFlag}");
+    }
+
+    public void BroadcastInputAuthority(PlayerFlag hostInputPlayerFlag, PlayerFlag clientInputPlayerFlag)
+    {
+        EnqueueInputAuthority(new LanDuelInputAuthorityMessage(hostInputPlayerFlag, clientInputPlayerFlag));
+        SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.InputAuthority)}|{(int)hostInputPlayerFlag}|{(int)clientInputPlayerFlag}");
+    }
+
+    public void BroadcastAcceptedPass(LanDuelPassMessage pass)
+    {
+        EnqueueAcceptedPass(pass);
+        SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.PassAccepted)}|{pass.actionId}|{pass.boardVersion}|{(int)pass.playerFlag}|{pass.consecutivePassCount}");
+    }
+
+    public void BroadcastAcceptedScoreRequest(LanDuelScoreRequestMessage request)
+    {
+        EnqueueAcceptedScoreRequest(request);
+        SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.ScoreRequestAccepted)}|{request.actionId}|{request.boardVersion}|{(int)request.requesterFlag}");
+    }
+
+    public void BroadcastScoreConfirmRequest(LanDuelScoreRequestMessage request)
+    {
+        if (request.requesterFlag == PlayerFlag.Player1) {
+            SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.ScoreConfirmRequest)}|{request.actionId}|{request.boardVersion}|{(int)request.requesterFlag}");
+            return;
+        }
+
+        EnqueueScoreConfirmRequest(request);
+    }
+
+    public void BroadcastScoreResult(LanDuelScoreResultMessage result)
+    {
+        EnqueueScoreResult(result);
+        string scoreSource = EncodeText(result.scoreSource);
+        SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.ScoreResult)}|{result.actionId}|{result.blackScore}|{result.whiteScore}|{result.komi}|{result.margin}|{(int)result.winnerFlag}|{scoreSource}");
+    }
+
+    public void BroadcastScoreFailed(int actionId)
+    {
+        EnqueueScoreFailure(actionId);
+        SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.ScoreFailed)}|{actionId}");
+    }
+
+    public void BroadcastTakeBackConfirmRequest(LanDuelTakeBackRequestMessage request)
+    {
+        if (request.requesterFlag == PlayerFlag.Player1) {
+            SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.TakeBackConfirmRequest)}|{request.actionId}|{request.boardVersion}|{(int)request.requesterFlag}|{request.removeCount}");
+            return;
+        }
+
+        EnqueueTakeBackConfirmRequest(request);
+    }
+
+    public void BroadcastAcceptedTakeBack(LanDuelTakeBackRequestMessage request)
+    {
+        EnqueueAcceptedTakeBack(request);
+        SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.TakeBackAccepted)}|{request.actionId}|{request.boardVersion}|{(int)request.requesterFlag}|{request.removeCount}");
+    }
+
+    public void BroadcastRejectedTakeBack(int actionId)
+    {
+        EnqueueRejectedTakeBack(actionId);
+        SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.TakeBackRejected)}|{actionId}");
     }
 
     public bool TryDequeueSubmittedMove(out LanDuelMoveMessage move)
@@ -492,6 +715,188 @@ public partial class LanRoomService : ModuleBase
         return false;
     }
 
+    public bool TryDequeueInputAuthority(out LanDuelInputAuthorityMessage authority)
+    {
+        lock (sessionLock) {
+            if (pendingInputAuthorities.Count > 0) {
+                authority = pendingInputAuthorities.Dequeue();
+                return true;
+            }
+        }
+
+        authority = default;
+        return false;
+    }
+
+    public bool TryDequeueSubmittedPass(out LanDuelPassMessage pass)
+    {
+        lock (sessionLock) {
+            if (pendingSubmittedPasses.Count > 0) {
+                pass = pendingSubmittedPasses.Dequeue();
+                return true;
+            }
+        }
+
+        pass = default;
+        return false;
+    }
+
+    public bool TryDequeueAcceptedPass(out LanDuelPassMessage pass)
+    {
+        lock (sessionLock) {
+            if (pendingAcceptedPasses.Count > 0) {
+                pass = pendingAcceptedPasses.Dequeue();
+                return true;
+            }
+        }
+
+        pass = default;
+        return false;
+    }
+
+    public bool TryDequeueSubmittedScore(out LanDuelScoreRequestMessage request)
+    {
+        lock (sessionLock) {
+            if (pendingSubmittedScores.Count > 0) {
+                request = pendingSubmittedScores.Dequeue();
+                return true;
+            }
+        }
+
+        request = default;
+        return false;
+    }
+
+    public bool TryDequeueScoreConfirmRequest(out LanDuelScoreRequestMessage request)
+    {
+        lock (sessionLock) {
+            if (pendingScoreConfirmRequests.Count > 0) {
+                request = pendingScoreConfirmRequests.Dequeue();
+                return true;
+            }
+        }
+
+        request = default;
+        return false;
+    }
+
+    public bool TryDequeueScoreConfirmResponse(out LanDuelScoreConfirmMessage response)
+    {
+        lock (sessionLock) {
+            if (pendingScoreConfirmResponses.Count > 0) {
+                response = pendingScoreConfirmResponses.Dequeue();
+                return true;
+            }
+        }
+
+        response = default;
+        return false;
+    }
+
+    public bool TryDequeueAcceptedScoreRequest(out LanDuelScoreRequestMessage request)
+    {
+        lock (sessionLock) {
+            if (pendingAcceptedScoreRequests.Count > 0) {
+                request = pendingAcceptedScoreRequests.Dequeue();
+                return true;
+            }
+        }
+
+        request = default;
+        return false;
+    }
+
+    public bool TryDequeueScoreResult(out LanDuelScoreResultMessage result)
+    {
+        lock (sessionLock) {
+            if (pendingScoreResults.Count > 0) {
+                result = pendingScoreResults.Dequeue();
+                return true;
+            }
+        }
+
+        result = default;
+        return false;
+    }
+
+    public bool TryDequeueScoreFailure(out int actionId)
+    {
+        lock (sessionLock) {
+            if (pendingScoreFailures.Count > 0) {
+                actionId = pendingScoreFailures.Dequeue();
+                return true;
+            }
+        }
+
+        actionId = 0;
+        return false;
+    }
+
+    public bool TryDequeueSubmittedTakeBack(out LanDuelTakeBackRequestMessage request)
+    {
+        lock (sessionLock) {
+            if (pendingSubmittedTakeBacks.Count > 0) {
+                request = pendingSubmittedTakeBacks.Dequeue();
+                return true;
+            }
+        }
+
+        request = default;
+        return false;
+    }
+
+    public bool TryDequeueTakeBackConfirmRequest(out LanDuelTakeBackRequestMessage request)
+    {
+        lock (sessionLock) {
+            if (pendingTakeBackConfirmRequests.Count > 0) {
+                request = pendingTakeBackConfirmRequests.Dequeue();
+                return true;
+            }
+        }
+
+        request = default;
+        return false;
+    }
+
+    public bool TryDequeueTakeBackConfirmResponse(out LanDuelTakeBackConfirmMessage response)
+    {
+        lock (sessionLock) {
+            if (pendingTakeBackConfirmResponses.Count > 0) {
+                response = pendingTakeBackConfirmResponses.Dequeue();
+                return true;
+            }
+        }
+
+        response = default;
+        return false;
+    }
+
+    public bool TryDequeueAcceptedTakeBack(out LanDuelTakeBackRequestMessage request)
+    {
+        lock (sessionLock) {
+            if (pendingAcceptedTakeBacks.Count > 0) {
+                request = pendingAcceptedTakeBacks.Dequeue();
+                return true;
+            }
+        }
+
+        request = default;
+        return false;
+    }
+
+    public bool TryDequeueRejectedTakeBack(out int actionId)
+    {
+        lock (sessionLock) {
+            if (pendingRejectedTakeBacks.Count > 0) {
+                actionId = pendingRejectedTakeBacks.Dequeue();
+                return true;
+            }
+        }
+
+        actionId = 0;
+        return false;
+    }
+
     public override void OnDestroy()
     {
         StopSearchRooms();
@@ -582,6 +987,16 @@ public partial class LanRoomService : ModuleBase
                     pendingTimeoutLosers.Clear();
                     pendingSubmittedResigns.Clear();
                     pendingAcceptedResigns.Clear();
+                    pendingInputAuthorities.Clear();
+                    pendingSubmittedPasses.Clear();
+                    pendingAcceptedPasses.Clear();
+                    pendingSubmittedScores.Clear();
+                    pendingScoreConfirmRequests.Clear();
+                    pendingScoreConfirmResponses.Clear();
+                    pendingAcceptedScoreRequests.Clear();
+                    pendingScoreResults.Clear();
+                    pendingScoreFailures.Clear();
+                    ClearTakeBackQueues();
                 }
                 StartSessionReader(client);
                 BroadcastRoomState();
@@ -840,6 +1255,176 @@ public partial class LanRoomService : ModuleBase
         }
     }
 
+    private void HandleInputAuthorityMessage(LanRoomProtocolMessage message)
+    {
+        if (message.ArgCount != 2 ||
+            !int.TryParse(message.GetArg(0), out int hostInputPlayerFlagValue) ||
+            !int.TryParse(message.GetArg(1), out int clientInputPlayerFlagValue)) {
+            return;
+        }
+
+        EnqueueInputAuthority(new LanDuelInputAuthorityMessage(
+            (PlayerFlag)hostInputPlayerFlagValue,
+            (PlayerFlag)clientInputPlayerFlagValue));
+    }
+
+    private void HandlePassMessage(LanRoomProtocolMessage message, bool isSubmit)
+    {
+        if ((isSubmit && message.ArgCount != 3) ||
+            (!isSubmit && message.ArgCount != 4) ||
+            !int.TryParse(message.GetArg(0), out int actionId) ||
+            !int.TryParse(message.GetArg(1), out int boardVersion) ||
+            !int.TryParse(message.GetArg(2), out int playerFlagValue)) {
+            return;
+        }
+
+        int consecutivePassCount = 0;
+        if (!isSubmit && !int.TryParse(message.GetArg(3), out consecutivePassCount)) {
+            return;
+        }
+
+        LanDuelPassMessage pass = new LanDuelPassMessage(actionId, boardVersion, (PlayerFlag)playerFlagValue, consecutivePassCount);
+        if (isSubmit) {
+            EnqueueSubmittedPass(pass);
+        } else {
+            EnqueueAcceptedPass(pass);
+        }
+    }
+
+    private void HandleScoreRequestMessage(LanRoomProtocolMessage message, bool isSubmit)
+    {
+        if (message.ArgCount != 3 ||
+            !int.TryParse(message.GetArg(0), out int actionId) ||
+            !int.TryParse(message.GetArg(1), out int boardVersion) ||
+            !int.TryParse(message.GetArg(2), out int requesterFlagValue)) {
+            return;
+        }
+
+        LanDuelScoreRequestMessage request = new LanDuelScoreRequestMessage(actionId, boardVersion, (PlayerFlag)requesterFlagValue);
+        if (isSubmit) {
+            EnqueueSubmittedScore(request);
+        } else {
+            EnqueueAcceptedScoreRequest(request);
+        }
+    }
+
+    private void HandleScoreConfirmRequestMessage(LanRoomProtocolMessage message)
+    {
+        if (message.ArgCount != 3 ||
+            !int.TryParse(message.GetArg(0), out int actionId) ||
+            !int.TryParse(message.GetArg(1), out int boardVersion) ||
+            !int.TryParse(message.GetArg(2), out int requesterFlagValue)) {
+            return;
+        }
+
+        EnqueueScoreConfirmRequest(new LanDuelScoreRequestMessage(actionId, boardVersion, (PlayerFlag)requesterFlagValue));
+    }
+
+    private void HandleScoreConfirmResponseMessage(LanRoomProtocolMessage message)
+    {
+        if (message.ArgCount != 4 ||
+            !int.TryParse(message.GetArg(0), out int actionId) ||
+            !int.TryParse(message.GetArg(1), out int requesterFlagValue) ||
+            !int.TryParse(message.GetArg(2), out int confirmerFlagValue) ||
+            !TryParseBool(message.GetArg(3), out bool accepted)) {
+            return;
+        }
+
+        EnqueueScoreConfirmResponse(new LanDuelScoreConfirmMessage(
+            actionId,
+            (PlayerFlag)requesterFlagValue,
+            (PlayerFlag)confirmerFlagValue,
+            accepted));
+    }
+
+    private void HandleScoreResultMessage(LanRoomProtocolMessage message)
+    {
+        if (message.ArgCount != 7 ||
+            !int.TryParse(message.GetArg(0), out int actionId) ||
+            !float.TryParse(message.GetArg(1), out float blackScore) ||
+            !float.TryParse(message.GetArg(2), out float whiteScore) ||
+            !float.TryParse(message.GetArg(3), out float komi) ||
+            !float.TryParse(message.GetArg(4), out float margin) ||
+            !int.TryParse(message.GetArg(5), out int winnerFlagValue)) {
+            return;
+        }
+
+        EnqueueScoreResult(new LanDuelScoreResultMessage(
+            actionId,
+            blackScore,
+            whiteScore,
+            komi,
+            margin,
+            (PlayerFlag)winnerFlagValue,
+            DecodeText(message.GetArg(6))));
+    }
+
+    private void HandleScoreFailedMessage(LanRoomProtocolMessage message)
+    {
+        if (message.ArgCount != 1 || !int.TryParse(message.GetArg(0), out int actionId)) {
+            return;
+        }
+
+        EnqueueScoreFailure(actionId);
+    }
+
+    private void HandleTakeBackRequestMessage(LanRoomProtocolMessage message, bool isSubmit)
+    {
+        if (message.ArgCount != 4 ||
+            !int.TryParse(message.GetArg(0), out int actionId) ||
+            !int.TryParse(message.GetArg(1), out int boardVersion) ||
+            !int.TryParse(message.GetArg(2), out int requesterFlagValue) ||
+            !int.TryParse(message.GetArg(3), out int removeCount)) {
+            return;
+        }
+
+        LanDuelTakeBackRequestMessage request = new LanDuelTakeBackRequestMessage(actionId, boardVersion, (PlayerFlag)requesterFlagValue, removeCount);
+        if (isSubmit) {
+            EnqueueSubmittedTakeBack(request);
+        } else {
+            EnqueueTakeBackConfirmRequest(request);
+        }
+    }
+
+    private void HandleTakeBackAcceptedMessage(LanRoomProtocolMessage message)
+    {
+        if (message.ArgCount != 4 ||
+            !int.TryParse(message.GetArg(0), out int actionId) ||
+            !int.TryParse(message.GetArg(1), out int boardVersion) ||
+            !int.TryParse(message.GetArg(2), out int requesterFlagValue) ||
+            !int.TryParse(message.GetArg(3), out int removeCount)) {
+            return;
+        }
+
+        EnqueueAcceptedTakeBack(new LanDuelTakeBackRequestMessage(actionId, boardVersion, (PlayerFlag)requesterFlagValue, removeCount));
+    }
+
+    private void HandleTakeBackConfirmResponseMessage(LanRoomProtocolMessage message)
+    {
+        if (message.ArgCount != 4 ||
+            !int.TryParse(message.GetArg(0), out int actionId) ||
+            !int.TryParse(message.GetArg(1), out int requesterFlagValue) ||
+            !int.TryParse(message.GetArg(2), out int confirmerFlagValue) ||
+            !TryParseBool(message.GetArg(3), out bool accepted)) {
+            return;
+        }
+
+        EnqueueTakeBackConfirmResponse(new LanDuelTakeBackConfirmMessage(
+            actionId,
+            (PlayerFlag)requesterFlagValue,
+            (PlayerFlag)confirmerFlagValue,
+            accepted));
+    }
+
+    private void HandleTakeBackRejectedMessage(LanRoomProtocolMessage message)
+    {
+        if (message.ArgCount != 1 || !int.TryParse(message.GetArg(0), out int actionId)) {
+            return;
+        }
+
+        EnqueueRejectedTakeBack(actionId);
+    }
+
     private void EnqueueRejectedMove(LanDuelMoveRejectMessage move)
     {
         lock (sessionLock) {
@@ -959,6 +1544,113 @@ public partial class LanRoomService : ModuleBase
         }
     }
 
+    private void EnqueueInputAuthority(LanDuelInputAuthorityMessage authority)
+    {
+        lock (sessionLock) {
+            pendingInputAuthorities.Enqueue(authority);
+        }
+    }
+
+    private void EnqueueSubmittedPass(LanDuelPassMessage pass)
+    {
+        lock (sessionLock) {
+            pendingSubmittedPasses.Enqueue(pass);
+        }
+    }
+
+    private void EnqueueAcceptedPass(LanDuelPassMessage pass)
+    {
+        lock (sessionLock) {
+            pendingAcceptedPasses.Enqueue(pass);
+        }
+    }
+
+    private void EnqueueSubmittedScore(LanDuelScoreRequestMessage request)
+    {
+        lock (sessionLock) {
+            pendingSubmittedScores.Enqueue(request);
+        }
+    }
+
+    private void EnqueueScoreConfirmRequest(LanDuelScoreRequestMessage request)
+    {
+        lock (sessionLock) {
+            pendingScoreConfirmRequests.Enqueue(request);
+        }
+    }
+
+    private void EnqueueScoreConfirmResponse(LanDuelScoreConfirmMessage response)
+    {
+        lock (sessionLock) {
+            pendingScoreConfirmResponses.Enqueue(response);
+        }
+    }
+
+    private void EnqueueAcceptedScoreRequest(LanDuelScoreRequestMessage request)
+    {
+        lock (sessionLock) {
+            pendingAcceptedScoreRequests.Enqueue(request);
+        }
+    }
+
+    private void EnqueueScoreResult(LanDuelScoreResultMessage result)
+    {
+        lock (sessionLock) {
+            pendingScoreResults.Enqueue(result);
+        }
+    }
+
+    private void EnqueueScoreFailure(int actionId)
+    {
+        lock (sessionLock) {
+            pendingScoreFailures.Enqueue(actionId);
+        }
+    }
+
+    private void EnqueueSubmittedTakeBack(LanDuelTakeBackRequestMessage request)
+    {
+        lock (sessionLock) {
+            pendingSubmittedTakeBacks.Enqueue(request);
+        }
+    }
+
+    private void EnqueueTakeBackConfirmRequest(LanDuelTakeBackRequestMessage request)
+    {
+        lock (sessionLock) {
+            pendingTakeBackConfirmRequests.Enqueue(request);
+        }
+    }
+
+    private void EnqueueTakeBackConfirmResponse(LanDuelTakeBackConfirmMessage response)
+    {
+        lock (sessionLock) {
+            pendingTakeBackConfirmResponses.Enqueue(response);
+        }
+    }
+
+    private void EnqueueAcceptedTakeBack(LanDuelTakeBackRequestMessage request)
+    {
+        lock (sessionLock) {
+            pendingAcceptedTakeBacks.Enqueue(request);
+        }
+    }
+
+    private void EnqueueRejectedTakeBack(int actionId)
+    {
+        lock (sessionLock) {
+            pendingRejectedTakeBacks.Enqueue(actionId);
+        }
+    }
+
+    private void ClearTakeBackQueues()
+    {
+        pendingSubmittedTakeBacks.Clear();
+        pendingTakeBackConfirmRequests.Clear();
+        pendingTakeBackConfirmResponses.Clear();
+        pendingAcceptedTakeBacks.Clear();
+        pendingRejectedTakeBacks.Clear();
+    }
+
     private string SerializeBoardSnapshot(LanDuelBoardSnapshotMessage snapshot)
     {
         StringBuilder stonesBuilder = new StringBuilder();
@@ -1040,6 +1732,16 @@ public partial class LanRoomService : ModuleBase
             pendingTimeoutLosers.Clear();
             pendingSubmittedResigns.Clear();
             pendingAcceptedResigns.Clear();
+            pendingInputAuthorities.Clear();
+            pendingSubmittedPasses.Clear();
+            pendingAcceptedPasses.Clear();
+            pendingSubmittedScores.Clear();
+            pendingScoreConfirmRequests.Clear();
+            pendingScoreConfirmResponses.Clear();
+            pendingAcceptedScoreRequests.Clear();
+            pendingScoreResults.Clear();
+            pendingScoreFailures.Clear();
+            ClearTakeBackQueues();
         }
         lastStatus = "房间连接已断开。";
     }
@@ -1062,6 +1764,26 @@ public partial class LanRoomService : ModuleBase
 
         result = false;
         return false;
+    }
+
+    private string EncodeText(string value)
+    {
+        return Convert.ToBase64String(Encoding.UTF8.GetBytes(value ?? string.Empty));
+    }
+
+    private string DecodeText(string value)
+    {
+        if (string.IsNullOrEmpty(value)) {
+            return string.Empty;
+        }
+
+        try {
+            return Encoding.UTF8.GetString(Convert.FromBase64String(value));
+        }
+        catch (Exception e) {
+            XNLogger.LogWarn("Decode LAN room text failed.", ("error", e.Message));
+            return string.Empty;
+        }
     }
 
     private bool ConnectWithTimeout(TcpClient client, string hostAddress, int tcpPort)

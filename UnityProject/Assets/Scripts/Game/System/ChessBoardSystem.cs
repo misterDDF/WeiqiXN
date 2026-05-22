@@ -303,18 +303,18 @@ public class ChessBoardSystem : SystemBase
         }
 
         compDuel.lanBoardVersion.value = snapshot.boardVersion;
+        if (snapshot.nextTurnPlayerFlag == PlayerFlag.Player1) {
+            compDuel.curTurnPlayerGuid.value = compDuel.player1Guid.value;
+        } else if (snapshot.nextTurnPlayerFlag == PlayerFlag.Player2) {
+            compDuel.curTurnPlayerGuid.value = compDuel.player2Guid.value;
+        }
+
         if (snapshot.boardVersion > previousBoardVersion &&
             snapshot.latestMoveCoords != null &&
             snapshot.latestMovePlayerFlag != 0) {
             compDuel.AppendKataGoMove(snapshot.latestMovePlayerFlag, snapshot.latestMoveCoords, compChessBoard.chessBoardGrid.gridSize);
             scene.EmitSystemEvent(new OnAfterAddChessToBoard(snapshot.latestMovePlayerFlag, snapshot.latestMoveCoords.Clone()));
             return;
-        }
-
-        if (snapshot.nextTurnPlayerFlag == PlayerFlag.Player1) {
-            compDuel.curTurnPlayerGuid.value = compDuel.player1Guid.value;
-        } else if (snapshot.nextTurnPlayerFlag == PlayerFlag.Player2) {
-            compDuel.curTurnPlayerGuid.value = compDuel.player2Guid.value;
         }
     }
 
