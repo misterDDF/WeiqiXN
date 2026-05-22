@@ -1,8 +1,11 @@
+using System.Collections.Generic;
+
 public class LanDuelSystem : SystemBase
 {
     public override string systemName => GetSystemName<LanDuelSystem>();
     private float nextTimeStateBroadcastTime;
     private const float TimeStateBroadcastIntervalSeconds = 1f;
+    private readonly Dictionary<int, LanDuelTakeBackRequestMessage> pendingTakeBackRequests = new Dictionary<int, LanDuelTakeBackRequestMessage>();
 
     public LanDuelSystem(DuelScene scene) : base(scene)
     {
@@ -140,7 +143,12 @@ public class LanDuelSystem : SystemBase
             scene.EmitSystemEvent(new OnApplyLanDuelTakeBack(request));
         }
 
-        while (Global.Instance.lanRoomService.TryDequeueRejectedTakeBack(out _)) {
+        while (Global.Instance.lanRoomService.TryDequeueRejectedTakeBack(out LanDuelTakeBackRejectedMessage rejected)) {
+            PlayerFlag localPlayerFlag = ResolveLocalPlayerFlag(compDuel);
+            if (rejected.requesterFlag != 0 && rejected.requesterFlag != localPlayerFlag) {
+                continue;
+            }
+
             scene.EmitSystemEvent(new OnLanDuelTakeBackRejected());
         }
     }
@@ -247,10 +255,12 @@ public class LanDuelSystem : SystemBase
 
         while (Global.Instance.lanRoomService.TryDequeueSubmittedTakeBack(out LanDuelTakeBackRequestMessage request)) {
             if (!duelSystem.CanAcceptLanDuelTakeBack(compDuel, request)) {
-                Global.Instance.lanRoomService.BroadcastRejectedTakeBack(request.actionId);
+                pendingTakeBackRequests.Remove(request.actionId);
+                Global.Instance.lanRoomService.BroadcastRejectedTakeBack(request.actionId, request.requesterFlag);
                 continue;
             }
 
+            pendingTakeBackRequests[request.actionId] = request;
             Global.Instance.lanRoomService.BroadcastTakeBackConfirmRequest(request);
         }
     }
@@ -263,18 +273,22 @@ public class LanDuelSystem : SystemBase
         }
 
         while (Global.Instance.lanRoomService.TryDequeueTakeBackConfirmResponse(out LanDuelTakeBackConfirmMessage response)) {
-            LanDuelTakeBackRequestMessage request = new LanDuelTakeBackRequestMessage(
-                response.actionId,
-                compDuel.lanBoardVersion.value,
-                response.requesterFlag,
-                1);
-            if (!response.accepted || !IsValidTakeBackConfirm(response) || !duelSystem.CanAcceptLanDuelTakeBack(compDuel, request)) {
-                Global.Instance.lanRoomService.BroadcastRejectedTakeBack(response.actionId);
+            if (!pendingTakeBackRequests.TryGetValue(response.actionId, out LanDuelTakeBackRequestMessage request)) {
+                Global.Instance.lanRoomService.BroadcastRejectedTakeBack(response.actionId, response.requesterFlag);
+                continue;
+            }
+
+            pendingTakeBackRequests.Remove(response.actionId);
+            if (!response.accepted ||
+                response.requesterFlag != request.requesterFlag ||
+                !IsValidTakeBackConfirm(response) ||
+                !duelSystem.CanAcceptLanDuelTakeBack(compDuel, request)) {
+                Global.Instance.lanRoomService.BroadcastRejectedTakeBack(response.actionId, request.requesterFlag);
                 continue;
             }
 
             if (!duelSystem.ApplyLanDuelTakeBack(request)) {
-                Global.Instance.lanRoomService.BroadcastRejectedTakeBack(response.actionId);
+                Global.Instance.lanRoomService.BroadcastRejectedTakeBack(response.actionId, request.requesterFlag);
                 continue;
             }
 
@@ -295,6 +309,24 @@ public class LanDuelSystem : SystemBase
 
         return (response.requesterFlag == PlayerFlag.Player1 && response.confirmerFlag == PlayerFlag.Player2) ||
             (response.requesterFlag == PlayerFlag.Player2 && response.confirmerFlag == PlayerFlag.Player1);
+    }
+
+    private PlayerFlag ResolveLocalPlayerFlag(SceneComponentDuel compDuel)
+    {
+        if (compDuel == null) {
+            return 0;
+        }
+
+        LanRoomRole role = (LanRoomRole)compDuel.lanRole.value;
+        if (role == LanRoomRole.Host) {
+            return PlayerFlag.Player1;
+        }
+
+        if (role == LanRoomRole.Client) {
+            return PlayerFlag.Player2;
+        }
+
+        return 0;
     }
 
     private bool IsValidScoreConfirm(SceneComponentDuel compDuel, LanDuelScoreConfirmMessage response)

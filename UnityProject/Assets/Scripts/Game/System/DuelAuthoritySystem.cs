@@ -177,7 +177,9 @@ public class DuelAuthoritySystem : SystemBase
         }
 
         if (compDuel.isLanDuel.value) {
-            SubmitLanTakeBack(compDuel);
+            if (!SubmitLanTakeBack(compDuel)) {
+                scene.EmitSystemEvent(new OnDuelTakeBackResult(false, "当前无法悔棋"));
+            }
             return;
         }
 

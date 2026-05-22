@@ -10,6 +10,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     private DuelPageBoardInputController boardInput;
     private DuelPageHudView hudView;
     private int pendingScorePopupRequestId;
+    private int pendingTakeBackPopupRequestId;
 
     protected override void OnLoaded()
     {
@@ -60,6 +61,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
     protected override void OnClose()
     {
+        ClosePendingTakeBackPopup();
         boardInput.Dispose();
         base.OnClose();
     }
@@ -122,6 +124,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
     public void OnDuelTakeBackResult(OnDuelTakeBackResult evt)
     {
+        ClosePendingTakeBackPopup();
         if (evt == null || string.IsNullOrEmpty(evt.message)) {
             return;
         }
@@ -256,7 +259,14 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         }
 
         hudView.CloseSettingsPanel();
-        EmitSystemEvent(new OnSubmitDuelTakeBack());
+        ConfirmPopup.Show(
+            "确认悔棋",
+            compDuel.isLanDuel.value ? "确认向对方请求悔棋？" : "确认悔棋？",
+            () => SubmitConfirmedTakeBack(),
+            null,
+            "确认悔棋",
+            "取消"
+        );
     }
 
     public void OnClickBtnResign()
@@ -302,6 +312,34 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         if (button != null) {
             button.onClick.AddListener(action);
         }
+    }
+
+    private void SubmitConfirmedTakeBack()
+    {
+        SceneBase mainScene = Global.Instance.sceneManager.mainScene;
+        SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
+        if (compDuel == null) {
+            return;
+        }
+
+        if (compDuel.isLanDuel.value) {
+            pendingTakeBackPopupRequestId = ConfirmPopup.ShowBlocking(
+                "等待悔棋确认",
+                "已发送悔棋请求，正在等待对方同意。"
+            );
+        }
+
+        EmitSystemEvent(new OnSubmitDuelTakeBack());
+    }
+
+    private void ClosePendingTakeBackPopup()
+    {
+        if (pendingTakeBackPopupRequestId <= 0) {
+            return;
+        }
+
+        ConfirmPopup.CloseIfOpen(pendingTakeBackPopupRequestId);
+        pendingTakeBackPopupRequestId = 0;
     }
 
     private bool IsPointerOverUI()

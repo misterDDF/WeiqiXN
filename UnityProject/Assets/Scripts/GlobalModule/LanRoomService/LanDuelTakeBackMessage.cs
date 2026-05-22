@@ -31,3 +31,15 @@ public readonly struct LanDuelTakeBackConfirmMessage
         this.accepted = accepted;
     }
 }
+
+public readonly struct LanDuelTakeBackRejectedMessage
+{
+    public readonly int actionId;
+    public readonly PlayerFlag requesterFlag;
+
+    public LanDuelTakeBackRejectedMessage(int actionId, PlayerFlag requesterFlag)
+    {
+        this.actionId = actionId;
+        this.requesterFlag = requesterFlag;
+    }
+}

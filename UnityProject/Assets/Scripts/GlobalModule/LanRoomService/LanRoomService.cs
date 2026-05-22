@@ -49,7 +49,7 @@ public partial class LanRoomService : ModuleBase
     private readonly Queue<LanDuelTakeBackRequestMessage> pendingTakeBackConfirmRequests = new Queue<LanDuelTakeBackRequestMessage>();
     private readonly Queue<LanDuelTakeBackConfirmMessage> pendingTakeBackConfirmResponses = new Queue<LanDuelTakeBackConfirmMessage>();
     private readonly Queue<LanDuelTakeBackRequestMessage> pendingAcceptedTakeBacks = new Queue<LanDuelTakeBackRequestMessage>();
-    private readonly Queue<int> pendingRejectedTakeBacks = new Queue<int>();
+    private readonly Queue<LanDuelTakeBackRejectedMessage> pendingRejectedTakeBacks = new Queue<LanDuelTakeBackRejectedMessage>();
     private TcpClient connectedClient;
     private Thread sessionReadThread;
     private LanRoomRole currentRole = LanRoomRole.None;
@@ -607,10 +607,10 @@ public partial class LanRoomService : ModuleBase
         SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.TakeBackAccepted)}|{request.actionId}|{request.boardVersion}|{(int)request.requesterFlag}|{request.removeCount}");
     }
 
-    public void BroadcastRejectedTakeBack(int actionId)
+    public void BroadcastRejectedTakeBack(int actionId, PlayerFlag requesterFlag)
     {
-        EnqueueRejectedTakeBack(actionId);
-        SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.TakeBackRejected)}|{actionId}");
+        EnqueueRejectedTakeBack(new LanDuelTakeBackRejectedMessage(actionId, requesterFlag));
+        SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.TakeBackRejected)}|{actionId}|{(int)requesterFlag}");
     }
 
     public bool TryDequeueSubmittedMove(out LanDuelMoveMessage move)
@@ -886,16 +886,16 @@ public partial class LanRoomService : ModuleBase
         return false;
     }
 
-    public bool TryDequeueRejectedTakeBack(out int actionId)
+    public bool TryDequeueRejectedTakeBack(out LanDuelTakeBackRejectedMessage rejected)
     {
         lock (sessionLock) {
             if (pendingRejectedTakeBacks.Count > 0) {
-                actionId = pendingRejectedTakeBacks.Dequeue();
+                rejected = pendingRejectedTakeBacks.Dequeue();
                 return true;
             }
         }
 
-        actionId = 0;
+        rejected = default;
         return false;
     }
 
@@ -1420,11 +1420,17 @@ public partial class LanRoomService : ModuleBase
 
     private void HandleTakeBackRejectedMessage(LanRoomProtocolMessage message)
     {
-        if (message.ArgCount != 1 || !int.TryParse(message.GetArg(0), out int actionId)) {
+        if ((message.ArgCount != 1 && message.ArgCount != 2) ||
+            !int.TryParse(message.GetArg(0), out int actionId)) {
             return;
         }
 
-        EnqueueRejectedTakeBack(actionId);
+        PlayerFlag requesterFlag = 0;
+        if (message.ArgCount == 2 && int.TryParse(message.GetArg(1), out int requesterFlagValue)) {
+            requesterFlag = (PlayerFlag)requesterFlagValue;
+        }
+
+        EnqueueRejectedTakeBack(new LanDuelTakeBackRejectedMessage(actionId, requesterFlag));
     }
 
     private void EnqueueRejectedMove(LanDuelMoveRejectMessage move)
@@ -1640,10 +1646,10 @@ public partial class LanRoomService : ModuleBase
         }
     }
 
-    private void EnqueueRejectedTakeBack(int actionId)
+    private void EnqueueRejectedTakeBack(LanDuelTakeBackRejectedMessage rejected)
     {
         lock (sessionLock) {
-            pendingRejectedTakeBacks.Enqueue(actionId);
+            pendingRejectedTakeBacks.Enqueue(rejected);
         }
     }
 

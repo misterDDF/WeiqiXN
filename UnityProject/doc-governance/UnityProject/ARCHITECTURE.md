@@ -32,6 +32,7 @@
 - 联机相关的会话、房间、座位、准备、命令校验、权威状态推进和快照广播应收敛到单一会话核心；第一版可以作为 host 进程中的嵌入式 server core 运行，后续若拆分进程也必须保持同一套命令和快照合同。
 - LAN 对局当前已把输入权下发、正常落子、虚手、认输、确认式数子和确认式悔棋收敛到 host 权威命令合同：客户端只提交命令或确认响应，host 校验版本、当前行棋方和对端确认结果后广播接受、拒绝、快照或终局结果。`DuelInputAuthority` 只读取 `SceneComponentDuel.localInputPlayerFlag`，该字段在 LAN 下由 host 的 `InputAuthority` 消息驱动。
 - LAN 快照必须同步 host 权威手顺，不能只同步棋子列表后让客户端继续使用旧 `kataGoMoves` 做形势、数子或保存输入。悔棋接受这类会改变历史手顺的动作，应在接受消息后补发权威快照用于纠偏。
+- LAN 悔棋确认是两阶段权威动作：host 转发确认请求前必须保存原始 `TakeBack` 请求，并在确认回复回来后使用原始 `boardVersion`、`requesterFlag` 和 `removeCount` 执行或拒绝，不能用回复到达时的当前棋盘临时重建请求。`TakeBackRejected` 必须携带请求方座位，使 UI 只在发起方关闭等待状态并显示失败/拒绝结果。
 - `Assets/Config/DataJson` 是当前棋盘、场景、UI 页面、预制体和 TMP sprite 的数据来源。
 - 日志开关集中在 `LoggerConfig`。事件分发、FSM 参数/状态转移、AI 观察日志和 AI 分析细节日志归入诊断级输出；错误、警告、关键启动、AI 回合开始和最终落子/虚手决策归入常规输出。诊断级输出由 `ENABLE_EVENT_VERBOSE_LOG`、`ENABLE_FSM_VERBOSE_LOG`、`ENABLE_DUEL_AI_VERBOSE_LOG` 和 `ENABLE_DUEL_AI_DETAIL_LOG` 控制。
 - 资源加载通过 `ResourceManager` 和配置 id 抽象；编辑器环境使用 AssetDatabase，非编辑器环境使用 AssetBundle。
