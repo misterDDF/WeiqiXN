@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Newtonsoft.Json.Linq;
 using XNClient.ChessBoard;
 
 public readonly struct LanDuelBoardSnapshotStone
@@ -21,6 +22,8 @@ public readonly struct LanDuelBoardSnapshotMessage
     public readonly RectCoordinates latestMoveCoords;
     public readonly PlayerFlag latestMovePlayerFlag;
     public readonly List<LanDuelBoardSnapshotStone> stones;
+    public readonly JArray kataGoMoves;
+    public readonly bool hasKataGoMoves;
 
     public LanDuelBoardSnapshotMessage(
         int boardVersion,
@@ -28,7 +31,9 @@ public readonly struct LanDuelBoardSnapshotMessage
         PlayerFlag nextTurnPlayerFlag,
         RectCoordinates latestMoveCoords,
         PlayerFlag latestMovePlayerFlag,
-        List<LanDuelBoardSnapshotStone> stones)
+        List<LanDuelBoardSnapshotStone> stones,
+        JArray kataGoMoves = null,
+        bool hasKataGoMoves = true)
     {
         this.boardVersion = boardVersion;
         this.boardSize = boardSize;
@@ -36,6 +41,8 @@ public readonly struct LanDuelBoardSnapshotMessage
         this.latestMoveCoords = latestMoveCoords;
         this.latestMovePlayerFlag = latestMovePlayerFlag;
         this.stones = stones ?? new List<LanDuelBoardSnapshotStone>();
+        this.kataGoMoves = kataGoMoves != null ? new JArray(kataGoMoves) : DuelMoveHistory.CreateEmpty();
+        this.hasKataGoMoves = hasKataGoMoves;
     }
 }
 

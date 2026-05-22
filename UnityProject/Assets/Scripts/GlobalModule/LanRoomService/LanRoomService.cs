@@ -4,6 +4,8 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using XNClient.ChessBoard;
 using XNClient.Logger;
 
@@ -1434,7 +1436,7 @@ public partial class LanRoomService : ModuleBase
 
     private void HandleBoardSnapshotMessage(LanRoomProtocolMessage message)
     {
-        if (message.ArgCount != 7 ||
+        if ((message.ArgCount != 7 && message.ArgCount != 8) ||
             !int.TryParse(message.GetArg(0), out int boardVersion) ||
             !int.TryParse(message.GetArg(1), out int boardSize) ||
             !int.TryParse(message.GetArg(2), out int nextTurnPlayerFlagValue) ||
@@ -1468,13 +1470,16 @@ public partial class LanRoomService : ModuleBase
         RectCoordinates latestMoveCoords = latestMoveX >= 0 && latestMoveZ >= 0
             ? new RectCoordinates(latestMoveX, latestMoveZ)
             : null;
+        JArray kataGoMoves = ParseSnapshotMoves(message.ArgCount == 8 ? message.GetArg(7) : string.Empty);
         EnqueueBoardSnapshot(new LanDuelBoardSnapshotMessage(
             boardVersion,
             boardSize,
             (PlayerFlag)nextTurnPlayerFlagValue,
             latestMoveCoords,
             (PlayerFlag)latestMovePlayerFlagValue,
-            stones));
+            stones,
+            kataGoMoves,
+            message.ArgCount == 8));
     }
 
     private void HandleTimeStateMessage(LanRoomProtocolMessage message)
@@ -1673,7 +1678,24 @@ public partial class LanRoomService : ModuleBase
 
         int latestMoveX = snapshot.latestMoveCoords != null ? snapshot.latestMoveCoords.x : -1;
         int latestMoveZ = snapshot.latestMoveCoords != null ? snapshot.latestMoveCoords.z : -1;
-        return $"{LanRoomProtocolName.ToWireName(LanRoomProtocol.BoardSnapshot)}|{snapshot.boardVersion}|{snapshot.boardSize}|{(int)snapshot.nextTurnPlayerFlag}|{latestMoveX}|{latestMoveZ}|{(int)snapshot.latestMovePlayerFlag}|{stonesBuilder}";
+        string movesPayload = EncodeText((snapshot.kataGoMoves ?? DuelMoveHistory.CreateEmpty()).ToString(Formatting.None));
+        return $"{LanRoomProtocolName.ToWireName(LanRoomProtocol.BoardSnapshot)}|{snapshot.boardVersion}|{snapshot.boardSize}|{(int)snapshot.nextTurnPlayerFlag}|{latestMoveX}|{latestMoveZ}|{(int)snapshot.latestMovePlayerFlag}|{stonesBuilder}|{movesPayload}";
+    }
+
+    private JArray ParseSnapshotMoves(string encodedMoves)
+    {
+        if (string.IsNullOrEmpty(encodedMoves)) {
+            return DuelMoveHistory.CreateEmpty();
+        }
+
+        try {
+            string movesJson = DecodeText(encodedMoves);
+            return string.IsNullOrEmpty(movesJson) ? DuelMoveHistory.CreateEmpty() : JArray.Parse(movesJson);
+        }
+        catch (Exception e) {
+            XNLogger.LogWarn("Parse LAN board snapshot moves failed.", ("error", e.Message));
+            return DuelMoveHistory.CreateEmpty();
+        }
     }
 
     private string SerializeStartConfigMessage()

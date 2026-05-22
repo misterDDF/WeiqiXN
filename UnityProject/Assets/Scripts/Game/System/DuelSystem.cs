@@ -434,6 +434,11 @@ public class DuelSystem : SystemBase
     {
         var compDuel = scene.GetComponent<SceneComponentDuel>();
         var compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
+        if (compDuel != null && compDuel.lanBoardVersion.value == request.boardVersion + 1) {
+            EmitTakeBackResult(true, request.removeCount >= 2 ? "已回退两手棋" : "已悔棋", request.removeCount);
+            return true;
+        }
+
         if (!CanAcceptLanDuelTakeBack(compDuel, request) || compChessBoard == null) {
             return false;
         }
@@ -592,6 +597,7 @@ public class DuelSystem : SystemBase
         compDuel.AppendKataGoPass(playerFlag);
         compDuel.consecutivePassCount.value = consecutivePassCount;
         compDuel.ClearOwnershipScoreCache();
+        scene.EmitSystemEvent(new OnClearDuelOwnership());
         scene.EmitSystemEvent(new OnDuelPassAccepted(
             player.guid,
             playerFlag,

@@ -278,12 +278,11 @@ public class LanDuelSystem : SystemBase
                 continue;
             }
 
-            request = new LanDuelTakeBackRequestMessage(
-                request.actionId,
-                compDuel.lanBoardVersion.value,
-                request.requesterFlag,
-                request.removeCount);
             Global.Instance.lanRoomService.BroadcastAcceptedTakeBack(request);
+            ChessBoardSystem chessBoardSystem = scene.GetSystem<ChessBoardSystem>();
+            if (chessBoardSystem != null && chessBoardSystem.TryBuildLanBoardSnapshot(out LanDuelBoardSnapshotMessage snapshot)) {
+                Global.Instance.lanRoomService.BroadcastBoardSnapshot(snapshot);
+            }
             scene.GetSystem<DuelInputAuthoritySystem>()?.RefreshLocalInputAuthority();
         }
     }

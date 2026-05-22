@@ -2,7 +2,7 @@
 
 ## 当前状态
 
-联机功能已开始进入最小房间和最小对局命令阶段。当前已有 `LanRoomService` 作为局域网房间服务入口，支持 host 侧 TCP 监听、UDP 房间广播、client 侧 UDP 搜索、TCP 加入握手、最小准备状态交换、host 开局配置、进入带 LAN 标记的 `DuelScene`，以及 `SubmitMove` / `MoveAccepted` / `MoveRejected` / `BoardSnapshot` 的最小命令搬运；正常落子、虚手、数子、悔棋和认输已通过 `DuelAuthoritySystem` 收敛为统一提交入口。页面预览、点击提交和动作按钮权限通过 `DuelInputAuthority` 读取，LAN 下该权限来自 host 广播的 `InputAuthority`。host 侧 `LanDuelSystem` 通过现有规则入口进行权威落子校验，并在合法落子后广播权威棋盘快照；虚手通过 `SubmitPass` / `PassAccepted` 同步；认输通过 `SubmitResign` / `ResignAccepted` 同步；数子和悔棋通过确认请求/确认回复协议让对端弹窗确认，host 收到同意后才广播结果或悔棋接受。host 也负责广播当前行棋方 `TimeState` 并在超时后广播 `PlayerTimeout`，client 只使用 host 计时状态刷新显示。尚未实现正式传输抽象、座位选择、匹配系统、完整同步系统或断线恢复系统。架构方向已收敛为 host 权威、单一 server core、客户端只发命令；第一版 server core 允许嵌在 host 进程中运行，后续再决定是否拆成独立进程。
+联机功能已开始进入最小房间和最小对局命令阶段。当前已有 `LanRoomService` 作为局域网房间服务入口，支持 host 侧 TCP 监听、UDP 房间广播、client 侧 UDP 搜索、TCP 加入握手、最小准备状态交换、host 开局配置、进入带 LAN 标记的 `DuelScene`，以及 `SubmitMove` / `MoveAccepted` / `MoveRejected` / `BoardSnapshot` 的最小命令搬运；正常落子、虚手、数子、悔棋和认输已通过 `DuelAuthoritySystem` 收敛为统一提交入口。页面预览、点击提交和动作按钮权限通过 `DuelInputAuthority` 读取，LAN 下该权限来自 host 广播的 `InputAuthority`。host 侧 `LanDuelSystem` 通过现有规则入口进行权威落子校验，并在合法落子后广播权威棋盘快照；当前 `BoardSnapshot` 携带棋盘尺寸、下一手玩家、最后一步、棋子列表和 host 权威 KataGo 标准手顺，client 应用快照时同步棋盘与 `kataGoMoves` 并清除旧形势缓存。虚手通过 `SubmitPass` / `PassAccepted` 同步；认输通过 `SubmitResign` / `ResignAccepted` 同步；数子和悔棋通过确认请求/确认回复协议让对端弹窗确认，host 收到同意后才广播结果或悔棋接受，悔棋接受后会补发权威快照。host 也负责广播当前行棋方 `TimeState` 并在超时后广播 `PlayerTimeout`，client 只使用 host 计时状态刷新显示。尚未实现正式传输抽象、座位选择、匹配系统、完整同步系统或断线恢复系统。架构方向已收敛为 host 权威、单一 server core、客户端只发命令；第一版 server core 允许嵌在 host 进程中运行，后续再决定是否拆成独立进程。
 
 ## 已具备的基础
 
@@ -19,7 +19,7 @@
 - 数子和悔棋已接入确认式 host 权威路径：发起方提交到 host，host 转发确认请求给对端，对端确认后 host 执行并广播 `ScoreResult` / `ScoreFailed` 或 `TakeBackAccepted` / `TakeBackRejected`。
 - 认输提交已接入 host 权威路径：本端通过 `OnSubmitDuelResign` 提交，LAN host 校验当前行棋方后广播 `ResignAccepted`，双方通过 `OnApplyLanDuelResign` 进入同一认输终局。
 - `LanDuelSystem` 已接入 `DuelScene`，host 消费带棋盘版本的 `SubmitMove` 并通过现有规则入口广播 `MoveAccepted` / `MoveRejected`，client 只应用 host 接受的落子。
-- 合法落子会递增 `SceneComponentDuel.lanBoardVersion`，host 随后广播包含棋盘尺寸、下一手玩家、最后一步和棋子列表的 `BoardSnapshot`，client 用快照纠正本地棋盘。
+- 合法落子会递增 `SceneComponentDuel.lanBoardVersion`，host 随后广播包含棋盘尺寸、下一手玩家、最后一步、棋子列表和 host 权威 KataGo 标准手顺的 `BoardSnapshot`，client 用快照纠正本地棋盘与 `kataGoMoves`。
 - LAN 计时已按 host 权威收敛：host 广播 `TimeState`，client 不自行扣时或裁定超时；host 广播 `PlayerTimeout` 后 client 进入同样的超时终局。
 - `lan_room_config` 已承载局域网房间端口、连接超时、人数上限、广播间隔和缓冲区大小；协议消息名由 `LanRoomProtocol` 枚举按命名约定生成，并通过 `OnXxx` 接收函数注册到协议回调表。
 
@@ -39,7 +39,7 @@
 2. 保持 host 权威和单一 server core：host 端也只通过同一套命令入口推进会话，不能因主机身份绕过协议；正常落子已按该方向收敛，后续动作继续沿用同一合同。
 3. 提取规则服务：本地和网络都调用同一个落子校验入口。
 4. 定义最小协议：`JoinRoom`、`Ready`、`StartConfig`、`InputAuthority`、`SubmitMove`、`MoveAccepted`、`MoveRejected`、`BoardSnapshot`、`SubmitPass`、`PassAccepted`、`SubmitResign`、`ResignAccepted`、`SubmitScore`、`ScoreConfirmRequest`、`ScoreConfirmResponse`、`ScoreResult`、`SubmitTakeBack`、`TakeBackConfirmRequest`、`TakeBackConfirmResponse`、`TakeBackAccepted`、`TimeState`、`PlayerTimeout`、`LeaveRoom`、`Heartbeat`。
-5. 明确快照结构：棋盘尺寸、当前玩家、座位映射、棋子列表或位置字典、回合计时、最后一步、局面版本号、房间状态。
+5. 明确快照结构：棋盘尺寸、当前玩家、座位映射、棋子列表或位置字典、KataGo 标准手顺、回合计时、最后一步、局面版本号、房间状态。
 6. 再接入具体网络 SDK 或自建传输层，传输层只负责搬运命令和快照，不负责规则判断。
 
 ## 阶段验收标准

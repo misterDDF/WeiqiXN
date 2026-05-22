@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Cinemachine;
+using Newtonsoft.Json.Linq;
 using UnityEngine;
 using XNClient.ChessBoard;
 using XNClient.Logger;
@@ -228,6 +229,37 @@ public class ChessBoardSystem : SystemBase
 
     public bool TryBuildLanBoardSnapshot(LanDuelMoveMessage latestMove, out LanDuelBoardSnapshotMessage snapshot)
     {
+        PlayerFlag nextTurnPlayerFlag = latestMove.playerFlag.GetOpponentPlayerFlag();
+        return TryBuildLanBoardSnapshot(
+            nextTurnPlayerFlag,
+            latestMove.coords?.Clone(),
+            latestMove.playerFlag,
+            out snapshot);
+    }
+
+    public bool TryBuildLanBoardSnapshot(out LanDuelBoardSnapshotMessage snapshot)
+    {
+        snapshot = default;
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
+        SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
+        if (compDuel == null || compChessBoard?.chessBoardGrid == null) {
+            return false;
+        }
+
+        TryResolveLatestMoveMarker(compDuel, compChessBoard.chessBoardGrid.gridSize, out RectCoordinates latestMoveCoords, out PlayerFlag latestMovePlayerFlag);
+        return TryBuildLanBoardSnapshot(
+            ResolveCurrentTurnPlayerFlag(compDuel),
+            latestMoveCoords,
+            latestMovePlayerFlag,
+            out snapshot);
+    }
+
+    private bool TryBuildLanBoardSnapshot(
+        PlayerFlag nextTurnPlayerFlag,
+        RectCoordinates latestMoveCoords,
+        PlayerFlag latestMovePlayerFlag,
+        out LanDuelBoardSnapshotMessage snapshot)
+    {
         snapshot = default;
         SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
         SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
@@ -249,14 +281,14 @@ public class ChessBoardSystem : SystemBase
             stones.Add(new LanDuelBoardSnapshotStone(coords, (PlayerFlag)kvp.Value.chessFlag.value));
         }
 
-        PlayerFlag nextTurnPlayerFlag = latestMove.playerFlag.GetOpponentPlayerFlag();
         snapshot = new LanDuelBoardSnapshotMessage(
             compDuel.lanBoardVersion.value,
             compChessBoard.chessBoardGrid.gridSize,
             nextTurnPlayerFlag,
-            latestMove.coords?.Clone(),
-            latestMove.playerFlag,
-            stones);
+            latestMoveCoords?.Clone(),
+            latestMovePlayerFlag,
+            stones,
+            DuelMoveHistory.Clone(compDuel.kataGoMoves));
         return true;
     }
 
@@ -280,6 +312,7 @@ public class ChessBoardSystem : SystemBase
         compChessBoard.chessInfoDict.Clear();
         compChessBoard.lastChessInfoDict.Clear();
         compChessBoard.chessBoardGrid.ClearLatestMoveMarker();
+        ClearOwnershipState(compDuel, compChessBoard);
 
         if (snapshot.stones != null) {
             foreach (LanDuelBoardSnapshotStone stone in snapshot.stones) {
@@ -303,6 +336,13 @@ public class ChessBoardSystem : SystemBase
         }
 
         compDuel.lanBoardVersion.value = snapshot.boardVersion;
+        if (snapshot.hasKataGoMoves) {
+            compDuel.kataGoMoves = DuelMoveHistory.Clone(snapshot.kataGoMoves);
+        } else if (snapshot.boardVersion > previousBoardVersion &&
+            snapshot.latestMoveCoords != null &&
+            snapshot.latestMovePlayerFlag != 0) {
+            compDuel.AppendKataGoMove(snapshot.latestMovePlayerFlag, snapshot.latestMoveCoords, compChessBoard.chessBoardGrid.gridSize);
+        }
         if (snapshot.nextTurnPlayerFlag == PlayerFlag.Player1) {
             compDuel.curTurnPlayerGuid.value = compDuel.player1Guid.value;
         } else if (snapshot.nextTurnPlayerFlag == PlayerFlag.Player2) {
@@ -312,10 +352,52 @@ public class ChessBoardSystem : SystemBase
         if (snapshot.boardVersion > previousBoardVersion &&
             snapshot.latestMoveCoords != null &&
             snapshot.latestMovePlayerFlag != 0) {
-            compDuel.AppendKataGoMove(snapshot.latestMovePlayerFlag, snapshot.latestMoveCoords, compChessBoard.chessBoardGrid.gridSize);
             scene.EmitSystemEvent(new OnAfterAddChessToBoard(snapshot.latestMovePlayerFlag, snapshot.latestMoveCoords.Clone()));
             return;
         }
+    }
+
+    private void ClearOwnershipState(SceneComponentDuel compDuel, SceneComponentChessBoard compChessBoard)
+    {
+        compDuel?.ClearOwnershipScoreCache();
+        compChessBoard?.chessBoardGrid?.ClearOwnership();
+        scene.EmitSystemEvent(new OnClearDuelOwnership());
+    }
+
+    private PlayerFlag ResolveCurrentTurnPlayerFlag(SceneComponentDuel compDuel)
+    {
+        if (compDuel == null || string.IsNullOrEmpty(compDuel.curTurnPlayerGuid.value)) {
+            return 0;
+        }
+
+        Player curPlayer = scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
+        return curPlayer != null ? (PlayerFlag)curPlayer.playerFlag.value : 0;
+    }
+
+    private bool TryResolveLatestMoveMarker(SceneComponentDuel compDuel, int boardSize, out RectCoordinates coords, out PlayerFlag playerFlag)
+    {
+        coords = null;
+        playerFlag = 0;
+        if (compDuel?.kataGoMoves == null) {
+            return false;
+        }
+
+        for (int i = compDuel.kataGoMoves.Count - 1; i >= 0; i--) {
+            JToken move = compDuel.kataGoMoves[i];
+            if (!KataGoDuelRecordFile.TryParseMove(move, out PlayerFlag parsedFlag, out RectCoordinates parsedCoords, out bool isPass, boardSize)) {
+                continue;
+            }
+
+            if (isPass) {
+                continue;
+            }
+
+            coords = parsedCoords?.Clone();
+            playerFlag = parsedFlag;
+            return coords != null && playerFlag != 0;
+        }
+
+        return false;
     }
 
     private void ClearChessEntities()
