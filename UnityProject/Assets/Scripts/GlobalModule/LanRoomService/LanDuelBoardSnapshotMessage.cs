@@ -38,3 +38,32 @@ public readonly struct LanDuelBoardSnapshotMessage
         this.stones = stones ?? new List<LanDuelBoardSnapshotStone>();
     }
 }
+
+public readonly struct LanDuelTimeStateMessage
+{
+    public readonly PlayerFlag playerFlag;
+    public readonly int holdLeftSeconds;
+    public readonly int byoyomiLeftCount;
+    public readonly int byoyomiLeftSeconds;
+    public readonly bool isInByoyomi;
+    public readonly int turnLeftTimes;
+    public readonly long hostTimestampMilliseconds;
+
+    public LanDuelTimeStateMessage(
+        PlayerFlag playerFlag,
+        int holdLeftSeconds,
+        int byoyomiLeftCount,
+        int byoyomiLeftSeconds,
+        bool isInByoyomi,
+        int turnLeftTimes,
+        long hostTimestampMilliseconds)
+    {
+        this.playerFlag = playerFlag;
+        this.holdLeftSeconds = holdLeftSeconds;
+        this.byoyomiLeftCount = byoyomiLeftCount;
+        this.byoyomiLeftSeconds = byoyomiLeftSeconds;
+        this.isInByoyomi = isInByoyomi;
+        this.turnLeftTimes = turnLeftTimes;
+        this.hostTimestampMilliseconds = hostTimestampMilliseconds;
+    }
+}

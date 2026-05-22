@@ -26,7 +26,9 @@ public class DuelStateTurnInput : DuelFSMState
             }
             RefreshTurnLeftTimes(compDuelInfo);
             if (compDuelInfo != null && !compDuelInfo.isInfiniteTime.value) {
-                turnTimer = fsm.scene.SetSecondInterval(1, OnTurnPassSecond);
+                if (!IsLanClient(compDuel)) {
+                    turnTimer = fsm.scene.SetSecondInterval(1, OnTurnPassSecond);
+                }
             }
         }
     }
@@ -41,7 +43,9 @@ public class DuelStateTurnInput : DuelFSMState
         Player curPlayer = fsm.scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
         if (curPlayer != null) {
             var compDuelInfo = curPlayer.GetComponent<ComponentDuelInfo>();
-            CheckTimeout(compDuel, compDuelInfo);
+            if (!IsLanClient(compDuel)) {
+                CheckTimeout(compDuel, compDuelInfo);
+            }
         }
     }
 
@@ -115,6 +119,13 @@ public class DuelStateTurnInput : DuelFSMState
 
     private void TriggerTimeoutLose(SceneComponentDuel compDuel)
     {
+        if (compDuel != null && compDuel.isLanDuel.value && compDuel.lanRole.value == (int)LanRoomRole.Host) {
+            Player loser = fsm.scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
+            if (loser != null) {
+                Global.Instance.lanRoomService?.BroadcastPlayerTimeout((PlayerFlag)loser.playerFlag.value);
+            }
+        }
+
         hasTimedOut = true;
         compDuel.timeoutLoserGuid.value = compDuel.curTurnPlayerGuid.value;
         compDuel.gameEndReason.value = DuelGameEndReason.Timeout;
@@ -148,5 +159,10 @@ public class DuelStateTurnInput : DuelFSMState
         } else {
             compDuelInfo.turnLeftTimes.value = compDuelInfo.holdLeftSeconds.value;
         }
+    }
+
+    private bool IsLanClient(SceneComponentDuel compDuel)
+    {
+        return compDuel != null && compDuel.isLanDuel.value && compDuel.lanRole.value == (int)LanRoomRole.Client;
     }
 }

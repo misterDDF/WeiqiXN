@@ -17,4 +17,5 @@ public class DuelSceneCreateParamas
     public string aiDifficultyCfgId;
     public bool isLanDuel;
     public LanRoomRole lanRole;
+    public bool isLanRoomHostConfig;
 }

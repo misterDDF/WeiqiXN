@@ -22,8 +22,10 @@ public class UIContext
             mainPageStack.Last.Value.UpdatePage();
         }
 
-        foreach (UIPage popupPage in popupList) {
-            popupPage.UpdatePage();
+        foreach (UIPage popupPage in popupList.ToList()) {
+            if (popupList.Contains(popupPage)) {
+                popupPage.UpdatePage();
+            }
         }
     }
 

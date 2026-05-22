@@ -216,14 +216,15 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
         {
             duelSceneCreateParamas = new DuelSceneCreateParamas()
             {
-                boardCfgId = "9x9",
-                holdTimeCfgId = "5m",
-                byoyomiCountCfgId = "off",
-                byoyomiTimeCfgId = "30s",
+                boardCfgId = service.LanBoardCfgId,
+                holdTimeCfgId = service.LanHoldTimeCfgId,
+                byoyomiCountCfgId = service.LanByoyomiCountCfgId,
+                byoyomiTimeCfgId = service.LanByoyomiTimeCfgId,
                 isAiDuel = false,
                 aiDifficultyCfgId = string.Empty,
                 isLanDuel = true,
                 lanRole = state.role,
+                isLanRoomHostConfig = true,
             }
         };
         Global.Instance.sceneManager.EnterMainScene(SceneConfig.DUEL_SCENE_TYPE_ID, sceneCreateParams);

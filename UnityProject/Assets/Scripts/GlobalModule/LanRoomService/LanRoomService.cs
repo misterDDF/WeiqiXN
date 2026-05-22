@@ -30,6 +30,8 @@ public partial class LanRoomService : ModuleBase
     private readonly Queue<LanDuelMoveMessage> pendingAcceptedMoves = new Queue<LanDuelMoveMessage>();
     private readonly Queue<LanDuelMoveRejectMessage> pendingRejectedMoves = new Queue<LanDuelMoveRejectMessage>();
     private readonly Queue<LanDuelBoardSnapshotMessage> pendingBoardSnapshots = new Queue<LanDuelBoardSnapshotMessage>();
+    private readonly Queue<LanDuelTimeStateMessage> pendingTimeStates = new Queue<LanDuelTimeStateMessage>();
+    private readonly Queue<PlayerFlag> pendingTimeoutLosers = new Queue<PlayerFlag>();
     private TcpClient connectedClient;
     private Thread sessionReadThread;
     private LanRoomRole currentRole = LanRoomRole.None;
@@ -37,11 +39,19 @@ public partial class LanRoomService : ModuleBase
     private bool clientReady;
     private bool gameStarted;
     private int nextMoveId = 1;
+    private string lanBoardCfgId = "9x9";
+    private string lanHoldTimeCfgId = "5m";
+    private string lanByoyomiCountCfgId = "off";
+    private string lanByoyomiTimeCfgId = "30s";
     private string lastStatus = "局域网房间服务未启动。";
 
     public bool IsHosting => isHosting;
     public bool IsSearching => isSearching;
     public string LastStatus => lastStatus;
+    public string LanBoardCfgId => lanBoardCfgId;
+    public string LanHoldTimeCfgId => lanHoldTimeCfgId;
+    public string LanByoyomiCountCfgId => lanByoyomiCountCfgId;
+    public string LanByoyomiTimeCfgId => lanByoyomiTimeCfgId;
     public LanRoomSessionState SessionState
     {
         get
@@ -72,6 +82,8 @@ public partial class LanRoomService : ModuleBase
             pendingAcceptedMoves.Clear();
             pendingRejectedMoves.Clear();
             pendingBoardSnapshots.Clear();
+            pendingTimeStates.Clear();
+            pendingTimeoutLosers.Clear();
         }
 
         try {
@@ -122,6 +134,8 @@ public partial class LanRoomService : ModuleBase
             pendingAcceptedMoves.Clear();
             pendingRejectedMoves.Clear();
             pendingBoardSnapshots.Clear();
+            pendingTimeStates.Clear();
+            pendingTimeoutLosers.Clear();
         }
 
         try {
@@ -217,6 +231,8 @@ public partial class LanRoomService : ModuleBase
                 pendingAcceptedMoves.Clear();
                 pendingRejectedMoves.Clear();
                 pendingBoardSnapshots.Clear();
+                pendingTimeStates.Clear();
+                pendingTimeoutLosers.Clear();
             }
             StartSessionReader(client);
             SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.Ready)}|CLIENT|0");
@@ -270,7 +286,7 @@ public partial class LanRoomService : ModuleBase
             return false;
         }
 
-        SendRoomMessage(LanRoomProtocolName.ToWireName(LanRoomProtocol.Start));
+        SendRoomMessage(SerializeStartConfigMessage());
         BroadcastRoomState();
         lastStatus = "已发送开局命令。";
         return true;
@@ -322,6 +338,18 @@ public partial class LanRoomService : ModuleBase
         SendRoomMessage(SerializeBoardSnapshot(snapshot));
     }
 
+    public void BroadcastTimeState(LanDuelTimeStateMessage timeState)
+    {
+        EnqueueTimeState(timeState);
+        SendRoomMessage(SerializeTimeStateMessage(timeState));
+    }
+
+    public void BroadcastPlayerTimeout(PlayerFlag loserFlag)
+    {
+        EnqueueTimeoutLoser(loserFlag);
+        SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.PlayerTimeout)}|{(int)loserFlag}");
+    }
+
     public bool TryDequeueSubmittedMove(out LanDuelMoveMessage move)
     {
         lock (sessionLock) {
@@ -371,6 +399,32 @@ public partial class LanRoomService : ModuleBase
         }
 
         snapshot = default;
+        return false;
+    }
+
+    public bool TryDequeueTimeState(out LanDuelTimeStateMessage timeState)
+    {
+        lock (sessionLock) {
+            if (pendingTimeStates.Count > 0) {
+                timeState = pendingTimeStates.Dequeue();
+                return true;
+            }
+        }
+
+        timeState = default;
+        return false;
+    }
+
+    public bool TryDequeueTimeoutLoser(out PlayerFlag loserFlag)
+    {
+        lock (sessionLock) {
+            if (pendingTimeoutLosers.Count > 0) {
+                loserFlag = pendingTimeoutLosers.Dequeue();
+                return true;
+            }
+        }
+
+        loserFlag = 0;
         return false;
     }
 
@@ -460,6 +514,8 @@ public partial class LanRoomService : ModuleBase
                     pendingAcceptedMoves.Clear();
                     pendingRejectedMoves.Clear();
                     pendingBoardSnapshots.Clear();
+                    pendingTimeStates.Clear();
+                    pendingTimeoutLosers.Clear();
                 }
                 StartSessionReader(client);
                 BroadcastRoomState();
@@ -629,6 +685,22 @@ public partial class LanRoomService : ModuleBase
         lastStatus = SessionState.GetDisplayText();
     }
 
+    private void HandleStartConfigMessage(LanRoomProtocolMessage message)
+    {
+        if (message.ArgCount != 4) {
+            return;
+        }
+
+        lanBoardCfgId = message.GetArg(0);
+        lanHoldTimeCfgId = message.GetArg(1);
+        lanByoyomiCountCfgId = message.GetArg(2);
+        lanByoyomiTimeCfgId = message.GetArg(3);
+        lock (sessionLock) {
+            gameStarted = true;
+        }
+        lastStatus = "主机已开始对局。";
+    }
+
     private void BroadcastRoomState()
     {
         LanRoomSessionState state = SessionState;
@@ -738,10 +810,56 @@ public partial class LanRoomService : ModuleBase
             stones));
     }
 
+    private void HandleTimeStateMessage(LanRoomProtocolMessage message)
+    {
+        if (message.ArgCount != 7 ||
+            !int.TryParse(message.GetArg(0), out int playerFlagValue) ||
+            !int.TryParse(message.GetArg(1), out int holdLeftSeconds) ||
+            !int.TryParse(message.GetArg(2), out int byoyomiLeftCount) ||
+            !int.TryParse(message.GetArg(3), out int byoyomiLeftSeconds) ||
+            !TryParseBool(message.GetArg(4), out bool isInByoyomi) ||
+            !int.TryParse(message.GetArg(5), out int turnLeftTimes) ||
+            !long.TryParse(message.GetArg(6), out long hostTimestampMilliseconds)) {
+            return;
+        }
+
+        EnqueueTimeState(new LanDuelTimeStateMessage(
+            (PlayerFlag)playerFlagValue,
+            holdLeftSeconds,
+            byoyomiLeftCount,
+            byoyomiLeftSeconds,
+            isInByoyomi,
+            turnLeftTimes,
+            hostTimestampMilliseconds));
+    }
+
+    private void HandlePlayerTimeoutMessage(LanRoomProtocolMessage message)
+    {
+        if (message.ArgCount != 1 || !int.TryParse(message.GetArg(0), out int loserFlagValue)) {
+            return;
+        }
+
+        EnqueueTimeoutLoser((PlayerFlag)loserFlagValue);
+    }
+
     private void EnqueueBoardSnapshot(LanDuelBoardSnapshotMessage snapshot)
     {
         lock (sessionLock) {
             pendingBoardSnapshots.Enqueue(snapshot);
+        }
+    }
+
+    private void EnqueueTimeState(LanDuelTimeStateMessage timeState)
+    {
+        lock (sessionLock) {
+            pendingTimeStates.Enqueue(timeState);
+        }
+    }
+
+    private void EnqueueTimeoutLoser(PlayerFlag loserFlag)
+    {
+        lock (sessionLock) {
+            pendingTimeoutLosers.Enqueue(loserFlag);
         }
     }
 
@@ -768,6 +886,16 @@ public partial class LanRoomService : ModuleBase
         int latestMoveX = snapshot.latestMoveCoords != null ? snapshot.latestMoveCoords.x : -1;
         int latestMoveZ = snapshot.latestMoveCoords != null ? snapshot.latestMoveCoords.z : -1;
         return $"{LanRoomProtocolName.ToWireName(LanRoomProtocol.BoardSnapshot)}|{snapshot.boardVersion}|{snapshot.boardSize}|{(int)snapshot.nextTurnPlayerFlag}|{latestMoveX}|{latestMoveZ}|{(int)snapshot.latestMovePlayerFlag}|{stonesBuilder}";
+    }
+
+    private string SerializeStartConfigMessage()
+    {
+        return $"{LanRoomProtocolName.ToWireName(LanRoomProtocol.StartConfig)}|{lanBoardCfgId}|{lanHoldTimeCfgId}|{lanByoyomiCountCfgId}|{lanByoyomiTimeCfgId}";
+    }
+
+    private string SerializeTimeStateMessage(LanDuelTimeStateMessage timeState)
+    {
+        return $"{LanRoomProtocolName.ToWireName(LanRoomProtocol.TimeState)}|{(int)timeState.playerFlag}|{timeState.holdLeftSeconds}|{timeState.byoyomiLeftCount}|{timeState.byoyomiLeftSeconds}|{BoolToInt(timeState.isInByoyomi)}|{timeState.turnLeftTimes}|{timeState.hostTimestampMilliseconds}";
     }
 
     private void SendRoomMessage(string message)
@@ -812,6 +940,8 @@ public partial class LanRoomService : ModuleBase
             pendingAcceptedMoves.Clear();
             pendingRejectedMoves.Clear();
             pendingBoardSnapshots.Clear();
+            pendingTimeStates.Clear();
+            pendingTimeoutLosers.Clear();
         }
         lastStatus = "房间连接已断开。";
     }

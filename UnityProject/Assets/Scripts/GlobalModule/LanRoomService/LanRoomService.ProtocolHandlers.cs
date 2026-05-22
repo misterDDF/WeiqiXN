@@ -62,6 +62,11 @@ public partial class LanRoomService
         lastStatus = "主机已开始对局。";
     }
 
+    private void OnStartConfig(LanRoomProtocolMessage message)
+    {
+        HandleStartConfigMessage(message);
+    }
+
     private void OnSubmitMove(LanRoomProtocolMessage message)
     {
         HandleMoveMessage(message, true);
@@ -80,5 +85,15 @@ public partial class LanRoomService
     private void OnBoardSnapshot(LanRoomProtocolMessage message)
     {
         HandleBoardSnapshotMessage(message);
+    }
+
+    private void OnTimeState(LanRoomProtocolMessage message)
+    {
+        HandleTimeStateMessage(message);
+    }
+
+    private void OnPlayerTimeout(LanRoomProtocolMessage message)
+    {
+        HandlePlayerTimeoutMessage(message);
     }
 }

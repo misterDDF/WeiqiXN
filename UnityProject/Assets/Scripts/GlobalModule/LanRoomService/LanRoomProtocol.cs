@@ -3,10 +3,13 @@ public enum LanRoomProtocol
     Ready,
     State,
     Start,
+    StartConfig,
     SubmitMove,
     MoveAccepted,
     MoveRejected,
     BoardSnapshot,
+    TimeState,
+    PlayerTimeout,
 }
 
 public static class LanRoomProtocolName

@@ -27,6 +27,8 @@ public class DuelSystem : SystemBase
         scene.RegisterSystemEvent<OnConfirmDuelResign>(OnConfirmDuelResign);
         scene.RegisterSystemEvent<OnRequestDuelPass>(OnRequestDuelPass);
         scene.RegisterSystemEvent<OnRequestDuelTakeBack>(OnRequestDuelTakeBack);
+        scene.RegisterSystemEvent<OnApplyLanDuelTimeState>(OnApplyLanDuelTimeState);
+        scene.RegisterSystemEvent<OnApplyLanDuelTimeout>(OnApplyLanDuelTimeout);
 
         // 非读档进来的需要手动初始化
         if (scene.sceneCreateParams.saveFilePath == null) {
@@ -66,9 +68,10 @@ public class DuelSystem : SystemBase
     private void InitTimeControlConfig(SceneComponentDuel compDuel)
     {
         var duelParams = scene.sceneCreateParams.duelSceneCreateParamas;
-        compDuel.holdTimeCfgId.value = GetValidHoldTimeCfgId(duelParams?.holdTimeCfgId);
-        compDuel.byoyomiCountCfgId.value = GetValidByoyomiCountCfgId(duelParams?.byoyomiCountCfgId);
-        compDuel.byoyomiTimeCfgId.value = GetValidByoyomiTimeCfgId(duelParams?.byoyomiTimeCfgId);
+        bool useHostConfig = duelParams != null && duelParams.isLanDuel && duelParams.isLanRoomHostConfig;
+        compDuel.holdTimeCfgId.value = useHostConfig ? duelParams.holdTimeCfgId : GetValidHoldTimeCfgId(duelParams?.holdTimeCfgId);
+        compDuel.byoyomiCountCfgId.value = useHostConfig ? duelParams.byoyomiCountCfgId : GetValidByoyomiCountCfgId(duelParams?.byoyomiCountCfgId);
+        compDuel.byoyomiTimeCfgId.value = useHostConfig ? duelParams.byoyomiTimeCfgId : GetValidByoyomiTimeCfgId(duelParams?.byoyomiTimeCfgId);
     }
 
     private void InitAiDuelConfig(SceneComponentDuel compDuel)
@@ -193,6 +196,46 @@ public class DuelSystem : SystemBase
             compDuel.consecutivePassCount.value = 0;
             compDuel.duelFSM.SetParamterTrigger(DuelParamDefine.TRIGGER_PARAM_TURN_INPUT_FINISH);
         }
+    }
+
+    private void OnApplyLanDuelTimeState(OnApplyLanDuelTimeState evt)
+    {
+        var compDuel = scene.GetComponent<SceneComponentDuel>();
+        if (compDuel == null || !compDuel.isLanDuel.value || evt == null) {
+            return;
+        }
+
+        Player player = GetPlayerByFlag(compDuel, evt.timeState.playerFlag);
+        ComponentDuelInfo compDuelInfo = player?.GetComponent<ComponentDuelInfo>();
+        if (compDuelInfo == null || compDuelInfo.isInfiniteTime.value) {
+            return;
+        }
+
+        compDuelInfo.holdLeftSeconds.value = evt.timeState.holdLeftSeconds;
+        compDuelInfo.byoyomiLeftCount.value = evt.timeState.byoyomiLeftCount;
+        compDuelInfo.byoyomiLeftSeconds.value = evt.timeState.byoyomiLeftSeconds;
+        compDuelInfo.isInByoyomi.value = evt.timeState.isInByoyomi;
+        compDuelInfo.turnLeftTimes.value = evt.timeState.turnLeftTimes;
+    }
+
+    private void OnApplyLanDuelTimeout(OnApplyLanDuelTimeout evt)
+    {
+        var compDuel = scene.GetComponent<SceneComponentDuel>();
+        if (compDuel == null || !compDuel.isLanDuel.value || evt == null) {
+            return;
+        }
+
+        Player loser = GetPlayerByFlag(compDuel, evt.loserFlag);
+        if (loser == null) {
+            return;
+        }
+
+        compDuel.timeoutLoserGuid.value = loser.guid;
+        compDuel.gameEndReason.value = DuelGameEndReason.Timeout;
+        compDuel.winnerGuid.value = loser.guid == compDuel.player1Guid.value
+            ? compDuel.player2Guid.value
+            : compDuel.player1Guid.value;
+        compDuel.duelFSM.SetParamterTrigger(DuelParamDefine.TRIGGER_PARAM_GAME_END);
     }
 
     private async void OnRequestDuelScore(OnRequestDuelScore evt)
@@ -454,6 +497,22 @@ public class DuelSystem : SystemBase
     private string GetNextTurnPlayerGuid(SceneComponentDuel compDuel, int moveCount)
     {
         return moveCount % 2 == 0 ? compDuel.player1Guid.value : compDuel.player2Guid.value;
+    }
+
+    private Player GetPlayerByFlag(SceneComponentDuel compDuel, PlayerFlag playerFlag)
+    {
+        if (compDuel == null) {
+            return null;
+        }
+
+        if (playerFlag == PlayerFlag.Player1) {
+            return scene.GetEntity<Player>(compDuel.player1Guid.value);
+        }
+        if (playerFlag == PlayerFlag.Player2) {
+            return scene.GetEntity<Player>(compDuel.player2Guid.value);
+        }
+
+        return null;
     }
 
     private void EmitTakeBackResult(bool success, string message, int removedMoveCount = 0)

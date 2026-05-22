@@ -267,3 +267,25 @@ public class OnDuelMoveRejected : SystemEventBase
         this.rejectReason = rejectReason;
     }
 }
+
+public class OnApplyLanDuelTimeState : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnApplyLanDuelTimeState>();
+
+    public LanDuelTimeStateMessage timeState;
+    public OnApplyLanDuelTimeState(LanDuelTimeStateMessage timeState)
+    {
+        this.timeState = timeState;
+    }
+}
+
+public class OnApplyLanDuelTimeout : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnApplyLanDuelTimeout>();
+
+    public PlayerFlag loserFlag;
+    public OnApplyLanDuelTimeout(PlayerFlag loserFlag)
+    {
+        this.loserFlag = loserFlag;
+    }
+}
