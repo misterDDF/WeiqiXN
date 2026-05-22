@@ -7,6 +7,7 @@ public class ConfirmPopupUI : UIBinderBase
 {
     public TextMeshProUGUI txt_title;
     public TextMeshProUGUI txt_content;
+    public TMP_InputField input_content;
     public TextMeshProUGUI txt_confirm;
     public TextMeshProUGUI txt_cancel;
     public Button btn_confirm;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using XNClient.ChessBoard;
 using XNClient.Logger;
 
@@ -458,6 +458,20 @@ public class OnLanRoomPeerLeft : SystemEventBase
     {
         this.peerRole = peerRole;
         this.reason = reason;
+    }
+}
+
+public class OnLanPlayerProfileChanged : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnLanPlayerProfileChanged>();
+
+    public PlayerFlag playerFlag;
+    public UserProfileData profile;
+
+    public OnLanPlayerProfileChanged(PlayerFlag playerFlag, UserProfileData profile)
+    {
+        this.playerFlag = playerFlag;
+        this.profile = profile;
     }
 }
 

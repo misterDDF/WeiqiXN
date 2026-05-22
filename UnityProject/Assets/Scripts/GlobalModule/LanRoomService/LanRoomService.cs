@@ -29,6 +29,7 @@ public partial class LanRoomService : ModuleBase
 
     private readonly object sessionLock = new object();
     private readonly Queue<LanDuelMoveMessage> pendingSubmittedMoves = new Queue<LanDuelMoveMessage>();
+    private readonly Queue<LanPlayerProfileMessage> pendingPlayerProfiles = new Queue<LanPlayerProfileMessage>();
     private readonly Queue<LanDuelMoveMessage> pendingAcceptedMoves = new Queue<LanDuelMoveMessage>();
     private readonly Queue<LanDuelMoveRejectMessage> pendingRejectedMoves = new Queue<LanDuelMoveRejectMessage>();
     private readonly Queue<LanDuelBoardSnapshotMessage> pendingBoardSnapshots = new Queue<LanDuelBoardSnapshotMessage>();
@@ -66,6 +67,8 @@ public partial class LanRoomService : ModuleBase
     private string lanByoyomiTimeCfgId = "30s";
     private string lanHandicapCfgId = "9x9_0";
     private PlayerFlag lanHostPlayerFlag = PlayerFlag.Player1;
+    private UserProfileData hostPlayerProfile = UserProfileData.CreateFallback("Host");
+    private UserProfileData clientPlayerProfile = UserProfileData.CreateFallback("Client");
     private string lastStatus;
 
     public bool IsHosting => isHosting;
@@ -77,6 +80,8 @@ public partial class LanRoomService : ModuleBase
     public string LanByoyomiTimeCfgId => lanByoyomiTimeCfgId;
     public string LanHandicapCfgId => lanHandicapCfgId;
     public PlayerFlag LanHostPlayerFlag => lanHostPlayerFlag;
+    public UserProfileData HostPlayerProfile => hostPlayerProfile;
+    public UserProfileData ClientPlayerProfile => clientPlayerProfile;
     public LanRoomSessionState SessionState
     {
         get
@@ -116,6 +121,24 @@ public partial class LanRoomService : ModuleBase
         lanHostPlayerFlag = DuelUtils.GetValidPlayerFlag(hostPlayerFlag);
     }
 
+    public void SyncLocalPlayerProfile()
+    {
+        UserProfileData profile = User.Instance.compUserInfo.BuildProfileData();
+        LanRoomRole role;
+        lock (sessionLock) {
+            role = currentRole;
+            if (role == LanRoomRole.Host) {
+                hostPlayerProfile = profile;
+            } else if (role == LanRoomRole.Client) {
+                clientPlayerProfile = profile;
+            } else {
+                return;
+            }
+        }
+
+        SendRoomMessage(SerializePlayerProfileMessage(role, profile));
+    }
+
     public bool CreateRoom(string roomName)
     {
         StopRoom();
@@ -124,6 +147,8 @@ public partial class LanRoomService : ModuleBase
         hostedTcpPort = LanRoomConfig.TcpListenPort;
         lock (sessionLock) {
             currentRole = LanRoomRole.Host;
+            hostPlayerProfile = User.Instance.compUserInfo.BuildProfileData();
+            clientPlayerProfile = UserProfileData.CreateFallback("Client");
             hostReady = false;
             clientReady = false;
             gameStarted = false;
@@ -171,6 +196,8 @@ public partial class LanRoomService : ModuleBase
         connectedClient = null;
         lock (sessionLock) {
             currentRole = LanRoomRole.None;
+            hostPlayerProfile = UserProfileData.CreateFallback("Host");
+            clientPlayerProfile = UserProfileData.CreateFallback("Client");
             hostReady = false;
             clientReady = false;
             gameStarted = false;
@@ -285,6 +312,8 @@ public partial class LanRoomService : ModuleBase
             connectedClient = client;
             lock (sessionLock) {
                 currentRole = LanRoomRole.Client;
+                hostPlayerProfile = UserProfileData.CreateFallback("Host");
+                clientPlayerProfile = User.Instance.compUserInfo.BuildProfileData();
                 hostReady = false;
                 clientReady = false;
                 gameStarted = false;
@@ -292,6 +321,7 @@ public partial class LanRoomService : ModuleBase
                 ClearDuelMessageQueues();
             }
             StartSessionReader(client);
+            SyncLocalPlayerProfile();
             SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.Ready)}|CLIENT|0");
             lastStatus = MessageText.Format("lan_room_connected", room.name);
             XNLogger.LogInfo("LAN room connected.", ("roomId", room.roomId), ("host", room.hostAddress));
@@ -658,6 +688,19 @@ public partial class LanRoomService : ModuleBase
         }
 
         move = default;
+        return false;
+    }
+
+    public bool TryDequeuePlayerProfile(out LanPlayerProfileMessage profile)
+    {
+        lock (sessionLock) {
+            if (pendingPlayerProfiles.Count > 0) {
+                profile = pendingPlayerProfiles.Dequeue();
+                return true;
+            }
+        }
+
+        profile = default;
         return false;
     }
 
@@ -1039,12 +1082,15 @@ public partial class LanRoomService : ModuleBase
                 connectedClient = client;
                 lock (sessionLock) {
                     currentRole = LanRoomRole.Host;
+                    hostPlayerProfile = User.Instance.compUserInfo.BuildProfileData();
+                    clientPlayerProfile = UserProfileData.CreateFallback("Client");
                     clientReady = false;
                     gameStarted = false;
                     nextMoveId = 1;
                     ClearDuelMessageQueues();
                 }
                 StartSessionReader(client);
+                SyncLocalPlayerProfile();
                 BroadcastRoomState();
                 lastStatus = MessageText.Get("lan_room_player_joined_waiting_ready");
                 XNLogger.LogInfo("LAN room client joined.", ("roomId", hostedRoomId));
@@ -1209,6 +1255,30 @@ public partial class LanRoomService : ModuleBase
             BroadcastRoomState();
         }
         lastStatus = SessionState.GetDisplayText();
+    }
+
+    private void HandlePlayerProfileMessage(LanRoomProtocolMessage message)
+    {
+        if (message.ArgCount != 2 || !int.TryParse(message.GetArg(0), out int roleValue)) {
+            return;
+        }
+
+        LanRoomRole role = (LanRoomRole)roleValue;
+        UserProfileData profile = UserProfileData.FromJson(DecodeText(message.GetArg(1)), GetDefaultProfileName(role));
+        lock (sessionLock) {
+            if (role == LanRoomRole.Host) {
+                hostPlayerProfile = profile;
+            } else if (role == LanRoomRole.Client) {
+                clientPlayerProfile = profile;
+            } else {
+                return;
+            }
+        }
+
+        EnqueuePlayerProfile(new LanPlayerProfileMessage(role, profile));
+        if (SessionState.role == LanRoomRole.Host) {
+            SendRoomMessage(SerializePlayerProfileMessage(LanRoomRole.Host, hostPlayerProfile));
+        }
     }
 
     private void HandleStateMessage(LanRoomProtocolMessage message)
@@ -1567,6 +1637,13 @@ public partial class LanRoomService : ModuleBase
         }
     }
 
+    private void EnqueuePlayerProfile(LanPlayerProfileMessage profile)
+    {
+        lock (sessionLock) {
+            pendingPlayerProfiles.Enqueue(profile);
+        }
+    }
+
     private void HandleBoardSnapshotMessage(LanRoomProtocolMessage message)
     {
         if ((message.ArgCount != 7 && message.ArgCount != 8) ||
@@ -1814,6 +1891,7 @@ public partial class LanRoomService : ModuleBase
     private void ClearDuelMessageQueues()
     {
         pendingSubmittedMoves.Clear();
+        pendingPlayerProfiles.Clear();
         pendingAcceptedMoves.Clear();
         pendingRejectedMoves.Clear();
         pendingBoardSnapshots.Clear();
@@ -1899,6 +1977,13 @@ public partial class LanRoomService : ModuleBase
         return $"{LanRoomProtocolName.ToWireName(LanRoomProtocol.StartConfig)}|{lanBoardCfgId}|{lanHoldTimeCfgId}|{lanByoyomiCountCfgId}|{lanByoyomiTimeCfgId}|{lanHandicapCfgId}|{(int)lanHostPlayerFlag}";
     }
 
+    private string SerializePlayerProfileMessage(LanRoomRole role, UserProfileData profile)
+    {
+        UserProfileData safeProfile = profile ?? UserProfileData.CreateFallback(GetDefaultProfileName(role));
+        safeProfile.Normalize(GetDefaultProfileName(role));
+        return $"{LanRoomProtocolName.ToWireName(LanRoomProtocol.PlayerProfile)}|{(int)role}|{EncodeText(safeProfile.ToJson())}";
+    }
+
     private string SerializeTimeStateMessage(LanDuelTimeStateMessage timeState)
     {
         return $"{LanRoomProtocolName.ToWireName(LanRoomProtocol.TimeState)}|{(int)timeState.playerFlag}|{timeState.holdLeftSeconds}|{timeState.byoyomiLeftCount}|{timeState.byoyomiLeftSeconds}|{BoolToInt(timeState.isInByoyomi)}|{timeState.turnLeftTimes}|{timeState.hostTimestampMilliseconds}";
@@ -1950,6 +2035,8 @@ public partial class LanRoomService : ModuleBase
         lock (sessionLock) {
             if (currentRole == LanRoomRole.Client) {
                 currentRole = LanRoomRole.None;
+                hostPlayerProfile = UserProfileData.CreateFallback("Host");
+                clientPlayerProfile = UserProfileData.CreateFallback("Client");
                 hostReady = false;
             }
             clientReady = false;
@@ -1997,6 +2084,19 @@ public partial class LanRoomService : ModuleBase
             XNLogger.LogWarn("Decode LAN room text failed.", ("error", e.Message));
             return string.Empty;
         }
+    }
+
+    private string GetDefaultProfileName(LanRoomRole role)
+    {
+        if (role == LanRoomRole.Host) {
+            return "Host";
+        }
+
+        if (role == LanRoomRole.Client) {
+            return "Client";
+        }
+
+        return "Player";
     }
 
     private bool ConnectWithTimeout(TcpClient client, string hostAddress, int tcpPort)

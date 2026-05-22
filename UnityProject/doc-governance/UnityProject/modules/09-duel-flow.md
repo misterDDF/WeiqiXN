@@ -24,7 +24,7 @@
 ## 当前进度
 
 - 新对局会创建 Player1 和 Player2。分先和让先对局把当前玩家设为 Player1 / 黑方；让子对局会先按配置摆放黑方让子，再把当前玩家设为 Player2 / 白方。
-- 电脑对局仍创建 Player1 和 Player2，人类可选择执黑、执白或猜先，AI 控制另一方，并把 `isAiDuel`、`aiDifficultyCfgId`、`aiPlayerGuid` 保存到 `SceneComponentDuel`。
+- 电脑对局仍创建 Player1 和 Player2，人类可选择执黑、执白或猜先，AI 控制另一方，并把 `isAiDuel`、`aiDifficultyCfgId`、`aiPlayerGuid`、本端座位和双方显示名保存到 `SceneComponentDuel`；人类座位显示本地用户名，AI 座位显示 AI 文案。
 - 当前正式流程只覆盖新开本地对局和电脑对局；读档/继续对局暂不作为正式功能。
 - FSM 状态包含 `GameStart`、`TurnStart`、`TurnInput`、`WaitAction`、`TurnEnd`、`GameEnd`。
 - 当前实际主循环是 `GameStart -> TurnStart -> TurnInput -> TurnEnd -> TurnStart`。
@@ -34,6 +34,7 @@
 - `TurnEnd` 切换当前玩家，然后触发下一轮 `TurnStart`。
 - `DuelInputAuthority` 是当前本端人类输入权限的集中读取入口；它只读取 `SceneComponentDuel.localInputPlayerFlag`，不在 UI 中派生 LAN 座位。`DuelInputAuthoritySystem` 负责刷新该字段：本地热座跟随当前回合玩家，电脑对局在 AI 回合不给本端人类输入权，LAN 对局由 host 广播 `InputAuthority` 后双方应用。
 - `DuelAuthoritySystem` 是正常落子、虚手、数子、悔棋和认输的统一提交入口：页面和 AI 提交 `OnSubmitDuelMove` / `OnSubmitDuelPass` 等命令，本地/电脑对局直接转入本进程权威应用，LAN 对局按 `DuelInputAuthority` 给出的本端输入方提交到 `LanRoomService`，由房间服务决定本端 host 入队还是远端 TCP 发送。
+- `DuelSystem` 会在新对局初始化本端玩家座位和黑白显示名；本地热座默认把用户资料映射到 Player1，电脑对局把用户资料映射到人类座位，LAN 对局按 host/client 资料和 host 座位映射显示名。收到 `OnLanPlayerProfileChanged` 后会刷新对应座位显示名。
 - `DuelAiSystem` 在电脑对局的 AI 回合读取 `duel_ai_difficulty` 配置，只负责 AI 回合触发、取消检查和提交 `OnSubmitDuelMove` 或 `OnSubmitDuelPass`。`DuelAiAnalyzeService` 负责构造并发送 KataGo AI 分析请求；`DuelAiBudgetService` 负责按当前棋盘路数解析 `realtimeMaxVisits9/13/19`、`candidateLimit9/13/19` 和 `maxScoreLoss9/13/19`，并决定动态预算下使用 probe 结果或升级完整预算；`DuelAiMoveSelector` 负责解析 `moveInfos`/`policy`、处理 KataGo 建议 `pass`、筛选本地规则允许的候选点并按难度配置加权选点。分析结果不可用时不擅自结束对局；没有可用候选点时，仅在难度配置允许提前虚手或棋盘已满时发出兜底虚手。
 - `DuelMoveRule` 提供共享落子规则入口和结果模型，`ChessBoardSystem` 用 accepted `DuelMoveResult` 执行真实落子，`DuelAiMoveSelector` 用同一规则入口检查候选点合法性；AI 检查候选点不能保留模拟产生的棋盘状态。
 - `DuelPage` 的预览棋子只在 `DuelInputAuthority` 授予本端输入权且 `DuelMoveRule.CheckMoveLegal()` 通过时显示；非法位置、AI 回合和 LAN 对端回合都不创建预览棋子，也不额外显示“无法落子”文案。真实落子被规则拒绝时，`ChessBoardSystem` 仍发出 `OnDuelMoveRejected` 作为系统边界事件。
@@ -46,9 +47,9 @@
 - `SceneComponentDuel` 维护运行时 ownership 结果缓存；形势展示和请求数子在局面未变化时复用缓存，合法落子或虚手会清除缓存。
 - `DuelSaveSystem` 保存对局后会发出 `OnDuelSaveResult`，UI 只展示保存成功或失败结果；场景数据异步保存失败不再被 fire-and-forget 静默忽略。
 - `DuelPage` 在 AI 回合或 LAN 对端回合不接受人类棋盘落子；AI 回合也不接受人类虚手或认输输入，避免人与 AI 同时驱动同一个回合。虚手、数子、悔棋和认输按钮会随 `DuelInputAuthority` 的输入权或对局状态切换可用性；LAN 数子和悔棋请求到达时会弹出对端确认窗口，数子结果到达后还会再弹双方结果确认窗口。
-- `DuelPage` 黑白双方信息面板会显示人类/AI 身份、当前行棋状态和主时间；开启读秒时显示剩余读秒次数和读秒时间，未开启读秒时隐藏读秒信息。请求形势后会先显示“计算中”，收到 ownership 结果后更新目数。
+- `DuelPage` 黑白双方信息面板会显示玩家显示名、人类/AI 身份、当前行棋状态和主时间；开启读秒时显示剩余读秒次数和读秒时间，未开启读秒时隐藏读秒信息。请求形势后会先显示“计算中”，收到 ownership 结果后更新目数。
 - `DuelPage.prefab` 维护动作提示 HUD；`DuelPage` 在成功落子、虚手、双方连续虚手进入数子和连续虚手数子失败时短暂显示提示，落子提示使用 KataGo 棋盘坐标，AI 行棋会带 AI 标记。
-- `DuelPage.prefab` 右侧中部维护结算结果面板，进入 `GameEnd` 后显示黑/白方胜出和结束原因；数子或连续虚手显示领先目数，超时显示黑/白方超时判负，认输显示黑/白方认输。
+- `DuelPage.prefab` 右侧中部维护结算结果面板，进入 `GameEnd` 后显示对应显示名的胜出和结束原因；数子或连续虚手显示领先目数，超时显示对应显示名超时判负，认输显示对应显示名认输。非平局终局会按 `SceneComponentDuel.localPlayerFlag` 记录本地用户胜场或负场，悔棋从终局回到对局时会允许后续终局重新记录。
 - `DuelSetupPopup` 默认选择无限持有时间；本地对局隐藏开局座位选择但保留让子下拉框，电脑对局和 LAN 创建房间显示 `猜先` / `执黑` / `执白`。`猜先` 强制分先并禁用让子选择，执黑或执白时可按棋盘尺寸选择让先或让 2 子到最大让子数。
 
 ## 设计观察

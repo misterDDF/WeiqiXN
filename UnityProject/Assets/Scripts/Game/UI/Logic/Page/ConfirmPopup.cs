@@ -65,6 +65,38 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         return requestId;
     }
 
+    public static int ShowInput(
+        string title,
+        string content,
+        string inputText,
+        Action<string> onConfirm,
+        Action onCancel = null,
+        string confirmText = null,
+        string cancelText = null,
+        bool canConfirm = true
+    )
+    {
+        int requestId = ++requestSequence;
+        pendingRequest = new ConfirmPopupRequest(
+            requestId,
+            title,
+            content,
+            confirmText,
+            cancelText,
+            null,
+            onCancel,
+            canConfirm,
+            true,
+            true,
+            true,
+            inputText,
+            onConfirm
+        );
+        pendingUpdateRequest = null;
+        Global.Instance.uiManager.ShowPage<ConfirmPopup>();
+        return requestId;
+    }
+
     public static bool CloseIfOpen(int requestId)
     {
         if (requestId <= 0) {
@@ -108,7 +140,10 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
             current?.onCancel,
             canConfirm,
             current == null || current.showConfirmButton,
-            current == null || current.showCancelButton
+            current == null || current.showCancelButton,
+            current != null && current.showInput,
+            current?.inputText,
+            current?.onInputConfirm
         );
         openedPopup?.ApplyPendingUpdate();
         openedPopup?.RefreshContent();
@@ -157,8 +192,11 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         }
 
         Action callback = currentRequest?.onConfirm;
+        Action<string> inputCallback = currentRequest?.onInputConfirm;
+        string inputText = binder.input_content != null ? binder.input_content.text : string.Empty;
         ClosePage();
         callback?.Invoke();
+        inputCallback?.Invoke(inputText);
     }
 
     private void OnClickBtnCancel()
@@ -178,6 +216,7 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         SetText(binder.txt_content, currentRequest?.content ?? DefaultContent);
         SetText(binder.txt_confirm, currentRequest?.confirmText ?? DefaultConfirmText);
         SetText(binder.txt_cancel, currentRequest?.cancelText ?? DefaultCancelText);
+        SetInputVisible(currentRequest != null && currentRequest.showInput, currentRequest?.inputText ?? string.Empty);
         SetConfirmInteractable(currentRequest == null || currentRequest.canConfirm);
         bool showConfirmButton = currentRequest == null || currentRequest.showConfirmButton;
         bool showCancelButton = currentRequest == null || currentRequest.showCancelButton;
@@ -220,6 +259,20 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         }
 
         ApplyButtonLayout(visible, showConfirmButton);
+    }
+
+    private void SetInputVisible(bool visible, string value)
+    {
+        if (binder.input_content == null) {
+            return;
+        }
+
+        binder.input_content.gameObject.SetActive(visible);
+        if (visible) {
+            binder.input_content.SetTextWithoutNotify(value ?? string.Empty);
+            binder.input_content.Select();
+            binder.input_content.ActivateInputField();
+        }
     }
 
     private void CacheButtonLayout()
@@ -291,6 +344,7 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         return binder != null
             && binder.txt_title != null
             && binder.txt_content != null
+            && binder.input_content != null
             && binder.txt_confirm != null
             && binder.txt_cancel != null
             && binder.btn_confirm != null
@@ -309,7 +363,10 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
             null,
             true,
             true,
-            true
+            true,
+            false,
+            string.Empty,
+            null
         );
 
         public readonly int requestId;
@@ -322,6 +379,9 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         public readonly bool canConfirm;
         public readonly bool showConfirmButton;
         public readonly bool showCancelButton;
+        public readonly bool showInput;
+        public readonly string inputText;
+        public readonly Action<string> onInputConfirm;
 
         public ConfirmPopupRequest(
             int requestId,
@@ -333,7 +393,10 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
             Action onCancel,
             bool canConfirm,
             bool showConfirmButton,
-            bool showCancelButton
+            bool showCancelButton,
+            bool showInput = false,
+            string inputText = null,
+            Action<string> onInputConfirm = null
         )
         {
             this.requestId = requestId;
@@ -346,6 +409,9 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
             this.canConfirm = canConfirm;
             this.showConfirmButton = showConfirmButton;
             this.showCancelButton = showCancelButton;
+            this.showInput = showInput;
+            this.inputText = inputText ?? string.Empty;
+            this.onInputConfirm = onInputConfirm;
         }
     }
 
