@@ -7,29 +7,14 @@ using System.Threading;
 using XNClient.ChessBoard;
 using XNClient.Logger;
 
-public class LanRoomService : ModuleBase
+public partial class LanRoomService : ModuleBase
 {
-    private const int DiscoveryPort = 47861;
-    private const int DefaultTcpPort = 47862;
-    private const int ConnectTimeoutMilliseconds = 2000;
-    private const int MaxPlayerCount = 2;
-    private const string DiscoveryPrefix = "WEIQIXN_LAN_ROOM";
-    private const string ClientHello = "WEIQIXN_JOIN";
-    private const string HostAccept = "WEIQIXN_ACCEPT";
-    private const string MsgReady = "READY";
-    private const string MsgState = "STATE";
-    private const string MsgStart = "START";
-    private const string MsgSubmitMove = "SUBMIT_MOVE";
-    private const string MsgMoveAccepted = "MOVE_ACCEPTED";
-    private const string MsgMoveRejected = "MOVE_REJECTED";
-    private const string MsgBoardSnapshot = "BOARD_SNAPSHOT";
-
     private readonly object roomLock = new object();
     private readonly Dictionary<string, LanRoomInfo> discoveredRooms = new Dictionary<string, LanRoomInfo>();
 
     private string hostedRoomId;
     private string hostedRoomName;
-    private int hostedTcpPort = DefaultTcpPort;
+    private int hostedTcpPort;
     private TcpListener hostListener;
     private UdpClient broadcastClient;
     private Thread broadcastThread;
@@ -76,7 +61,7 @@ public class LanRoomService : ModuleBase
         StopRoom();
         hostedRoomId = Guid.NewGuid().ToString("N");
         hostedRoomName = string.IsNullOrEmpty(roomName) ? "局域网房间" : roomName;
-        hostedTcpPort = DefaultTcpPort;
+        hostedTcpPort = LanRoomConfig.TcpListenPort;
         lock (sessionLock) {
             currentRole = LanRoomRole.Host;
             hostReady = false;
@@ -161,7 +146,7 @@ public class LanRoomService : ModuleBase
         try {
             discoveryClient = new UdpClient(AddressFamily.InterNetwork);
             discoveryClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-            discoveryClient.Client.Bind(new IPEndPoint(IPAddress.Any, DiscoveryPort));
+            discoveryClient.Client.Bind(new IPEndPoint(IPAddress.Any, LanRoomConfig.UdpBroadcastPort));
             isSearching = true;
             discoveryThread = new Thread(ReceiveDiscoveryLoop)
             {
@@ -206,16 +191,16 @@ public class LanRoomService : ModuleBase
                 return false;
             }
 
-            client.SendTimeout = ConnectTimeoutMilliseconds;
-            client.ReceiveTimeout = ConnectTimeoutMilliseconds;
-            byte[] joinBytes = Encoding.UTF8.GetBytes($"{ClientHello}|{room.roomId}\n");
+            client.SendTimeout = LanRoomConfig.ConnectTimeoutMilliseconds;
+            client.ReceiveTimeout = LanRoomConfig.ConnectTimeoutMilliseconds;
+            byte[] joinBytes = Encoding.UTF8.GetBytes($"{LanRoomProtocolName.ClientHello}|{room.roomId}\n");
             NetworkStream stream = client.GetStream();
             stream.Write(joinBytes, 0, joinBytes.Length);
 
-            byte[] buffer = new byte[128];
+            byte[] buffer = new byte[LanRoomConfig.HandshakeBufferSize];
             int readLength = stream.Read(buffer, 0, buffer.Length);
             string response = Encoding.UTF8.GetString(buffer, 0, readLength).Trim();
-            if (!response.StartsWith(HostAccept, StringComparison.Ordinal)) {
+            if (!response.StartsWith(LanRoomProtocolName.HostAccept, StringComparison.Ordinal)) {
                 client.Close();
                 lastStatus = $"连接房间失败：主机拒绝连接。";
                 return false;
@@ -234,7 +219,7 @@ public class LanRoomService : ModuleBase
                 pendingBoardSnapshots.Clear();
             }
             StartSessionReader(client);
-            SendRoomMessage($"{MsgReady}|CLIENT|0");
+            SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.Ready)}|CLIENT|0");
             lastStatus = $"已连接房间 {room.name}。";
             XNLogger.LogInfo("LAN room connected.", ("roomId", room.roomId), ("host", room.hostAddress));
             return true;
@@ -264,7 +249,7 @@ public class LanRoomService : ModuleBase
         if (role == LanRoomRole.Host) {
             BroadcastRoomState();
         } else {
-            SendRoomMessage($"{MsgReady}|CLIENT|{BoolToInt(ready)}");
+            SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.Ready)}|CLIENT|{BoolToInt(ready)}");
         }
 
         lastStatus = ready ? "已准备。" : "已取消准备。";
@@ -285,7 +270,7 @@ public class LanRoomService : ModuleBase
             return false;
         }
 
-        SendRoomMessage(MsgStart);
+        SendRoomMessage(LanRoomProtocolName.ToWireName(LanRoomProtocol.Start));
         BroadcastRoomState();
         lastStatus = "已发送开局命令。";
         return true;
@@ -315,20 +300,20 @@ public class LanRoomService : ModuleBase
             return false;
         }
 
-        SendRoomMessage($"{MsgSubmitMove}|{move.moveId}|{move.boardVersion}|{(int)move.playerFlag}|{move.coords.x}|{move.coords.z}");
+        SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.SubmitMove)}|{move.moveId}|{move.boardVersion}|{(int)move.playerFlag}|{move.coords.x}|{move.coords.z}");
         return true;
     }
 
     public void BroadcastAcceptedMove(LanDuelMoveMessage move)
     {
         EnqueueAcceptedMove(move);
-        SendRoomMessage($"{MsgMoveAccepted}|{move.moveId}|{move.boardVersion}|{(int)move.playerFlag}|{move.coords.x}|{move.coords.z}");
+        SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.MoveAccepted)}|{move.moveId}|{move.boardVersion}|{(int)move.playerFlag}|{move.coords.x}|{move.coords.z}");
     }
 
     public void BroadcastRejectedMove(LanDuelMoveRejectMessage move)
     {
         EnqueueRejectedMove(move);
-        SendRoomMessage($"{MsgMoveRejected}|{move.moveId}|{(int)move.playerFlag}|{move.coords.x}|{move.coords.z}|{(int)move.rejectReason}");
+        SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.MoveRejected)}|{move.moveId}|{(int)move.playerFlag}|{move.coords.x}|{move.coords.z}|{(int)move.rejectReason}");
     }
 
     public void BroadcastBoardSnapshot(LanDuelBoardSnapshotMessage snapshot)
@@ -398,11 +383,11 @@ public class LanRoomService : ModuleBase
 
     private void BroadcastRoomLoop()
     {
-        IPEndPoint broadcastEndPoint = new IPEndPoint(IPAddress.Broadcast, DiscoveryPort);
+        IPEndPoint broadcastEndPoint = new IPEndPoint(IPAddress.Broadcast, LanRoomConfig.UdpBroadcastPort);
         while (isHosting) {
             try {
                 string localAddress = GetLocalAddress();
-                string payload = $"{DiscoveryPrefix}|{hostedRoomId}|{hostedRoomName}|{localAddress}|{hostedTcpPort}|{GetHostedPlayerCount()}|{MaxPlayerCount}";
+                string payload = $"{LanRoomProtocolName.DiscoveryPrefix}|{hostedRoomId}|{hostedRoomName}|{localAddress}|{hostedTcpPort}|{GetHostedPlayerCount()}|{LanRoomConfig.MaxPlayerCount}";
                 byte[] data = Encoding.UTF8.GetBytes(payload);
                 broadcastClient?.Send(data, data.Length, broadcastEndPoint);
             }
@@ -413,7 +398,7 @@ public class LanRoomService : ModuleBase
                 XNLogger.LogWarn("Broadcast LAN room failed.", ("error", e.Message));
             }
 
-            Thread.Sleep(1000);
+            Thread.Sleep(LanRoomConfig.BroadcastIntervalMilliseconds);
         }
     }
 
@@ -450,20 +435,20 @@ public class LanRoomService : ModuleBase
             try {
                 TcpClient client = hostListener.AcceptTcpClient();
                 if (connectedClient != null) {
-                    SendAndClose(client, "WEIQIXN_FULL\n");
+                    SendAndClose(client, $"{LanRoomProtocolName.HostFull}\n");
                     continue;
                 }
 
                 NetworkStream stream = client.GetStream();
-                byte[] buffer = new byte[128];
+                byte[] buffer = new byte[LanRoomConfig.HandshakeBufferSize];
                 int readLength = stream.Read(buffer, 0, buffer.Length);
                 string request = Encoding.UTF8.GetString(buffer, 0, readLength).Trim();
-                if (!request.StartsWith($"{ClientHello}|{hostedRoomId}", StringComparison.Ordinal)) {
-                    SendAndClose(client, "WEIQIXN_REJECT\n");
+                if (!request.StartsWith($"{LanRoomProtocolName.ClientHello}|{hostedRoomId}", StringComparison.Ordinal)) {
+                    SendAndClose(client, $"{LanRoomProtocolName.HostReject}\n");
                     continue;
                 }
 
-                byte[] acceptBytes = Encoding.UTF8.GetBytes($"{HostAccept}|{hostedRoomId}\n");
+                byte[] acceptBytes = Encoding.UTF8.GetBytes($"{LanRoomProtocolName.HostAccept}|{hostedRoomId}\n");
                 stream.Write(acceptBytes, 0, acceptBytes.Length);
                 connectedClient = client;
                 lock (sessionLock) {
@@ -499,7 +484,7 @@ public class LanRoomService : ModuleBase
     {
         room = default;
         string[] parts = payload.Split('|');
-        if (parts.Length != 7 || parts[0] != DiscoveryPrefix) {
+        if (parts.Length != 7 || parts[0] != LanRoomProtocolName.DiscoveryPrefix) {
             return false;
         }
 
@@ -548,7 +533,7 @@ public class LanRoomService : ModuleBase
 
     private void ReadSessionLoop(TcpClient client)
     {
-        byte[] buffer = new byte[512];
+        byte[] buffer = new byte[LanRoomConfig.SessionReadBufferSize];
         StringBuilder pendingText = new StringBuilder();
         while (IsCurrentClient(client)) {
             try {
@@ -594,49 +579,29 @@ public class LanRoomService : ModuleBase
 
     private void HandleSessionMessage(string message)
     {
-        string[] parts = message.Split('|');
-        if (parts.Length == 0) {
+        if (!LanRoomProtocolMessage.TryParse(message, out LanRoomProtocolMessage protocolMessage)) {
             return;
         }
 
-        switch (parts[0]) {
-            case MsgReady:
-                HandleReadyMessage(parts);
-                break;
-            case MsgState:
-                HandleStateMessage(parts);
-                break;
-            case MsgStart:
-                lock (sessionLock) {
-                    gameStarted = true;
-                }
-                lastStatus = "主机已开始对局。";
-                break;
-            case MsgSubmitMove:
-                HandleMoveMessage(parts, true);
-                break;
-            case MsgMoveAccepted:
-                HandleMoveMessage(parts, false);
-                break;
-            case MsgMoveRejected:
-                HandleMoveRejectedMessage(parts);
-                break;
-            case MsgBoardSnapshot:
-                HandleBoardSnapshotMessage(parts);
-                break;
+        EnsureProtocolHandlers();
+        if (protocolHandlers != null && protocolHandlers.TryGetValue(protocolMessage.protocol, out Action<LanRoomProtocolMessage> handler)) {
+            handler(protocolMessage);
+            return;
         }
+
+        XNLogger.LogWarn("Unknown LAN room protocol.", ("protocol", protocolMessage.protocol));
     }
 
-    private void HandleReadyMessage(string[] parts)
+    private void HandleReadyMessage(LanRoomProtocolMessage message)
     {
-        if (parts.Length != 3 || !TryParseBool(parts[2], out bool ready)) {
+        if (message.ArgCount != 2 || !TryParseBool(message.GetArg(1), out bool ready)) {
             return;
         }
 
         lock (sessionLock) {
-            if (parts[1] == "HOST") {
+            if (message.GetArg(0) == "HOST") {
                 hostReady = ready;
-            } else if (parts[1] == "CLIENT") {
+            } else if (message.GetArg(0) == "CLIENT") {
                 clientReady = ready;
             }
         }
@@ -647,12 +612,12 @@ public class LanRoomService : ModuleBase
         lastStatus = SessionState.GetDisplayText();
     }
 
-    private void HandleStateMessage(string[] parts)
+    private void HandleStateMessage(LanRoomProtocolMessage message)
     {
-        if (parts.Length != 4 ||
-            !TryParseBool(parts[1], out bool nextHostReady) ||
-            !TryParseBool(parts[2], out bool nextClientReady) ||
-            !TryParseBool(parts[3], out bool nextGameStarted)) {
+        if (message.ArgCount != 3 ||
+            !TryParseBool(message.GetArg(0), out bool nextHostReady) ||
+            !TryParseBool(message.GetArg(1), out bool nextClientReady) ||
+            !TryParseBool(message.GetArg(2), out bool nextGameStarted)) {
             return;
         }
 
@@ -667,17 +632,17 @@ public class LanRoomService : ModuleBase
     private void BroadcastRoomState()
     {
         LanRoomSessionState state = SessionState;
-        SendRoomMessage($"{MsgState}|{BoolToInt(state.hostReady)}|{BoolToInt(state.clientReady)}|{BoolToInt(state.gameStarted)}");
+        SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.State)}|{BoolToInt(state.hostReady)}|{BoolToInt(state.clientReady)}|{BoolToInt(state.gameStarted)}");
     }
 
-    private void HandleMoveMessage(string[] parts, bool isSubmit)
+    private void HandleMoveMessage(LanRoomProtocolMessage message, bool isSubmit)
     {
-        if (parts.Length != 6 ||
-            !int.TryParse(parts[1], out int moveId) ||
-            !int.TryParse(parts[2], out int boardVersion) ||
-            !int.TryParse(parts[3], out int playerFlagValue) ||
-            !int.TryParse(parts[4], out int x) ||
-            !int.TryParse(parts[5], out int z)) {
+        if (message.ArgCount != 5 ||
+            !int.TryParse(message.GetArg(0), out int moveId) ||
+            !int.TryParse(message.GetArg(1), out int boardVersion) ||
+            !int.TryParse(message.GetArg(2), out int playerFlagValue) ||
+            !int.TryParse(message.GetArg(3), out int x) ||
+            !int.TryParse(message.GetArg(4), out int z)) {
             return;
         }
 
@@ -703,14 +668,14 @@ public class LanRoomService : ModuleBase
         }
     }
 
-    private void HandleMoveRejectedMessage(string[] parts)
+    private void HandleMoveRejectedMessage(LanRoomProtocolMessage message)
     {
-        if (parts.Length != 6 ||
-            !int.TryParse(parts[1], out int moveId) ||
-            !int.TryParse(parts[2], out int playerFlagValue) ||
-            !int.TryParse(parts[3], out int x) ||
-            !int.TryParse(parts[4], out int z) ||
-            !int.TryParse(parts[5], out int rejectReasonValue)) {
+        if (message.ArgCount != 5 ||
+            !int.TryParse(message.GetArg(0), out int moveId) ||
+            !int.TryParse(message.GetArg(1), out int playerFlagValue) ||
+            !int.TryParse(message.GetArg(2), out int x) ||
+            !int.TryParse(message.GetArg(3), out int z) ||
+            !int.TryParse(message.GetArg(4), out int rejectReasonValue)) {
             return;
         }
 
@@ -728,20 +693,20 @@ public class LanRoomService : ModuleBase
         }
     }
 
-    private void HandleBoardSnapshotMessage(string[] parts)
+    private void HandleBoardSnapshotMessage(LanRoomProtocolMessage message)
     {
-        if (parts.Length != 8 ||
-            !int.TryParse(parts[1], out int boardVersion) ||
-            !int.TryParse(parts[2], out int boardSize) ||
-            !int.TryParse(parts[3], out int nextTurnPlayerFlagValue) ||
-            !int.TryParse(parts[4], out int latestMoveX) ||
-            !int.TryParse(parts[5], out int latestMoveZ) ||
-            !int.TryParse(parts[6], out int latestMovePlayerFlagValue)) {
+        if (message.ArgCount != 7 ||
+            !int.TryParse(message.GetArg(0), out int boardVersion) ||
+            !int.TryParse(message.GetArg(1), out int boardSize) ||
+            !int.TryParse(message.GetArg(2), out int nextTurnPlayerFlagValue) ||
+            !int.TryParse(message.GetArg(3), out int latestMoveX) ||
+            !int.TryParse(message.GetArg(4), out int latestMoveZ) ||
+            !int.TryParse(message.GetArg(5), out int latestMovePlayerFlagValue)) {
             return;
         }
 
         List<LanDuelBoardSnapshotStone> stones = new List<LanDuelBoardSnapshotStone>();
-        string stonePayload = parts[7];
+        string stonePayload = message.GetArg(6);
         if (!string.IsNullOrEmpty(stonePayload)) {
             string[] stoneTexts = stonePayload.Split(';');
             foreach (string stoneText in stoneTexts) {
@@ -802,7 +767,7 @@ public class LanRoomService : ModuleBase
 
         int latestMoveX = snapshot.latestMoveCoords != null ? snapshot.latestMoveCoords.x : -1;
         int latestMoveZ = snapshot.latestMoveCoords != null ? snapshot.latestMoveCoords.z : -1;
-        return $"{MsgBoardSnapshot}|{snapshot.boardVersion}|{snapshot.boardSize}|{(int)snapshot.nextTurnPlayerFlag}|{latestMoveX}|{latestMoveZ}|{(int)snapshot.latestMovePlayerFlag}|{stonesBuilder}";
+        return $"{LanRoomProtocolName.ToWireName(LanRoomProtocol.BoardSnapshot)}|{snapshot.boardVersion}|{snapshot.boardSize}|{(int)snapshot.nextTurnPlayerFlag}|{latestMoveX}|{latestMoveZ}|{(int)snapshot.latestMovePlayerFlag}|{stonesBuilder}";
     }
 
     private void SendRoomMessage(string message)
@@ -874,7 +839,7 @@ public class LanRoomService : ModuleBase
     private bool ConnectWithTimeout(TcpClient client, string hostAddress, int tcpPort)
     {
         IAsyncResult connectResult = client.BeginConnect(hostAddress, tcpPort, null, null);
-        bool connected = connectResult.AsyncWaitHandle.WaitOne(ConnectTimeoutMilliseconds);
+        bool connected = connectResult.AsyncWaitHandle.WaitOne(LanRoomConfig.ConnectTimeoutMilliseconds);
         if (!connected) {
             return false;
         }

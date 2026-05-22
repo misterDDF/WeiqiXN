@@ -27,6 +27,7 @@
 - `DuelPage` 只负责页面生命周期、事件注册和按钮命令转发；`DuelPageBoardInputController` 负责棋盘鼠标命中、合法预览棋子生命周期和点击落子坐标输出；`DuelPageHudView` 负责玩家信息、形势结果、数子确认文案、终局面板、动作提示和设置按钮状态；`DuelPageInteractionState` 集中计算人类回合输入、悔棋、认输、AI 身份和读秒显示可用性。
 - `DuelFSM` 表示本地回合生命周期，回合开始、输入、超时和结束由状态机管理，而不是由 UI 直接切换。
 - `LanRoomService` 是第一版局域网房间服务入口，负责 host 侧 TCP 监听、UDP 房间广播、client 侧 UDP 搜索、TCP 加入握手、最小准备状态交换、host 开局命令和最小对局消息搬运；`LanRoomPopup` 在收到开局状态后进入带 LAN 标记的 `DuelScene`。当前服务只承载房间发现、连接状态、落子命令和棋盘快照搬运，不直接操作 UI 预制体；棋盘权威推进由 host 侧 `LanDuelSystem` 通过现有规则入口完成。
+- `lan_room_config` 只承载局域网房间运行参数，例如 UDP/TCP 端口、连接超时、人数上限、广播间隔和缓冲区大小。LAN 协议名直接使用 `LanRoomProtocol` 枚举名，接收侧按协议字符串查找 `OnXxx` 函数，不把协议字符串放入配表。
 - 联机相关的会话、房间、座位、准备、命令校验、权威状态推进和快照广播应收敛到单一会话核心；第一版可以作为 host 进程中的嵌入式 server core 运行，后续若拆分进程也必须保持同一套命令和快照合同。
 - `Assets/Config/DataJson` 是当前棋盘、场景、UI 页面、预制体和 TMP sprite 的数据来源。
 - 日志开关集中在 `LoggerConfig`。事件分发、FSM 参数/状态转移、AI 观察日志和 AI 分析细节日志归入诊断级输出；错误、警告、关键启动、AI 回合开始和最终落子/虚手决策归入常规输出。诊断级输出由 `ENABLE_EVENT_VERBOSE_LOG`、`ENABLE_FSM_VERBOSE_LOG`、`ENABLE_DUEL_AI_VERBOSE_LOG` 和 `ENABLE_DUEL_AI_DETAIL_LOG` 控制。

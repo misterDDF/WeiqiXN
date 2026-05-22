@@ -1,0 +1,37 @@
+{
+  "udpBroadcastPort": {
+    "key": "udpBroadcastPort",
+    "remark": "房间广播端口",
+    "value": "47861"
+  },
+  "tcpListenPort": {
+    "key": "tcpListenPort",
+    "remark": "房间 TCP 监听端口",
+    "value": "47862"
+  },
+  "connectTimeoutMilliseconds": {
+    "key": "connectTimeoutMilliseconds",
+    "remark": "TCP 连接和握手读写超时时间（毫秒）",
+    "value": "2000"
+  },
+  "maxPlayerCount": {
+    "key": "maxPlayerCount",
+    "remark": "房间最大玩家数",
+    "value": "2"
+  },
+  "broadcastIntervalMilliseconds": {
+    "key": "broadcastIntervalMilliseconds",
+    "remark": "房间广播间隔（毫秒）",
+    "value": "1000"
+  },
+  "handshakeBufferSize": {
+    "key": "handshakeBufferSize",
+    "remark": "TCP 加入握手读写缓冲区大小",
+    "value": "128"
+  },
+  "sessionReadBufferSize": {
+    "key": "sessionReadBufferSize",
+    "remark": "TCP 会话读取缓冲区大小",
+    "value": "512"
+  }
+}

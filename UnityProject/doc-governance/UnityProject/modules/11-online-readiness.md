@@ -15,6 +15,7 @@
 - `LanRoomService` 已提供最小局域网房间发现、连接、准备状态、开局命令和落子命令搬运骨架；`LanRoomPopup` 会在开局状态到达后进入带 LAN 标记的 `DuelScene`，UI 不直接持有 socket。
 - `LanDuelSystem` 已接入 `DuelScene`，host 消费带棋盘版本的 `SubmitMove` 并通过现有规则入口广播 `MoveAccepted` / `MoveRejected`，client 只应用 host 接受的落子。
 - 合法落子会递增 `SceneComponentDuel.lanBoardVersion`，host 随后广播包含棋盘尺寸、下一手玩家、最后一步和棋子列表的 `BoardSnapshot`，client 用快照纠正本地棋盘。
+- `lan_room_config` 已承载局域网房间端口、连接超时、人数上限、广播间隔和缓冲区大小；协议消息名由 `LanRoomProtocol` 枚举按命名约定生成，并通过 `OnXxx` 接收函数注册到协议回调表。
 
 ## 主要缺口
 
