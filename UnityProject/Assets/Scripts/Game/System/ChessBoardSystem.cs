@@ -160,7 +160,12 @@ public class ChessBoardSystem : SystemBase
         return ApplyLanDuelMove(move, false, out _);
     }
 
-    private bool ApplyLanDuelMove(LanDuelMoveMessage move, bool isHostAuthority, out DuelMoveRejectReason rejectReason)
+    private bool ApplyLanDuelMove(
+        LanDuelMoveMessage move,
+        bool isHostAuthority,
+        out DuelMoveRejectReason rejectReason,
+        bool emitRejectEvent = true,
+        bool emitAcceptedEvent = true)
     {
         rejectReason = DuelMoveRejectReason.None;
         var compDuel = scene.GetComponent<SceneComponentDuel>();
@@ -179,13 +184,17 @@ public class ChessBoardSystem : SystemBase
         PlayerFlag curPlayerFlag = (PlayerFlag)curPlayer.playerFlag.value;
         if (curPlayerFlag != move.playerFlag) {
             rejectReason = DuelMoveRejectReason.NotPlayerTurn;
-            scene.EmitSystemEvent(new OnDuelMoveRejected(move.playerFlag, move.coords.Clone(), rejectReason));
+            if (emitRejectEvent) {
+                scene.EmitSystemEvent(new OnDuelMoveRejected(move.playerFlag, move.coords.Clone(), rejectReason));
+            }
             return false;
         }
 
         if (isHostAuthority && move.boardVersion != compDuel.lanBoardVersion.value) {
             rejectReason = DuelMoveRejectReason.BoardVersionMismatch;
-            scene.EmitSystemEvent(new OnDuelMoveRejected(move.playerFlag, move.coords.Clone(), rejectReason));
+            if (emitRejectEvent) {
+                scene.EmitSystemEvent(new OnDuelMoveRejected(move.playerFlag, move.coords.Clone(), rejectReason));
+            }
             return false;
         }
 
@@ -200,7 +209,9 @@ public class ChessBoardSystem : SystemBase
         );
         if (!moveResult.accepted) {
             rejectReason = moveResult.rejectReason;
-            scene.EmitSystemEvent(new OnDuelMoveRejected(move.playerFlag, move.coords.Clone(), moveResult.rejectReason));
+            if (emitRejectEvent) {
+                scene.EmitSystemEvent(new OnDuelMoveRejected(move.playerFlag, move.coords.Clone(), moveResult.rejectReason));
+            }
             return false;
         }
 
@@ -223,7 +234,9 @@ public class ChessBoardSystem : SystemBase
         } else {
             compDuel.lanBoardVersion.value += 1;
         }
-        scene.EmitSystemEvent(new OnAfterAddChessToBoard(move.playerFlag, move.coords.Clone()));
+        if (emitAcceptedEvent) {
+            scene.EmitSystemEvent(new OnAfterAddChessToBoard(move.playerFlag, move.coords.Clone()));
+        }
         return true;
     }
 
@@ -308,6 +321,87 @@ public class ChessBoardSystem : SystemBase
             return;
         }
 
+        if (snapshot.boardVersion < previousBoardVersion) {
+            XNLogger.LogWarn("LAN board snapshot skipped, snapshot version is older than local board.",
+                ("snapshotBoardVersion", snapshot.boardVersion.ToString()),
+                ("localBoardVersion", previousBoardVersion.ToString()));
+            return;
+        }
+
+        if (snapshot.boardVersion == previousBoardVersion && IsLocalBoardSameAsSnapshot(compChessBoard, snapshot)) {
+            ApplyLanBoardSnapshotMetadata(compDuel, compChessBoard, snapshot, previousBoardVersion, false, true);
+            return;
+        }
+
+        if (snapshot.boardVersion == previousBoardVersion + 1 && TryApplySnapshotAsSingleMove(snapshot)) {
+            if (IsLocalBoardSameAsSnapshot(compChessBoard, snapshot)) {
+                ApplyLanBoardSnapshotMetadata(compDuel, compChessBoard, snapshot, previousBoardVersion, true, false);
+                return;
+            }
+        }
+
+        RebuildLanBoardFromSnapshot(compDuel, compChessBoard, snapshot, previousBoardVersion);
+    }
+
+    private bool TryApplySnapshotAsSingleMove(LanDuelBoardSnapshotMessage snapshot)
+    {
+        if (snapshot.latestMoveCoords == null || snapshot.latestMovePlayerFlag == 0) {
+            return false;
+        }
+
+        LanDuelMoveMessage move = new LanDuelMoveMessage(
+            0,
+            snapshot.boardVersion,
+            snapshot.latestMovePlayerFlag,
+            snapshot.latestMoveCoords.Clone());
+        return ApplyLanDuelMove(move, false, out _, false, false);
+    }
+
+    private bool IsLocalBoardSameAsSnapshot(SceneComponentChessBoard compChessBoard, LanDuelBoardSnapshotMessage snapshot)
+    {
+        if (compChessBoard == null || compChessBoard.chessInfoDict == null || compChessBoard.chessBoardGrid == null) {
+            return false;
+        }
+
+        Dictionary<int, PlayerFlag> snapshotStoneFlags = new Dictionary<int, PlayerFlag>();
+        if (snapshot.stones != null) {
+            foreach (LanDuelBoardSnapshotStone stone in snapshot.stones) {
+                if (stone.coords == null || stone.playerFlag == 0) {
+                    return false;
+                }
+
+                int posIndex = compChessBoard.GetPosIndexByCoords(stone.coords);
+                if (posIndex < 0 || snapshotStoneFlags.ContainsKey(posIndex)) {
+                    return false;
+                }
+
+                snapshotStoneFlags[posIndex] = stone.playerFlag;
+            }
+        }
+
+        int localStoneCount = 0;
+        foreach (var kvp in compChessBoard.chessInfoDict) {
+            if (!int.TryParse(kvp.Key, out int posIndex) || kvp.Value == null || kvp.Value.chessFlag.value == 0) {
+                return false;
+            }
+
+            if (!snapshotStoneFlags.TryGetValue(posIndex, out PlayerFlag snapshotPlayerFlag) ||
+                snapshotPlayerFlag != (PlayerFlag)kvp.Value.chessFlag.value) {
+                return false;
+            }
+
+            localStoneCount += 1;
+        }
+
+        return localStoneCount == snapshotStoneFlags.Count;
+    }
+
+    private void RebuildLanBoardFromSnapshot(
+        SceneComponentDuel compDuel,
+        SceneComponentChessBoard compChessBoard,
+        LanDuelBoardSnapshotMessage snapshot,
+        int previousBoardVersion)
+    {
         ClearChessEntities();
         compChessBoard.chessInfoDict.Clear();
         compChessBoard.lastChessInfoDict.Clear();
@@ -330,7 +424,24 @@ public class ChessBoardSystem : SystemBase
         }
 
         compChessBoard.lastChessInfoDict = compChessBoard.CreateCacheChessInfoDict();
+        ApplyLanBoardSnapshotMetadata(
+            compDuel,
+            compChessBoard,
+            snapshot,
+            previousBoardVersion,
+            snapshot.boardVersion > previousBoardVersion,
+            true);
+    }
 
+    private void ApplyLanBoardSnapshotMetadata(
+        SceneComponentDuel compDuel,
+        SceneComponentChessBoard compChessBoard,
+        LanDuelBoardSnapshotMessage snapshot,
+        int previousBoardVersion,
+        bool emitAcceptedMoveEvent,
+        bool appendFallbackMove)
+    {
+        compChessBoard.chessBoardGrid.ClearLatestMoveMarker();
         if (snapshot.latestMoveCoords != null && snapshot.latestMovePlayerFlag != 0) {
             DrawLatestMoveMarker(compChessBoard, snapshot.latestMovePlayerFlag, snapshot.latestMoveCoords);
         }
@@ -338,7 +449,8 @@ public class ChessBoardSystem : SystemBase
         compDuel.lanBoardVersion.value = snapshot.boardVersion;
         if (snapshot.hasKataGoMoves) {
             compDuel.kataGoMoves = DuelMoveHistory.Clone(snapshot.kataGoMoves);
-        } else if (snapshot.boardVersion > previousBoardVersion &&
+        } else if (appendFallbackMove &&
+            snapshot.boardVersion > previousBoardVersion &&
             snapshot.latestMoveCoords != null &&
             snapshot.latestMovePlayerFlag != 0) {
             compDuel.AppendKataGoMove(snapshot.latestMovePlayerFlag, snapshot.latestMoveCoords, compChessBoard.chessBoardGrid.gridSize);
@@ -349,11 +461,10 @@ public class ChessBoardSystem : SystemBase
             compDuel.curTurnPlayerGuid.value = compDuel.player2Guid.value;
         }
 
-        if (snapshot.boardVersion > previousBoardVersion &&
+        if (emitAcceptedMoveEvent &&
             snapshot.latestMoveCoords != null &&
             snapshot.latestMovePlayerFlag != 0) {
             scene.EmitSystemEvent(new OnAfterAddChessToBoard(snapshot.latestMovePlayerFlag, snapshot.latestMoveCoords.Clone()));
-            return;
         }
     }
 
