@@ -75,7 +75,9 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
             duelParams.boardCfgId,
             duelParams.holdTimeCfgId,
             duelParams.byoyomiCountCfgId,
-            duelParams.byoyomiTimeCfgId);
+            duelParams.byoyomiTimeCfgId,
+            duelParams.handicapCfgId,
+            duelParams.lanHostPlayerFlag);
         Global.Instance.lanRoomService.CreateRoom(MessageText.Get("lan_room_default_host_name"));
         Global.Instance.lanRoomService.SetLocalReady(true);
         RefreshRoomList(null);
@@ -230,10 +232,13 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
                 holdTimeCfgId = service.LanHoldTimeCfgId,
                 byoyomiCountCfgId = service.LanByoyomiCountCfgId,
                 byoyomiTimeCfgId = service.LanByoyomiTimeCfgId,
+                handicapCfgId = service.LanHandicapCfgId,
                 isAiDuel = false,
                 aiDifficultyCfgId = string.Empty,
+                localPlayerFlag = 0,
                 isLanDuel = true,
                 lanRole = state.role,
+                lanHostPlayerFlag = service.LanHostPlayerFlag,
                 isLanRoomHostConfig = true,
             }
         };

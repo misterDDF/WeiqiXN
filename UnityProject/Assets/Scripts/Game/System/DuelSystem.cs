@@ -7,7 +7,7 @@ using XNClient.Logger;
 public class DuelSystem : SystemBase
 {
     public override string systemName => GetSystemName<DuelSystem>();
-    private const string DEFAULT_HOLD_TIME_CFG_ID = "5m";
+    private const string DEFAULT_HOLD_TIME_CFG_ID = "infinite";
     private const string DEFAULT_BYOYOMI_COUNT_CFG_ID = "off";
     private const string DEFAULT_BYOYOMI_TIME_CFG_ID = "30s";
     private const string DEFAULT_AI_DIFFICULTY_CFG_ID = "k20_k15";
@@ -54,6 +54,8 @@ public class DuelSystem : SystemBase
                 InitLanDuelConfig(compDuel);
                 InitPlayerTimeControl(compDuel, player1);
                 InitPlayerTimeControl(compDuel, player2);
+                ApplyInitialHandicapStones(compDuel);
+                compDuel.curTurnPlayerGuid.value = GetNextTurnPlayerGuid(compDuel, 0);
 
                 compDuel.duelFSM.Activate();
                 scene.GetSystem<DuelInputAuthoritySystem>()?.RefreshLocalInputAuthority();
@@ -62,6 +64,7 @@ public class DuelSystem : SystemBase
             var compDuel = scene.GetComponent<SceneComponentDuel>();
             if (compDuel != null) {
                 EnsureTimeControlConfig(compDuel);
+                EnsureHandicapConfig(compDuel);
                 EnsureAiDuelConfig(compDuel);
                 EnsureLanDuelConfig(compDuel);
 
@@ -81,6 +84,7 @@ public class DuelSystem : SystemBase
         compDuel.holdTimeCfgId.value = useHostConfig ? duelParams.holdTimeCfgId : GetValidHoldTimeCfgId(duelParams?.holdTimeCfgId);
         compDuel.byoyomiCountCfgId.value = useHostConfig ? duelParams.byoyomiCountCfgId : GetValidByoyomiCountCfgId(duelParams?.byoyomiCountCfgId);
         compDuel.byoyomiTimeCfgId.value = useHostConfig ? duelParams.byoyomiTimeCfgId : GetValidByoyomiTimeCfgId(duelParams?.byoyomiTimeCfgId);
+        compDuel.handicapCfgId.value = useHostConfig ? duelParams.handicapCfgId : GetValidHandicapCfgId(duelParams?.handicapCfgId);
     }
 
     private void InitAiDuelConfig(SceneComponentDuel compDuel)
@@ -90,7 +94,9 @@ public class DuelSystem : SystemBase
         compDuel.aiDifficultyCfgId.value = compDuel.isAiDuel.value
             ? GetValidAiDifficultyCfgId(duelParams?.aiDifficultyCfgId)
             : string.Empty;
-        compDuel.aiPlayerGuid.value = compDuel.isAiDuel.value ? compDuel.player2Guid.value : string.Empty;
+        PlayerFlag localPlayerFlag = DuelUtils.GetValidPlayerFlag(duelParams != null ? duelParams.localPlayerFlag : 0);
+        PlayerFlag aiPlayerFlag = localPlayerFlag.GetOpponentPlayerFlag();
+        compDuel.aiPlayerGuid.value = compDuel.isAiDuel.value ? GetPlayerGuidByFlag(compDuel, aiPlayerFlag) : string.Empty;
     }
 
     private void InitLanDuelConfig(SceneComponentDuel compDuel)
@@ -98,6 +104,8 @@ public class DuelSystem : SystemBase
         var duelParams = scene.sceneCreateParams.duelSceneCreateParamas;
         compDuel.isLanDuel.value = duelParams != null && duelParams.isLanDuel;
         compDuel.lanRole.value = compDuel.isLanDuel.value ? (int)duelParams.lanRole : (int)LanRoomRole.None;
+        compDuel.lanHostPlayerFlag.value = (int)DuelUtils.GetValidPlayerFlag(
+            duelParams != null ? duelParams.lanHostPlayerFlag : 0);
     }
 
     private void EnsureTimeControlConfig(SceneComponentDuel compDuel)
@@ -105,6 +113,11 @@ public class DuelSystem : SystemBase
         compDuel.holdTimeCfgId.value = GetValidHoldTimeCfgId(compDuel.holdTimeCfgId.value);
         compDuel.byoyomiCountCfgId.value = GetValidByoyomiCountCfgId(compDuel.byoyomiCountCfgId.value);
         compDuel.byoyomiTimeCfgId.value = GetValidByoyomiTimeCfgId(compDuel.byoyomiTimeCfgId.value);
+    }
+
+    private void EnsureHandicapConfig(SceneComponentDuel compDuel)
+    {
+        compDuel.handicapCfgId.value = GetValidHandicapCfgId(compDuel.handicapCfgId.value);
     }
 
     private void EnsureAiDuelConfig(SceneComponentDuel compDuel)
@@ -125,6 +138,7 @@ public class DuelSystem : SystemBase
     {
         if (!compDuel.isLanDuel.value) {
             compDuel.lanRole.value = (int)LanRoomRole.None;
+            compDuel.lanHostPlayerFlag.value = (int)PlayerFlag.Player1;
             compDuel.lanBoardVersion.value = 0;
             return;
         }
@@ -132,6 +146,7 @@ public class DuelSystem : SystemBase
         if (compDuel.lanRole.value != (int)LanRoomRole.Host && compDuel.lanRole.value != (int)LanRoomRole.Client) {
             compDuel.lanRole.value = (int)LanRoomRole.None;
         }
+        compDuel.lanHostPlayerFlag.value = (int)DuelUtils.GetValidPlayerFlag((PlayerFlag)compDuel.lanHostPlayerFlag.value);
     }
 
     private string GetValidHoldTimeCfgId(string cfgId)
@@ -156,6 +171,13 @@ public class DuelSystem : SystemBase
             return cfgId;
         }
         return DEFAULT_BYOYOMI_TIME_CFG_ID;
+    }
+
+    private string GetValidHandicapCfgId(string cfgId)
+    {
+        SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
+        string boardCfgId = compChessBoard?.boardCfgId.value;
+        return DuelHandicapPlacement.GetValidCfgId(cfgId, boardCfgId);
     }
 
     private string GetValidAiDifficultyCfgId(string cfgId)
@@ -186,6 +208,16 @@ public class DuelSystem : SystemBase
         compDuelInfo.byoyomiLeftSeconds.value = byoyomiTimeData.seconds;
         compDuelInfo.isInByoyomi.value = false;
         compDuelInfo.turnLeftTimes.value = holdTimeData.isInfinite ? -1 : holdTimeData.holdSeconds;
+    }
+
+    private void ApplyInitialHandicapStones(SceneComponentDuel compDuel)
+    {
+        if (compDuel == null || !DuelHandicapPlacement.HasHandicap(compDuel.handicapCfgId.value)) {
+            return;
+        }
+
+        SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
+        DuelHandicapPlacement.ApplyInitialStones(scene, compChessBoard, compDuel.handicapCfgId.value);
     }
 
     public override void OnUpdate()
@@ -669,6 +701,7 @@ public class DuelSystem : SystemBase
         compChessBoard.lastChessInfoDict.Clear();
         compChessBoard.chessBoardGrid?.ClearLatestMoveMarker();
         compDuel.ResetKataGoMoves();
+        ApplyInitialHandicapStones(compDuel);
 
         int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : 19;
         RectCoordinates latestMoveCoords = null;
@@ -736,6 +769,11 @@ public class DuelSystem : SystemBase
 
     private string GetNextTurnPlayerGuid(SceneComponentDuel compDuel, int moveCount)
     {
+        bool startsFromWhite = DuelHandicapPlacement.HasHandicap(compDuel.handicapCfgId.value);
+        if (startsFromWhite) {
+            return moveCount % 2 == 0 ? compDuel.player2Guid.value : compDuel.player1Guid.value;
+        }
+
         return moveCount % 2 == 0 ? compDuel.player1Guid.value : compDuel.player2Guid.value;
     }
 
@@ -753,6 +791,22 @@ public class DuelSystem : SystemBase
         }
 
         return null;
+    }
+
+    private string GetPlayerGuidByFlag(SceneComponentDuel compDuel, PlayerFlag playerFlag)
+    {
+        if (compDuel == null) {
+            return string.Empty;
+        }
+
+        if (playerFlag == PlayerFlag.Player1) {
+            return compDuel.player1Guid.value;
+        }
+        if (playerFlag == PlayerFlag.Player2) {
+            return compDuel.player2Guid.value;
+        }
+
+        return string.Empty;
     }
 
     private void EmitTakeBackResult(bool success, string message, int removedMoveCount = 0)

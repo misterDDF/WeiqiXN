@@ -19,4 +19,11 @@ public static class DuelUtils
             return PlayerFlag.Player1;
         }
     }
+
+    public static PlayerFlag GetValidPlayerFlag(PlayerFlag playerFlag, PlayerFlag defaultPlayerFlag = PlayerFlag.Player1)
+    {
+        return playerFlag == PlayerFlag.Player1 || playerFlag == PlayerFlag.Player2
+            ? playerFlag
+            : defaultPlayerFlag;
+    }
 }

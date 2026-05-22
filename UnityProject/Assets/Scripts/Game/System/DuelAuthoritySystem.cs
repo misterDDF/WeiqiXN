@@ -177,11 +177,12 @@ public class DuelAuthoritySystem : SystemBase
     private PlayerFlag ResolveLocalPlayerFlagForLanConfirm(SceneComponentDuel compDuel)
     {
         LanRoomRole role = (LanRoomRole)compDuel.lanRole.value;
+        PlayerFlag hostPlayerFlag = DuelUtils.GetValidPlayerFlag((PlayerFlag)compDuel.lanHostPlayerFlag.value);
         if (role == LanRoomRole.Host) {
-            return PlayerFlag.Player1;
+            return hostPlayerFlag;
         }
         if (role == LanRoomRole.Client) {
-            return PlayerFlag.Player2;
+            return hostPlayerFlag.GetOpponentPlayerFlag();
         }
 
         return 0;

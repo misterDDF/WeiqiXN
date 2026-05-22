@@ -9,18 +9,25 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     private const string InfiniteHoldTimeCfgId = "infinite";
     private const string ByoyomiOffCfgId = "off";
     private const string DefaultAiDifficultyCfgId = "k20_k15";
+    private const string PlayerSideGuess = "guess";
+    private const string PlayerSideBlack = "black";
+    private const string PlayerSideWhite = "white";
 
     private static bool pendingOpenAiDuel;
     private static Action<DuelSceneCreateParamas> pendingConfirmHandler;
 
     private string selectedBoardCfgId = "9x9";
-    private string selectedHoldTimeCfgId = "5m";
+    private string selectedHoldTimeCfgId = InfiniteHoldTimeCfgId;
     private string selectedByoyomiCountCfgId = ByoyomiOffCfgId;
     private string selectedByoyomiTimeCfgId = "30s";
+    private string selectedPlayerSideCfgId = PlayerSideGuess;
+    private string selectedHandicapCfgId = DuelHandicapPlacement.GetDefaultCfgId("9x9");
     private bool isAiDuel;
     private Action<DuelSceneCreateParamas> confirmHandler;
     private string selectedAiDifficultyCfgId = DefaultAiDifficultyCfgId;
     private readonly List<string> aiDifficultyCfgIds = new List<string>();
+    private readonly List<string> playerSideCfgIds = new List<string> { PlayerSideGuess, PlayerSideBlack, PlayerSideWhite };
+    private readonly List<string> handicapCfgIds = new List<string>();
 
     public static void Open(bool isAiDuel)
     {
@@ -44,6 +51,8 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         AddButtonListener(binder.btn_13x13, () => SelectBoard("13x13"));
         AddButtonListener(binder.btn_19x19, () => SelectBoard("19x19"));
         BindTimeControlButtons();
+        BindPlayerColorDropdown();
+        BindHandicapDropdown();
         BindAiDifficultyDropdown();
         AddButtonListener(binder.btn_start, OnClickBtnStart);
         AddButtonListener(binder.btn_close, OnClickBtnClose);
@@ -56,6 +65,9 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         isAiDuel = pendingOpenAiDuel;
         confirmHandler = pendingConfirmHandler;
         pendingConfirmHandler = null;
+        NormalizeSetupSelection();
+        RefreshPlayerColorDropdown();
+        RefreshHandicapDropdown();
         RefreshAiDifficultyDropdown();
         RefreshSelectionState();
     }
@@ -78,6 +90,9 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     public void OnClickBtnStart()
     {
         NormalizeTimeControlSelection();
+        NormalizeHandicapSelection();
+        PlayerFlag localPlayerFlag = ResolveLocalPlayerFlag();
+        PlayerFlag lanHostPlayerFlag = IsLanRoomSetup() ? ResolveLocalPlayerFlag() : PlayerFlag.Player1;
 
         DuelSceneCreateParamas duelParams = new DuelSceneCreateParamas()
         {
@@ -85,8 +100,11 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
             holdTimeCfgId = selectedHoldTimeCfgId,
             byoyomiCountCfgId = selectedByoyomiCountCfgId,
             byoyomiTimeCfgId = selectedByoyomiTimeCfgId,
+            handicapCfgId = selectedHandicapCfgId,
             isAiDuel = isAiDuel,
             aiDifficultyCfgId = isAiDuel ? selectedAiDifficultyCfgId : string.Empty,
+            localPlayerFlag = isAiDuel ? localPlayerFlag : 0,
+            lanHostPlayerFlag = IsLanRoomSetup() ? lanHostPlayerFlag : PlayerFlag.Player1,
         };
 
         if (confirmHandler != null) {
@@ -135,9 +153,25 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         }
     }
 
+    private void BindPlayerColorDropdown()
+    {
+        if (binder.dropdown_player_color != null) {
+            binder.dropdown_player_color.onValueChanged.AddListener(OnPlayerColorDropdownValueChanged);
+        }
+    }
+
+    private void BindHandicapDropdown()
+    {
+        if (binder.dropdown_handicap != null) {
+            binder.dropdown_handicap.onValueChanged.AddListener(OnHandicapDropdownValueChanged);
+        }
+    }
+
     private void SelectBoard(string boardCfgId)
     {
         selectedBoardCfgId = boardCfgId;
+        NormalizeHandicapSelection();
+        RefreshHandicapDropdown();
         RefreshSelectionState();
         if (binder.btn_start == null) {
             OnClickBtnStart();
@@ -182,6 +216,22 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         }
     }
 
+    private void NormalizeSetupSelection()
+    {
+        NormalizeTimeControlSelection();
+        NormalizeHandicapSelection();
+    }
+
+    private void NormalizeHandicapSelection()
+    {
+        if (ShouldForceEvenGameHandicap()) {
+            selectedHandicapCfgId = DuelHandicapPlacement.GetDefaultCfgId(selectedBoardCfgId);
+            return;
+        }
+
+        selectedHandicapCfgId = DuelHandicapPlacement.GetValidCfgId(selectedHandicapCfgId, selectedBoardCfgId);
+    }
+
     private bool IsInfiniteHoldTimeSelected()
     {
         return selectedHoldTimeCfgId == InfiniteHoldTimeCfgId;
@@ -210,6 +260,14 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         SetButtonInteractable(binder.btn_byoyomi_time_20s, byoyomiEnabled && selectedByoyomiTimeCfgId != "20s");
         SetButtonInteractable(binder.btn_byoyomi_time_30s, byoyomiEnabled && selectedByoyomiTimeCfgId != "30s");
         SetButtonInteractable(binder.btn_byoyomi_time_60s, byoyomiEnabled && selectedByoyomiTimeCfgId != "60s");
+
+        bool showPlayerColor = ShouldShowPlayerColor();
+        if (binder.panel_player_color != null) {
+            binder.panel_player_color.SetActive(showPlayerColor);
+        }
+        if (binder.dropdown_handicap != null) {
+            binder.dropdown_handicap.interactable = !ShouldForceEvenGameHandicap();
+        }
 
         if (binder.panel_ai_difficulty != null) {
             binder.panel_ai_difficulty.SetActive(isAiDuel);
@@ -240,6 +298,58 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
 
         binder.dropdown_ai_difficulty.SetValueWithoutNotify(selectedIndex);
         binder.dropdown_ai_difficulty.RefreshShownValue();
+    }
+
+    private void RefreshPlayerColorDropdown()
+    {
+        if (binder.dropdown_player_color == null) {
+            return;
+        }
+
+        binder.dropdown_player_color.ClearOptions();
+        binder.dropdown_player_color.AddOptions(new List<TMP_Dropdown.OptionData>
+        {
+            new TMP_Dropdown.OptionData("猜先"),
+            new TMP_Dropdown.OptionData("执黑"),
+            new TMP_Dropdown.OptionData("执白"),
+        });
+
+        int selectedIndex = playerSideCfgIds.IndexOf(selectedPlayerSideCfgId);
+        if (selectedIndex < 0) {
+            selectedIndex = 0;
+            selectedPlayerSideCfgId = PlayerSideGuess;
+        }
+
+        binder.dropdown_player_color.SetValueWithoutNotify(selectedIndex);
+        binder.dropdown_player_color.RefreshShownValue();
+    }
+
+    private void RefreshHandicapDropdown()
+    {
+        if (binder.dropdown_handicap == null) {
+            return;
+        }
+
+        NormalizeHandicapSelection();
+        handicapCfgIds.Clear();
+        handicapCfgIds.AddRange(DuelHandicapPlacement.GetCfgIdsForBoard(selectedBoardCfgId));
+
+        binder.dropdown_handicap.ClearOptions();
+        List<TMP_Dropdown.OptionData> options = new List<TMP_Dropdown.OptionData>();
+        foreach (string cfgId in handicapCfgIds) {
+            DuelHandicapDataType data = DuelHandicapDataType.GetConfigData(cfgId);
+            options.Add(new TMP_Dropdown.OptionData(data != null ? data.displayName : cfgId));
+        }
+        binder.dropdown_handicap.AddOptions(options);
+
+        int selectedIndex = handicapCfgIds.IndexOf(selectedHandicapCfgId);
+        if (selectedIndex < 0) {
+            selectedIndex = 0;
+            selectedHandicapCfgId = handicapCfgIds.Count > 0 ? handicapCfgIds[0] : DuelHandicapPlacement.GetDefaultCfgId(selectedBoardCfgId);
+        }
+
+        binder.dropdown_handicap.SetValueWithoutNotify(selectedIndex);
+        binder.dropdown_handicap.RefreshShownValue();
     }
 
     private void EnsureAiDifficultyOptions()
@@ -290,6 +400,57 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     {
         if (index >= 0 && index < aiDifficultyCfgIds.Count) {
             selectedAiDifficultyCfgId = aiDifficultyCfgIds[index];
+        }
+    }
+
+    private void OnPlayerColorDropdownValueChanged(int index)
+    {
+        if (index >= 0 && index < playerSideCfgIds.Count) {
+            selectedPlayerSideCfgId = playerSideCfgIds[index];
+            NormalizeHandicapSelection();
+            RefreshHandicapDropdown();
+            RefreshSelectionState();
+        }
+    }
+
+    private void OnHandicapDropdownValueChanged(int index)
+    {
+        if (ShouldForceEvenGameHandicap()) {
+            selectedHandicapCfgId = DuelHandicapPlacement.GetDefaultCfgId(selectedBoardCfgId);
+            RefreshHandicapDropdown();
+            return;
+        }
+
+        if (index >= 0 && index < handicapCfgIds.Count) {
+            selectedHandicapCfgId = handicapCfgIds[index];
+        }
+    }
+
+    private bool ShouldShowPlayerColor()
+    {
+        return isAiDuel || IsLanRoomSetup();
+    }
+
+    private bool ShouldForceEvenGameHandicap()
+    {
+        return ShouldShowPlayerColor() && selectedPlayerSideCfgId == PlayerSideGuess;
+    }
+
+    private bool IsLanRoomSetup()
+    {
+        return confirmHandler != null;
+    }
+
+    private PlayerFlag ResolveLocalPlayerFlag()
+    {
+        switch (selectedPlayerSideCfgId) {
+            case PlayerSideBlack:
+                return PlayerFlag.Player1;
+            case PlayerSideWhite:
+                return PlayerFlag.Player2;
+            case PlayerSideGuess:
+            default:
+                return UnityEngine.Random.value < 0.5f ? PlayerFlag.Player1 : PlayerFlag.Player2;
         }
     }
 

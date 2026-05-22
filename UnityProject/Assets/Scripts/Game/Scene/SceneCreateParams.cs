@@ -13,9 +13,12 @@ public class DuelSceneCreateParamas
     public string holdTimeCfgId;
     public string byoyomiCountCfgId;
     public string byoyomiTimeCfgId;
+    public string handicapCfgId;
     public bool isAiDuel;
     public string aiDifficultyCfgId;
+    public PlayerFlag localPlayerFlag;
     public bool isLanDuel;
     public LanRoomRole lanRole;
+    public PlayerFlag lanHostPlayerFlag;
     public bool isLanRoomHostConfig;
 }

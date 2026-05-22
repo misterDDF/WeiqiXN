@@ -40,8 +40,10 @@ public class DuelInputAuthoritySystem : SystemBase
         }
 
         PlayerFlag curTurnPlayerFlag = ResolveCurrentTurnPlayerFlag(compDuel);
-        PlayerFlag hostInputFlag = curTurnPlayerFlag == PlayerFlag.Player1 ? PlayerFlag.Player1 : 0;
-        PlayerFlag clientInputFlag = curTurnPlayerFlag == PlayerFlag.Player2 ? PlayerFlag.Player2 : 0;
+        PlayerFlag hostPlayerFlag = DuelUtils.GetValidPlayerFlag((PlayerFlag)compDuel.lanHostPlayerFlag.value);
+        PlayerFlag clientPlayerFlag = hostPlayerFlag.GetOpponentPlayerFlag();
+        PlayerFlag hostInputFlag = curTurnPlayerFlag == hostPlayerFlag ? hostPlayerFlag : 0;
+        PlayerFlag clientInputFlag = curTurnPlayerFlag == clientPlayerFlag ? clientPlayerFlag : 0;
         compDuel.localInputPlayerFlag.value = (int)hostInputFlag;
         Global.Instance.lanRoomService.BroadcastInputAuthority(hostInputFlag, clientInputFlag);
     }

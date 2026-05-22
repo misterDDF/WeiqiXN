@@ -15,7 +15,7 @@ public static class KataGoPositionJsonBuilder
     public static JObject BuildAnalysisJsonWithMoveHistory(DuelScene duelScene, string requestId, int maxVisits = DefaultMaxVisits)
     {
         JObject query = BuildBaseAnalysisJson(duelScene, requestId, maxVisits);
-        query["initialStones"] = new JArray();
+        query["initialStones"] = BuildConfiguredInitialStonesArray(duelScene);
         query["moves"] = BuildMovesArray(duelScene);
         return query;
     }
@@ -141,6 +141,16 @@ public static class KataGoPositionJsonBuilder
         }
 
         return DuelMoveHistory.BuildKataGoMovesArray(compDuel.kataGoMoves);
+    }
+
+    private static JArray BuildConfiguredInitialStonesArray(DuelScene duelScene)
+    {
+        SceneComponentDuel compDuel = duelScene.GetComponent<SceneComponentDuel>();
+        if (compDuel == null || !DuelHandicapPlacement.HasHandicap(compDuel.handicapCfgId.value)) {
+            return new JArray();
+        }
+
+        return DuelHandicapPlacement.BuildInitialStonesArray(compDuel.handicapCfgId.value, GetBoardSize(duelScene));
     }
 
     private static JArray BuildInitialStonesArray(DuelScene duelScene)

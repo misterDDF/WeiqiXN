@@ -2,7 +2,7 @@
 
 ## 当前状态
 
-联机功能已开始进入最小房间和最小对局命令阶段。当前已有 `LanRoomService` 作为局域网房间服务入口，支持 host 侧 TCP 监听、UDP 房间广播、client 侧 UDP 搜索、TCP 加入握手、最小准备状态交换、host 开局配置、进入带 LAN 标记的 `DuelScene`，以及 `SubmitMove` / `MoveAccepted` / `MoveRejected` / `BoardSnapshot` 的最小命令搬运；正常落子、虚手、数子、悔棋和认输已通过 `DuelAuthoritySystem` 收敛为统一提交入口。页面预览、点击提交和动作按钮权限通过 `DuelInputAuthority` 读取，LAN 下该权限来自 host 广播的 `InputAuthority`。host 侧 `LanDuelSystem` 通过现有规则入口进行权威落子校验，并在合法落子后广播权威棋盘快照；当前 `BoardSnapshot` 携带棋盘尺寸、下一手玩家、最后一步、棋子列表和 host 权威 KataGo 标准手顺，client 应用快照时同步棋盘与 `kataGoMoves` 并清除旧形势缓存。虚手通过 `SubmitPass` / `PassAccepted` 同步；认输通过 `SubmitResign` / `ResignAccepted` 同步；数子和悔棋通过确认请求/确认回复协议让对端弹窗确认。LAN 数子在对端同意请求后只广播候选 `ScoreResult`，双方都通过 `ScoreResultConfirmResponse` 接受后，host 才广播 `ScoreResultAccepted` 进入终局；拒绝请求、拒绝结果、请求失效或计算失败都会通过带原因的 `ScoreFailed` 恢复对局。悔棋确认阶段由 host 按 `actionId` 暂存原始请求，确认回复使用原始 `boardVersion` / `removeCount`；拒绝消息带请求方座位，避免非发起方误报失败，悔棋接受后会补发权威快照。host 也负责广播当前行棋方 `TimeState` 并在超时后广播 `PlayerTimeout`，client 只使用 host 计时状态刷新显示。尚未实现正式传输抽象、座位选择、匹配系统、完整同步系统或断线恢复系统。架构方向已收敛为 host 权威、单一 server core、客户端只发命令；第一版 server core 允许嵌在 host 进程中运行，后续再决定是否拆成独立进程。
+联机功能已开始进入最小房间和最小对局命令阶段。当前已有 `LanRoomService` 作为局域网房间服务入口，支持 host 侧 TCP 监听、UDP 房间广播、client 侧 UDP 搜索、TCP 加入握手、最小准备状态交换、host 开局配置、进入带 LAN 标记的 `DuelScene`，以及 `SubmitMove` / `MoveAccepted` / `MoveRejected` / `BoardSnapshot` 的最小命令搬运；开局配置包含棋盘、时间、让子和 host 座位。正常落子、虚手、数子、悔棋和认输已通过 `DuelAuthoritySystem` 收敛为统一提交入口。页面预览、点击提交和动作按钮权限通过 `DuelInputAuthority` 读取，LAN 下该权限来自 host 广播的 `InputAuthority`。host 侧 `LanDuelSystem` 通过现有规则入口进行权威落子校验，并在合法落子后广播权威棋盘快照；当前 `BoardSnapshot` 携带棋盘尺寸、下一手玩家、最后一步、棋子列表和 host 权威 KataGo 标准手顺，client 应用快照时同步棋盘与 `kataGoMoves` 并清除旧形势缓存。虚手通过 `SubmitPass` / `PassAccepted` 同步；认输通过 `SubmitResign` / `ResignAccepted` 同步；数子和悔棋通过确认请求/确认回复协议让对端弹窗确认。LAN 数子在对端同意请求后只广播候选 `ScoreResult`，双方都通过 `ScoreResultConfirmResponse` 接受后，host 才广播 `ScoreResultAccepted` 进入终局；拒绝请求、拒绝结果、请求失效或计算失败都会通过带原因的 `ScoreFailed` 恢复对局。悔棋确认阶段由 host 按 `actionId` 暂存原始请求，确认回复使用原始 `boardVersion` / `removeCount`；拒绝消息带请求方座位，避免非发起方误报失败，悔棋接受后会补发权威快照。host 也负责广播当前行棋方 `TimeState` 并在超时后广播 `PlayerTimeout`，client 只使用 host 计时状态刷新显示。尚未实现正式传输抽象、匹配系统、完整同步系统或断线恢复系统。架构方向已收敛为 host 权威、单一 server core、客户端只发命令；第一版 server core 允许嵌在 host 进程中运行，后续再决定是否拆成独立进程。
 
 ## 已具备的基础
 
@@ -12,7 +12,7 @@
 - 事件系统可以作为 UI、本地逻辑和未来网络层之间的内部通信机制。
 - 存档系统可为快照、重连缓存或本地复盘提供参考。
 - UI 框架和配置系统可以继续扩展房间、匹配、邀请、断线提示等页面。
-- `LanRoomService` 已提供最小局域网房间发现、连接、准备状态、开局配置和落子命令搬运骨架；`LanRoomPopup` 创建房间前会复用 `DuelSetupPopup` 设置棋盘和时间配置，并在开局状态到达后进入带 LAN 标记的 `DuelScene`，UI 不直接持有 socket。
+- `LanRoomService` 已提供最小局域网房间发现、连接、准备状态、开局配置和落子命令搬运骨架；`LanRoomPopup` 创建房间前会复用 `DuelSetupPopup` 设置棋盘、时间、让子和 host 座位，并在开局状态到达后进入带 LAN 标记的 `DuelScene`，UI 不直接持有 socket。
 - 正常落子提交已收敛到 `DuelAuthoritySystem`：本地/电脑对局直接请求本进程权威落子，LAN 对局按本端座位提交到 `LanRoomService`，host 本地玩家也不绕过命令队列直接改盘。
 - 本端人类输入权限已收敛到 `DuelInputAuthority`：页面预览、点击提交和 LAN 提交前置检查使用同一份权限状态；LAN 原型由 host 广播 `InputAuthority` 更新 `SceneComponentDuel.localInputPlayerFlag`。
 - 虚手提交已接入 host 权威路径：本端通过 `OnSubmitDuelPass` 提交，LAN host 校验当前行棋方和棋盘版本后广播 `PassAccepted`。
@@ -29,7 +29,7 @@
 - 还没有完整服务端或可独立运行的房主权威会话核心；当前只完成房间 host 监听、加入握手、准备状态、开局命令、正常落子、虚手、计时、超时、认输、确认式数子和确认式悔棋的内嵌 host 权威原型。
 - 移动命令协议已有最小正常落子命令、版本确认、输入权下发、虚手、认输、数子确认和悔棋确认，尚未覆盖断线重连后的完整恢复。
 - 棋盘状态快照只覆盖落子后的棋盘纠偏，计时只覆盖在线显示校准和超时终局通知，尚未覆盖断线重连、房间完整状态或终局恢复。
-- 没有玩家身份、座位选择和完整房间生命周期。
+- 没有玩家身份和完整房间生命周期；当前座位只覆盖创建房间时 host 选择黑白或猜先，不包含房间内换座、观战或账号身份。
 - 没有断线、重连和完整终局恢复在网络环境下的定义；当前数子仍依赖 KataGo ownership，悔棋不回滚历史计时快照。
 - 没有防作弊边界。
 

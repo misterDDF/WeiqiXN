@@ -18,7 +18,6 @@ public static class KataGoDuelRecordFile
             DefaultMaxVisits
         );
 
-        recordJson["initialStones"] = new JArray();
         recordJson["includeOwnership"] = true;
         recordJson["includePolicy"] = false;
         return recordJson;
@@ -75,6 +74,12 @@ public static class KataGoDuelRecordFile
     {
         moves = recordJson?["moves"] as JArray;
         return moves != null;
+    }
+
+    public static bool TryGetInitialStones(JObject recordJson, out JArray initialStones)
+    {
+        initialStones = recordJson?["initialStones"] as JArray;
+        return initialStones != null;
     }
 
     public static bool TryGetBoardSize(JObject recordJson, out int boardSize)

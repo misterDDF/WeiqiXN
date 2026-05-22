@@ -5,7 +5,7 @@ using XNClient.Logger;
 
 public static class DuelOwnershipQueryService
 {
-    public const float OwnershipThreshold = 0.2f;
+    public const float OwnershipThreshold = 0.5f;
     public const string ScoreSourceOwnership = "katago_ownership";
 
     public static async Task<DuelOwnershipQueryResult> QueryOwnershipAsync(DuelScene duelScene, string requestIdPrefix, bool allowCachedResult)

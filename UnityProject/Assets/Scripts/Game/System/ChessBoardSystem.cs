@@ -638,6 +638,20 @@ public class ChessBoardSystem : SystemBase
 
         RectCoordinates latestMoveCoords = null;
         PlayerFlag latestMovePlayerFlag = 0;
+        if (KataGoDuelRecordFile.TryGetInitialStones(recordJson, out JArray initialStones)) {
+            foreach (JToken stone in initialStones) {
+                if (!KataGoDuelRecordFile.TryParseMove(stone, out PlayerFlag playerFlag, out RectCoordinates coords, out bool isPass, boardSize) ||
+                    isPass ||
+                    !ApplyRecordInitialStone(compChessBoard, playerFlag, coords)) {
+                    XNLogger.LogError("Invalid initial stone in KataGo duel record, restore stopped.", ("stone", stone.ToString()));
+                    compChessBoard.chessInfoDict.Clear();
+                    compChessBoard.lastChessInfoDict.Clear();
+                    compDuel.ResetKataGoMoves();
+                    return;
+                }
+            }
+        }
+
         foreach (var move in moves) {
             if (!KataGoDuelRecordFile.TryParseMove(move, out PlayerFlag playerFlag, out RectCoordinates coords, out bool isPass, boardSize)) {
                 XNLogger.LogError("Invalid move in KataGo duel record, restore stopped.", ("move", move.ToString()));
@@ -679,6 +693,24 @@ public class ChessBoardSystem : SystemBase
         if (latestMoveCoords != null) {
             DrawLatestMoveMarker(compChessBoard, latestMovePlayerFlag, latestMoveCoords);
         }
+    }
+
+    private bool ApplyRecordInitialStone(SceneComponentChessBoard compChessBoard, PlayerFlag playerFlag, RectCoordinates coords)
+    {
+        if (compChessBoard == null || coords == null || playerFlag == 0) {
+            return false;
+        }
+
+        int posIndex = compChessBoard.GetPosIndexByCoords(coords);
+        if (posIndex < 0 || compChessBoard.chessInfoDict.ContainsKey(posIndex.ToString())) {
+            return false;
+        }
+
+        ChessInfo chessInfo = new ChessInfo();
+        chessInfo.chessGuid.value = EntityUtils.CreateGuidWithEntityType(EntityBase.GetEntityType<Chess>());
+        chessInfo.chessFlag.value = (int)playerFlag;
+        compChessBoard.chessInfoDict.SetValue(posIndex.ToString(), chessInfo);
+        return true;
     }
 
     private bool ApplyRecordMove(SceneComponentChessBoard compChessBoard, SceneComponentDuel compDuel, PlayerFlag playerFlag, RectCoordinates coords, int boardSize)

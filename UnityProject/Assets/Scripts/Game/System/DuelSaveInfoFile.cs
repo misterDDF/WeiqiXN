@@ -40,10 +40,12 @@ public static class DuelSaveInfoFile
         string holdTimeCfgId = compDuel?.holdTimeCfgId.value ?? string.Empty;
         string byoyomiCountCfgId = compDuel?.byoyomiCountCfgId.value ?? string.Empty;
         string byoyomiTimeCfgId = compDuel?.byoyomiTimeCfgId.value ?? string.Empty;
+        string handicapCfgId = compDuel?.handicapCfgId.value ?? string.Empty;
 
         DuelHoldTimeDataType holdTimeData = !string.IsNullOrEmpty(holdTimeCfgId) ? DuelHoldTimeDataType.GetConfigData(holdTimeCfgId) : null;
         DuelByoyomiCountDataType byoyomiCountData = !string.IsNullOrEmpty(byoyomiCountCfgId) ? DuelByoyomiCountDataType.GetConfigData(byoyomiCountCfgId) : null;
         DuelByoyomiTimeDataType byoyomiTimeData = !string.IsNullOrEmpty(byoyomiTimeCfgId) ? DuelByoyomiTimeDataType.GetConfigData(byoyomiTimeCfgId) : null;
+        DuelHandicapDataType handicapData = !string.IsNullOrEmpty(handicapCfgId) ? DuelHandicapDataType.GetConfigData(handicapCfgId) : null;
 
         JObject saveInfoJson = new JObject
         {
@@ -76,6 +78,12 @@ public static class DuelSaveInfoFile
                     ["displayName"] = byoyomiTimeData?.displayName ?? string.Empty,
                     ["seconds"] = byoyomiTimeData?.seconds ?? 0,
                 },
+            },
+            ["handicap"] = new JObject
+            {
+                ["cfgId"] = handicapCfgId,
+                ["displayName"] = handicapData?.displayName ?? string.Empty,
+                ["handicapCount"] = handicapData?.handicapCount ?? 0,
             },
         };
 
