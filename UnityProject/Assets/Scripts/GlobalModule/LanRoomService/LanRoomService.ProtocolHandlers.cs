@@ -49,6 +49,11 @@ public partial class LanRoomService
         HandleReadyMessage(message);
     }
 
+    private void OnPlayerProfile(LanRoomProtocolMessage message)
+    {
+        HandlePlayerProfileMessage(message);
+    }
+
     private void OnState(LanRoomProtocolMessage message)
     {
         HandleStateMessage(message);

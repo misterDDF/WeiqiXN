@@ -27,6 +27,8 @@ public class DuelSystem : SystemBase
         scene.RegisterSystemEvent<OnConfirmDuelResign>(OnConfirmDuelResign);
         scene.RegisterSystemEvent<OnRequestDuelPass>(OnRequestDuelPass);
         scene.RegisterSystemEvent<OnRequestDuelTakeBack>(OnRequestDuelTakeBack);
+        scene.RegisterSystemEvent<OnDuelStateChanged>(OnDuelStateChanged);
+        scene.RegisterSystemEvent<OnLanPlayerProfileChanged>(OnLanPlayerProfileChanged);
         scene.RegisterSystemEvent<OnApplyLanDuelTimeState>(OnApplyLanDuelTimeState);
         scene.RegisterSystemEvent<OnApplyLanDuelTimeout>(OnApplyLanDuelTimeout);
         scene.RegisterSystemEvent<OnApplyLanDuelResign>(OnApplyLanDuelResign);
@@ -37,7 +39,7 @@ public class DuelSystem : SystemBase
         scene.RegisterSystemEvent<OnApplyLanDuelTakeBack>(OnApplyLanDuelTakeBack);
         scene.RegisterSystemEvent<OnLanDuelTakeBackRejected>(OnLanDuelTakeBackRejected);
 
-        // 非读档进来的需要手动初始化
+        // 非读档进入时需要手动初始化对局状态。
         if (scene.sceneCreateParams.saveFilePath == null) {
             var compDuel = scene.GetComponent<SceneComponentDuel>();
             if (compDuel != null) {
@@ -52,6 +54,7 @@ public class DuelSystem : SystemBase
                 compDuel.curTurnPlayerGuid.value = player1Guid;
                 InitAiDuelConfig(compDuel);
                 InitLanDuelConfig(compDuel);
+                InitPlayerProfiles(compDuel);
                 InitPlayerTimeControl(compDuel, player1);
                 InitPlayerTimeControl(compDuel, player2);
                 ApplyInitialHandicapStones(compDuel);
@@ -67,6 +70,7 @@ public class DuelSystem : SystemBase
                 EnsureHandicapConfig(compDuel);
                 EnsureAiDuelConfig(compDuel);
                 EnsureLanDuelConfig(compDuel);
+                EnsurePlayerProfiles(compDuel);
 
                 Player player1 = EntityUtils.CreatePlayer(scene, compDuel.player1Guid.value, PlayerFlag.Player1);
                 Player player2 = EntityUtils.CreatePlayer(scene, compDuel.player2Guid.value, PlayerFlag.Player2);
@@ -94,9 +98,16 @@ public class DuelSystem : SystemBase
         compDuel.aiDifficultyCfgId.value = compDuel.isAiDuel.value
             ? GetValidAiDifficultyCfgId(duelParams?.aiDifficultyCfgId)
             : string.Empty;
-        PlayerFlag localPlayerFlag = DuelUtils.GetValidPlayerFlag(duelParams != null ? duelParams.localPlayerFlag : 0);
-        PlayerFlag aiPlayerFlag = localPlayerFlag.GetOpponentPlayerFlag();
-        compDuel.aiPlayerGuid.value = compDuel.isAiDuel.value ? GetPlayerGuidByFlag(compDuel, aiPlayerFlag) : string.Empty;
+        if (compDuel.isAiDuel.value) {
+            PlayerFlag localPlayerFlag = DuelUtils.GetValidPlayerFlag(duelParams != null ? duelParams.localPlayerFlag : 0);
+            PlayerFlag aiPlayerFlag = localPlayerFlag.GetOpponentPlayerFlag();
+            compDuel.aiPlayerGuid.value = GetPlayerGuidByFlag(compDuel, aiPlayerFlag);
+            compDuel.localPlayerFlag.value = (int)localPlayerFlag;
+            return;
+        }
+
+        compDuel.aiPlayerGuid.value = string.Empty;
+        compDuel.localPlayerFlag.value = (int)PlayerFlag.Player1;
     }
 
     private void InitLanDuelConfig(SceneComponentDuel compDuel)
@@ -106,6 +117,38 @@ public class DuelSystem : SystemBase
         compDuel.lanRole.value = compDuel.isLanDuel.value ? (int)duelParams.lanRole : (int)LanRoomRole.None;
         compDuel.lanHostPlayerFlag.value = (int)DuelUtils.GetValidPlayerFlag(
             duelParams != null ? duelParams.lanHostPlayerFlag : 0);
+        if (compDuel.isLanDuel.value) {
+            PlayerFlag hostPlayerFlag = (PlayerFlag)compDuel.lanHostPlayerFlag.value;
+            compDuel.localPlayerFlag.value = compDuel.lanRole.value == (int)LanRoomRole.Host
+                ? (int)hostPlayerFlag
+                : (int)hostPlayerFlag.GetOpponentPlayerFlag();
+        }
+    }
+
+    private void InitPlayerProfiles(SceneComponentDuel compDuel)
+    {
+        var duelParams = scene.sceneCreateParams.duelSceneCreateParamas;
+        UserProfileData localProfile = duelParams?.localPlayerProfile ?? User.Instance.compUserInfo.BuildProfileData();
+        localProfile.Normalize(User.Instance.compUserInfo.userName.value);
+
+        if (compDuel.isLanDuel.value) {
+            UserProfileData hostProfile = duelParams?.hostPlayerProfile ?? localProfile;
+            UserProfileData clientProfile = duelParams?.clientPlayerProfile ?? UserProfileData.CreateFallback(MessageText.Get("duel_player_type_human"));
+            hostProfile.Normalize(User.Instance.compUserInfo.userName.value);
+            clientProfile.Normalize(MessageText.Get("duel_player_type_human"));
+            SetPlayerProfileByFlag(compDuel, (PlayerFlag)compDuel.lanHostPlayerFlag.value, hostProfile);
+            SetPlayerProfileByFlag(compDuel, ((PlayerFlag)compDuel.lanHostPlayerFlag.value).GetOpponentPlayerFlag(), clientProfile);
+            return;
+        }
+
+        if (compDuel.isAiDuel.value) {
+            SetPlayerProfileByFlag(compDuel, (PlayerFlag)compDuel.localPlayerFlag.value, localProfile);
+            SetPlayerProfileByFlag(compDuel, GetAiPlayerFlag(compDuel), UserProfileData.CreateFallback(MessageText.Get("duel_player_type_ai")));
+            return;
+        }
+
+        SetPlayerProfileByFlag(compDuel, PlayerFlag.Player1, localProfile);
+        SetPlayerProfileByFlag(compDuel, PlayerFlag.Player2, UserProfileData.CreateFallback(MessageText.Get("duel_player_white")));
     }
 
     private void EnsureTimeControlConfig(SceneComponentDuel compDuel)
@@ -125,6 +168,9 @@ public class DuelSystem : SystemBase
         if (!compDuel.isAiDuel.value) {
             compDuel.aiDifficultyCfgId.value = string.Empty;
             compDuel.aiPlayerGuid.value = string.Empty;
+            if (!compDuel.isLanDuel.value && compDuel.localPlayerFlag.value == 0) {
+                compDuel.localPlayerFlag.value = (int)PlayerFlag.Player1;
+            }
             return;
         }
 
@@ -132,6 +178,9 @@ public class DuelSystem : SystemBase
         if (string.IsNullOrEmpty(compDuel.aiPlayerGuid.value)) {
             compDuel.aiPlayerGuid.value = compDuel.player2Guid.value;
         }
+        compDuel.localPlayerFlag.value = compDuel.aiPlayerGuid.value == compDuel.player1Guid.value
+            ? (int)PlayerFlag.Player2
+            : (int)PlayerFlag.Player1;
     }
 
     private void EnsureLanDuelConfig(SceneComponentDuel compDuel)
@@ -147,6 +196,25 @@ public class DuelSystem : SystemBase
             compDuel.lanRole.value = (int)LanRoomRole.None;
         }
         compDuel.lanHostPlayerFlag.value = (int)DuelUtils.GetValidPlayerFlag((PlayerFlag)compDuel.lanHostPlayerFlag.value);
+        PlayerFlag hostPlayerFlag = (PlayerFlag)compDuel.lanHostPlayerFlag.value;
+        compDuel.localPlayerFlag.value = compDuel.lanRole.value == (int)LanRoomRole.Host
+            ? (int)hostPlayerFlag
+            : (int)hostPlayerFlag.GetOpponentPlayerFlag();
+    }
+
+    private void EnsurePlayerProfiles(SceneComponentDuel compDuel)
+    {
+        if (compDuel.localPlayerFlag.value == 0) {
+            compDuel.localPlayerFlag.value = (int)PlayerFlag.Player1;
+        }
+
+        if (string.IsNullOrWhiteSpace(compDuel.player1DisplayName.value)) {
+            compDuel.player1DisplayName.value = MessageText.Get("duel_player_black");
+        }
+
+        if (string.IsNullOrWhiteSpace(compDuel.player2DisplayName.value)) {
+            compDuel.player2DisplayName.value = MessageText.Get("duel_player_white");
+        }
     }
 
     private string GetValidHoldTimeCfgId(string cfgId)
@@ -261,6 +329,25 @@ public class DuelSystem : SystemBase
         compDuelInfo.byoyomiLeftSeconds.value = evt.timeState.byoyomiLeftSeconds;
         compDuelInfo.isInByoyomi.value = evt.timeState.isInByoyomi;
         compDuelInfo.turnLeftTimes.value = evt.timeState.turnLeftTimes;
+    }
+
+    private void OnDuelStateChanged(OnDuelStateChanged evt)
+    {
+        if (evt == null || evt.curStateName != DuelStateDefine.STATE_GAME_END) {
+            return;
+        }
+
+        RecordUserDuelResultOnce();
+    }
+
+    private void OnLanPlayerProfileChanged(OnLanPlayerProfileChanged evt)
+    {
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
+        if (compDuel == null || evt == null || !compDuel.isLanDuel.value) {
+            return;
+        }
+
+        SetPlayerProfileByFlag(compDuel, evt.playerFlag, evt.profile);
     }
 
     private void OnApplyLanDuelTimeout(OnApplyLanDuelTimeout evt)
@@ -442,6 +529,7 @@ public class DuelSystem : SystemBase
         compDuel.finalBlackScore.value = 0f;
         compDuel.finalWhiteScore.value = 0f;
         compDuel.finalScoreMargin.value = 0f;
+        compDuel.hasRecordedUserDuelResult = false;
         compDuel.consecutivePassCount.value = DuelMoveHistory.CountTrailingPasses(compDuel.kataGoMoves);
         compDuel.ClearOwnershipScoreCache();
         compChessBoard.chessBoardGrid?.ClearOwnership();
@@ -492,6 +580,7 @@ public class DuelSystem : SystemBase
         compDuel.finalBlackScore.value = 0f;
         compDuel.finalWhiteScore.value = 0f;
         compDuel.finalScoreMargin.value = 0f;
+        compDuel.hasRecordedUserDuelResult = false;
         compDuel.consecutivePassCount.value = DuelMoveHistory.CountTrailingPasses(compDuel.kataGoMoves);
         compDuel.lanBoardVersion.value = request.boardVersion + 1;
         compDuel.ClearOwnershipScoreCache();
@@ -853,6 +942,67 @@ public class DuelSystem : SystemBase
         compDuel.gameEndReason.value = DuelGameEndReason.Resign;
         compDuel.localInputPlayerFlag.value = 0;
         compDuel.duelFSM.SetParamterTrigger(DuelParamDefine.TRIGGER_PARAM_GAME_END);
+    }
+
+    private void RecordUserDuelResultOnce()
+    {
+        var compDuel = scene.GetComponent<SceneComponentDuel>();
+        if (compDuel == null || compDuel.hasRecordedUserDuelResult) {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(compDuel.winnerGuid.value)) {
+            return;
+        }
+
+        PlayerFlag localPlayerFlag = DuelUtils.GetValidPlayerFlag((PlayerFlag)compDuel.localPlayerFlag.value);
+        string localPlayerGuid = GetPlayerGuidByFlag(compDuel, localPlayerFlag);
+        if (string.IsNullOrEmpty(localPlayerGuid)) {
+            return;
+        }
+
+        compDuel.hasRecordedUserDuelResult = true;
+        User.Instance.compUserInfo.RecordDuelResult(compDuel.winnerGuid.value == localPlayerGuid);
+        User.Instance.Save();
+    }
+
+    private void SetPlayerProfileByFlag(SceneComponentDuel compDuel, PlayerFlag playerFlag, UserProfileData profile)
+    {
+        if (compDuel == null) {
+            return;
+        }
+
+        UserProfileData safeProfile = profile ?? UserProfileData.CreateFallback(GetDefaultPlayerDisplayName(playerFlag));
+        safeProfile.Normalize(GetDefaultPlayerDisplayName(playerFlag));
+        if (playerFlag == PlayerFlag.Player1) {
+            compDuel.player1DisplayName.value = safeProfile.name;
+        } else if (playerFlag == PlayerFlag.Player2) {
+            compDuel.player2DisplayName.value = safeProfile.name;
+        }
+    }
+
+    private PlayerFlag GetAiPlayerFlag(SceneComponentDuel compDuel)
+    {
+        if (compDuel == null) {
+            return PlayerFlag.Player2;
+        }
+
+        return compDuel.aiPlayerGuid.value == compDuel.player1Guid.value
+            ? PlayerFlag.Player1
+            : PlayerFlag.Player2;
+    }
+
+    private string GetDefaultPlayerDisplayName(PlayerFlag playerFlag)
+    {
+        if (playerFlag == PlayerFlag.Player1) {
+            return MessageText.Get("duel_player_black");
+        }
+
+        if (playerFlag == PlayerFlag.Player2) {
+            return MessageText.Get("duel_player_white");
+        }
+
+        return MessageText.Get("duel_player_type_human");
     }
 
     private LanDuelScoreResultMessage BuildLanScoreResultMessage(LanDuelScoreRequestMessage request, DuelScoreResult scoreResult)

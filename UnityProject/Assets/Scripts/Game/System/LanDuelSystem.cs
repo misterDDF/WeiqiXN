@@ -69,6 +69,10 @@ public class LanDuelSystem : SystemBase
             return;
         }
 
+        while (Global.Instance.lanRoomService.TryDequeuePlayerProfile(out LanPlayerProfileMessage profile)) {
+            scene.EmitSystemEvent(new OnLanPlayerProfileChanged(ResolvePlayerFlagByRole(compDuel, profile.role), profile.profile));
+        }
+
         while (Global.Instance.lanRoomService.TryDequeueAcceptedMove(out LanDuelMoveMessage move)) {
             if ((LanRoomRole)compDuel.lanRole.value == LanRoomRole.Host) {
                 continue;
@@ -386,6 +390,24 @@ public class LanDuelSystem : SystemBase
         }
 
         LanRoomRole role = (LanRoomRole)compDuel.lanRole.value;
+        PlayerFlag hostPlayerFlag = DuelUtils.GetValidPlayerFlag((PlayerFlag)compDuel.lanHostPlayerFlag.value);
+        if (role == LanRoomRole.Host) {
+            return hostPlayerFlag;
+        }
+
+        if (role == LanRoomRole.Client) {
+            return hostPlayerFlag.GetOpponentPlayerFlag();
+        }
+
+        return 0;
+    }
+
+    private PlayerFlag ResolvePlayerFlagByRole(SceneComponentDuel compDuel, LanRoomRole role)
+    {
+        if (compDuel == null) {
+            return 0;
+        }
+
         PlayerFlag hostPlayerFlag = DuelUtils.GetValidPlayerFlag((PlayerFlag)compDuel.lanHostPlayerFlag.value);
         if (role == LanRoomRole.Host) {
             return hostPlayerFlag;

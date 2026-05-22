@@ -209,15 +209,15 @@ public class DuelPageHudView
     public string GetPlayerDisplayName(Player player, SceneComponentDuel compDuel, string playerGuid)
     {
         if (player != null) {
-            return GetPlayerFlagText((PlayerFlag)player.playerFlag.value);
+            return GetPlayerDisplayName(compDuel, (PlayerFlag)player.playerFlag.value);
         }
 
         if (compDuel != null && !string.IsNullOrEmpty(playerGuid)) {
             if (playerGuid == compDuel.player1Guid.value) {
-                return MessageText.Get("duel_player_black");
+                return GetPlayerDisplayName(compDuel, PlayerFlag.Player1);
             }
             if (playerGuid == compDuel.player2Guid.value) {
-                return MessageText.Get("duel_player_white");
+                return GetPlayerDisplayName(compDuel, PlayerFlag.Player2);
             }
         }
 
@@ -244,7 +244,9 @@ public class DuelPageHudView
     {
         bool isCurTurnPlayer = player != null && player.guid == curTurnPlayerGuid;
         bool isAi = DuelPageInteractionState.IsAiPlayer(player, compDuel);
-        string playerTypeText = isAi ? MessageText.Get("duel_player_type_ai") : MessageText.Get("duel_player_type_human");
+        string playerTypeText = isAi
+            ? MessageText.Get("duel_player_type_ai")
+            : GetPlayerDisplayName(compDuel, player != null ? (PlayerFlag)player.playerFlag.value : 0);
         string turnText = isCurTurnPlayer ? MessageText.Get("duel_turn_suffix") : string.Empty;
         SetText(titleText, MessageText.Format("duel_player_title", title, playerTypeText, turnText));
 
@@ -430,5 +432,20 @@ public class DuelPageHudView
         return playerFlag == PlayerFlag.Player1
             ? MessageText.Get("duel_player_black")
             : MessageText.Get("duel_player_white");
+    }
+
+    private string GetPlayerDisplayName(SceneComponentDuel compDuel, PlayerFlag playerFlag)
+    {
+        if (compDuel != null) {
+            if (playerFlag == PlayerFlag.Player1 && !string.IsNullOrWhiteSpace(compDuel.player1DisplayName.value)) {
+                return compDuel.player1DisplayName.value;
+            }
+
+            if (playerFlag == PlayerFlag.Player2 && !string.IsNullOrWhiteSpace(compDuel.player2DisplayName.value)) {
+                return compDuel.player2DisplayName.value;
+            }
+        }
+
+        return GetPlayerFlagText(playerFlag);
     }
 }

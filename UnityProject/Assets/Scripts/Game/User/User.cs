@@ -26,10 +26,16 @@ public class User : SavableObj
         string saveFilePath = GameSaveConfig.UserSaveFilePath;
         if (File.Exists(saveFilePath)) {
             Global.Instance.gameSaveManager.LoadData(this, saveFilePath);
+            compUserInfo.EnsureValidUserInfo();
         } else {
             compUserInfo.CreateNewUser();
             Global.Instance.gameSaveManager.SaveData(this, saveFilePath);
         }
+    }
+
+    public void Save()
+    {
+        Global.Instance.gameSaveManager.SaveData(this, GameSaveConfig.UserSaveFilePath);
     }
 
     public void Destroy()

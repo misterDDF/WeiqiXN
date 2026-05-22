@@ -1,6 +1,7 @@
 public enum LanRoomProtocol
 {
     Ready,
+    PlayerProfile,
     State,
     Start,
     StartConfig,

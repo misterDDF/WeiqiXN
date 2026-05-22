@@ -1,4 +1,4 @@
-﻿public class SceneCreateParams
+public class SceneCreateParams
 {
     public static SceneCreateParams Default => new SceneCreateParams();
 
@@ -17,6 +17,9 @@ public class DuelSceneCreateParamas
     public bool isAiDuel;
     public string aiDifficultyCfgId;
     public PlayerFlag localPlayerFlag;
+    public UserProfileData localPlayerProfile;
+    public UserProfileData hostPlayerProfile;
+    public UserProfileData clientPlayerProfile;
     public bool isLanDuel;
     public LanRoomRole lanRole;
     public PlayerFlag lanHostPlayerFlag;

@@ -13,6 +13,9 @@ public class SceneComponentDuel : SceneComponentBase
     public SavableField<bool> isAiDuel = SavableFieldFactory.CreateBoolField(false);
     public SavableField<string> aiDifficultyCfgId = SavableFieldFactory.CreateStringField(string.Empty);
     public SavableField<string> aiPlayerGuid = SavableFieldFactory.CreateStringField(string.Empty);
+    public SavableField<int> localPlayerFlag = SavableFieldFactory.CreateIntField(0);
+    public SavableField<string> player1DisplayName = SavableFieldFactory.CreateStringField(string.Empty);
+    public SavableField<string> player2DisplayName = SavableFieldFactory.CreateStringField(string.Empty);
     public SavableField<bool> isLanDuel = SavableFieldFactory.CreateBoolField(false);
     public SavableField<int> lanRole = SavableFieldFactory.CreateIntField((int)LanRoomRole.None);
     public SavableField<int> lanHostPlayerFlag = SavableFieldFactory.CreateIntField((int)PlayerFlag.Player1);
@@ -28,6 +31,7 @@ public class SceneComponentDuel : SceneComponentBase
     public SavableField<float> finalScoreMargin = SavableFieldFactory.CreateFloatField(0f);
     public JArray kataGoMoves = new JArray();
     public bool isScoring;
+    public bool hasRecordedUserDuelResult;
     public bool hasOwnershipScoreCache;
     public float cachedOwnershipBlackPoints;
     public float cachedOwnershipWhitePoints;
