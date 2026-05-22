@@ -186,4 +186,9 @@ public partial class LanRoomService
     {
         HandleTakeBackRejectedMessage(message);
     }
+
+    private void OnLeaveRoom(LanRoomProtocolMessage message)
+    {
+        HandleLeaveRoomMessage(message);
+    }
 }

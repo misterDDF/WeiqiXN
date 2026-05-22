@@ -28,6 +28,7 @@ public enum LanRoomProtocol
     TakeBackConfirmResponse,
     TakeBackAccepted,
     TakeBackRejected,
+    LeaveRoom,
 }
 
 public static class LanRoomProtocolName

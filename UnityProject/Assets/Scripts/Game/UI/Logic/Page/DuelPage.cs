@@ -32,6 +32,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         RegisterSystemEvent<OnLanDuelScoreConfirmRequest>(OnLanDuelScoreConfirmRequest);
         RegisterSystemEvent<OnLanDuelScoreResultConfirmRequest>(OnLanDuelScoreResultConfirmRequest);
         RegisterSystemEvent<OnLanDuelTakeBackConfirmRequest>(OnLanDuelTakeBackConfirmRequest);
+        RegisterSystemEvent<OnLanRoomPeerLeft>(OnLanRoomPeerLeft);
 
         BindPrefabHud();
     }
@@ -218,6 +219,17 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         );
     }
 
+    public void OnLanRoomPeerLeft(OnLanRoomPeerLeft evt)
+    {
+        ClosePendingScorePopup();
+        ClosePendingTakeBackPopup();
+        ConfirmPopup.ShowTip(
+            MessageText.Get("lan_room_peer_left_title"),
+            MessageText.Get("lan_room_peer_left_content"),
+            () => Global.Instance.sceneManager.EnterMainScene(SceneConfig.MAIN_MENU_SCENE_TYPE_ID, SceneCreateParams.Default),
+            MessageText.Get("common_confirm"));
+    }
+
     public void RefreshDuelHud()
     {
         hudView.Refresh(Global.Instance.sceneManager.mainScene);
@@ -247,8 +259,18 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         ConfirmPopup.Show(
             MessageText.Get("duel_exit_title"),
             MessageText.Get("duel_exit_content"),
-            () => Global.Instance.sceneManager.EnterMainScene(SceneConfig.MAIN_MENU_SCENE_TYPE_ID, SceneCreateParams.Default)
+            ExitDuelToMainMenu
         );
+    }
+
+    private void ExitDuelToMainMenu()
+    {
+        SceneComponentDuel compDuel = Global.Instance.sceneManager.mainScene?.GetComponent<SceneComponentDuel>();
+        if (compDuel != null && compDuel.isLanDuel.value) {
+            Global.Instance.lanRoomService?.LeaveCurrentSession(LanRoomLeaveReason.ExitDuel);
+        }
+
+        Global.Instance.sceneManager.EnterMainScene(SceneConfig.MAIN_MENU_SCENE_TYPE_ID, SceneCreateParams.Default);
     }
 
     public void OnClickBtnOwnership()

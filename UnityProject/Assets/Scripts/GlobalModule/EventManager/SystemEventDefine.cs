@@ -447,6 +447,20 @@ public class OnLanDuelTakeBackRejected : SystemEventBase
     public override string GetEventType() => GetEventType<OnLanDuelTakeBackRejected>();
 }
 
+public class OnLanRoomPeerLeft : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnLanRoomPeerLeft>();
+
+    public LanRoomRole peerRole;
+    public LanRoomLeaveReason reason;
+
+    public OnLanRoomPeerLeft(LanRoomRole peerRole, LanRoomLeaveReason reason)
+    {
+        this.peerRole = peerRole;
+        this.reason = reason;
+    }
+}
+
 public class OnApplyLanDuelScoreResult : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnApplyLanDuelScoreResult>();

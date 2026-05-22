@@ -389,6 +389,21 @@
     "text": "房间连接已断开。",
     "remark": "房间断开"
   },
+  "lan_room_peer_left": {
+    "id": "lan_room_peer_left",
+    "text": "对方已离开房间。",
+    "remark": "对方离开房间状态"
+  },
+  "lan_room_peer_left_title": {
+    "id": "lan_room_peer_left_title",
+    "text": "联机已结束",
+    "remark": "对方离开后提示标题"
+  },
+  "lan_room_peer_left_content": {
+    "id": "lan_room_peer_left_content",
+    "text": "对方已离开联机对局，将返回主菜单。",
+    "remark": "对方离开后提示内容"
+  },
   "duel_player_black": {
     "id": "duel_player_black",
     "text": "黑方",
