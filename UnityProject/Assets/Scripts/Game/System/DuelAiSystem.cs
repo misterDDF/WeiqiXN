@@ -135,7 +135,7 @@ public class DuelAiSystem : SystemBase
                     ("requestId", analyzeResult.requestId ?? string.Empty),
                     ("budgetMode", analyzeResult.budgetMode ?? string.Empty),
                     ("budgetDecision", analyzeResult.decisionReason ?? string.Empty));
-                scene.EmitSystemEvent(new OnAddChessToBoard(decision.coords));
+                scene.EmitSystemEvent(new OnSubmitDuelMove(decision.coords));
                 return;
             }
 

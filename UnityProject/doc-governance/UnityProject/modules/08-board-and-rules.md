@@ -27,11 +27,11 @@
 - `RectGrid` 会在最新一手棋子上方绘制三角标记，标记高度与 ownership overlay 一致；黑棋使用白色三角，白棋使用黑色三角。最新手标记只作为表现层，不写入棋盘规则状态。
 - `SceneComponentChessBoard` 负责棋盘配置 id、运行时当前棋子信息、上一局面棋子信息、棋盘引用和虚拟相机引用；棋子字典不再作为持久化棋盘权威。
 - `ChessBoardSystem.Init()` 根据棋盘配置初始化网格，设置相机俯视棋盘；读档/继续对局暂不作为当前正式功能。
-- `OnAddChessToBoard` 是当前落子主入口。
+- `OnSubmitDuelMove` 是当前页面和 AI 的正常落子提交入口；`DuelAuthoritySystem` 在本地/电脑对局中转入本进程权威落子应用，在 LAN 对局中先读取 `DuelInputAuthority` 的本端输入权限，再提交到 `LanRoomService`，由房间服务决定本端 host 入队还是远端 TCP 发送。`OnAddChessToBoard` 仍保留为本地落子应用的兼容入口，不再作为 UI/AI 首选入口。
 - `DuelMoveRule` 提供领域落子命令和结果模型：`DuelMoveCommand` 描述落子方、坐标和棋子 guid；`DuelMoveResult` 描述是否接受、拒绝原因、上一局面、下一局面和待移除位置；`DuelMoveRejectReason` 记录非法原因。
 - `DuelMoveRule.BuildMoveResult()` 先在临时棋盘缓存上模拟落子并生成结果，结束后恢复原棋盘引用；AI 候选检查和非法性判断不会保留模拟状态。`TryBuildMoveResult()` 作为兼容入口保留，但后续新调用优先使用结果对象本身。
 - `DuelMoveRule.ApplyMoveResult()` 是当前统一应用口径；真实落子和悔棋回放都只应用 accepted result。
-- 真实落子被拒绝时，`ChessBoardSystem` 会发出 `OnDuelMoveRejected`，携带落子方、坐标和 `DuelMoveRejectReason`；当前 `DuelPage` 不显示额外非法落子文案，而是在预览阶段只对合法点显示预览棋子。
+- 真实落子被拒绝时，`ChessBoardSystem` 会发出 `OnDuelMoveRejected`，携带落子方、坐标和 `DuelMoveRejectReason`；当前 `DuelPage` 不显示额外非法落子文案，而是在预览阶段只对本端有输入权且合法的点显示预览棋子。
 - 已检查目标位置是否在棋盘内、是否为空、当前玩家是否存在。
 - 已通过 BFS 检查相邻对方棋串是否无气并提子。
 - 已检查提子后是否导致自杀。
@@ -58,4 +58,4 @@
 - 扩展非法原因枚举：当前已有棋盘无效、命令无效、越界、已有棋子、自杀、重复局面；后续可补非当前玩家、对局未在输入状态等流程原因。
 - 后续补齐非当前玩家、对局状态不允许落子等流程级拒绝原因；除非产品明确需要，否则 UI 不额外弹出无法落子提示。
 - 为 KataGo 分析提供只读 JSON 构造：正常路径直接使用运行时 `moves`；当前棋盘快照转换为 `initialStones` 只用于调试或无手顺场景，不在转换过程中修改棋盘状态。
-- 联机前优先让本地和网络共用同一条落子校验路径。
+- 继续把虚手、认输、数子和悔棋收敛到与正常落子一致的命令/结果边界。

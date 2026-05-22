@@ -48,7 +48,8 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
-        boardInput.Refresh(mainScene, compDuel, hudView.IsSettingsPanelVisible());
+        DuelInputAuthorityState inputState = DuelInputAuthority.GetLocalState(mainScene, compDuel);
+        boardInput.Refresh(mainScene, compDuel, inputState, hudView.IsSettingsPanelVisible());
 
         if (Input.GetKeyDown(KeyCode.Mouse0) && !IsPointerOverUI()) {
             OnMouse0Down();
@@ -149,18 +150,9 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
-        if (boardInput.TryGetMoveCoords(mainScene, compDuel, out RectCoordinates coords)) {
-            if (compDuel != null && compDuel.isLanDuel.value) {
-                Player curPlayer = mainScene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
-                if (curPlayer == null || !DuelPageInteractionState.CanAcceptLocalLanTurnInput(compDuel, (PlayerFlag)curPlayer.playerFlag.value)) {
-                    return;
-                }
-
-                Global.Instance.lanRoomService?.SubmitLocalMove((PlayerFlag)curPlayer.playerFlag.value, coords, compDuel.lanBoardVersion.value);
-                return;
-            }
-
-            EmitSystemEvent(new OnAddChessToBoard(coords));
+        DuelInputAuthorityState inputState = DuelInputAuthority.GetLocalState(mainScene, compDuel);
+        if (boardInput.TryGetMoveCoords(inputState, out RectCoordinates coords)) {
+            EmitSystemEvent(new OnSubmitDuelMove(coords));
         }
     }
 
@@ -193,7 +185,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     {
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
-        if (!DuelPageInteractionState.CanAcceptHumanTurnInput(mainScene, compDuel)) {
+        if (compDuel == null || compDuel.isLanDuel.value || !DuelInputAuthority.GetLocalState(mainScene, compDuel).CanSubmitMove) {
             return;
         }
 
@@ -204,7 +196,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     {
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
-        if (compDuel != null && compDuel.isScoring) {
+        if (compDuel == null || compDuel.isLanDuel.value || compDuel.isScoring) {
             return;
         }
 
@@ -223,6 +215,12 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
     public void OnClickBtnTakeBack()
     {
+        SceneBase mainScene = Global.Instance.sceneManager.mainScene;
+        SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
+        if (compDuel == null || compDuel.isLanDuel.value) {
+            return;
+        }
+
         hudView.CloseSettingsPanel();
         EmitSystemEvent(new OnRequestDuelTakeBack());
     }
@@ -231,7 +229,8 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     {
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
-        if (!DuelPageInteractionState.CanResign(mainScene, compDuel)) {
+        DuelInputAuthorityState inputState = DuelInputAuthority.GetLocalState(mainScene, compDuel);
+        if (compDuel == null || compDuel.isLanDuel.value || !inputState.CanSubmitMove || !DuelPageInteractionState.CanResign(mainScene, compDuel)) {
             hudView.SetResignButtonVisible(false);
             return;
         }

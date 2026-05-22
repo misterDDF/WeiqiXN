@@ -229,6 +229,17 @@ public class OnAddChessToBoard : SystemEventBase
     }
 }
 
+public class OnSubmitDuelMove : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnSubmitDuelMove>();
+
+    public RectCoordinates coords;
+    public OnSubmitDuelMove(RectCoordinates coords)
+    {
+        this.coords = coords;
+    }
+}
+
 public class OnApplyLanDuelMove : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnApplyLanDuelMove>();

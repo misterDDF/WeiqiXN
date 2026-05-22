@@ -232,14 +232,15 @@ public class DuelPageHudView
 
     private void RefreshSettingsActionVisibility(SceneBase mainScene, SceneComponentDuel compDuel)
     {
-        bool canAcceptHumanTurnInput = DuelPageInteractionState.CanAcceptHumanTurnInput(mainScene, compDuel);
+        bool canSubmitMove = DuelInputAuthority.GetLocalState(mainScene, compDuel).CanSubmitMove;
+        bool isLanDuel = compDuel != null && compDuel.isLanDuel.value;
         bool isGameEnd = compDuel?.duelFSM?.curState != null && compDuel.duelFSM.curState.stateName == DuelStateDefine.STATE_GAME_END;
-        bool canRequestScore = compDuel != null && !compDuel.isScoring && !isGameEnd;
-        bool canTakeBack = DuelPageInteractionState.CanTakeBack(compDuel);
-        SetButtonInteractable(binder.btn_duel_pass, canAcceptHumanTurnInput);
+        bool canRequestScore = compDuel != null && !isLanDuel && !compDuel.isScoring && !isGameEnd;
+        bool canTakeBack = !isLanDuel && DuelPageInteractionState.CanTakeBack(compDuel);
+        SetButtonInteractable(binder.btn_duel_pass, !isLanDuel && canSubmitMove);
         SetButtonInteractable(binder.btn_settings_request_score, canRequestScore);
         SetButtonInteractable(binder.btn_settings_take_back, canTakeBack);
-        SetResignButtonVisible(DuelPageInteractionState.CanResign(mainScene, compDuel));
+        SetResignButtonVisible(!isLanDuel && canSubmitMove && DuelPageInteractionState.CanResign(mainScene, compDuel));
     }
 
     private void RefreshGameEndResultPanel(SceneBase mainScene, SceneComponentDuel compDuel)

@@ -7,21 +7,21 @@ public class DuelPageBoardInputController
     private readonly RectCoordinates aimCoords = new RectCoordinates(-1, -1);
     private PlayerFlag aimChessPreviewPlayerFlag;
 
-    public void Refresh(SceneBase mainScene, SceneComponentDuel compDuel, bool blockInput)
+    public void Refresh(SceneBase mainScene, SceneComponentDuel compDuel, DuelInputAuthorityState inputState, bool blockInput)
     {
         aimCoords.SetValue(-1, -1);
-        if (blockInput || !DuelPageInteractionState.CanAcceptHumanTurnInput(mainScene, compDuel)) {
+        if (blockInput || !inputState.CanSubmitMove) {
             SetAimChessPreviewActive(false);
             return;
         }
 
-        RefreshAimChessPreview(mainScene, compDuel);
+        RefreshAimChessPreview(mainScene, compDuel, inputState.localInputPlayerFlag);
     }
 
-    public bool TryGetMoveCoords(SceneBase mainScene, SceneComponentDuel compDuel, out RectCoordinates coords)
+    public bool TryGetMoveCoords(DuelInputAuthorityState inputState, out RectCoordinates coords)
     {
         coords = null;
-        if (!DuelPageInteractionState.CanAcceptHumanTurnInput(mainScene, compDuel)) {
+        if (!inputState.CanSubmitMove) {
             return false;
         }
 
@@ -41,10 +41,9 @@ public class DuelPageBoardInputController
         }
     }
 
-    private void RefreshAimChessPreview(SceneBase mainScene, SceneComponentDuel compDuel)
+    private void RefreshAimChessPreview(SceneBase mainScene, SceneComponentDuel compDuel, PlayerFlag playerFlag)
     {
-        Player curPlayer = mainScene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
-        if (curPlayer == null) {
+        if (mainScene == null || compDuel == null) {
             SetAimChessPreviewActive(false);
             return;
         }
@@ -74,7 +73,6 @@ public class DuelPageBoardInputController
 
         RectCoordinates nearestCoords = new RectCoordinates(nearestCellX, nearestCellZ);
         int posIndex = compChessBoard.GetPosIndexByCoords(nearestCoords);
-        PlayerFlag playerFlag = (PlayerFlag)curPlayer.playerFlag.value;
         if (posIndex < 0 || !DuelMoveRule.CheckMoveLegal(compChessBoard, playerFlag, nearestCoords)) {
             SetAimChessPreviewActive(false);
             return;

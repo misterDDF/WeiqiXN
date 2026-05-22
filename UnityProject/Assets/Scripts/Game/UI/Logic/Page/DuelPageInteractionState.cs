@@ -24,50 +24,11 @@ public static class DuelPageInteractionState
 
     public static bool CanResign(SceneBase mainScene, SceneComponentDuel compDuel)
     {
-        if (mainScene == null || compDuel == null || compDuel.duelFSM == null || !compDuel.duelFSM.isActivated) {
+        if (!DuelInputAuthority.GetLocalState(mainScene, compDuel).CanSubmitMove) {
             return false;
         }
 
-        if (compDuel.isScoring) {
-            return false;
-        }
-
-        if (compDuel.duelFSM.curState == null || compDuel.duelFSM.curState.stateName != DuelStateDefine.STATE_TURN_INPUT) {
-            return false;
-        }
-
-        if (string.IsNullOrEmpty(compDuel.curTurnPlayerGuid.value)) {
-            return false;
-        }
-
-        return CanAcceptHumanTurnInput(mainScene, compDuel)
-            && mainScene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value) != null;
-    }
-
-    public static bool CanAcceptHumanTurnInput(SceneBase mainScene, SceneComponentDuel compDuel)
-    {
-        if (mainScene == null || compDuel == null || compDuel.duelFSM == null || !compDuel.duelFSM.isActivated) {
-            return false;
-        }
-
-        if (compDuel.duelFSM.curState == null || compDuel.duelFSM.curState.stateName != DuelStateDefine.STATE_TURN_INPUT) {
-            return false;
-        }
-
-        return !compDuel.isAiDuel.value
-            || string.IsNullOrEmpty(compDuel.aiPlayerGuid.value)
-            || compDuel.curTurnPlayerGuid.value != compDuel.aiPlayerGuid.value;
-    }
-
-    public static bool CanAcceptLocalLanTurnInput(SceneComponentDuel compDuel, PlayerFlag curPlayerFlag)
-    {
-        if (compDuel == null || !compDuel.isLanDuel.value) {
-            return false;
-        }
-
-        LanRoomRole role = (LanRoomRole)compDuel.lanRole.value;
-        return (role == LanRoomRole.Host && curPlayerFlag == PlayerFlag.Player1) ||
-            (role == LanRoomRole.Client && curPlayerFlag == PlayerFlag.Player2);
+        return mainScene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value) != null;
     }
 
     public static bool IsAiPlayer(SceneBase mainScene, PlayerFlag playerFlag)
