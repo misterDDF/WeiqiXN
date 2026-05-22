@@ -113,11 +113,16 @@ public class UIManager : ModuleBase
 
     public void ClosePage<TPage>() where TPage : UIPage
     {
+        TryClosePage<TPage>(true);
+    }
+
+    public bool TryClosePage<TPage>(bool logIfMissing = false) where TPage : UIPage
+    {
         string pageName = UIPage.GetPageName<TPage>();
         UiPageDataType uiConfig = UiPageDataType.GetConfigData(pageName);
         if (uiConfig == null) {
             XNLogger.LogError("Invalid ui config, close page failed.", ("pageName", pageName));
-            return;
+            return false;
         }
         UIContextType contextType = UIUtils.ParseUIContextType(uiConfig.contextType);
 
@@ -126,25 +131,29 @@ public class UIManager : ModuleBase
             if (contextDict.TryGetValue(contextType, out uiContext)) {
                 TPage page = uiContext.GetPopupPage<TPage>();
                 if (page != null) {
-                    if (page.owner.ClosePopupPage(page)) {
-                        RecycleClosedPage(page);
-                    }
+                    page.ClosePage();
+                    return true;
                 } else {
-                    XNLogger.LogWarn("Page not found, close popup page failed.", ("pageName", pageName), ("contextType", contextType.ToString()));
+                    if (logIfMissing) {
+                        XNLogger.LogWarn("Page not found, close popup page failed.", ("pageName", pageName), ("contextType", contextType.ToString()));
+                    }
                 }
             }
         } else {
             if (contextDict.TryGetValue(contextType, out uiContext)) {
                 TPage page = uiContext.GetMainPage<TPage>();
                 if (page != null) {
-                    if (page.owner.CloseMainPage(page)) {
-                        RecycleClosedPage(page);
-                    }
+                    page.ClosePage();
+                    return true;
                 } else {
-                    XNLogger.LogWarn("Page not found, close main page failed.", ("pageName", pageName), ("contextType", contextType.ToString()));
+                    if (logIfMissing) {
+                        XNLogger.LogWarn("Page not found, close main page failed.", ("pageName", pageName), ("contextType", contextType.ToString()));
+                    }
                 }
             }
         }
+
+        return false;
     }
 
     public void ClosePage(UIPage page)

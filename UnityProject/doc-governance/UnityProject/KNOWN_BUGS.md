@@ -29,5 +29,5 @@
 - 已观察行为：进入或运行联机对局时 Console 出现 `Page not found, close main page failed. #pageName: LoadingPage #contextType: Loading`。
 - 可见表现：尝试关闭不存在或已关闭的 `LoadingPage`，可能与 LAN 双端进入场景时序有关。
 - 期望行为：LoadingPage 关闭应具备幂等保护，或只在页面确实打开时关闭，不产生无效页面关闭 warning。
-- 当前处理：已在场景加载完成关闭 `LoadingPage` 前增加活动页判断，避免关闭不存在的加载页。
+- 当前处理：定位到泛型 `UIManager.ClosePage<T>()` 关闭路径没有触发页面自身 `OnClose()`，会让 `LoadingPage.activePage` 保留过期引用；已让泛型关闭复用实例关闭路径，并在场景加载完成时使用无 warning 的尝试关闭。
 - 移除条件：修复或收敛 LoadingPage 关闭时序，完成 Unity 脚本编译验证后移除此条记录。
