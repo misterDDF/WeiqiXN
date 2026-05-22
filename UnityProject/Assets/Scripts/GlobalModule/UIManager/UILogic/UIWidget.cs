@@ -85,7 +85,7 @@ public abstract class UIWidgetWithBinder<TBinder> : UIWidget where TBinder : UIB
 
     public void LoadWidget(bool isAsync = true)
     {
-        string assetPath = UIUtils.GetPagePrefabPath(widgetName);
+        string assetPath = UIUtils.GetWidgetPrefabPath(widgetName);
         if (isAsync) {
             Global.Instance.resourceManager.LoadGamePrefabAsync(this, assetPath, OnUnityResourceLoaded);
         } else {

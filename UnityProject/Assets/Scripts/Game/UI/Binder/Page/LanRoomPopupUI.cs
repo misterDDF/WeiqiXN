@@ -10,11 +10,6 @@ public class LanRoomPopupUI : UIBinderBase
     public Button btn_search_room;
     public Button btn_close;
     public GameObject panel_room_list;
+    public RectTransform content_room_list;
     public TextMeshProUGUI txt_status;
-    public Button btn_room_0;
-    public TextMeshProUGUI txt_room_0;
-    public Button btn_room_1;
-    public TextMeshProUGUI txt_room_1;
-    public Button btn_room_2;
-    public TextMeshProUGUI txt_room_2;
 }

@@ -5,9 +5,8 @@ using UnityEngine.UI;
 
 public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
 {
-    private readonly List<Button> roomButtons = new List<Button>();
-    private readonly List<TextMeshProUGUI> roomTexts = new List<TextMeshProUGUI>();
     private readonly List<LanRoomInfo> visibleRooms = new List<LanRoomInfo>();
+    private readonly List<LanRoomItemWidget> roomItems = new List<LanRoomItemWidget>();
     private float nextSearchRefreshTime;
     private bool hasEnteredLanDuel;
 
@@ -25,17 +24,13 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
         AddButtonListener(binder.btn_create_room, OnClickBtnCreateRoom);
         AddButtonListener(binder.btn_search_room, OnClickBtnSearchRoom);
         AddButtonListener(binder.btn_close, OnClickBtnClose);
-
-        RegisterRoomRow(binder.btn_room_0, binder.txt_room_0, 0);
-        RegisterRoomRow(binder.btn_room_1, binder.txt_room_1, 1);
-        RegisterRoomRow(binder.btn_room_2, binder.txt_room_2, 2);
     }
 
     protected override void OnOpen()
     {
         base.OnOpen();
 
-        SetStatus("\u8bf7\u9009\u62e9\u521b\u5efa\u623f\u95f4\u6216\u641c\u7d22\u623f\u95f4\u3002");
+        SetStatus("请选择创建房间或搜索房间。");
         RefreshRoomList(null);
         hasEnteredLanDuel = false;
     }
@@ -66,12 +61,12 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
     public void OnClickBtnCreateRoom()
     {
         if (Global.Instance.lanRoomService == null) {
-            SetStatus("\u5c40\u57df\u7f51\u623f\u95f4\u670d\u52a1\u672a\u521d\u59cb\u5316\u3002");
+            SetStatus("局域网房间服务未初始化。");
             return;
         }
 
         Global.Instance.lanRoomService.StopSearchRooms();
-        Global.Instance.lanRoomService.CreateRoom("\u6211\u7684\u5c40\u57df\u7f51\u623f\u95f4");
+        Global.Instance.lanRoomService.CreateRoom("我的局域网房间");
         Global.Instance.lanRoomService.SetLocalReady(true);
         RefreshRoomList(null);
         SetStatus(Global.Instance.lanRoomService.LastStatus);
@@ -80,7 +75,7 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
     public void OnClickBtnSearchRoom()
     {
         if (Global.Instance.lanRoomService == null) {
-            SetStatus("\u5c40\u57df\u7f51\u623f\u95f4\u670d\u52a1\u672a\u521d\u59cb\u5316\u3002");
+            SetStatus("局域网房间服务未初始化。");
             return;
         }
 
@@ -95,26 +90,14 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
         ClosePage();
     }
 
-    private void RegisterRoomRow(Button button, TextMeshProUGUI text, int roomIndex)
+    private void OnClickRoom(LanRoomInfo room)
     {
-        roomButtons.Add(button);
-        roomTexts.Add(text);
-        AddButtonListener(button, () => OnClickRoom(roomIndex));
-    }
-
-    private void OnClickRoom(int roomIndex)
-    {
-        if (roomIndex < 0 || roomIndex >= visibleRooms.Count) {
-            return;
-        }
-
-        LanRoomInfo room = visibleRooms[roomIndex];
         if (Global.Instance.lanRoomService == null) {
-            SetStatus("\u5c40\u57df\u7f51\u623f\u95f4\u670d\u52a1\u672a\u521d\u59cb\u5316\u3002");
+            SetStatus("局域网房间服务未初始化。");
             return;
         }
 
-        SetStatus($"\u6b63\u5728\u8fde\u63a5 {room.name} ({room.hostAddress}:{room.tcpPort})\u3002");
+        SetStatus($"正在连接 {room.name} ({room.hostAddress}:{room.tcpPort})。");
         Global.Instance.lanRoomService.StopSearchRooms();
         if (Global.Instance.lanRoomService.ConnectToRoom(room)) {
             Global.Instance.lanRoomService.SetLocalReady(true);
@@ -124,6 +107,7 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
 
     private void RefreshRoomList(IReadOnlyList<LanRoomInfo> rooms)
     {
+        ClearRoomItems();
         visibleRooms.Clear();
         if (rooms != null) {
             visibleRooms.AddRange(rooms);
@@ -133,15 +117,49 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
             binder.panel_room_list.SetActive(visibleRooms.Count > 0);
         }
 
-        for (int i = 0; i < roomButtons.Count; i++) {
-            bool hasRoom = i < visibleRooms.Count;
-            if (roomButtons[i] != null) {
-                roomButtons[i].gameObject.SetActive(hasRoom);
-            }
-            if (hasRoom) {
-                SetText(roomTexts[i], visibleRooms[i].GetDisplayText());
+        if (binder.content_room_list == null) {
+            return;
+        }
+
+        foreach (LanRoomInfo room in visibleRooms) {
+            LanRoomItemWidget item = CreateRoomItemWidget();
+            if (item != null) {
+                item.SetData(room, OnClickRoom);
+                roomItems.Add(item);
             }
         }
+    }
+
+    private LanRoomItemWidget CreateRoomItemWidget()
+    {
+        GameObject roomItemGO = Global.Instance.resourceManager.LoadGamePrefab(
+            UIUtils.GetWidgetPrefabPath(UIWidget.GetWidgetName<LanRoomItemWidget>()));
+        if (roomItemGO == null) {
+            return null;
+        }
+
+        LanRoomItemWidget item = UIWidget.CreateWidgetInstance<LanRoomItemWidget>(this);
+        item.OnUnityResourceLoaded(roomItemGO);
+        item.transform.SetParent(binder.content_room_list, false);
+        return item;
+    }
+
+    private void ClearRoomItems()
+    {
+        foreach (LanRoomItemWidget item in roomItems) {
+            if (item != null && item.isLoaded && item.gameObject != null) {
+                item.CloseWidget();
+                GameObject.Destroy(item.gameObject);
+            }
+        }
+
+        roomItems.Clear();
+    }
+
+    protected override void OnClose()
+    {
+        ClearRoomItems();
+        base.OnClose();
     }
 
     private void SetStatus(string status)
