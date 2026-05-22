@@ -282,6 +282,7 @@ public partial class LanRoomService : ModuleBase
                 return false;
             }
 
+            client.ReceiveTimeout = 0;
             connectedClient = client;
             lock (sessionLock) {
                 currentRole = LanRoomRole.Client;

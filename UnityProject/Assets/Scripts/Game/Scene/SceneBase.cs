@@ -47,7 +47,9 @@ public class SceneBase : SavableObj, ITimerAttacher, IEventReceiver, IResourceLo
 
     public virtual void OnSceneLoaded()
     {
-        Global.Instance.uiManager.ClosePage<LoadingPage>();
+        if (LoadingPage.hasActivePage) {
+            Global.Instance.uiManager.ClosePage<LoadingPage>();
+        }
     }
 
     protected virtual void OnUpdate()
