@@ -1016,7 +1016,7 @@ public partial class LanRoomService : ModuleBase
         while (isHosting) {
             try {
                 string localAddress = GetLocalAddress();
-                string payload = $"{LanRoomProtocolName.DiscoveryPrefix}|{hostedRoomId}|{hostedRoomName}|{localAddress}|{hostedTcpPort}|{GetHostedPlayerCount()}|{LanRoomConfig.MaxPlayerCount}";
+                string payload = BuildDiscoveryPayload(localAddress);
                 byte[] data = Encoding.UTF8.GetBytes(payload);
                 broadcastClient?.Send(data, data.Length, broadcastEndPoint);
             }
@@ -1113,7 +1113,7 @@ public partial class LanRoomService : ModuleBase
     {
         room = default;
         string[] parts = payload.Split('|');
-        if (parts.Length != 7 || parts[0] != LanRoomProtocolName.DiscoveryPrefix) {
+        if ((parts.Length != 7 && parts.Length != 14) || parts[0] != LanRoomProtocolName.DiscoveryPrefix) {
             return false;
         }
 
@@ -1124,8 +1124,43 @@ public partial class LanRoomService : ModuleBase
         }
 
         string hostAddress = string.IsNullOrEmpty(parts[3]) ? fallbackAddress : parts[3];
-        room = new LanRoomInfo(parts[1], parts[2], hostAddress, tcpPort, playerCount, maxPlayerCount);
+        if (parts.Length == 7) {
+            room = new LanRoomInfo(parts[1], parts[2], hostAddress, tcpPort, playerCount, maxPlayerCount);
+            return true;
+        }
+
+        if (!int.TryParse(parts[13], out int hostPlayerFlagValue)) {
+            return false;
+        }
+
+        string hostPlayerName = DecodeText(parts[7]);
+        room = new LanRoomInfo(
+            parts[1],
+            parts[2],
+            hostAddress,
+            tcpPort,
+            playerCount,
+            maxPlayerCount,
+            hostPlayerName,
+            parts[8],
+            parts[9],
+            parts[10],
+            parts[11],
+            parts[12],
+            (PlayerFlag)hostPlayerFlagValue);
         return true;
+    }
+
+    private string BuildDiscoveryPayload(string localAddress)
+    {
+        string hostPlayerName;
+        lock (sessionLock) {
+            UserProfileData profile = hostPlayerProfile ?? UserProfileData.CreateFallback(GetDefaultProfileName(LanRoomRole.Host));
+            profile.Normalize(GetDefaultProfileName(LanRoomRole.Host));
+            hostPlayerName = profile.name;
+        }
+
+        return $"{LanRoomProtocolName.DiscoveryPrefix}|{hostedRoomId}|{hostedRoomName}|{localAddress}|{hostedTcpPort}|{GetHostedPlayerCount()}|{LanRoomConfig.MaxPlayerCount}|{EncodeText(hostPlayerName)}|{lanBoardCfgId}|{lanHoldTimeCfgId}|{lanByoyomiCountCfgId}|{lanByoyomiTimeCfgId}|{lanHandicapCfgId}|{(int)lanHostPlayerFlag}";
     }
 
     private int GetHostedPlayerCount()

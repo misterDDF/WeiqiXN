@@ -1,7 +1,11 @@
 using System;
+using UnityEngine;
+using UnityEngine.UI;
 
 public class LanRoomItemWidget : UIWidgetWithBinder<LanRoomItemWidgetUI>
 {
+    private const float RoomItemHeight = 104f;
+
     private LanRoomInfo room;
     private Action<LanRoomInfo> clickHandler;
 
@@ -32,7 +36,20 @@ public class LanRoomItemWidget : UIWidgetWithBinder<LanRoomItemWidgetUI>
         clickHandler = onClick;
 
         if (binder != null && binder.txt_room != null) {
+            binder.txt_room.enableWordWrapping = false;
+            binder.txt_room.fontSize = 18f;
             binder.txt_room.text = room.GetDisplayText();
+        }
+
+        LayoutElement layoutElement = gameObject != null ? gameObject.GetComponent<LayoutElement>() : null;
+        if (layoutElement != null) {
+            layoutElement.minHeight = RoomItemHeight;
+            layoutElement.preferredHeight = RoomItemHeight;
+        }
+
+        RectTransform rectTransform = transform as RectTransform;
+        if (rectTransform != null) {
+            rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, RoomItemHeight);
         }
     }
 

@@ -12,7 +12,7 @@
 - 事件系统可以作为 UI、本地逻辑和未来网络层之间的内部通信机制。
 - 存档系统可为快照、重连缓存或本地复盘提供参考。
 - UI 框架和配置系统可以继续扩展房间、匹配、邀请、断线提示等页面。
-- `LanRoomService` 已提供最小局域网房间发现、连接、准备状态、玩家资料同步、开局配置、主动离开和落子命令搬运骨架；`LanRoomPopup` 创建房间前会复用 `DuelSetupPopup` 设置棋盘、时间、让子和 host 座位，并在开局状态到达后进入带 LAN 标记的 `DuelScene`，UI 不直接持有 socket。
+- `LanRoomService` 已提供最小局域网房间发现、连接、准备状态、玩家资料同步、开局配置、主动离开和落子命令搬运骨架；UDP 房间广播会携带房主玩家名、棋盘、时间、读秒、让子和 host 座位配置，搜索列表展示这些创建房间时选定的信息；`LanRoomPopup` 创建房间前会复用 `DuelSetupPopup` 设置棋盘、时间、让子和 host 座位，并在开局状态到达后进入带 LAN 标记的 `DuelScene`，UI 不直接持有 socket。
 - `PlayerProfile` 已作为局域网玩家资料同步协议接入；当前资料对象只含 `name`，通过 base64 JSON 搬运，避免分隔符冲突并允许后续扩展头像、等级、战绩等字段。
 - 正常落子提交已收敛到 `DuelAuthoritySystem`：本地/电脑对局直接请求本进程权威落子，LAN 对局按本端座位提交到 `LanRoomService`，host 本地玩家也不绕过命令队列直接改盘。
 - 本端人类输入权限已收敛到 `DuelInputAuthority`：页面预览、点击提交和 LAN 提交前置检查使用同一份权限状态；LAN 原型由 host 广播 `InputAuthority` 更新 `SceneComponentDuel.localInputPlayerFlag`。
