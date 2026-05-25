@@ -646,23 +646,6 @@ public static class KataGoBootstrap
                 false,
                 paths.engineName);
 
-            nativeEngine = new Win32NativeKataGoEngine();
-            nativeEngine.Start(
-                paths.nativeLibraryPath,
-                paths.configPath,
-                paths.modelPath,
-                paths.workingDirectory);
-            ValidateNativeBridgeBackend(paths, nativeEngine.BridgeBackend);
-
-            XNLogger.LogInfo(
-                "KataGo native engine started.",
-                ("engine", paths.engineName),
-                ("libraryPath", paths.nativeLibraryPath),
-                ("bridgeBackend", nativeEngine.BridgeBackend),
-                ("configPath", paths.configPath),
-                ("noWriteMode", paths.noWriteMode.ToString()),
-                ("modelPath", paths.modelPath));
-
             RunNativeSmokeTest(paths, progressStart, progressEnd, cancellationToken);
             return true;
         }
@@ -706,6 +689,16 @@ public static class KataGoBootstrap
         }
     }
 
+    private static void StartNativeEngine(KataGoPaths paths)
+    {
+        nativeEngine = new Win32NativeKataGoEngine();
+        nativeEngine.Start(
+            paths.nativeLibraryPath,
+            paths.configPath,
+            paths.modelPath,
+            paths.workingDirectory);
+    }
+
     private static void RunNativeSmokeTest(KataGoPaths paths, float progressStart, float progressEnd, CancellationToken cancellationToken)
     {
         for (int i = 0; i < SmokeTestBoardSizes.Length; i++) {
@@ -740,7 +733,43 @@ public static class KataGoBootstrap
             paths.engineName);
 
         cancellationToken.ThrowIfCancellationRequested();
-        JObject result = nativeEngine.Analyze(query, paths.smokeTestTimeoutMs);
+        DateTime startTime = DateTime.UtcNow;
+        JObject result;
+        if (boardIndex == 0) {
+            result = RunStartupOperationWithProgress(
+                paths,
+                () =>
+                {
+                    StartNativeEngine(paths);
+                    return nativeEngine.Analyze(query, paths.smokeTestTimeoutMs);
+                },
+                () => BuildSmokeTestProgressDetail(paths, boardSize, boardIndex),
+                startTime,
+                progressStart,
+                progressEnd,
+                cancellationToken,
+                GetEstimatedBoardWarmupMs(paths, boardIndex));
+            ValidateNativeBridgeBackend(paths, nativeEngine.BridgeBackend);
+            XNLogger.LogInfo(
+                "KataGo native engine started.",
+                ("engine", paths.engineName),
+                ("libraryPath", paths.nativeLibraryPath),
+                ("bridgeBackend", nativeEngine.BridgeBackend),
+                ("configPath", paths.configPath),
+                ("noWriteMode", paths.noWriteMode.ToString()),
+                ("modelPath", paths.modelPath));
+        }
+        else {
+            result = RunStartupOperationWithProgress(
+                paths,
+                () => nativeEngine.Analyze(query, paths.smokeTestTimeoutMs),
+                () => BuildSmokeTestProgressDetail(paths, boardSize, boardIndex),
+                startTime,
+                progressStart,
+                progressEnd,
+                cancellationToken,
+                GetEstimatedBoardWarmupMs(paths, boardIndex));
+        }
         cancellationToken.ThrowIfCancellationRequested();
 
         if (result["id"]?.ToString() != requestId) {
@@ -946,13 +975,48 @@ public static class KataGoBootstrap
 
     private static void UpdateSmokeTestProgress(KataGoPaths paths, int boardSize, int boardIndex, DateTime startTime, float progressStart, float progressEnd)
     {
+        UpdateStartupPhaseProgress(
+            paths,
+            BuildSmokeTestProgressDetail(paths, boardSize, boardIndex),
+            startTime,
+            progressStart,
+            progressEnd,
+            GetEstimatedBoardWarmupMs(paths, boardIndex));
+    }
+
+    private static T RunStartupOperationWithProgress<T>(
+        KataGoPaths paths,
+        Func<T> operation,
+        Func<string> detailTextFactory,
+        DateTime startTime,
+        float progressStart,
+        float progressEnd,
+        CancellationToken cancellationToken,
+        int estimatedMs)
+    {
+        Task<T> task = Task.Run(operation);
+        while (!task.Wait(SmokeTestProgressPollMs)) {
+            cancellationToken.ThrowIfCancellationRequested();
+            UpdateStartupPhaseProgress(
+                paths,
+                detailTextFactory(),
+                startTime,
+                progressStart,
+                progressEnd,
+                estimatedMs);
+        }
+
+        return task.GetAwaiter().GetResult();
+    }
+
+    private static void UpdateStartupPhaseProgress(KataGoPaths paths, string detailText, DateTime startTime, float progressStart, float progressEnd, int estimatedMs)
+    {
         double elapsedMs = (DateTime.UtcNow - startTime).TotalMilliseconds;
-        int estimatedBoardMs = GetEstimatedBoardWarmupMs(paths, boardIndex);
-        float smokeProgress = Mathf.Clamp01((float)(elapsedMs / estimatedBoardMs));
-        float progress = Mathf.Lerp(progressStart, progressEnd, smokeProgress);
+        float phaseProgress = Mathf.Clamp01((float)(elapsedMs / Math.Max(1, estimatedMs)));
+        float progress = Mathf.Lerp(progressStart, progressEnd, phaseProgress);
         SetStartupStatus(
             MessageText.Get("katago_warmup_status"),
-            BuildSmokeTestProgressDetail(paths, boardSize, boardIndex),
+            detailText,
             progress,
             false,
             false,
