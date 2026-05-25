@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using Cinemachine;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
@@ -22,7 +21,6 @@ public class ChessBoardSystem : SystemBase
     {
         base.Init();
 
-        scene.RegisterEntityEvent<Chess, OnEntityCreated>(OnChessCreated);
         scene.RegisterSystemEvent<OnAddChessToBoard>(OnAddChessToBoard);
         scene.RegisterSystemEvent<OnApplyLanDuelMove>(OnApplyLanDuelMove);
 
@@ -49,26 +47,6 @@ public class ChessBoardSystem : SystemBase
 
         if (scene.sceneCreateParams.saveFilePath != null) {
             RestoreBoardFromKataGoRecord(compChessBoard);
-        }
-    }
-
-    public void OnChessCreated(Chess chess, OnEntityCreated evt)
-    {
-        var compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
-        if (compChessBoard != null) {
-            int posIndex = compChessBoard.GetPosIndexByCoords(chess.coords);
-            if (posIndex >= 0) {
-                if (compChessBoard.chessInfoDict.TryGetValue(posIndex.ToString(), out var chessInfo) &&
-                    chessInfo.chessGuid.value == chess.guid &&
-                    chessInfo.chessFlag.value == (int)chess.playerFlag
-                ) {
-                    Transform gridTransform = compChessBoard.chessBoardGrid.transform;
-                    Vector3 localChessPos = compChessBoard.chessBoardGrid.GetCellCenterLocalPosition(chess.coords.x, chess.coords.z);
-                    chess.transform.position = gridTransform.TransformPoint(localChessPos);
-                } else {
-                    chess.Destroy();
-                }
-            }
         }
     }
 
@@ -119,17 +97,8 @@ public class ChessBoardSystem : SystemBase
             return false;
         }
 
-        foreach (var removePosIndex in moveResult.pendingRemovePosIndexes) {
-            if (moveResult.previousChessInfoDict.TryGetValue(removePosIndex.ToString(), out var chessInfo)) {
-                var chess = scene.GetEntity<Chess>(chessInfo.chessGuid.value);
-                if (chess != null) {
-                    chess.Destroy();
-                }
-            }
-        }
-
         DuelMoveRule.ApplyMoveResult(compChessBoard, moveResult);
-        EntityUtils.CreateChess(scene, chessGuid, playerFlag, coords);
+        ApplyMoveStoneViews(compChessBoard, moveResult, playerFlag, coords);
         DrawLatestMoveMarker(compChessBoard, playerFlag, coords);
         int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : chessBoardData?.boardSize ?? 19;
         compDuel.AppendKataGoMove(playerFlag, coords, boardSize);
@@ -215,17 +184,8 @@ public class ChessBoardSystem : SystemBase
             return false;
         }
 
-        foreach (var removePosIndex in moveResult.pendingRemovePosIndexes) {
-            if (moveResult.previousChessInfoDict.TryGetValue(removePosIndex.ToString(), out var chessInfo)) {
-                var chess = scene.GetEntity<Chess>(chessInfo.chessGuid.value);
-                if (chess != null) {
-                    chess.Destroy();
-                }
-            }
-        }
-
         DuelMoveRule.ApplyMoveResult(compChessBoard, moveResult);
-        EntityUtils.CreateChess(scene, chessGuid, move.playerFlag, move.coords);
+        ApplyMoveStoneViews(compChessBoard, moveResult, move.playerFlag, move.coords);
         DrawLatestMoveMarker(compChessBoard, move.playerFlag, move.coords);
         int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : chessBoardData?.boardSize ?? 19;
         compDuel.AppendKataGoMove(move.playerFlag, move.coords, boardSize);
@@ -402,7 +362,6 @@ public class ChessBoardSystem : SystemBase
         LanDuelBoardSnapshotMessage snapshot,
         int previousBoardVersion)
     {
-        ClearChessEntities();
         compChessBoard.chessInfoDict.Clear();
         compChessBoard.lastChessInfoDict.Clear();
         compChessBoard.chessBoardGrid.ClearLatestMoveMarker();
@@ -419,11 +378,11 @@ public class ChessBoardSystem : SystemBase
                 chessInfo.chessGuid.value = chessGuid;
                 chessInfo.chessFlag.value = (int)stone.playerFlag;
                 compChessBoard.chessInfoDict.SetValue(compChessBoard.GetPosIndexByCoords(stone.coords).ToString(), chessInfo);
-                EntityUtils.CreateChess(scene, chessGuid, stone.playerFlag, stone.coords);
             }
         }
 
         compChessBoard.lastChessInfoDict = compChessBoard.CreateCacheChessInfoDict();
+        compChessBoard.GetStoneViewCache().SyncFromChessInfoDict();
         ApplyLanBoardSnapshotMetadata(
             compDuel,
             compChessBoard,
@@ -509,18 +468,6 @@ public class ChessBoardSystem : SystemBase
         }
 
         return false;
-    }
-
-    private void ClearChessEntities()
-    {
-        string chessEntityType = EntityBase.GetEntityType<Chess>();
-        if (!scene.entityTypeDict.TryGetValue(chessEntityType, out HashSet<EntityBase> chessEntities)) {
-            return;
-        }
-
-        foreach (EntityBase chessEntity in chessEntities.ToList()) {
-            chessEntity.Destroy();
-        }
     }
 
     private void DrawLatestMoveMarker(SceneComponentChessBoard compChessBoard, PlayerFlag playerFlag, RectCoordinates coords)
@@ -678,17 +625,7 @@ public class ChessBoardSystem : SystemBase
             latestMovePlayerFlag = playerFlag;
         }
 
-        foreach (var kvp in compChessBoard.chessInfoDict) {
-            if (!int.TryParse(kvp.Key, out int posIndex)) {
-                continue;
-            }
-
-            RectCoordinates coords = compChessBoard.GetCoordsByPosIndex(posIndex);
-            ChessInfo chessInfo = kvp.Value;
-            if (coords.x >= 0 && coords.z >= 0 && chessInfo != null) {
-                EntityUtils.CreateChess(scene, chessInfo.chessGuid.value, (PlayerFlag)chessInfo.chessFlag.value, coords);
-            }
-        }
+        compChessBoard.GetStoneViewCache().SyncFromChessInfoDict();
 
         if (latestMoveCoords != null) {
             DrawLatestMoveMarker(compChessBoard, latestMovePlayerFlag, latestMoveCoords);
@@ -728,5 +665,20 @@ public class ChessBoardSystem : SystemBase
         DuelMoveRule.ApplyMoveResult(compChessBoard, moveResult);
         compDuel.AppendKataGoMove(playerFlag, coords, boardSize);
         return true;
+    }
+
+    private void ApplyMoveStoneViews(SceneComponentChessBoard compChessBoard, DuelMoveResult moveResult, PlayerFlag playerFlag, RectCoordinates coords)
+    {
+        if (compChessBoard == null || moveResult == null) {
+            return;
+        }
+
+        ChessStoneViewCache stoneViewCache = compChessBoard.GetStoneViewCache();
+        foreach (int removePosIndex in moveResult.pendingRemovePosIndexes) {
+            RectCoordinates removeCoords = compChessBoard.GetCoordsByPosIndex(removePosIndex);
+            stoneViewCache.HideStone(removeCoords);
+        }
+
+        stoneViewCache.ShowStone(coords, playerFlag);
     }
 }

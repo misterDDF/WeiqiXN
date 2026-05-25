@@ -17,10 +17,28 @@ public class SceneComponentChessBoard : SceneComponentBase
 
     public RectGrid chessBoardGrid;
     public CinemachineVirtualCamera duelVCam;
+    [SkipSavableCheck]
+    public ChessStoneViewCache stoneViewCache;
 
     public SceneComponentChessBoard(DuelScene scene) : base(scene)
     {
 
+    }
+
+    public ChessStoneViewCache GetStoneViewCache()
+    {
+        if (stoneViewCache == null) {
+            stoneViewCache = new ChessStoneViewCache(scene, this);
+        }
+
+        return stoneViewCache;
+    }
+
+    public override void OnDestroy()
+    {
+        stoneViewCache?.Destroy();
+        stoneViewCache = null;
+        base.OnDestroy();
     }
 
     public int GetGridMaxSize()

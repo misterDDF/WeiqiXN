@@ -7,6 +7,7 @@
 - `Assets/Scripts/Game/ChessBoard/RectGridChunk.cs`
 - `Assets/Scripts/Game/ChessBoard/RectCell.cs`
 - `Assets/Scripts/Game/ChessBoard/RectCoordinates.cs`
+- `Assets/Scripts/Game/Component/SceneComponent/ChessStoneViewCache.cs`
 - `Assets/Scripts/Game/ChessBoard/RectMesh.cs`
 - `Assets/Scripts/Game/ChessBoard/ChessBoardUtils.cs`
 - `Assets/Scripts/Game/System/ChessBoardSystem.cs`
@@ -15,7 +16,7 @@
 
 ## 职责
 
-棋盘模块负责棋盘生成、棋盘坐标、棋子状态存储、落子合法性、提子、自杀禁手和棋子实体创建/销毁。
+棋盘模块负责棋盘生成、棋盘坐标、棋子状态存储、落子合法性、提子、自杀禁手和棋子表现同步。
 
 ## 当前进度
 
@@ -26,6 +27,7 @@
 - `RectGrid` 可以绘制和清除 ownership overlay：形势分析结果会按 KataGo `ownership` 行序直接在棋盘交叉点显示黑白小方块，低于当前阈值的中立或未明确控制点不绘制；同色相邻控制点之间会用对应颜色细线连接；overlay 位于棋子模型上方，只作为 AI 预测控制区域的表现层，不写入棋盘规则状态。
 - `RectGrid` 会在最新一手棋子上方绘制三角标记，标记高度与 ownership overlay 一致；黑棋使用白色三角，白棋使用黑色三角。最新手标记只作为表现层，不写入棋盘规则状态。
 - `SceneComponentChessBoard` 负责棋盘配置 id、运行时当前棋子信息、上一局面棋子信息、棋盘引用和虚拟相机引用；棋子字典不再作为持久化棋盘权威。
+- `ChessStoneViewCache` 负责棋子 prefab 表现缓存。规则状态仍以 `SceneComponentChessBoard.chessInfoDict` 为权威；普通落子、提子、LAN 快照纠偏、读档恢复和悔棋重建只把最终棋盘状态同步给表现缓存，由缓存按棋盘位置显示、隐藏或复用黑白棋子 prefab，避免整盘销毁重建造成闪动。
 - `ChessBoardSystem.Init()` 根据棋盘配置初始化网格，设置相机俯视棋盘；读档/继续对局暂不作为当前正式功能。
 - `OnSubmitDuelMove` 是当前页面和 AI 的正常落子提交入口；`DuelAuthoritySystem` 在本地/电脑对局中转入本进程权威落子应用，在 LAN 对局中先读取 `DuelInputAuthority` 的本端输入权限，再提交到 `LanRoomService`，由房间服务决定本端 host 入队还是远端 TCP 发送。`OnAddChessToBoard` 仍保留为本地落子应用的兼容入口，不再作为 UI/AI 首选入口。
 - `DuelMoveRule` 提供领域落子命令和结果模型：`DuelMoveCommand` 描述落子方、坐标和棋子 guid；`DuelMoveResult` 描述是否接受、拒绝原因、上一局面、下一局面和待移除位置；`DuelMoveRejectReason` 记录非法原因。
@@ -51,7 +53,7 @@
 - 简单防重复局面只能说明“当前实现会阻止前后局面完全一致”，还没有完整定义复杂劫争规则。
 - 已有虚手、请求数子、双方连续虚手终局、认输和基础终局结果 UI 原型；仍没有死子确认和线上裁定模型。
 - 当前“请求数子”和双方连续虚手只依赖 KataGo `ownership` 统计结果；本地棋盘状态数子算法不再作为回退路径。统计时白方加上当前让子配置的 `komi`，该口径仍未覆盖死子确认或完整线上裁定模型。
-- 当前规则结果已经和棋子实体创建/销毁分离，但 `DuelMoveRule` 仍直接依赖 `SceneComponentChessBoard` 和 `SavableObjectDict<ChessInfo>`；后续若要服务端或非 Unity 进程复用，还需要进一步抽出纯棋盘状态模型。
+- 当前规则结果已经和棋子 prefab 生命周期分离，但 `DuelMoveRule` 仍直接依赖 `SceneComponentChessBoard` 和 `SavableObjectDict<ChessInfo>`；后续若要服务端或非 Unity 进程复用，还需要进一步抽出纯棋盘状态模型。
 
 ## 后续建议
 

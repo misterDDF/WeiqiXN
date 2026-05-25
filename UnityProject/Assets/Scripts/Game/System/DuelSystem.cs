@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 using Newtonsoft.Json.Linq;
 using XNClient.ChessBoard;
 using XNClient.Logger;
@@ -278,14 +277,14 @@ public class DuelSystem : SystemBase
         compDuelInfo.turnLeftTimes.value = holdTimeData.isInfinite ? -1 : holdTimeData.holdSeconds;
     }
 
-    private void ApplyInitialHandicapStones(SceneComponentDuel compDuel)
+    private void ApplyInitialHandicapStones(SceneComponentDuel compDuel, bool syncStoneViews = true)
     {
         if (compDuel == null || !DuelHandicapPlacement.HasHandicap(compDuel.handicapCfgId.value)) {
             return;
         }
 
         SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
-        DuelHandicapPlacement.ApplyInitialStones(scene, compChessBoard, compDuel.handicapCfgId.value);
+        DuelHandicapPlacement.ApplyInitialStones(scene, compChessBoard, compDuel.handicapCfgId.value, syncStoneViews);
     }
 
     public override void OnUpdate()
@@ -785,12 +784,11 @@ public class DuelSystem : SystemBase
             return false;
         }
 
-        ClearChessEntities();
         compChessBoard.chessInfoDict.Clear();
         compChessBoard.lastChessInfoDict.Clear();
         compChessBoard.chessBoardGrid?.ClearLatestMoveMarker();
         compDuel.ResetKataGoMoves();
-        ApplyInitialHandicapStones(compDuel);
+        ApplyInitialHandicapStones(compDuel, false);
 
         int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : 19;
         RectCoordinates latestMoveCoords = null;
@@ -817,6 +815,7 @@ public class DuelSystem : SystemBase
             compChessBoard.chessBoardGrid?.DrawLatestMoveMarker(latestMoveCoords.x, latestMoveCoords.z, latestMovePlayerFlag == PlayerFlag.Player1);
         }
 
+        compChessBoard.GetStoneViewCache().SyncFromChessInfoDict();
         return true;
     }
 
@@ -831,29 +830,9 @@ public class DuelSystem : SystemBase
             return false;
         }
 
-        foreach (int removePosIndex in moveResult.pendingRemovePosIndexes) {
-            if (moveResult.previousChessInfoDict.TryGetValue(removePosIndex.ToString(), out ChessInfo chessInfo)) {
-                Chess chess = scene.GetEntity<Chess>(chessInfo.chessGuid.value);
-                chess?.Destroy();
-            }
-        }
-
         DuelMoveRule.ApplyMoveResult(compChessBoard, moveResult);
-        EntityUtils.CreateChess(scene, chessGuid, playerFlag, coords);
         compDuel.AppendKataGoMove(playerFlag, coords, boardSize);
         return true;
-    }
-
-    private void ClearChessEntities()
-    {
-        string chessEntityType = EntityBase.GetEntityType<Chess>();
-        if (!scene.entityTypeDict.TryGetValue(chessEntityType, out HashSet<EntityBase> chessEntities)) {
-            return;
-        }
-
-        foreach (EntityBase chessEntity in chessEntities.ToList()) {
-            chessEntity.Destroy();
-        }
     }
 
     private string GetNextTurnPlayerGuid(SceneComponentDuel compDuel, int moveCount)

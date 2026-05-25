@@ -84,7 +84,7 @@ public static class DuelHandicapPlacement
         return initialStones;
     }
 
-    public static bool ApplyInitialStones(SceneBase scene, SceneComponentChessBoard compChessBoard, string cfgId)
+    public static bool ApplyInitialStones(SceneBase scene, SceneComponentChessBoard compChessBoard, string cfgId, bool syncStoneViews = true)
     {
         if (scene == null || compChessBoard == null || compChessBoard.chessBoardGrid == null) {
             return false;
@@ -106,10 +106,12 @@ public static class DuelHandicapPlacement
             chessInfo.chessGuid.value = chessGuid;
             chessInfo.chessFlag.value = (int)PlayerFlag.Player1;
             compChessBoard.chessInfoDict.SetValue(posIndex.ToString(), chessInfo);
-            EntityUtils.CreateChess(scene, chessGuid, PlayerFlag.Player1, coords);
         }
 
         compChessBoard.lastChessInfoDict = compChessBoard.CreateCacheChessInfoDict();
+        if (syncStoneViews) {
+            compChessBoard.GetStoneViewCache().SyncFromChessInfoDict();
+        }
         return true;
     }
 

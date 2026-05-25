@@ -53,7 +53,7 @@
 - 棋盘尺寸和对局虚拟相机 y 偏移配置在 `Assets/Config/DataJson/chess_board/chess_board.json`。
 - 场景、UI 页面、运行时 UI 文案、预制体和 TMP sprite 配置放在 `Assets/Config/DataJson/`，对应的数据读取类放在 `Assets/Config/DataType/`。
 - `DuelScene` 创建 `SceneComponentChessBoard` 和 `SceneComponentDuel`，从 `DuelSceneFixedRef` 绑定固定场景引用，安装 `DuelSaveSystem`、`ChessBoardSystem`、`DuelOwnershipSystem`、`DuelAuthoritySystem`、`DuelSystem`、`LanDuelSystem`、`DuelAiSystem`，然后打开 `DuelPage`。
-- `SceneComponentChessBoard` 保存当前棋盘配置 id、运行时按棋盘位置索引缓存的棋子信息、用于简单重复局面对比的上一局面快照、`RectGrid` 引用和对局虚拟相机引用。
+- `SceneComponentChessBoard` 保存当前棋盘配置 id、运行时按棋盘位置索引缓存的棋子信息、用于简单重复局面对比的上一局面快照、`RectGrid` 引用、对局虚拟相机引用和运行时棋子表现缓存。棋盘规则状态以 `chessInfoDict` 为权威，棋子 prefab 由表现缓存按位置显示、隐藏和复用；LAN 快照纠偏、悔棋回放和读档恢复在最终规则状态确定后同步表现缓存，不再通过整盘销毁重建棋子 prefab 更新画面。
 - `SceneComponentDuel` 保存双方玩家 guid、当前回合玩家 guid、本端玩家座位、双方显示名、时间配置、让子配置、电脑对局配置、局域网对局标记、局域网角色、局域网 host 座位、局域网棋盘版本、超时/胜者 guid、连续虚手数、终局原因、最终数子分数和运行时 KataGo 标准 `moves` 手顺。
 - `RectGrid` 及其相关棋盘类使用 `RectCoordinates` 生成和寻址矩形棋盘；`RectCoordinates` 的逻辑行列语义与 KataGo 坐标保持一致。
 - `ChessBoardSystem` 根据所选棋盘尺寸初始化网格，并调整对局相机以覆盖棋盘。
