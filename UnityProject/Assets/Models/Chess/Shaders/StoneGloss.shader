@@ -95,8 +95,10 @@ Shader "WeiqiXN/StoneGloss"
                 half specPower = lerp(18.0h, 150.0h, _Smoothness);
                 half specular = pow(saturate(dot(normalWS, halfDir)), specPower) * _SpecStrength;
                 half rim = pow(saturate(1.0h - dot(viewDirWS, normalWS)), 3.0h) * _RimStrength;
+                half topSheenPower = lerp(10.0h, 28.0h, _Smoothness);
+                half topSheen = pow(saturate(dot(normalWS, viewDirWS)), topSheenPower) * top * _SpecStrength * 0.22h;
 
-                half3 color = baseColor + _HighlightColor.rgb * lightTint * specular + _HighlightColor.rgb * rim;
+                half3 color = baseColor + _HighlightColor.rgb * lightTint * specular + _HighlightColor.rgb * rim + _HighlightColor.rgb * topSheen;
                 return half4(saturate(color), _BaseColor.a);
             }
             ENDHLSL

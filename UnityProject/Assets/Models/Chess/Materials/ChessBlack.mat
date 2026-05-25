@@ -106,10 +106,10 @@ Material:
     - _PatternStrength: 0.008
     - _QueueOffset: 0
     - _ReceiveShadows: 1
-    - _RimStrength: 0.055
-    - _Smoothness: 0.7
+    - _RimStrength: 0.1
+    - _Smoothness: 0.86
     - _SmoothnessTextureChannel: 0
-    - _SpecStrength: 0.24
+    - _SpecStrength: 0.58
     - _SpecularHighlights: 1
     - _SrcBlend: 1
     - _SrcBlendAlpha: 1
@@ -118,11 +118,11 @@ Material:
     - _WorkflowMode: 1
     - _ZWrite: 1
     m_Colors:
-    - _BaseColor: {r: 0.014, g: 0.014, b: 0.013, a: 1}
+    - _BaseColor: {r: 0.026, g: 0.025, b: 0.023, a: 1}
     - _Color: {r: 0, g: 0, b: 0, a: 1}
-    - _EdgeColor: {r: 0.006, g: 0.021, b: 0.018, a: 1}
+    - _EdgeColor: {r: 0.008, g: 0.008, b: 0.007, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
-    - _HighlightColor: {r: 0.36, g: 0.4, b: 0.37, a: 1}
+    - _HighlightColor: {r: 0.74, g: 0.72, b: 0.64, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
   m_BuildTextureStacks: []
 --- !u!114 &1588224413975015210

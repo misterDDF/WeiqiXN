@@ -10,7 +10,7 @@ public static class ChessStoneAssetPolishTool
     private const string BlackPrefabPath = "Assets/Models/Chess/ChessBlack.prefab";
     private const string WhitePrefabPath = "Assets/Models/Chess/ChessWhite.prefab";
 
-    [MenuItem("Tools/WeiqiXN/Polish Chess Stone Assets")]
+    [MenuItem(CustomEditorMenuPaths.ChessBoard + "/应用棋子美术配置")]
     public static void Polish()
     {
         Shader shader = AssetDatabase.LoadAssetAtPath<Shader>(ShaderPath);
@@ -22,12 +22,12 @@ public static class ChessStoneAssetPolishTool
         ConfigureMaterial(
             BlackMaterialPath,
             shader,
-            new Color(0.014f, 0.014f, 0.013f, 1f),
-            new Color(0.006f, 0.021f, 0.018f, 1f),
-            new Color(0.36f, 0.4f, 0.37f, 1f),
-            0.7f,
-            0.24f,
-            0.055f,
+            new Color(0.026f, 0.025f, 0.023f, 1f),
+            new Color(0.008f, 0.008f, 0.007f, 1f),
+            new Color(0.74f, 0.72f, 0.64f, 1f),
+            0.86f,
+            0.58f,
+            0.1f,
             0.008f,
             4.2f);
 

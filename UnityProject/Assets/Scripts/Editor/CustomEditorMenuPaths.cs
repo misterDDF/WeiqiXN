@@ -5,4 +5,6 @@ public static class CustomEditorMenuPaths
     public const string BuildPreprocess = Build + "/打包预处理";
     public const string SpriteAtlasTools = Root + "/图集导出工具";
     public const string KataGo = Root + "/KataGo";
+    public const string ChessBoard = Root + "/棋盘";
+    public const string Scene = Root + "/场景";
 }
