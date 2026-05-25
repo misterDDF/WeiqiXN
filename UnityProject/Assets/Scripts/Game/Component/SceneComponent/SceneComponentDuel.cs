@@ -29,6 +29,10 @@ public class SceneComponentDuel : SceneComponentBase
     public SavableField<float> finalBlackScore = SavableFieldFactory.CreateFloatField(0f);
     public SavableField<float> finalWhiteScore = SavableFieldFactory.CreateFloatField(0f);
     public SavableField<float> finalScoreMargin = SavableFieldFactory.CreateFloatField(0f);
+    public SavableField<string> replayGameId = SavableFieldFactory.CreateStringField(string.Empty);
+    public SavableField<string> replayCreatedAtUtc = SavableFieldFactory.CreateStringField(string.Empty);
+    public SavableField<string> replayLastUpdatedAtUtc = SavableFieldFactory.CreateStringField(string.Empty);
+    public SavableField<string> replayArchivedAtUtc = SavableFieldFactory.CreateStringField(string.Empty);
     public JArray kataGoMoves = new JArray();
     public bool isScoring;
     public bool hasRecordedUserDuelResult;
