@@ -11,6 +11,9 @@ public class ChessBoardSystem : SystemBase
     public ChessBoardDataType chessBoardData;
     private const string BlackMaterialConfigId = "chess_board_black_material";
     private const string WhiteMaterialConfigId = "chess_board_white_material";
+    private const float DuelPerspectiveFov = 30f;
+    private const float DuelPerspectiveTiltFactor = 0.16f;
+    private const float DuelPerspectiveFramePaddingFactor = 1.08f;
 
     public ChessBoardSystem(SceneBase scene) : base(scene)
     {
@@ -529,7 +532,8 @@ public class ChessBoardSystem : SystemBase
         }
 
         Transform duelVCamTransform = compChessBoard.duelVCam.transform;
-        duelVCamTransform.rotation = Quaternion.LookRotation(Vector3.down, Vector3.forward);
+        Vector3 viewDir = new Vector3(0f, -1f, -DuelPerspectiveTiltFactor).normalized;
+        duelVCamTransform.rotation = Quaternion.LookRotation(viewDir, Vector3.forward);
 
         float aspect = Camera.main != null ? Camera.main.aspect : 16f / 9f;
 
@@ -539,15 +543,15 @@ public class ChessBoardSystem : SystemBase
         }
 
         LensSettings lens = compChessBoard.duelVCam.m_Lens;
-        float halfVerticalFovRad = lens.FieldOfView * 0.5f * Mathf.Deg2Rad;
         float halfHeightByBoard = Mathf.Max(gridBound.extents.z, aspect > 0f ? gridBound.extents.x / aspect : gridBound.extents.z);
-        float halfHeightPadding = Mathf.Tan(halfVerticalFovRad) * extraYOffset;
-        lens.OrthographicSize = halfHeightByBoard + Mathf.Max(halfHeightPadding, 0f);
-        lens.ModeOverride = LensSettings.OverrideModes.Orthographic;
+        lens.FieldOfView = DuelPerspectiveFov;
+        lens.ModeOverride = LensSettings.OverrideModes.Perspective;
         compChessBoard.duelVCam.m_Lens = lens;
 
-        float cameraYOffset = Mathf.Max(gridBound.size.x, gridBound.size.z) + extraYOffset;
-        duelVCamTransform.position = gridBound.center + Vector3.up * cameraYOffset;
+        float halfVerticalFovRad = lens.FieldOfView * 0.5f * Mathf.Deg2Rad;
+        float boardDistance = halfHeightByBoard / Mathf.Tan(halfVerticalFovRad);
+        float cameraDistance = boardDistance * DuelPerspectiveFramePaddingFactor + Mathf.Max(extraYOffset, 0f);
+        duelVCamTransform.position = gridBound.center - viewDir * cameraDistance;
     }
 
     private void RestoreBoardFromKataGoRecord(SceneComponentChessBoard compChessBoard)
