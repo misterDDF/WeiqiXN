@@ -141,6 +141,8 @@ public static class DuelReplayIndexFile
         item["winnerFlag"] = saveInfoJson["winnerFlag"]?.ToString() ?? string.Empty;
         item["finalScore"] = saveInfoJson["finalScore"]?.ToString() ?? string.Empty;
         item["sourceType"] = saveInfoJson["sourceType"]?.ToString() ?? string.Empty;
+        item["blackPlayerName"] = saveInfoJson["players"]?["black"]?["displayName"]?.ToString() ?? string.Empty;
+        item["whitePlayerName"] = saveInfoJson["players"]?["white"]?["displayName"]?.ToString() ?? string.Empty;
         item["isCompleted"] = saveInfoJson["isCompleted"]?.Value<bool>() ?? false;
         item["isArchived"] = saveInfoJson["isArchived"]?.Value<bool>() ?? false;
         item["saveInfoPath"] = $"replay/{gameId}/SaveInfo.json";
@@ -179,6 +181,8 @@ public class DuelReplayIndexItem
     public string winnerFlag;
     public string finalScore;
     public string sourceType;
+    public string blackPlayerName;
+    public string whitePlayerName;
     public bool isCompleted;
     public bool isArchived;
     public string saveInfoPath;
@@ -197,6 +201,8 @@ public class DuelReplayIndexItem
             winnerFlag = json["winnerFlag"]?.ToString() ?? string.Empty,
             finalScore = json["finalScore"]?.ToString() ?? string.Empty,
             sourceType = json["sourceType"]?.ToString() ?? string.Empty,
+            blackPlayerName = json["blackPlayerName"]?.ToString() ?? string.Empty,
+            whitePlayerName = json["whitePlayerName"]?.ToString() ?? string.Empty,
             isCompleted = json["isCompleted"]?.Value<bool>() ?? false,
             isArchived = json["isArchived"]?.Value<bool>() ?? false,
             saveInfoPath = json["saveInfoPath"]?.ToString() ?? string.Empty,

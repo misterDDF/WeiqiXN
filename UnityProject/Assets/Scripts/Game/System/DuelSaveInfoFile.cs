@@ -85,6 +85,11 @@ public static class DuelSaveInfoFile
             ["resultType"] = resultType,
             ["rules"] = KataGoDuelRecordFile.Rules,
             ["komi"] = GetKomi(handicapData),
+            ["players"] = new JObject
+            {
+                ["black"] = BuildPlayerInfoJson(compDuel, PlayerFlag.Player1),
+                ["white"] = BuildPlayerInfoJson(compDuel, PlayerFlag.Player2),
+            },
             ["board"] = new JObject
             {
                 ["cfgId"] = boardCfgId,
@@ -121,6 +126,45 @@ public static class DuelSaveInfoFile
         };
 
         return saveInfoJson;
+    }
+
+    private static JObject BuildPlayerInfoJson(SceneComponentDuel compDuel, PlayerFlag playerFlag)
+    {
+        return new JObject
+        {
+            ["flag"] = playerFlag.ToString(),
+            ["stone"] = playerFlag == PlayerFlag.Player1 ? "black" : "white",
+            ["guid"] = GetPlayerGuid(compDuel, playerFlag),
+            ["displayName"] = GetPlayerDisplayName(compDuel, playerFlag),
+        };
+    }
+
+    private static string GetPlayerGuid(SceneComponentDuel compDuel, PlayerFlag playerFlag)
+    {
+        if (compDuel == null) {
+            return string.Empty;
+        }
+
+        return playerFlag == PlayerFlag.Player1
+            ? compDuel.player1Guid.value
+            : compDuel.player2Guid.value;
+    }
+
+    private static string GetPlayerDisplayName(SceneComponentDuel compDuel, PlayerFlag playerFlag)
+    {
+        if (compDuel != null) {
+            if (playerFlag == PlayerFlag.Player1 && !string.IsNullOrWhiteSpace(compDuel.player1DisplayName.value)) {
+                return compDuel.player1DisplayName.value.Trim();
+            }
+
+            if (playerFlag == PlayerFlag.Player2 && !string.IsNullOrWhiteSpace(compDuel.player2DisplayName.value)) {
+                return compDuel.player2DisplayName.value.Trim();
+            }
+        }
+
+        return playerFlag == PlayerFlag.Player1
+            ? MessageText.Get("duel_player_black")
+            : MessageText.Get("duel_player_white");
     }
 
     private static bool IsGameCompleted(SceneComponentDuel compDuel)

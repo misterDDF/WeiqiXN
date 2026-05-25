@@ -50,7 +50,7 @@ public class ReplayArchiveItemWidget : UIWidgetWithBinder<ReplayArchiveItemWidge
         }
 
         if (binder.txt_status != null) {
-            binder.txt_status.text = item != null && item.isCompleted ? "已完结" : "进行中";
+            binder.txt_status.text = FormatWinner(item);
         }
 
         LayoutElement layoutElement = gameObject != null ? gameObject.GetComponent<LayoutElement>() : null;
@@ -66,9 +66,7 @@ public class ReplayArchiveItemWidget : UIWidgetWithBinder<ReplayArchiveItemWidge
             return "空记录";
         }
 
-        string boardText = item.boardSize > 0 ? $"{item.boardSize} 路" : "未知棋盘";
-        string sourceText = FormatSourceType(item.sourceType);
-        return $"{boardText} · {sourceText} · {FormatWinner(item)}";
+        return $"黑：{FormatPlayerName(item.blackPlayerName, "黑方")}  vs  白：{FormatPlayerName(item.whitePlayerName, "白方")}";
     }
 
     private string BuildMeta(DuelReplayIndexItem item)
@@ -78,7 +76,18 @@ public class ReplayArchiveItemWidget : UIWidgetWithBinder<ReplayArchiveItemWidge
         }
 
         string timeText = FormatTime(item.lastUpdatedAtUtc);
-        return $"{timeText}  ·  {item.moveCount} 手  ·  {FormatResultType(item.resultType)}";
+        string boardText = item.boardSize > 0 ? $"{item.boardSize} 路" : "未知棋盘";
+        string sourceText = FormatSourceType(item.sourceType);
+        return $"{timeText}  ·  {item.moveCount} 手  ·  {boardText}  ·  {sourceText}  ·  {FormatResultType(item.resultType)}";
+    }
+
+    private string FormatPlayerName(string playerName, string fallback)
+    {
+        if (string.IsNullOrWhiteSpace(playerName)) {
+            return fallback;
+        }
+
+        return playerName.Trim();
     }
 
     private string FormatWinner(DuelReplayIndexItem item)
