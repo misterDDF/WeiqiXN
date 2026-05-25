@@ -35,6 +35,7 @@ public class DuelScene : SceneBase
         AddSystem(new DuelAiSystem(this));
         AddSystem(new DuelSystem(this));
         AddSystem(new LanDuelSystem(this));
+        AddSystem(new DuelReplayArchiveSystem(this));
 
         Global.Instance.uiManager.ShowPage<DuelPage>();
     }

@@ -5,6 +5,8 @@ public static class GameSaveConfig
 {
     public static string SaveRootPath => GetSaveRootPath();
     public static string UserSaveFilePath => Path.Combine(SaveRootPath, "User.json");
+    public static string ReplayRootPath => Path.Combine(SaveRootPath, "replay");
+    public static string ReplayIndexPath => Path.Combine(ReplayRootPath, "ReplayIndex.json");
 
     public static string GetDuelSceneSavePath(int saveSlotIndex)
     {
@@ -24,6 +26,26 @@ public static class GameSaveConfig
     public static string GetSaveSlotPath(int saveSlotIndex)
     {
         return Path.Combine(SaveRootPath, saveSlotIndex.ToString());
+    }
+
+    public static string GetReplayGamePath(string gameId)
+    {
+        return Path.Combine(ReplayRootPath, gameId);
+    }
+
+    public static string GetReplayDuelScenePath(string gameId)
+    {
+        return Path.Combine(GetReplayGamePath(gameId), "DuelScene.json");
+    }
+
+    public static string GetReplayDuelRecordPath(string gameId)
+    {
+        return Path.Combine(GetReplayGamePath(gameId), "DuelRecord.json");
+    }
+
+    public static string GetReplayDuelSaveInfoPath(string gameId)
+    {
+        return Path.Combine(GetReplayGamePath(gameId), "SaveInfo.json");
     }
 
     private static string GetSaveRootPath()
