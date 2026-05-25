@@ -11,6 +11,17 @@ public static class DuelUtils
         return string.Empty;
     }
 
+    public static string GetPreviewGamePrefabTypeIdWithPlayerFlag(PlayerFlag playerFlag)
+    {
+        switch (playerFlag) {
+            case PlayerFlag.Player1:
+                return "ChessBlackPreview";
+            case PlayerFlag.Player2:
+                return "ChessWhitePreview";
+        }
+        return string.Empty;
+    }
+
     public static PlayerFlag GetOpponentPlayerFlag(this PlayerFlag playerFlag)
     {
         if (playerFlag == PlayerFlag.Player1) {

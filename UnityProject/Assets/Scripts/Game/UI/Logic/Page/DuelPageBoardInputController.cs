@@ -100,7 +100,7 @@ public class DuelPageBoardInputController
             aimChessPreview = null;
         }
 
-        string gamePrefabTypeId = DuelUtils.GetGamePrefabTypeIdWithPlayerFlag(playerFlag);
+        string gamePrefabTypeId = DuelUtils.GetPreviewGamePrefabTypeIdWithPlayerFlag(playerFlag);
         GamePrefabDataType gamePrefabCfg = GamePrefabDataType.GetConfigData(gamePrefabTypeId);
         if (gamePrefabCfg == null) {
             return;

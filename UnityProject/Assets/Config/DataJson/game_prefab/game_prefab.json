@@ -18,5 +18,13 @@
   "ChessWhite": {
     "id": "ChessWhite",
     "resPath": "Models/Chess/ChessWhite"
+  },
+  "ChessBlackPreview": {
+    "id": "ChessBlackPreview",
+    "resPath": "Models/Chess/ChessBlackPreview"
+  },
+  "ChessWhitePreview": {
+    "id": "ChessWhitePreview",
+    "resPath": "Models/Chess/ChessWhitePreview"
   }
 }
