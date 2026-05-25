@@ -1,0 +1,21 @@
+2026-05-25 16:32:13+0800: Running with following config:
+logDir = analysis_logs
+maxVisits = 500
+nnCacheSizePowerOfTwo = 23
+nnMaxBatchSize = 64
+nnMutexPoolSizePowerOfTwo = 17
+nnRandomize = true
+numAnalysisThreads = 2
+numSearchThreads = 16
+reportAnalysisWinratesAs = BLACK
+
+2026-05-25 16:32:13+0800: Analysis Engine starting...
+2026-05-25 16:32:13+0800: KataGo v1.16.5
+2026-05-25 16:32:13+0800: nnRandSeed0 = 5608473938179989159
+2026-05-25 16:32:13+0800: After dedups: nnModelFile0 = F:\WorkSpace\WeiqiXN-2\KataGo\models\kata1-b18c384nbt-s9996604416-d4316597426.bin.gz useFP16 auto useNHWC auto
+2026-05-25 16:32:13+0800: Initializing neural net buffer to be size 19 * 19 allowing smaller boards
+2026-05-25 16:32:14+0800: Found OpenCL Platform 0: NVIDIA CUDA (NVIDIA Corporation) (OpenCL 3.0 CUDA 13.1.117)
+2026-05-25 16:32:14+0800: Found 1 device(s) on platform 0 with type CPU or GPU or Accelerator
+2026-05-25 16:32:14+0800: Found OpenCL Device 0: NVIDIA GeForce RTX 3060 (NVIDIA Corporation) (score 11000300)
+2026-05-25 16:32:14+0800: Creating context for OpenCL Platform: NVIDIA CUDA (NVIDIA Corporation) (OpenCL 3.0 CUDA 13.1.117)
+2026-05-25 16:32:15+0800: Using OpenCL Device 0: NVIDIA GeForce RTX 3060 (NVIDIA Corporation) OpenCL 3.0 CUDA (Extensions: cl_khr_global_int32_base_atomics cl_khr_global_int32_extended_atomics cl_khr_local_int32_base_atomics cl_khr_local_int32_extended_atomics cl_khr_fp64 cl_khr_3d_image_writes cl_khr_byte_addressable_store cl_khr_icd cl_khr_gl_sharing cl_nv_compiler_options cl_nv_device_attribute_query cl_nv_pragma_unroll cl_nv_d3d10_sharing cl_khr_d3d10_sharing cl_nv_d3d11_sharing cl_nv_copy_opts cl_nv_create_buffer cl_khr_int64_base_atomics cl_khr_int64_extended_atomics cl_khr_device_uuid cl_khr_pci_bus_info cl_khr_external_semaphore cl_khr_external_memory cl_khr_external_semaphore_win32 cl_khr_external_memory_win32 cl_khr_semaphore)

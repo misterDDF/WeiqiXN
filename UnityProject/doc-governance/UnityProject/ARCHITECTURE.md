@@ -15,6 +15,8 @@
 
 ## Module Boundaries
 
+- 2026-05-25: Windows KataGo `native` backend keeps the same public analysis JSON boundary as `exe`, but now resolves two native candidates when configured: `native-opencl` first and `native-eigen` as CPU/no-write fallback. Native candidates are loaded by resolved full DLL path rather than by a process-wide bridge name, and each bridge must self-report the expected backend (`opencl` or `eigen`) before smoke tests run. Candidate skip, backend mismatch, startup failure, smoke-test failure, and final fallback exhaustion are logged with resolved DLL/config/model paths and exception fields.
+
 **模块边界**
 
 - `ClientMain` 是进程入口和 PlayerLoop 桥接层，负责初始化全局服务，并在 Unity 对应更新阶段后调用项目层更新。
@@ -38,7 +40,7 @@
 - 日志开关集中在 `LoggerConfig`。事件分发、FSM 参数/状态转移、AI 观察日志和 AI 分析细节日志归入诊断级输出；错误、警告、关键启动、AI 回合开始和最终落子/虚手决策归入常规输出。诊断级输出由 `ENABLE_EVENT_VERBOSE_LOG`、`ENABLE_FSM_VERBOSE_LOG`、`ENABLE_DUEL_AI_VERBOSE_LOG` 和 `ENABLE_DUEL_AI_DETAIL_LOG` 控制。
 - 资源加载通过 `ResourceManager` 和配置 id 抽象；编辑器环境使用 AssetDatabase，非编辑器环境使用 AssetBundle。
 - 存档通过 `SavableObj`、`SavableField` 和可保存集合持久化场景与用户状态；手动对局保存写入 `save/0/` 运行中检查点，复盘归档自动写入 `save/replay/{gameId}/` 并额外维护 `save/replay/ReplayIndex.json`。两条路径都输出 KataGo analysis JSON 记录文件，供 ownership analysis 和后续复盘/读档设计使用。读档/继续对局暂不作为当前正式功能。
-- KataGo 接入作为 Windows Unity Editor 和 Windows PC 包共用的本地子进程适配器存在：Unity 侧负责启动 `katago analysis`、通过 Win32 pipe 交换 stdin/stdout JSON、解析第一版形势按钮所需的 `ownership` 和电脑对局所需的 `moveInfos`，并把启动失败、超时、缺少模型或配置文件等情况转成可诊断状态。KataGo 运行源目录位于仓库根 `KataGo/`，Windows PC 构建成功后复制到包体根目录 `<BuildRoot>/KataGo/`，不进入 Unity `Assets` 导入体系。Windows 下优先尝试 OpenCL 引擎，初始化或 smoke test 失败时在适配器内部 fallback 到 Eigen AVX2 CPU 引擎；若启动时检测到游戏根目录不可写，则弹窗提示、跳过 OpenCL，并用 CPU 引擎的 `analysis_nowrite.cfg` 关闭 KataGo 文件写入。形势展示由 UI 发事件、系统请求分析、棋盘表现层绘制 overlay；电脑对局由 AI 分析服务读取 KataGo 结果，再由 AI 回合系统发出领域落子事件，不让 KataGo 适配器直接修改棋盘规则状态。
+- KataGo 接入作为 Windows Unity Editor 和 Windows PC 包共用的本地分析适配器存在。仓库根目录 `game-config.json` 决定各平台后端：Windows 当前支持 `exe`、`native` 和 `disabled`，默认使用 `native`；Android/iOS 先预留 `native`。`exe` 后端负责启动 `katago analysis`、通过 Win32 pipe 交换 stdin/stdout JSON，并在 OpenCL 初始化或 smoke test 失败时 fallback 到 Eigen AVX2 CPU 引擎；`native` 后端负责通过 P/Invoke 加载 `KataGo/engines/win-x64/native-eigen/katago_bridge.dll`，对外仍返回同一套 analysis JSON 结果。两条后端都只向上暴露 `ownership`、`moveInfos` 等分析结果，并把启动失败、超时、缺少模型或配置文件等情况转成可诊断状态。KataGo 运行源目录位于仓库根 `KataGo/`，Windows PC 构建成功后按 `windowsPlayer` 复制运行资源到包体根目录 `<BuildRoot>/KataGo/`，`game-config.json` 同步复制到包体根目录，二者都不进入 Unity `Assets` 导入体系。`native` 打包只复制 bridge DLL、no-write analysis 配置和模型，不携带 `katago.exe`；`exe` 打包保留完整 runtime 复制行为。形势展示由 UI 发事件、系统请求分析、棋盘表现层绘制 overlay；电脑对局由 AI 分析服务读取 KataGo 结果，再由 AI 回合系统发出领域落子事件，不让 KataGo 适配器直接修改棋盘规则状态。
 - 游戏侧手顺格式应直接使用 KataGo 标准 `moves` 数组项，不再维护额外字符串棋谱格式或转换层。`DuelMoveHistory` 是当前手顺访问边界，负责创建、追加、克隆、截断、尾部虚手统计和输出 KataGo `moves`；合法落子记录标准点位，虚手记录 `pass`；让子棋的预置黑子通过 KataGo `initialStones` 表达且不写入 `moves`；KataGo analysis JSON 生成优先输出 `moves`，是形势按钮、记录文件和后续复盘分析的统一路径；当前盘面快照式 `initialStones` 入口只作为调试或无手顺场景使用。
 
 ## Coordinate Contract
@@ -55,11 +57,11 @@
 - UI 通过事件与系统通信，避免页面直接修改棋盘内部状态，但事件定义会成为玩法合同的一部分。
 - 棋盘运行状态使用字典缓存，便于规则校验和实体同步；保存侧输出 KataGo 标准记录文件，避免后续复盘或读档设计再引入第二套棋谱格式。
 - 当前落子校验通过 `DuelMoveRule.BuildMoveResult()` 在临时棋盘缓存上模拟，结束后恢复原棋盘引用，再由外层系统应用 accepted result。这个结构降低了真实落子、AI 检查和悔棋回放的分叉风险；代价是规则结果仍依赖 `SceneComponentChessBoard` 和 `SavableObjectDict<ChessInfo>`，后续若要服务端或非 Unity 进程复用，还需要继续抽出纯棋盘状态模型。
-- 电脑对局复用本地双玩家、FSM 和落子事件，能降低对现有本地对局基线的影响；代价是 AI 可用性取决于本地 KataGo 子进程、模型和难度配置，后续客户端打包仍需要单独处理资源分发和平台支持。
+- 电脑对局复用本地双玩家、FSM 和落子事件，能降低对现有本地对局基线的影响；代价是 AI 可用性取决于本地 KataGo 后端、模型和难度配置，后续客户端打包仍需要单独处理资源分发和平台支持。
 - 当前 FSM 适合本地热座对局。联机对局需要明确权威方和同步边界，不能让两个客户端各自自由认定最终棋盘。
 - 联机若先以 host 内嵌 server core 落地，可以复用现有 Unity 进程、场景生命周期和本地调试手段，降低第一版部署成本；代价是 host 进程同时承载渲染和权威会话，未来若要独立扩容或降低耦合，需要再把会话核心迁移为独立进程，但这不应改变领域命令和快照结构。
 - 数据驱动棋盘尺寸可以避免为不同棋盘复制场景，但规则与 UI 必须持续使用一致的配置 id。
-- KataGo 本地子进程可以避免形势判断依赖网络服务，但会引入平台二进制、模型文件、首次初始化耗时、目录写权限和资源分发问题；当前策略是把 KataGo 放在 Unity `Assets` 外并在 Windows 构建后复制到包体根目录，目录不可写时自动降级为 CPU no-write 模式。
+- KataGo 本地后端可以避免形势判断依赖网络服务，但会引入平台二进制、模型文件、首次初始化耗时、目录写权限、原生库 ABI 和资源分发问题；当前策略是把 KataGo 放在 Unity `Assets` 外并在 Windows 构建后复制到包体根目录。Windows exe 后端在目录不可写时自动降级为 CPU no-write 模式；Windows native bridge 先走 Eigen/no-write 单实例路径，待 DLL 路径稳定后再推进 Android `.so`。
 - 记录文件采用可直接提交给 KataGo analysis engine 的 JSON 结构，会把保存侧棋谱输出和 ownership 请求骨架统一到同一份标准格式；复盘索引只保存轻量摘要，真实复盘重建仍以对应归档目录内的场景、记录和摘要三件套为准。代价是后续若恢复读档/继续对局为正式功能，必须重新明确运行中检查点、复盘归档目录、记录文件和棋盘尺寸一致性策略。
 
 ## Guardrails
@@ -80,6 +82,7 @@
 - 不要让任一客户端直接推进权威棋盘状态；主机端如果承载 server core，也只能通过同一套命令入口推进会话，不能因“是 host”而绕过协议。
 - 当前原型阶段“请求数子”和双方连续虚手复用 KataGo `ownership` 作为结算口径，以和形势展示保持一致；KataGo 不可用或无结果时不产生数子结果，也没有本地结算回退。后续补齐死子确认后，再评估是否把正式数子收回到本地规则和明确的计分流程。第一版也不要把 `rootInfo.scoreLead`、胜率或最佳选点纳入形势按钮或终局产品输出。
 - 不要让 KataGo 适配器直接修改 `SceneComponentChessBoard` 或落子状态；它只能读取局面快照并返回分析结果供表现层或调试层展示。
+- 不要在 Unity 侧为 exe 和 native 后端分叉出两套业务语义；两者都必须遵守同一份 KataGo analysis JSON 合同、同一套 `moves` 输入和同一套结果解析边界。
 - 电脑对局不能绕过本地落子规则。KataGo 返回的候选点必须先通过本地规则入口校验，再由 AI 系统提交正常落子命令，最终仍由权威落子入口应用 accepted result。
 - 不要新增非 KataGo 标准的内部棋谱格式；正常对局、保存、ownership 请求和后续复盘/读档设计都应围绕同一个 `moves` 表达。
 - 不要把 `Library/`、`Temp/`、`Logs/`、IDE 生成文件、导入包内部文件或构建输出当成架构权威。

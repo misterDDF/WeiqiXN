@@ -6,8 +6,21 @@ using UnityEngine;
 
 public static class KataGoOpenClWarmupCleaner
 {
-    private const string OpenClWarmupRelativePath = "engines/win-x64/opencl/KataGoData";
-    private const string LegacyOpenClWarmupRelativePath = "StreamingAssets/KataGo/engines/win-x64/opencl/KataGoData";
+    private static readonly string[] WarmupRelativePaths =
+    {
+        "analysis_logs",
+        "engines/win-x64/opencl/KataGoData",
+        "engines/win-x64/native-opencl/KataGoData",
+        "engines/win-x64/native-opencl/opencltuning",
+    };
+
+    private static readonly string[] LegacyWarmupRelativePaths =
+    {
+        "StreamingAssets/analysis_logs",
+        "StreamingAssets/KataGo/engines/win-x64/opencl/KataGoData",
+        "StreamingAssets/KataGo/engines/win-x64/native-opencl/KataGoData",
+        "StreamingAssets/KataGo/engines/win-x64/native-opencl/opencltuning",
+    };
 
     [MenuItem(CustomEditorMenuPaths.KataGo + "/清除opencl预热文件")]
     public static void ClearOpenClWarmupFiles()
@@ -60,11 +73,16 @@ public static class KataGoOpenClWarmupCleaner
     private static List<string> ResolveWarmupTargetPaths()
     {
         KataGoRuntimeEnvironment.RuntimeInfo runtimeInfo = KataGoRuntimeEnvironment.Resolve();
-        return new List<string>
-        {
-            Path.Combine(runtimeInfo.kataGoRoot, OpenClWarmupRelativePath),
-            Path.Combine(Application.dataPath, LegacyOpenClWarmupRelativePath),
-        };
+        List<string> paths = new List<string>();
+        foreach (string relativePath in WarmupRelativePaths) {
+            paths.Add(Path.Combine(runtimeInfo.kataGoRoot, relativePath));
+        }
+
+        foreach (string relativePath in LegacyWarmupRelativePaths) {
+            paths.Add(Path.Combine(Application.dataPath, relativePath));
+        }
+
+        return paths;
     }
 
     private static bool DeleteFileOrDirectory(string path)
