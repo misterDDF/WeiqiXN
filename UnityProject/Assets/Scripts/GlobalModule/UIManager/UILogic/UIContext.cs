@@ -101,9 +101,7 @@ public class UIContext
 
     public void ShowPopupPage(UIPage popupPage, bool isCachePage)
     {
-        popupPage.canvasOrder =
-            baseCanvasOrder + mainPageStack.Count * UIConfig.MAINPAGE_INCREASE_CANVAS_ORDER +
-            popupList.Count * UIConfig.POPUP_INCREASE_CANVAS_ORDER;
+        popupPage.canvasOrder = GetPopupCanvasOrder(popupList.Count);
         if (isCachePage) {
             popupPage.InitPage(this);
             popupPage.Open();
@@ -119,7 +117,7 @@ public class UIContext
         if (popupList.Contains(popupPage)) {
             popupList.Remove(popupPage);
             for (int i = 0; i < popupList.Count; i++) {
-                popupList[i].canvasOrder = baseCanvasOrder + (i + 1) * UIConfig.POPUP_INCREASE_CANVAS_ORDER;
+                popupList[i].canvasOrder = GetPopupCanvasOrder(i);
             }
             XNLogger.LogInfo("UIContext close popup page.", ("contextType", contextType.ToString()), ("pageName", popupPage.pageName));
             return true;
@@ -127,6 +125,13 @@ public class UIContext
             XNLogger.LogError("Target popup page not in current context", ("pageName", popupPage.pageName), ("contextType", contextType.ToString()));
             return false;
         }
+    }
+
+    private int GetPopupCanvasOrder(int popupIndex)
+    {
+        return baseCanvasOrder +
+            mainPageStack.Count * UIConfig.MAINPAGE_INCREASE_CANVAS_ORDER +
+            popupIndex * UIConfig.POPUP_INCREASE_CANVAS_ORDER;
     }
 
     public void CloseAllMainPages()

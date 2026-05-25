@@ -109,6 +109,7 @@
 - prefab、场景和资源导入相关修改应优先走 Unity 编辑器能力；当现有 MCP 工具能覆盖目标 prefab 或资源操作时使用 MCP。
 - 当前 MCP 未提供完整既有 prefab asset 层级编辑能力时，不直接手写复杂 prefab YAML；应改用 Unity 编辑器脚本、明确的编辑器菜单或人工维护 prefab，再通过 MCP 执行导入、编译和日志检查。
 - 固定 UI 控件仍必须由 prefab 或场景显式维护并通过现有 Binder 绑定；MCP 只是优先编辑入口，不改变 UI 维护边界。
+- 页面或弹窗 prefab 的界面根节点 `RectTransform` 默认必须使用四向 Stretch 锚点以适配多平台分辨率；仅在该界面明确是非全屏固定尺寸承载物且已有父级自适应布局时，才允许使用固定锚点，并应在对应 prefab 维护说明或交付说明中说明原因。
 - 修改既有 UI prefab 时，页面根节点、Canvas、CanvasScaler、GraphicRaycaster、主面板根节点、布局容器和棋盘承载节点默认视为受保护布局节点。除非任务明确要求调整这些节点，否则不得修改其 `RectTransform`、`Canvas`、`CanvasScaler`、`LayoutGroup` 或 `ContentSizeFitter` 配置。
 - `MainMenuPage.prefab` 的主菜单按钮栈和其布局容器默认视为受保护布局节点，尤其是 `panel_buttons` 一类承载既有按钮排列的节点；除非任务明确要求调整主菜单布局，否则不得修改这些节点的 `RectTransform`、`LayoutGroup`、`ContentSizeFitter`、锚点、尺寸、间距或父子关系。
 - UI prefab 修改完成后必须检查 prefab diff，确认改动只落在目标控件、目标子树和 Binder 引用上；若发现受保护布局节点出现非预期变化，必须先恢复这些变化再继续编译或交付。

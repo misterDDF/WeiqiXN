@@ -22,13 +22,13 @@ public static class KataGoBootstrap
     private const int OpenClSmokeTestTimeoutMs = 300000;
     private const int CpuSmokeTestTimeoutMs = 45000;
     private const int SmokeTestProgressPollMs = 250;
-    private const int OpenClWarmupEstimatedMs = 75000;
-    private const int CpuWarmupEstimatedMs = 12000;
+    private const int OpenClWarmupEstimatedMs = 55000;
+    private const int CpuWarmupEstimatedMs = 10000;
     private const int SmokeTestMaxVisits = 1;
     private const int AnalyzeTimeoutMs = 45000;
     private const bool HumanSlProfileEnabled = false;
     private static readonly int[] SmokeTestBoardSizes = { 9, 13, 19 };
-    private static readonly float[] SmokeTestBoardProgressWeights = { 0.80f, 0.10f, 0.10f };
+    private static readonly float[] SmokeTestBoardProgressWeights = { 0.90f, 0.05f, 0.05f };
 
     private static Win32KataGoProcess process;
     private static readonly SemaphoreSlim analysisSemaphore = new SemaphoreSlim(1, 1);
@@ -324,6 +324,7 @@ public static class KataGoBootstrap
             KataGoPaths paths = candidates[i];
             float candidateStartProgress = GetCandidateStartProgress(i, candidates.Length);
             float candidateEndProgress = GetCandidateEndProgress(i, candidates.Length);
+            float candidateFailureProgress = GetCandidateFailureProgress(i, candidates.Length);
             SetStartupStatus(
                 MessageText.Get("katago_warmup_status"),
                 BuildCandidateDetail(paths, i > 0),
@@ -349,7 +350,7 @@ public static class KataGoBootstrap
                 continue;
             }
 
-            if (TryStartAndSmokeTest(paths, candidateStartProgress, candidateEndProgress, cancellationToken)) {
+            if (TryStartAndSmokeTest(paths, candidateStartProgress, candidateEndProgress, candidateFailureProgress, cancellationToken)) {
                 if (cancellationToken.IsCancellationRequested) {
                     StopProcess();
                     SetStartupStatus(MessageText.Get("katago_cancelled_status"), string.Empty, 1f, true, true, false, null);
@@ -382,7 +383,7 @@ public static class KataGoBootstrap
         XNLogger.LogError("KataGo startup failed, no engine candidate is available.");
     }
 
-    private static bool TryStartAndSmokeTest(KataGoPaths paths, float progressStart, float progressEnd, CancellationToken cancellationToken)
+    private static bool TryStartAndSmokeTest(KataGoPaths paths, float progressStart, float progressEnd, float failureProgress, CancellationToken cancellationToken)
     {
         try {
             StartProcess(paths);
@@ -414,7 +415,7 @@ public static class KataGoBootstrap
             SetStartupStatus(
                 MessageText.Get("katago_warmup_status"),
                 MessageText.Format("katago_engine_unavailable_next", paths.engineName),
-                progressEnd,
+                failureProgress,
                 false,
                 false,
                 false,
@@ -638,11 +639,20 @@ public static class KataGoBootstrap
 
     private static float GetCandidateEndProgress(int candidateIndex, int candidateCount)
     {
-        if (candidateCount <= 1) {
+        if (candidateCount <= 1 || candidateIndex == 0) {
             return 0.94f;
         }
 
-        return candidateIndex == 0 ? 0.82f : 0.94f;
+        return 0.94f;
+    }
+
+    private static float GetCandidateFailureProgress(int candidateIndex, int candidateCount)
+    {
+        if (candidateCount <= 1 || candidateIndex > 0) {
+            return GetCandidateEndProgress(candidateIndex, candidateCount);
+        }
+
+        return 0.82f;
     }
 
     private static string BuildCandidateDetail(KataGoPaths paths, bool isFallback)

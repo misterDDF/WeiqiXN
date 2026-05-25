@@ -71,9 +71,24 @@ public readonly struct LanRoomInfo
         return $"{name}  {playerCount}/{maxPlayerCount}\n房主：{hostPlayerName}（{GetHostPlayerFlagText()}）  {GetDuelConfigText()}\n{hostAddress}:{tcpPort}";
     }
 
+    public string GetHostDisplayText()
+    {
+        return $"房主 {hostPlayerName} · {GetHostPlayerFlagText()}";
+    }
+
+    public string GetEndpointDisplayText()
+    {
+        return $"{hostAddress}:{tcpPort}";
+    }
+
+    public string GetDuelConfigDisplayText()
+    {
+        return GetDuelConfigText();
+    }
+
     private string GetDuelConfigText()
     {
-        return $"{GetBoardDisplayText()}  {GetTimeControlDisplayText()}  {GetHandicapDisplayText()}";
+        return $"{GetBoardDisplayText()} · {GetTimeControlDisplayText()} · {GetHandicapDisplayText()}";
     }
 
     private string GetBoardDisplayText()

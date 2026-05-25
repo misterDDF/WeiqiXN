@@ -4,7 +4,7 @@ using UnityEngine.UI;
 
 public class LanRoomItemWidget : UIWidgetWithBinder<LanRoomItemWidgetUI>
 {
-    private const float RoomItemHeight = 104f;
+    private const float RoomItemHeight = 112f;
 
     private LanRoomInfo room;
     private Action<LanRoomInfo> clickHandler;
@@ -40,6 +40,14 @@ public class LanRoomItemWidget : UIWidgetWithBinder<LanRoomItemWidgetUI>
             binder.txt_room.fontSize = 18f;
             binder.txt_room.text = room.GetDisplayText();
         }
+        if (binder != null) {
+            SetText(binder.txt_room_name, room.name);
+            SetText(binder.txt_player_count, $"{room.playerCount}/{room.maxPlayerCount}");
+            SetText(binder.txt_host, room.GetHostDisplayText());
+            SetText(binder.txt_config, room.GetDuelConfigDisplayText());
+            SetText(binder.txt_endpoint, room.GetEndpointDisplayText());
+            SetText(binder.txt_join_hint, "加入");
+        }
 
         LayoutElement layoutElement = gameObject != null ? gameObject.GetComponent<LayoutElement>() : null;
         if (layoutElement != null) {
@@ -56,5 +64,12 @@ public class LanRoomItemWidget : UIWidgetWithBinder<LanRoomItemWidgetUI>
     private void OnClickRoom()
     {
         clickHandler?.Invoke(room);
+    }
+
+    private void SetText(TMPro.TextMeshProUGUI text, string value)
+    {
+        if (text != null) {
+            text.text = value;
+        }
     }
 }
