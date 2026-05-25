@@ -101,7 +101,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Model
+    path: VisualOffset/Model
   m_PositionCurves:
   - curve:
       serializedVersion: 2
@@ -217,7 +217,7 @@ AnimationClip:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-    path: Model
+    path: VisualOffset/Model
   m_ScaleCurves: []
   m_FloatCurves: []
   m_PPtrCurves: []
@@ -229,7 +229,7 @@ AnimationClip:
   m_ClipBindingConstant:
     genericBindings:
     - serializedVersion: 2
-      path: 374627805
+      path: 3759495756
       attribute: 1
       script: {fileID: 0}
       typeID: 4
@@ -238,7 +238,7 @@ AnimationClip:
       isIntCurve: 0
       isSerializeReferenceCurve: 0
     - serializedVersion: 2
-      path: 374627805
+      path: 3759495756
       attribute: 4
       script: {fileID: 0}
       typeID: 4
@@ -357,7 +357,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.x
-    path: Model
+    path: VisualOffset/Model
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -477,7 +477,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.y
-    path: Model
+    path: VisualOffset/Model
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -570,7 +570,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: m_LocalPosition.z
-    path: Model
+    path: VisualOffset/Model
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -663,7 +663,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAnglesRaw.x
-    path: Model
+    path: VisualOffset/Model
     classID: 4
     script: {fileID: 0}
     flags: 16
@@ -756,7 +756,7 @@ AnimationClip:
       m_PostInfinity: 2
       m_RotationOrder: 4
     attribute: localEulerAnglesRaw.z
-    path: Model
+    path: VisualOffset/Model
     classID: 4
     script: {fileID: 0}
     flags: 16

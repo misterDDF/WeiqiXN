@@ -10,6 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 544285290615850265}
   - component: {fileID: 6494971523912118746}
+  - component: {fileID: 2381279235541678618}
   m_Layer: 0
   m_Name: ChessBlack
   m_TagString: Untagged
@@ -30,7 +31,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 2139740750011059678}
+  - {fileID: 7053649048425088828}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!95 &6494971523912118746
@@ -54,6 +55,22 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &2381279235541678618
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 650001137516262842}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4f815ad47ef53b2489f5d95637157046, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  visualOffsetRoot: {fileID: 7053649048425088828}
+  maxPositionOffset: 0.28
+  positionOffsetPower: 2
+  maxYawDegrees: 8
 --- !u!1 &4085857771652293561
 GameObject:
   m_ObjectHideFlags: 0
@@ -85,7 +102,7 @@ Transform:
   m_LocalScale: {x: 3.9, y: 1.6, z: 3.9}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 544285290615850265}
+  m_Father: {fileID: 7053649048425088828}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!33 &3768917275923810320
 MeshFilter:
@@ -137,3 +154,35 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &5841483671485832804
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7053649048425088828}
+  m_Layer: 0
+  m_Name: VisualOffset
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7053649048425088828
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5841483671485832804}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 2139740750011059678}
+  m_Father: {fileID: 544285290615850265}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
