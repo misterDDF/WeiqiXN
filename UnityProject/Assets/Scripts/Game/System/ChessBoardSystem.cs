@@ -11,6 +11,8 @@ public class ChessBoardSystem : SystemBase
     public ChessBoardDataType chessBoardData;
     private const string BlackMaterialConfigId = "chess_board_black_material";
     private const string WhiteMaterialConfigId = "chess_board_white_material";
+    private const string LatestMoveOnBlackStoneMaterialConfigId = "chess_board_latest_move_on_black_stone_material";
+    private const string LatestMoveOnWhiteStoneMaterialConfigId = "chess_board_latest_move_on_white_stone_material";
     private const float DuelPerspectiveFov = 30f;
     private const float DuelPerspectiveTiltFactor = 0.16f;
     private const float DuelPerspectiveFramePaddingFactor = 1.08f;
@@ -495,7 +497,10 @@ public class ChessBoardSystem : SystemBase
 
         Material blackMaterial = LoadRuntimeMaterial(BlackMaterialConfigId);
         Material whiteMaterial = LoadRuntimeMaterial(WhiteMaterialConfigId);
+        Material latestMoveOnBlackStoneMaterial = LoadRuntimeMaterial(LatestMoveOnBlackStoneMaterialConfigId);
+        Material latestMoveOnWhiteStoneMaterial = LoadRuntimeMaterial(LatestMoveOnWhiteStoneMaterialConfigId);
         rectGrid.SetBoardMaterials(blackMaterial, whiteMaterial);
+        rectGrid.SetLatestMoveMarkerMaterials(latestMoveOnBlackStoneMaterial, latestMoveOnWhiteStoneMaterial);
     }
 
     private Material LoadRuntimeMaterial(string configId)

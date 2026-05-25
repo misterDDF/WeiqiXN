@@ -17,8 +17,9 @@ namespace XNClient.ChessBoard
 
         private const float OwnershipSquareSizeFactor = ChessBoardConfig.starPointRadiusFactor * 2f * 1.5f;
         private const float OwnershipLineWidthFactor = ChessBoardConfig.roadNormalFactor * 1.5f;
-        private const float OwnershipYOffset = ChessBoardConfig.rectCellSideLength;
-        private const float OwnershipLineYOffset = OwnershipYOffset - 0.01f;
+        private const float OwnershipYOffset = 0.04f;
+        private const float OwnershipLineYOffset = 0.042f;
+        private const float LatestMoveMarkerYOffset = 0.05f;
         private const float LatestMoveMarkerSizeFactor = ChessBoardConfig.starPointRadiusFactor * 2f * 2.3f;
         private const int OwnershipNeutral = 0;
         private const int OwnershipBlack = 1;
@@ -26,6 +27,8 @@ namespace XNClient.ChessBoard
 
         private Material blackMaterial;
         private Material whiteMaterial;
+        private Material latestMoveMarkerOnBlackStoneMaterial;
+        private Material latestMoveMarkerOnWhiteStoneMaterial;
         private Mesh latestMoveMarkerMesh;
 
         public void InitGrid(int gridSize)
@@ -48,6 +51,12 @@ namespace XNClient.ChessBoard
         {
             this.blackMaterial = blackMaterial;
             this.whiteMaterial = whiteMaterial;
+        }
+
+        public void SetLatestMoveMarkerMaterials(Material onBlackStoneMaterial, Material onWhiteStoneMaterial)
+        {
+            latestMoveMarkerOnBlackStoneMaterial = onBlackStoneMaterial;
+            latestMoveMarkerOnWhiteStoneMaterial = onWhiteStoneMaterial;
         }
 
         public Bounds GetGridBounds()
@@ -88,8 +97,6 @@ namespace XNClient.ChessBoard
             ownershipRoot.transform.SetParent(transform, false);
 
             int[] ownershipFlags = BuildOwnershipFlags(ownership, ownershipThreshold, expectedCount);
-            DrawOwnershipLines(ownershipFlags);
-
             float squareSize = ChessBoardConfig.rectCellSideLength * OwnershipSquareSizeFactor;
             for (int z = 0; z < gridSize; z++) {
                 for (int x = 0; x < gridSize; x++) {
@@ -104,6 +111,8 @@ namespace XNClient.ChessBoard
                     }
                 }
             }
+
+            DrawOwnershipLines(ownershipFlags);
         }
 
         public void ClearOwnership()
@@ -133,7 +142,7 @@ namespace XNClient.ChessBoard
 
             GameObject marker = new GameObject($"LatestMoveMarker_{x}_{z}");
             marker.transform.SetParent(latestMoveMarkerRoot.transform, false);
-            marker.transform.localPosition = GetOwnershipLocalPosition(x, z, OwnershipYOffset);
+            marker.transform.localPosition = GetOwnershipLocalPosition(x, z, LatestMoveMarkerYOffset);
 
             MeshFilter meshFilter = marker.AddComponent<MeshFilter>();
             meshFilter.sharedMesh = GetLatestMoveMarkerMesh();
@@ -254,7 +263,7 @@ namespace XNClient.ChessBoard
 
         private Material GetLatestMoveMarkerMaterial(bool isBlackStone)
         {
-            return isBlackStone ? GetWhiteMaterial() : GetBlackMaterial();
+            return isBlackStone ? latestMoveMarkerOnBlackStoneMaterial : latestMoveMarkerOnWhiteStoneMaterial;
         }
 
         private Material GetBlackMaterial()
@@ -274,6 +283,14 @@ namespace XNClient.ChessBoard
             }
 
             return latestMoveMarkerMesh;
+        }
+
+        private void OnDestroy()
+        {
+            if (latestMoveMarkerMesh != null) {
+                Destroy(latestMoveMarkerMesh);
+                latestMoveMarkerMesh = null;
+            }
         }
 
         private Mesh CreateLatestMoveMarkerMesh(float markerSize)

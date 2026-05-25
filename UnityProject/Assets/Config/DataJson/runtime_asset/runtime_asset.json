@@ -10,5 +10,17 @@
     "assetType": "Material",
     "resPath": "Scenes/Duel/Materials/ChessBoardWhite",
     "bundleName": "runtime_asset"
+  },
+  "chess_board_latest_move_on_black_stone_material": {
+    "id": "chess_board_latest_move_on_black_stone_material",
+    "assetType": "Material",
+    "resPath": "Scenes/Duel/Materials/ChessBoardLatestMoveOnBlackStone",
+    "bundleName": "runtime_asset"
+  },
+  "chess_board_latest_move_on_white_stone_material": {
+    "id": "chess_board_latest_move_on_white_stone_material",
+    "assetType": "Material",
+    "resPath": "Scenes/Duel/Materials/ChessBoardLatestMoveOnWhiteStone",
+    "bundleName": "runtime_asset"
   }
 }
