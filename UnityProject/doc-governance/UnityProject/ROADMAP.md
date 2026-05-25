@@ -11,6 +11,8 @@
 
 ## Active Goals
 
+- 2026-05-25: Windows native KataGo bridge now follows the same OpenCL-first, CPU-fallback direction as the exe backend. Unity runtime fallback logging is in place; the remaining OpenCL bridge deliverable is a successful `native-opencl/katago_bridge.dll` build after installing or pointing CMake at an OpenCL SDK (`CL/cl.h` and `OpenCL.lib`).
+
 **活跃目标**
 
 - 当前阶段的架构优化按 [modules/12-architecture-iteration-plan.md](modules/12-architecture-iteration-plan.md) 推进；该表只承载执行明细，阶段目标和范围仍以本文为准。

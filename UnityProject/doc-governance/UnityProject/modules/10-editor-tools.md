@@ -52,6 +52,8 @@ UI 工具链已经承担了重复代码生成工作，这对后续快速增加�
 
 ## 后续建议
 
+- 2026-05-25: KataGo Windows native packaging follows `game-config.json` native candidates. With CPU fallback enabled, `native-eigen/katago_bridge.dll` and `analysis_nowrite.cfg` are required; incomplete `native-opencl` produces build warnings and is skipped from the native runtime copy until `katago_bridge.dll` is available. Runtime fallback failures are logged with candidate name, DLL/config/model paths, write mode, and exception details.
+
 ## 2026-05-20 Runtime Asset Build Addendum
 
 - `AssetBundleGenerator` includes `PackRuntimeAssetTable` in the shared AssetBundle build path used by both PC and WebGL build menu entries.

@@ -12,7 +12,8 @@
     "windows": {
       "preferOpenCl": true,
       "allowCpuFallback": true,
-      "nativeEngineName": "native-eigen"
+      "nativeOpenClEngineName": "native-opencl",
+      "nativeCpuEngineName": "native-eigen"
     },
     "android": {
       "abi": "arm64-v8a",

@@ -15,6 +15,8 @@
 
 ## Module Boundaries
 
+- 2026-05-25: Windows KataGo `native` backend keeps the same public analysis JSON boundary as `exe`, but now resolves two native candidates when configured: `native-opencl` first and `native-eigen` as CPU/no-write fallback. Native candidates are loaded by resolved full DLL path rather than by a process-wide bridge name, and each bridge must self-report the expected backend (`opencl` or `eigen`) before smoke tests run. Candidate skip, backend mismatch, startup failure, smoke-test failure, and final fallback exhaustion are logged with resolved DLL/config/model paths and exception fields.
+
 **模块边界**
 
 - `ClientMain` 是进程入口和 PlayerLoop 桥接层，负责初始化全局服务，并在 Unity 对应更新阶段后调用项目层更新。

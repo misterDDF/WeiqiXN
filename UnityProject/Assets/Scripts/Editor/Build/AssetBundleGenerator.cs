@@ -19,6 +19,8 @@ public class AssetBundleGenerator
 
     private const string KataGoOpenClEngineName = "opencl";
     private const string KataGoCpuEngineName = "eigenavx2";
+    private const string KataGoNativeOpenClEngineName = "native-opencl";
+    private const string KataGoNativeCpuEngineName = "native-eigen";
     private const string KataGoNativeBridgeDllName = "katago_bridge.dll";
     private const string KataGoModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
     private const string KataGoAnalysisConfigFileName = "analysis_example.cfg";
@@ -508,18 +510,34 @@ public class AssetBundleGenerator
 
     private static void ValidateWindowsNativeKataGoRuntimeSource(string kataGoRoot, GameConfig.KataGoConfig kataGoConfig)
     {
-        string engineRoot = Path.Combine(kataGoRoot, "engines", "win-x64", kataGoConfig.windowsNativeEngineName);
-        string bridgePath = Path.Combine(engineRoot, KataGoNativeBridgeDllName);
-        string configPath = Path.Combine(engineRoot, KataGoNoWriteAnalysisConfigFileName);
         string modelPath = Path.Combine(kataGoRoot, "models", ResolveKataGoModelFileName(kataGoConfig));
+        NativeRuntimeCandidate[] candidates = ResolveWindowsNativeRuntimeCandidates(kataGoConfig);
 
         List<string> missingPaths = new List<string>();
-        if (!File.Exists(bridgePath)) {
-            missingPaths.Add(bridgePath);
-        }
+        foreach (NativeRuntimeCandidate candidate in candidates) {
+            string engineRoot = Path.Combine(kataGoRoot, "engines", "win-x64", candidate.engineName);
+            string bridgePath = Path.Combine(engineRoot, KataGoNativeBridgeDllName);
+            string configPath = Path.Combine(engineRoot, candidate.configFileName);
+            List<string> candidateMissingPaths = new List<string>();
 
-        if (!File.Exists(configPath)) {
-            missingPaths.Add(configPath);
+            if (!File.Exists(bridgePath)) {
+                candidateMissingPaths.Add(bridgePath);
+            }
+
+            if (!File.Exists(configPath)) {
+                candidateMissingPaths.Add(configPath);
+            }
+
+            if (candidateMissingPaths.Count > 0) {
+                if (candidate.isRequired) {
+                    missingPaths.AddRange(candidateMissingPaths);
+                }
+                else {
+                    Debug.LogWarning(
+                        "Optional Windows native KataGo candidate is incomplete and will be skipped by runtime fallback. Missing paths: "
+                        + string.Join(", ", candidateMissingPaths));
+                }
+            }
         }
 
         if (!File.Exists(modelPath)) {
@@ -528,9 +546,39 @@ public class AssetBundleGenerator
 
         if (missingPaths.Count > 0) {
             throw new FileNotFoundException(
-                "Windows native KataGo build requires katago_bridge.dll, analysis_nowrite.cfg, and model under the repository KataGo directory. Missing paths: "
+                "Windows native KataGo build requires every configured native candidate bridge/config and model under the repository KataGo directory. Missing paths: "
                 + string.Join(", ", missingPaths));
         }
+    }
+
+    private static NativeRuntimeCandidate[] ResolveWindowsNativeRuntimeCandidates(GameConfig.KataGoConfig kataGoConfig)
+    {
+        string nativeOpenClEngineName = string.IsNullOrWhiteSpace(kataGoConfig.windowsNativeOpenClEngineName)
+            ? KataGoNativeOpenClEngineName
+            : kataGoConfig.windowsNativeOpenClEngineName;
+        string nativeCpuEngineName = string.IsNullOrWhiteSpace(kataGoConfig.windowsNativeCpuEngineName)
+            ? KataGoNativeCpuEngineName
+            : kataGoConfig.windowsNativeCpuEngineName;
+
+        if (!kataGoConfig.windowsPreferOpenCl) {
+            return new[]
+            {
+                new NativeRuntimeCandidate(nativeCpuEngineName, KataGoNoWriteAnalysisConfigFileName, true),
+            };
+        }
+
+        if (!kataGoConfig.windowsAllowCpuFallback) {
+            return new[]
+            {
+                new NativeRuntimeCandidate(nativeOpenClEngineName, KataGoAnalysisConfigFileName, true),
+            };
+        }
+
+        return new[]
+        {
+            new NativeRuntimeCandidate(nativeOpenClEngineName, KataGoAnalysisConfigFileName, false),
+            new NativeRuntimeCandidate(nativeCpuEngineName, KataGoNoWriteAnalysisConfigFileName, true),
+        };
     }
 
     private static string ResolveKataGoModelFileName(GameConfig.KataGoConfig kataGoConfig)
@@ -576,12 +624,42 @@ public class AssetBundleGenerator
         string kataGoTargetRoot,
         GameConfig.KataGoConfig kataGoConfig)
     {
-        string sourceEngineRoot = Path.Combine(kataGoSourceRoot, "engines", "win-x64", kataGoConfig.windowsNativeEngineName);
-        string targetEngineRoot = Path.Combine(kataGoTargetRoot, "engines", "win-x64", kataGoConfig.windowsNativeEngineName);
+        NativeRuntimeCandidate[] candidates = ResolveWindowsNativeRuntimeCandidates(kataGoConfig);
         string sourceModelsRoot = Path.Combine(kataGoSourceRoot, "models");
         string targetModelsRoot = Path.Combine(kataGoTargetRoot, "models");
 
-        CopyDirectory(sourceEngineRoot, targetEngineRoot);
+        HashSet<string> copiedEngineNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (NativeRuntimeCandidate candidate in candidates) {
+            if (!copiedEngineNames.Add(candidate.engineName)) {
+                continue;
+            }
+
+            string sourceEngineRoot = Path.Combine(kataGoSourceRoot, "engines", "win-x64", candidate.engineName);
+            string targetEngineRoot = Path.Combine(kataGoTargetRoot, "engines", "win-x64", candidate.engineName);
+            string sourceBridgePath = Path.Combine(sourceEngineRoot, KataGoNativeBridgeDllName);
+            string sourceConfigPath = Path.Combine(sourceEngineRoot, candidate.configFileName);
+            if (!Directory.Exists(sourceEngineRoot)) {
+                if (candidate.isRequired) {
+                    throw new DirectoryNotFoundException($"Required Windows native KataGo engine directory not found: {sourceEngineRoot}");
+                }
+
+                Debug.LogWarning($"Optional Windows native KataGo engine directory not found, skip copying: {sourceEngineRoot}");
+                continue;
+            }
+
+            if (!File.Exists(sourceBridgePath) || !File.Exists(sourceConfigPath)) {
+                if (candidate.isRequired) {
+                    throw new FileNotFoundException(
+                        $"Required Windows native KataGo engine files are incomplete. bridge: {sourceBridgePath}, config: {sourceConfigPath}");
+                }
+
+                Debug.LogWarning($"Optional Windows native KataGo engine files are incomplete, skip copying: {sourceEngineRoot}");
+                continue;
+            }
+
+            CopyDirectory(sourceEngineRoot, targetEngineRoot);
+        }
+
         Directory.CreateDirectory(targetModelsRoot);
 
         string modelFileName = ResolveKataGoModelFileName(kataGoConfig);
@@ -642,5 +720,19 @@ public class AssetBundleGenerator
         }
 
         return string.Equals(Path.GetExtension(path), ".meta", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private readonly struct NativeRuntimeCandidate
+    {
+        public readonly string engineName;
+        public readonly string configFileName;
+        public readonly bool isRequired;
+
+        public NativeRuntimeCandidate(string engineName, string configFileName, bool isRequired)
+        {
+            this.engineName = engineName;
+            this.configFileName = configFileName;
+            this.isRequired = isRequired;
+        }
     }
 }

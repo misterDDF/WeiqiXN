@@ -10,6 +10,8 @@
 
 ## Current Behavior
 
+- 2026-05-25: Windows `native` KataGo backend now mirrors the `exe` backend fallback shape. `game-config.json` uses `katago.windows.nativeOpenClEngineName` for `native-opencl` and `nativeCpuEngineName` for `native-eigen`; with `preferOpenCl=true` and `allowCpuFallback=true`, runtime tries `native-opencl/katago_bridge.dll` with `analysis_example.cfg` first, loads the bridge by full DLL path, requires the bridge to self-report `opencl`, logs candidate name, DLL/config/model paths, bridge backend, and exception details on skip or failure, then falls back to `native-eigen/katago_bridge.dll` with `analysis_nowrite.cfg` and a required `eigen` backend match. Windows native player builds still exclude `katago.exe`; when CPU fallback is enabled, `native-eigen` is required and incomplete `native-opencl` only produces a build warning.
+
 ### 2026-05-15 Current Addendum
 
 - 2026-05-25：仓库根目录新增 `game-config.json` 作为 KataGo 后端选择配置。`katago.backend.windowsEditor` 和 `katago.backend.windowsPlayer` 支持 `exe`、`native` 或 `disabled`；当前 Windows 默认已切为 `native`。`androidPlayer` 和 `iosPlayer` 字段先预留为 `native` 方向，非 Windows 运行时仍会跳过本地 KataGo 启动。Windows 原生后端使用 `KataGo/engines/win-x64/native-eigen/katago_bridge.dll`，通过 P/Invoke 调用同一套 analysis JSON 请求/响应合同，并使用 `analysis_nowrite.cfg` 和仓库模型文件。Windows PC 构建成功后会把根目录 `game-config.json` 复制到包体根目录；构建前会按 `windowsPlayer` 选择校验 exe 运行资源或 native bridge 运行资源。`native` 打包只复制 `native-eigen/`、当前模型和 `game-config.json`，不会把 `opencl/`、`eigenavx2/` 或 `katago.exe` 打进包体；`exe` 打包保留完整 `KataGo/` runtime 复制行为。

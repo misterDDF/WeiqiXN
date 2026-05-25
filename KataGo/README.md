@@ -21,6 +21,9 @@ KataGo/
         *.dll
         analysis_example.cfg
         analysis_nowrite.cfg
+      native-opencl/
+        katago_bridge.dll
+        analysis_example.cfg
       native-eigen/
         katago_bridge.dll
         analysis_nowrite.cfg
@@ -30,11 +33,11 @@ KataGo/
     analysis.cfg
 ```
 
-When the game root is writable, the Unity adapter tries the OpenCL engine first and falls back to `eigenavx2` CPU if OpenCL is unavailable. When the game root is not writable, OpenCL is skipped because it needs to write tuning cache files, and the CPU engine uses `analysis_nowrite.cfg`.
+When the game root is writable, the Unity adapter tries OpenCL first and falls back to CPU if OpenCL is unavailable. The `exe` backend uses `opencl` then `eigenavx2`; the `native` backend uses `native-opencl` then `native-eigen`. When the game root is not writable, OpenCL is skipped because it needs to write tuning cache files, and the CPU engine uses `analysis_nowrite.cfg`.
 
-When the selected backend is `native`, Unity loads `native-eigen/katago_bridge.dll` through P/Invoke. The bridge uses the same analysis JSON request and response contract as `katago.exe analysis`, but it is currently a single local engine instance and should not be used for multiple simultaneous KataGo sessions.
+When the selected backend is `native`, Unity loads `katago_bridge.dll` through P/Invoke from the selected native candidate directory. The bridge uses the same analysis JSON request and response contract as `katago.exe analysis`, but it is currently a single local engine instance and should not be used for multiple simultaneous KataGo sessions.
 
-For Windows player builds, the `native` backend copies only `native-eigen/`, the configured model, and `game-config.json`; it does not copy the OpenCL/Eigen `katago.exe` engine folders. The `exe` backend keeps the full KataGo runtime copy behavior.
+For Windows player builds, the `native` backend copies the configured native candidate directories, the configured model, and `game-config.json`; it does not copy the OpenCL/Eigen `katago.exe` engine folders. If CPU fallback is enabled, `native-eigen` is required and `native-opencl` is optional at build time. The `exe` backend keeps the full KataGo runtime copy behavior.
 
 For the first smoke test, start KataGo with:
 

@@ -17,6 +17,8 @@ std::string Version::getKataGoVersionFullInfo() {
   out << "Compile Time: " << __DATE__ << " " << __TIME__ << std::endl;
 #if defined(USE_EIGEN_BACKEND)
   out << "Using Eigen(CPU) backend" << std::endl;
+#elif defined(USE_OPENCL_BACKEND)
+  out << "Using OpenCL backend" << std::endl;
 #else
   out << "Using dummy backend" << std::endl;
 #endif
@@ -30,6 +32,8 @@ std::string Version::getGitRevision() {
 std::string Version::getGitRevisionWithBackend() {
 #if defined(USE_EIGEN_BACKEND)
   return std::string("<omitted>-eigen");
+#elif defined(USE_OPENCL_BACKEND)
+  return std::string("<omitted>-opencl");
 #else
   return std::string("<omitted>-dummy");
 #endif

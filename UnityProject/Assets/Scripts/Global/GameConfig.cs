@@ -79,7 +79,8 @@ public sealed class GameConfig
 
     public sealed class KataGoConfig
     {
-        private const string DefaultWindowsNativeEngineName = "native-eigen";
+        private const string DefaultWindowsNativeOpenClEngineName = "native-opencl";
+        private const string DefaultWindowsNativeCpuEngineName = "native-eigen";
         private const string DefaultModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
 
         public static readonly KataGoConfig Default = new KataGoConfig(
@@ -90,7 +91,8 @@ public sealed class GameConfig
             DefaultModelFileName,
             true,
             true,
-            DefaultWindowsNativeEngineName,
+            DefaultWindowsNativeOpenClEngineName,
+            DefaultWindowsNativeCpuEngineName,
             "arm64-v8a",
             "katago_bridge",
             "eigen");
@@ -102,7 +104,8 @@ public sealed class GameConfig
         public readonly string modelFileName;
         public readonly bool windowsPreferOpenCl;
         public readonly bool windowsAllowCpuFallback;
-        public readonly string windowsNativeEngineName;
+        public readonly string windowsNativeOpenClEngineName;
+        public readonly string windowsNativeCpuEngineName;
         public readonly string androidAbi;
         public readonly string androidNativeLibraryName;
         public readonly string androidNeuralNetBackend;
@@ -115,19 +118,21 @@ public sealed class GameConfig
             string modelFileName,
             bool windowsPreferOpenCl,
             bool windowsAllowCpuFallback,
-            string windowsNativeEngineName,
+            string windowsNativeOpenClEngineName,
+            string windowsNativeCpuEngineName,
             string androidAbi,
             string androidNativeLibraryName,
             string androidNeuralNetBackend)
         {
-            this.windowsEditorBackend = NormalizeBackend(windowsEditorBackend, "exe");
-            this.windowsPlayerBackend = NormalizeBackend(windowsPlayerBackend, "exe");
+            this.windowsEditorBackend = NormalizeBackend(windowsEditorBackend, "native");
+            this.windowsPlayerBackend = NormalizeBackend(windowsPlayerBackend, "native");
             this.androidPlayerBackend = NormalizeBackend(androidPlayerBackend, "native");
             this.iosPlayerBackend = NormalizeBackend(iosPlayerBackend, "native");
             this.modelFileName = string.IsNullOrWhiteSpace(modelFileName) ? DefaultModelFileName : modelFileName;
             this.windowsPreferOpenCl = windowsPreferOpenCl;
             this.windowsAllowCpuFallback = windowsAllowCpuFallback;
-            this.windowsNativeEngineName = string.IsNullOrWhiteSpace(windowsNativeEngineName) ? DefaultWindowsNativeEngineName : windowsNativeEngineName;
+            this.windowsNativeOpenClEngineName = string.IsNullOrWhiteSpace(windowsNativeOpenClEngineName) ? DefaultWindowsNativeOpenClEngineName : windowsNativeOpenClEngineName;
+            this.windowsNativeCpuEngineName = string.IsNullOrWhiteSpace(windowsNativeCpuEngineName) ? DefaultWindowsNativeCpuEngineName : windowsNativeCpuEngineName;
             this.androidAbi = string.IsNullOrWhiteSpace(androidAbi) ? "arm64-v8a" : androidAbi;
             this.androidNativeLibraryName = string.IsNullOrWhiteSpace(androidNativeLibraryName) ? "katago_bridge" : androidNativeLibraryName;
             this.androidNeuralNetBackend = string.IsNullOrWhiteSpace(androidNeuralNetBackend) ? "eigen" : androidNeuralNetBackend;
@@ -143,6 +148,7 @@ public sealed class GameConfig
             JObject model = katagoRoot["model"] as JObject;
             JObject windows = katagoRoot["windows"] as JObject;
             JObject android = katagoRoot["android"] as JObject;
+            string legacyNativeEngineName = windows?.Value<string>("nativeEngineName");
 
             return new KataGoConfig(
                 backend?.Value<string>("windowsEditor") ?? Default.windowsEditorBackend,
@@ -152,7 +158,8 @@ public sealed class GameConfig
                 model?.Value<string>("fileName") ?? Default.modelFileName,
                 windows?.Value<bool?>("preferOpenCl") ?? Default.windowsPreferOpenCl,
                 windows?.Value<bool?>("allowCpuFallback") ?? Default.windowsAllowCpuFallback,
-                windows?.Value<string>("nativeEngineName") ?? Default.windowsNativeEngineName,
+                windows?.Value<string>("nativeOpenClEngineName") ?? Default.windowsNativeOpenClEngineName,
+                windows?.Value<string>("nativeCpuEngineName") ?? legacyNativeEngineName ?? Default.windowsNativeCpuEngineName,
                 android?.Value<string>("abi") ?? Default.androidAbi,
                 android?.Value<string>("nativeLibraryName") ?? Default.androidNativeLibraryName,
                 android?.Value<string>("neuralNetBackend") ?? Default.androidNeuralNetBackend);

@@ -5,6 +5,8 @@ from pathlib import Path
 
 
 ERROR_BUFFER_SIZE = 4096
+DEFAULT_ENGINE_NAME = "native-eigen"
+DEFAULT_TIMEOUT_MS = 45000
 
 
 def encode_path(path: Path) -> bytes:
@@ -13,9 +15,12 @@ def encode_path(path: Path) -> bytes:
 
 def main() -> int:
     repo_root = Path(__file__).resolve().parents[3]
-    engine_dir = repo_root / "KataGo" / "engines" / "win-x64" / "native-eigen"
+    engine_name = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_ENGINE_NAME
+    timeout_ms = int(sys.argv[2]) if len(sys.argv) > 2 else DEFAULT_TIMEOUT_MS
+    config_name = "analysis_example.cfg" if "opencl" in engine_name.lower() else "analysis_nowrite.cfg"
+    engine_dir = repo_root / "KataGo" / "engines" / "win-x64" / engine_name
     dll_path = engine_dir / "katago_bridge.dll"
-    config_path = engine_dir / "analysis_nowrite.cfg"
+    config_path = engine_dir / config_name
     model_path = repo_root / "KataGo" / "models" / "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz"
 
     for required_path in (dll_path, config_path, model_path):
@@ -44,6 +49,14 @@ def main() -> int:
     bridge.kg_analyze.restype = ctypes.c_int
     bridge.kg_free_string.argtypes = [ctypes.c_void_p]
     bridge.kg_destroy_engine.argtypes = [ctypes.c_void_p]
+    bridge.kg_get_bridge_backend.argtypes = []
+    bridge.kg_get_bridge_backend.restype = ctypes.c_char_p
+
+    bridge_backend = bridge.kg_get_bridge_backend().decode("utf-8")
+    expected_backend = "opencl" if "opencl" in engine_name.lower() else "eigen"
+    if bridge_backend != expected_backend:
+        print(f"bridge backend mismatch: expected={expected_backend} actual={bridge_backend}", file=sys.stderr)
+        return 1
 
     engine = ctypes.c_void_p()
     error_buffer = ctypes.create_string_buffer(ERROR_BUFFER_SIZE)
@@ -77,7 +90,7 @@ def main() -> int:
         analyzed = bridge.kg_analyze(
             engine,
             json.dumps(query, separators=(",", ":")).encode("utf-8"),
-            45000,
+            timeout_ms,
             ctypes.byref(response_ptr),
             error_buffer,
             ERROR_BUFFER_SIZE,
