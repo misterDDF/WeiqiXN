@@ -12,6 +12,18 @@ PrefabInstance:
       propertyPath: m_Name
       value: ChessWhitePreview
       objectReference: {fileID: 0}
+    - target: {fileID: 6661915246932542839, guid: 3d7e133f8eb0f26498313049c584e6eb, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6661915246932542839, guid: 3d7e133f8eb0f26498313049c584e6eb, type: 3}
+      propertyPath: m_ReceiveShadows
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6661915246932542839, guid: 3d7e133f8eb0f26498313049c584e6eb, type: 3}
+      propertyPath: m_Materials.Array.data[0]
+      value: 
+      objectReference: {fileID: 2100000, guid: d79385c1fd032934591a01dcb51d8898, type: 2}
     - target: {fileID: 7192345718407373748, guid: 3d7e133f8eb0f26498313049c584e6eb, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0

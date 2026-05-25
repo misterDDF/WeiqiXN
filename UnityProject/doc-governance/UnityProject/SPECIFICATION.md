@@ -65,6 +65,7 @@
 - `DuelStateTurnInput` 按当前玩家的持有时间或读秒状态每秒递减一次；无限时间不会启动回合倒计时。
 - `DuelStateTurnEnd` 在玩家 1 和玩家 2 之间切换 `curTurnPlayerGuid`。
 - `DuelPage` 显示黑方和白方的显示名、身份、持有时间、读秒次数和读秒时间；显示名来自 `SceneComponentDuel.player1DisplayName` / `player2DisplayName`，本地/电脑对局使用本地用户名，LAN 对局使用同步到的玩家姓名。它通过 `DuelInputAuthority` 读取本端当前是否拥有输入权，再根据鼠标位置计算最近棋盘坐标，只有本端有输入权且该点通过本地落子规则时才显示落点 VFX。非 UI 区域左键只在已有合法预览坐标且本端仍有输入权时触发 `OnSubmitDuelMove`，由 `DuelAuthoritySystem` 请求权威执行，本地/电脑对局转入本进程权威落子，LAN 对局提交到 `LanRoomService` 后由本端 host 入队或远端 TCP 发送。右下角设置按钮打开对局设置面板，右下角形式按钮触发 `OnRequestDuelOwnership`，形式按钮旁的虚手按钮触发 `OnSubmitDuelPass`，形式按钮上方的结果面板显示 ownership 统计出的双方目数，设置面板中的保存按钮触发 `OnSaveDuelScene`，请求数子按钮触发 `OnSubmitDuelScore`；LAN 请求数子提交后会显示不可手动关闭的等待对端确认弹窗，对端同意后等待弹窗更新为数子中，收到候选数子结果后再弹双方结果确认窗口，拒绝或失败会弹出原因并继续对局。悔棋按钮会先弹出二次确认再触发 `OnSubmitDuelTakeBack`，LAN 悔棋提交后会显示不可手动关闭的等待对端确认弹窗，认输按钮仅在当前对局处于回合输入且本端有输入权时显示，点击后通过二次确认触发 `OnSubmitDuelResign`。LAN 数子和悔棋确认请求到达时，页面会弹出确认窗口。退出按钮回到主菜单；LAN 对局退出会先离开当前 LAN 会话并通知对端，对端离开时页面显示提示后回主菜单。进入 `GameEnd` 后，页面右侧中部的结算结果面板会显示对应显示名的胜出和结束原因。
+- 合法落点预览使用 `ChessBlackPreview` / `ChessWhitePreview` 预制体变体和专用透明棋子材质；该表现只提示当前可提交落点，不改变正式棋子材质、落子校验或权威提交路径。
 - `DuelPage` 会通过短暂 HUD 提示显示成功落子、虚手、双方连续虚手进入数子和连续虚手数子失败回到对局；落子提示使用棋盘坐标，电脑对局中由 AI 触发的落子或虚手会显示 AI 标记。
 - 电脑对局的 AI 回合中，`DuelInputAuthority` 不授予本端输入权，因此 `DuelPage` 不显示预览棋子，也不接受人类棋盘落子、虚手或认输输入；AI 由 `DuelAiSystem` 请求 KataGo 候选点，KataGo 明确建议 `pass` 时走现有虚手事件，否则通过本地落子规则筛选后提交正常落子命令。启用动态预算的难度会先请求低访问次数 probe，再依据当前手数、`rootInfo.scoreLead`、`rootInfo.winrate`、首选和次选 `scoreLoss` 差距等配表阈值决定是否升级完整预算。
 - 落子只有在目标坐标位于棋盘内、目标位置为空、当前回合玩家存在时才会继续处理。

@@ -35,3 +35,6 @@ approval_mode = "approve"
 
 [mcp_servers.mcp-unity.tools.execute_menu_item]
 approval_mode = "approve"
+
+[mcp_servers.mcp-unity.tools.modify_material]
+approval_mode = "approve"
