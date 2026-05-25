@@ -11,6 +11,11 @@ public class UserInfoPopupUI : UIBinderBase
 	public TextMeshProUGUI txt_win_count;
 	public TextMeshProUGUI txt_lose_count;
 	public TextMeshProUGUI txt_save_tip;
+	public TextMeshProUGUI txt_replay_page;
+	public TextMeshProUGUI txt_replay_empty;
 	public Button btn_edit_name;
+	public Button btn_replay_prev;
+	public Button btn_replay_next;
 	public Button btn_close;
+	public RectTransform content_replay_list;
 }

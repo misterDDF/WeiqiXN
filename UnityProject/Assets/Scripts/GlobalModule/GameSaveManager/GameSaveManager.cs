@@ -13,30 +13,37 @@ public class GameSaveManager : ModuleBase
         savingLock = false;
     }
 
-    public void SaveData(SavableObj savableObj, string saveFilePath)
+    public bool SaveData(SavableObj savableObj, string saveFilePath)
     {
 #if UNITY_WEBGL && !UNITY_EDITOR
         XNLogger.LogWarn("Save data is skipped on WebGL platform.", ("saveFilePath", saveFilePath));
-        return;
+        return false;
 #else
         if (savingLock) {
             XNLogger.LogError("Saving lock is being occupied, save data failed.");
-            return;
+            return false;
         }
 
-        string saveRootName = Path.GetFileNameWithoutExtension(saveFilePath);
-        string saveDirPath = Path.GetDirectoryName(saveFilePath);
-        Directory.CreateDirectory(saveDirPath);
-        if (!File.Exists(saveFilePath)) {
-            File.Create(saveFilePath).Close();
-        }
+        try {
+            string saveRootName = Path.GetFileNameWithoutExtension(saveFilePath);
+            string saveDirPath = Path.GetDirectoryName(saveFilePath);
+            Directory.CreateDirectory(saveDirPath);
+            if (!File.Exists(saveFilePath)) {
+                File.Create(saveFilePath).Close();
+            }
 
-        if (string.IsNullOrEmpty(savableObj.savePath)) {
-            savableObj.savePath = saveRootName;
+            if (string.IsNullOrEmpty(savableObj.savePath)) {
+                savableObj.savePath = saveRootName;
+            }
+            JObject saveJObject = savableObj.SaveObj();
+            File.WriteAllText(saveFilePath, saveJObject.ToString());
+            XNLogger.LogInfo("Save data success.", ("saveRootName", saveRootName), ("saveFilePath", saveFilePath));
+            return true;
         }
-        JObject saveJObject = savableObj.SaveObj();
-        File.WriteAllText(saveFilePath, saveJObject.ToString());
-        XNLogger.LogInfo("Save data success.", ("saveRootName", saveRootName), ("saveFilePath", saveFilePath));
+        catch (Exception ex) {
+            XNLogger.LogError("Save data failed.", ("saveFilePath", saveFilePath), ("err", ex.Message));
+            return false;
+        }
 #endif
     }
 
