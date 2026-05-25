@@ -19,6 +19,7 @@ public class AssetBundleGenerator
 
     private const string KataGoOpenClEngineName = "opencl";
     private const string KataGoCpuEngineName = "eigenavx2";
+    private const string KataGoNativeBridgeDllName = "katago_bridge.dll";
     private const string KataGoModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
     private const string KataGoAnalysisConfigFileName = "analysis_example.cfg";
     private const string KataGoNoWriteAnalysisConfigFileName = "analysis_nowrite.cfg";
@@ -26,9 +27,11 @@ public class AssetBundleGenerator
     [MenuItem(CustomEditorMenuPaths.Build + "/打PC包")]
     public static void BuildWindows()
     {
+        GameConfig.Reload();
+        GameConfig.KataGoConfig kataGoConfig = GameConfig.Current.kataGo;
         BuildAssetBundlesForTarget(BuildTarget.StandaloneWindows64);
         string kataGoSourceRoot = ResolveKataGoSourceRoot();
-        ValidateWindowsKataGoRuntimeSource(kataGoSourceRoot);
+        ValidateWindowsKataGoRuntimeSource(kataGoSourceRoot, kataGoConfig);
 
         PrepareBuildRootDirectory(BuildConfig.BUILD_PATH_ROOT);
         PlayerSettings.SetScriptingBackend(BuildTargetGroup.Standalone, ScriptingImplementation.IL2CPP);
@@ -42,7 +45,8 @@ public class AssetBundleGenerator
             throw new Exception($"Build windows player failed, outputPath: {buildOutputPath}, result: {report.summary.result}.");
         }
 
-        CopyKataGoRuntimeToWindowsBuild(kataGoSourceRoot);
+        CopyKataGoRuntimeToWindowsBuild(kataGoSourceRoot, kataGoConfig);
+        CopyGameConfigToWindowsBuild();
         Debug.Log($"Windows Player打包完成！输出路径：{buildOutputPath}");
     }
 
@@ -436,14 +440,25 @@ public class AssetBundleGenerator
         return KataGoRuntimeEnvironment.Resolve().kataGoRoot;
     }
 
-    private static void ValidateWindowsKataGoRuntimeSource(string kataGoRoot)
+    private static void ValidateWindowsKataGoRuntimeSource(string kataGoRoot, GameConfig.KataGoConfig kataGoConfig)
     {
+        KataGoBackendMode backendMode = kataGoConfig.ResolveWindowsPlayerBackend();
+        if (backendMode == KataGoBackendMode.Disabled) {
+            Debug.LogWarning("KataGo Windows player backend is disabled by game-config.json.");
+            return;
+        }
+
+        if (backendMode == KataGoBackendMode.Native) {
+            ValidateWindowsNativeKataGoRuntimeSource(kataGoRoot, kataGoConfig);
+            return;
+        }
+
         string cpuEngineRoot = Path.Combine(kataGoRoot, "engines", "win-x64", KataGoCpuEngineName);
         string openClEngineRoot = Path.Combine(kataGoRoot, "engines", "win-x64", KataGoOpenClEngineName);
         string cpuExePath = Path.Combine(cpuEngineRoot, "katago.exe");
         string cpuConfigPath = Path.Combine(cpuEngineRoot, KataGoAnalysisConfigFileName);
         string cpuNoWriteConfigPath = Path.Combine(cpuEngineRoot, KataGoNoWriteAnalysisConfigFileName);
-        string modelPath = Path.Combine(kataGoRoot, "models", KataGoModelFileName);
+        string modelPath = Path.Combine(kataGoRoot, "models", ResolveKataGoModelFileName(kataGoConfig));
 
         List<string> missingPaths = new List<string>();
         foreach (string directoryPath in RequiredKataGoDirectories) {
@@ -491,7 +506,41 @@ public class AssetBundleGenerator
         }
     }
 
-    private static void CopyKataGoRuntimeToWindowsBuild(string kataGoSourceRoot)
+    private static void ValidateWindowsNativeKataGoRuntimeSource(string kataGoRoot, GameConfig.KataGoConfig kataGoConfig)
+    {
+        string engineRoot = Path.Combine(kataGoRoot, "engines", "win-x64", kataGoConfig.windowsNativeEngineName);
+        string bridgePath = Path.Combine(engineRoot, KataGoNativeBridgeDllName);
+        string configPath = Path.Combine(engineRoot, KataGoNoWriteAnalysisConfigFileName);
+        string modelPath = Path.Combine(kataGoRoot, "models", ResolveKataGoModelFileName(kataGoConfig));
+
+        List<string> missingPaths = new List<string>();
+        if (!File.Exists(bridgePath)) {
+            missingPaths.Add(bridgePath);
+        }
+
+        if (!File.Exists(configPath)) {
+            missingPaths.Add(configPath);
+        }
+
+        if (!File.Exists(modelPath)) {
+            missingPaths.Add(modelPath);
+        }
+
+        if (missingPaths.Count > 0) {
+            throw new FileNotFoundException(
+                "Windows native KataGo build requires katago_bridge.dll, analysis_nowrite.cfg, and model under the repository KataGo directory. Missing paths: "
+                + string.Join(", ", missingPaths));
+        }
+    }
+
+    private static string ResolveKataGoModelFileName(GameConfig.KataGoConfig kataGoConfig)
+    {
+        return string.IsNullOrWhiteSpace(kataGoConfig.modelFileName)
+            ? KataGoModelFileName
+            : kataGoConfig.modelFileName;
+    }
+
+    private static void CopyKataGoRuntimeToWindowsBuild(string kataGoSourceRoot, GameConfig.KataGoConfig kataGoConfig)
     {
         string buildOutputPath = Path.GetFullPath(BuildConfig.BUILD_PATH_WINDOWS);
         string buildRoot = Path.GetDirectoryName(buildOutputPath);
@@ -507,8 +556,55 @@ public class AssetBundleGenerator
             Directory.Delete(kataGoTargetRoot, true);
         }
 
+        KataGoBackendMode backendMode = kataGoConfig.ResolveWindowsPlayerBackend();
+        if (backendMode == KataGoBackendMode.Disabled) {
+            Debug.LogWarning("KataGo Windows player backend is disabled, skip copying KataGo runtime.");
+            return;
+        }
+
+        if (backendMode == KataGoBackendMode.Native) {
+            CopyWindowsNativeKataGoRuntimeToBuild(kataGoSourceRoot, kataGoTargetRoot, kataGoConfig);
+            return;
+        }
+
         CopyDirectory(kataGoSourceRoot, kataGoTargetRoot);
-        Debug.Log($"KataGo runtime copied to Windows build root: {kataGoTargetRoot}");
+        Debug.Log($"KataGo exe runtime copied to Windows build root: {kataGoTargetRoot}");
+    }
+
+    private static void CopyWindowsNativeKataGoRuntimeToBuild(
+        string kataGoSourceRoot,
+        string kataGoTargetRoot,
+        GameConfig.KataGoConfig kataGoConfig)
+    {
+        string sourceEngineRoot = Path.Combine(kataGoSourceRoot, "engines", "win-x64", kataGoConfig.windowsNativeEngineName);
+        string targetEngineRoot = Path.Combine(kataGoTargetRoot, "engines", "win-x64", kataGoConfig.windowsNativeEngineName);
+        string sourceModelsRoot = Path.Combine(kataGoSourceRoot, "models");
+        string targetModelsRoot = Path.Combine(kataGoTargetRoot, "models");
+
+        CopyDirectory(sourceEngineRoot, targetEngineRoot);
+        Directory.CreateDirectory(targetModelsRoot);
+
+        string modelFileName = ResolveKataGoModelFileName(kataGoConfig);
+        string sourceModelPath = Path.Combine(sourceModelsRoot, modelFileName);
+        string targetModelPath = Path.Combine(targetModelsRoot, modelFileName);
+        File.Copy(sourceModelPath, targetModelPath, true);
+
+        Debug.Log($"KataGo native runtime copied to Windows build root: {kataGoTargetRoot}");
+    }
+
+    private static void CopyGameConfigToWindowsBuild()
+    {
+        string sourcePath = GameConfig.ResolveConfigPath();
+        if (!File.Exists(sourcePath)) {
+            Debug.LogWarning($"game-config.json not found, skip copying to Windows build root. path: {sourcePath}");
+            return;
+        }
+
+        string buildOutputPath = Path.GetFullPath(BuildConfig.BUILD_PATH_WINDOWS);
+        string buildRoot = Path.GetDirectoryName(buildOutputPath);
+        string targetPath = Path.Combine(buildRoot, GameConfig.FileName);
+        File.Copy(sourcePath, targetPath, true);
+        Debug.Log($"game-config.json copied to Windows build root: {targetPath}");
     }
 
     private static void CopyDirectory(string sourceDirectory, string targetDirectory)

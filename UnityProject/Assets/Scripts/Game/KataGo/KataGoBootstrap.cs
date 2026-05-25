@@ -16,6 +16,7 @@ public static class KataGoBootstrap
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
     private const string OpenClEngineName = "opencl";
     private const string CpuEngineName = "eigenavx2";
+    private const string NativeBridgeDllName = "katago_bridge.dll";
     private const string ModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
     private const string AnalysisConfigFileName = "analysis_example.cfg";
     private const string NoWriteAnalysisConfigFileName = "analysis_nowrite.cfg";
@@ -31,12 +32,14 @@ public static class KataGoBootstrap
     private static readonly float[] SmokeTestBoardProgressWeights = { 0.90f, 0.05f, 0.05f };
 
     private static Win32KataGoProcess process;
+    private static Win32NativeKataGoEngine nativeEngine;
     private static readonly SemaphoreSlim analysisSemaphore = new SemaphoreSlim(1, 1);
     private static KataGoPaths[] engineCandidates;
     private static KataGoPaths activePaths;
     private static int activeCandidateIndex = -1;
     private static bool hasActivePaths;
     private static bool isStarted;
+    private static bool activeBackendIsNative;
     private static bool gameRootWriteWarningShown;
 #endif
     private static CancellationTokenSource cancellationTokenSource;
@@ -63,12 +66,31 @@ public static class KataGoBootstrap
         }
 
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+        KataGoBackendMode backendMode = GameConfig.Current.kataGo.ResolveCurrentBackend();
+        if (backendMode == KataGoBackendMode.Disabled) {
+            SetStartupStatus(MessageText.Get("katago_unavailable_status"), "KataGo backend is disabled by game-config.json.", 1f, true, false, true, null);
+            XNLogger.LogWarn("KataGo startup skipped.", ("reason", "Backend disabled by game-config.json."));
+            return;
+        }
+
         if (!platformConfig.canWriteGameRoot) {
             ShowGameRootWriteWarning(platformConfig);
             XNLogger.LogWarn(
                 "KataGo game root write check failed, OpenCL will be skipped.",
                 ("gameRoot", platformConfig.gameRoot),
                 ("reason", platformConfig.writeFailureReason));
+        }
+
+        if (backendMode == KataGoBackendMode.Native) {
+            KataGoPaths nativePaths = ResolveNativePaths(platformConfig);
+            if (!nativePaths.IsValid(out string invalidReason)) {
+                SetStartupStatus(MessageText.Get("katago_failed_status"), invalidReason, 1f, true, true, false, nativePaths.engineName);
+                XNLogger.LogError("KataGo native startup skipped.", ("reason", invalidReason));
+                return;
+            }
+
+            StartNativeTask(nativePaths);
+            return;
         }
 
         KataGoPaths[] candidates = ResolveCandidatePaths(platformConfig);
@@ -106,12 +128,22 @@ public static class KataGoBootstrap
 
         await analysisSemaphore.WaitAsync();
         try {
-            if (!await EnsureProcessReadyAsync()) {
-                XNLogger.LogError("KataGo analyze failed, process is not running.");
-                return null;
-            }
+            if (activeBackendIsNative) {
+                if (!await EnsureNativeReadyAsync()) {
+                    XNLogger.LogError("KataGo analyze failed, native engine is not running.");
+                    return null;
+                }
 
-            return await Task.Run(() => Analyze(query, AnalyzeTimeoutMs));
+                return await Task.Run(() => AnalyzeNative(query, AnalyzeTimeoutMs));
+            }
+            else {
+                if (!await EnsureProcessReadyAsync()) {
+                    XNLogger.LogError("KataGo analyze failed, process is not running.");
+                    return null;
+                }
+
+                return await Task.Run(() => Analyze(query, AnalyzeTimeoutMs));
+            }
         }
         finally {
             analysisSemaphore.Release();
@@ -158,6 +190,7 @@ public static class KataGoBootstrap
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
         KataGoRuntimeEnvironment.RuntimeInfo runtimeInfo = KataGoRuntimeEnvironment.Resolve();
         string kataGoRoot = runtimeInfo.kataGoRoot;
+        GameConfig.KataGoConfig kataGoConfig = GameConfig.Current.kataGo;
         return new PlatformConfig
         {
             isSupported = true,
@@ -167,6 +200,10 @@ public static class KataGoBootstrap
             engineRoot = Path.Combine(kataGoRoot, "engines", "win-x64"),
             canWriteGameRoot = runtimeInfo.canWriteGameRoot,
             writeFailureReason = runtimeInfo.writeFailureReason,
+            modelFileName = string.IsNullOrWhiteSpace(kataGoConfig.modelFileName) ? ModelFileName : kataGoConfig.modelFileName,
+            windowsPreferOpenCl = kataGoConfig.windowsPreferOpenCl,
+            windowsAllowCpuFallback = kataGoConfig.windowsAllowCpuFallback,
+            windowsNativeEngineName = kataGoConfig.windowsNativeEngineName,
         };
 #else
         return new PlatformConfig
@@ -180,6 +217,13 @@ public static class KataGoBootstrap
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
     private static KataGoPaths[] ResolveCandidatePaths(PlatformConfig platformConfig)
     {
+        if (!platformConfig.windowsPreferOpenCl) {
+            return new[]
+            {
+                ResolvePaths(platformConfig, CpuEngineName, CpuSmokeTestTimeoutMs, !platformConfig.canWriteGameRoot),
+            };
+        }
+
         if (!platformConfig.canWriteGameRoot) {
             XNLogger.LogWarn(
                 "KataGo OpenCL skipped because game root is not writable.",
@@ -188,6 +232,13 @@ public static class KataGoBootstrap
             return new[]
             {
                 ResolvePaths(platformConfig, CpuEngineName, CpuSmokeTestTimeoutMs, true),
+            };
+        }
+
+        if (!platformConfig.windowsAllowCpuFallback) {
+            return new[]
+            {
+                ResolvePaths(platformConfig, OpenClEngineName, OpenClSmokeTestTimeoutMs, false),
             };
         }
 
@@ -208,11 +259,32 @@ public static class KataGoBootstrap
         {
             exePath = Path.Combine(engineRoot, "katago.exe"),
             configPath = Path.Combine(engineRoot, configFileName),
-            modelPath = Path.Combine(platformConfig.kataGoRoot, "models", ModelFileName),
+            modelPath = Path.Combine(platformConfig.kataGoRoot, "models", platformConfig.modelFileName),
             workingDirectory = engineRoot,
             engineName = engineName,
             smokeTestTimeoutMs = smokeTestTimeoutMs,
             noWriteMode = noWriteMode,
+            isNative = false,
+        };
+    }
+
+    private static KataGoPaths ResolveNativePaths(PlatformConfig platformConfig)
+    {
+        string engineName = string.IsNullOrWhiteSpace(platformConfig.windowsNativeEngineName)
+            ? GameConfig.KataGoConfig.Default.windowsNativeEngineName
+            : platformConfig.windowsNativeEngineName;
+        string engineRoot = Path.Combine(platformConfig.engineRoot, engineName);
+        return new KataGoPaths
+        {
+            exePath = null,
+            nativeLibraryPath = Path.Combine(engineRoot, NativeBridgeDllName),
+            configPath = Path.Combine(engineRoot, NoWriteAnalysisConfigFileName),
+            modelPath = Path.Combine(platformConfig.kataGoRoot, "models", platformConfig.modelFileName),
+            workingDirectory = engineRoot,
+            engineName = engineName,
+            smokeTestTimeoutMs = CpuSmokeTestTimeoutMs,
+            noWriteMode = true,
+            isNative = true,
         };
     }
 
@@ -237,6 +309,7 @@ public static class KataGoBootstrap
         }
 
         StopProcess();
+        StopNativeEngine();
 
         cancellationTokenSource?.Dispose();
         cancellationTokenSource = null;
@@ -245,7 +318,48 @@ public static class KataGoBootstrap
         activeCandidateIndex = -1;
         hasActivePaths = false;
         isStarted = false;
+        activeBackendIsNative = false;
         SetStartupStatus(MessageText.Get("katago_not_started_status"), string.Empty, 0f, true, false, true, null);
+    }
+
+    private static void StartNativeTask(KataGoPaths paths)
+    {
+        engineCandidates = new[] { paths };
+        activeCandidateIndex = -1;
+        hasActivePaths = false;
+        isStarted = true;
+        activeBackendIsNative = true;
+        cancellationTokenSource?.Dispose();
+        cancellationTokenSource = new CancellationTokenSource();
+        SetStartupStatus(MessageText.Get("katago_warmup_status"), MessageText.Get("katago_detecting_engine"), 0.05f, false, false, false, null);
+        startupTask = Task.Run(() => StartNativeEngine(paths, cancellationTokenSource.Token));
+    }
+
+    private static async Task<bool> EnsureNativeReadyAsync()
+    {
+        if (startupTask != null && !startupTask.IsCompleted) {
+            await startupTask;
+        }
+
+        if (nativeEngine != null && nativeEngine.IsRunning) {
+            return true;
+        }
+
+        KataGoPaths[] candidates = engineCandidates;
+        if (!isStarted || candidates == null || candidates.Length == 0) {
+            return false;
+        }
+
+        KataGoPaths paths = candidates[0];
+        XNLogger.LogWarn("KataGo native engine is not running, restarting before analyze.", ("engine", paths.engineName));
+
+        cancellationTokenSource?.Dispose();
+        cancellationTokenSource = new CancellationTokenSource();
+        SetStartupStatus(MessageText.Get("katago_warmup_status"), MessageText.Get("katago_restarting_process"), 0.05f, false, false, false, paths.engineName);
+        startupTask = Task.Run(() => StartNativeEngine(paths, cancellationTokenSource.Token));
+        await startupTask;
+
+        return nativeEngine != null && nativeEngine.IsRunning;
     }
 
     private static async Task<bool> EnsureProcessReadyAsync()
@@ -381,6 +495,134 @@ public static class KataGoBootstrap
 
         SetStartupStatus(MessageText.Get("katago_failed_status"), MessageText.Get("katago_all_engines_unavailable"), 1f, true, true, false, null);
         XNLogger.LogError("KataGo startup failed, no engine candidate is available.");
+    }
+
+    private static void StartNativeEngine(KataGoPaths paths, CancellationToken cancellationToken)
+    {
+        StopProcess();
+        StopNativeEngine();
+        hasActivePaths = false;
+        activeCandidateIndex = -1;
+
+        try {
+            cancellationToken.ThrowIfCancellationRequested();
+            SetStartupStatus(
+                MessageText.Get("katago_warmup_status"),
+                MessageText.Format("katago_engine_started_loading", paths.engineName),
+                0.08f,
+                false,
+                false,
+                false,
+                paths.engineName);
+
+            nativeEngine = new Win32NativeKataGoEngine();
+            nativeEngine.Start(
+                paths.workingDirectory,
+                paths.configPath,
+                paths.modelPath,
+                paths.workingDirectory);
+
+            XNLogger.LogInfo(
+                "KataGo native engine started.",
+                ("engine", paths.engineName),
+                ("libraryPath", paths.nativeLibraryPath),
+                ("configPath", paths.configPath),
+                ("modelPath", paths.modelPath));
+
+            RunNativeSmokeTest(paths, 0.08f, 0.94f, cancellationToken);
+
+            activePaths = paths;
+            activeCandidateIndex = 0;
+            hasActivePaths = true;
+            SetStartupStatus(MessageText.Get("katago_complete_status"), MessageText.Format("katago_all_boards_complete", paths.engineName), 1f, true, false, false, paths.engineName);
+            XNLogger.LogInfo(
+                "KataGo native engine selected.",
+                ("engine", paths.engineName),
+                ("libraryPath", paths.nativeLibraryPath),
+                ("configPath", paths.configPath),
+                ("modelPath", paths.modelPath));
+        }
+        catch (OperationCanceledException) {
+            StopNativeEngine();
+            SetStartupStatus(MessageText.Get("katago_cancelled_status"), string.Empty, 1f, true, true, false, paths.engineName);
+        }
+        catch (Exception ex) {
+            StopNativeEngine();
+            SetStartupStatus(MessageText.Get("katago_failed_status"), ex.Message, 1f, true, true, false, paths.engineName);
+            XNLogger.LogError(
+                "KataGo native engine startup failed.",
+                ("engine", paths.engineName),
+                ("errType", ex.GetType().Name),
+                ("err", ex.Message),
+                ("libraryPath", paths.nativeLibraryPath),
+                ("libraryExists", File.Exists(paths.nativeLibraryPath).ToString()),
+                ("configExists", File.Exists(paths.configPath).ToString()),
+                ("modelExists", File.Exists(paths.modelPath).ToString()),
+                ("workingDirectory", paths.workingDirectory),
+                ("workingDirectoryExists", Directory.Exists(paths.workingDirectory).ToString()));
+        }
+    }
+
+    private static void RunNativeSmokeTest(KataGoPaths paths, float progressStart, float progressEnd, CancellationToken cancellationToken)
+    {
+        for (int i = 0; i < SmokeTestBoardSizes.Length; i++) {
+            cancellationToken.ThrowIfCancellationRequested();
+            int boardSize = SmokeTestBoardSizes[i];
+            float boardProgressStart = Mathf.Lerp(progressStart, progressEnd, GetSmokeTestProgressWeightBefore(i));
+            float boardProgressEnd = Mathf.Lerp(progressStart, progressEnd, GetSmokeTestProgressWeightBefore(i + 1));
+            RunNativeBoardSmokeTest(paths, boardSize, i, boardProgressStart, boardProgressEnd, cancellationToken);
+        }
+
+        SetStartupStatus(
+            MessageText.Get("katago_warmup_status"),
+            MessageText.Format("katago_all_boards_complete", paths.engineName),
+            progressEnd,
+            false,
+            false,
+            false,
+            paths.engineName);
+    }
+
+    private static void RunNativeBoardSmokeTest(KataGoPaths paths, int boardSize, int boardIndex, float progressStart, float progressEnd, CancellationToken cancellationToken)
+    {
+        string requestId = $"native-smoke-{boardSize}";
+        JObject query = BuildSmokeTestQuery(requestId, boardSize);
+        SetStartupStatus(
+            MessageText.Get("katago_warmup_status"),
+            BuildSmokeTestStageDetail(paths, boardSize, boardIndex),
+            progressStart,
+            false,
+            false,
+            false,
+            paths.engineName);
+
+        cancellationToken.ThrowIfCancellationRequested();
+        JObject result = nativeEngine.Analyze(query, paths.smokeTestTimeoutMs);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (result["id"]?.ToString() != requestId) {
+            throw new InvalidOperationException($"KataGo native smoke test returned mismatched id. expected: {requestId}, actual: {result["id"]}");
+        }
+
+        JObject rootInfo = result["rootInfo"] as JObject;
+        JArray ownership = result["ownership"] as JArray;
+
+        SetStartupStatus(
+            MessageText.Get("katago_warmup_status"),
+            MessageText.Format("katago_board_complete", paths.engineName, boardSize),
+            progressEnd,
+            false,
+            false,
+            false,
+            paths.engineName);
+        XNLogger.LogInfo(
+            "KataGo native smoke test success.",
+            ("engine", paths.engineName),
+            ("boardSize", boardSize.ToString()),
+            ("id", (string)result["id"]),
+            ("scoreLead", rootInfo?["scoreLead"]?.ToString() ?? "null"),
+            ("visits", rootInfo?["visits"]?.ToString() ?? "null"),
+            ("ownershipLength", ownership?.Count.ToString() ?? "null"));
     }
 
     private static bool TryStartAndSmokeTest(KataGoPaths paths, float progressStart, float progressEnd, float failureProgress, CancellationToken cancellationToken)
@@ -738,6 +980,44 @@ public static class KataGoBootstrap
         }
     }
 
+    private static JObject AnalyzeNative(JObject query, int timeoutMs)
+    {
+        try {
+            string requestId = query["id"]?.ToString() ?? string.Empty;
+            if (string.IsNullOrEmpty(requestId)) {
+                XNLogger.LogError("KataGo native analyze failed, query id is empty.");
+                return null;
+            }
+
+            Win32NativeKataGoEngine currentEngine = nativeEngine;
+            if (currentEngine == null || !currentEngine.IsRunning) {
+                XNLogger.LogError("KataGo native analyze failed, engine exited.");
+                return null;
+            }
+
+            JObject result = currentEngine.Analyze(query, timeoutMs);
+            LogKataGoResultDiagnostics(result, requestId);
+
+            if (!HasAnalysisPayload(result) && result["error"] == null) {
+                XNLogger.LogError("KataGo native analyze failed, result has no analysis payload.", ("id", requestId));
+                return null;
+            }
+
+            XNLogger.LogInfo(
+                "KataGo native analyze success.",
+                ("engine", hasActivePaths ? activePaths.engineName : "unknown"),
+                ("id", requestId),
+                ("hasOwnership", (result["ownership"] != null).ToString()),
+                ("moveInfoCount", ((result["moveInfos"] as JArray)?.Count ?? 0).ToString()));
+            return result;
+        }
+        catch (Exception ex) {
+            XNLogger.LogError("KataGo native analyze failed.", ("err", ex.Message));
+            StopNativeEngine();
+            return null;
+        }
+    }
+
     private static bool HasAnalysisPayload(JObject result)
     {
         return result["moveInfos"] != null
@@ -797,6 +1077,27 @@ public static class KataGoBootstrap
         }
     }
 
+    private static void StopNativeEngine()
+    {
+        Win32NativeKataGoEngine currentEngine = nativeEngine;
+        nativeEngine = null;
+
+        if (currentEngine == null) {
+            return;
+        }
+
+        try {
+            currentEngine.Stop();
+        }
+        catch (Exception ex) {
+            Debug.LogWarning($"Stop KataGo native engine failed: {ex.Message}");
+        }
+        finally {
+            currentEngine.Dispose();
+            XNLogger.LogInfo("KataGo native engine stopped.");
+        }
+    }
+
     private static string ReadOutputLineBefore(DateTime deadline, CancellationToken cancellationToken, string operationName, int timeoutMs)
     {
         TimeSpan remaining = deadline - DateTime.UtcNow;
@@ -836,18 +1137,28 @@ public static class KataGoBootstrap
     private struct KataGoPaths
     {
         public string exePath;
+        public string nativeLibraryPath;
         public string configPath;
         public string modelPath;
         public string workingDirectory;
         public string engineName;
         public int smokeTestTimeoutMs;
         public bool noWriteMode;
+        public bool isNative;
 
         public bool IsValid(out string reason)
         {
-            if (!File.Exists(exePath)) {
-                reason = $"katago.exe not found: {exePath}";
-                return false;
+            if (isNative) {
+                if (!File.Exists(nativeLibraryPath)) {
+                    reason = $"katago_bridge.dll not found: {nativeLibraryPath}";
+                    return false;
+                }
+            }
+            else {
+                if (!File.Exists(exePath)) {
+                    reason = $"katago.exe not found: {exePath}";
+                    return false;
+                }
             }
 
             if (!File.Exists(configPath)) {
@@ -926,5 +1237,9 @@ public static class KataGoBootstrap
         public string engineRoot;
         public bool canWriteGameRoot;
         public string writeFailureReason;
+        public string modelFileName;
+        public bool windowsPreferOpenCl;
+        public bool windowsAllowCpuFallback;
+        public string windowsNativeEngineName;
     }
 }
