@@ -279,9 +279,7 @@ public class DuelPageHudView
         bool isLanDuel = compDuel != null && compDuel.isLanDuel.value;
         bool isGameEnd = compDuel?.duelFSM?.curState != null && compDuel.duelFSM.curState.stateName == DuelStateDefine.STATE_GAME_END;
         bool canRequestScore = compDuel != null && !compDuel.isScoring && !isGameEnd && canSubmitMove;
-        bool canTakeBack = isLanDuel
-            ? compDuel != null && !compDuel.isScoring && !isGameEnd && DuelMoveHistory.Count(compDuel.kataGoMoves) > 0
-            : DuelPageInteractionState.CanTakeBack(compDuel);
+        bool canTakeBack = DuelPageInteractionState.CanTakeBack(mainScene, compDuel);
         SetButtonInteractable(binder.btn_duel_pass, canSubmitMove);
         SetButtonInteractable(binder.btn_settings_request_score, canRequestScore);
         SetButtonInteractable(binder.btn_settings_take_back, canTakeBack);

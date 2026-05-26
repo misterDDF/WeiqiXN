@@ -547,8 +547,23 @@ public class DuelSystem : SystemBase
             return false;
         }
 
+        if (compDuel.duelFSM.curState == null || compDuel.duelFSM.curState.stateName != DuelStateDefine.STATE_TURN_INPUT) {
+            return false;
+        }
+
+        Player requester = request.requesterFlag == PlayerFlag.Player1
+            ? scene.GetEntity<Player>(compDuel.player1Guid.value)
+            : scene.GetEntity<Player>(compDuel.player2Guid.value);
+        if (requester == null || request.requesterFlag != (PlayerFlag)requester.playerFlag.value) {
+            return false;
+        }
+
+        if (!DuelLanTakeBackRule.TryGetRequiredRemoveCount(scene, compDuel, request.requesterFlag, out int requiredRemoveCount)) {
+            return false;
+        }
+
         int moveCount = DuelMoveHistory.Count(compDuel.kataGoMoves);
-        return moveCount >= request.removeCount;
+        return request.removeCount == requiredRemoveCount && moveCount >= requiredRemoveCount;
     }
 
     public bool ApplyLanDuelTakeBack(LanDuelTakeBackRequestMessage request)

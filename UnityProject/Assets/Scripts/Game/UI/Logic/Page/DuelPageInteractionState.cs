@@ -1,25 +1,30 @@
 public static class DuelPageInteractionState
 {
-    public static bool CanTakeBack(SceneComponentDuel compDuel)
+    public static bool CanTakeBack(SceneBase mainScene, SceneComponentDuel compDuel)
     {
         if (compDuel == null || compDuel.duelFSM == null || !compDuel.duelFSM.isActivated || compDuel.isScoring) {
             return false;
         }
 
-        int moveCount = DuelMoveHistory.Count(compDuel.kataGoMoves);
-        if (moveCount <= 0) {
-            return false;
+        if (!compDuel.isLanDuel.value) {
+            int moveCount = DuelMoveHistory.Count(compDuel.kataGoMoves);
+            if (moveCount <= 0) {
+                return false;
+            }
+
+            if (!compDuel.isAiDuel.value) {
+                return true;
+            }
+
+            string humanPlayerGuid = compDuel.player1Guid.value == compDuel.aiPlayerGuid.value
+                ? compDuel.player2Guid.value
+                : compDuel.player1Guid.value;
+            int requiredMoveCount = compDuel.curTurnPlayerGuid.value == humanPlayerGuid ? 2 : 1;
+            return moveCount >= requiredMoveCount;
         }
 
-        if (!compDuel.isAiDuel.value) {
-            return true;
-        }
-
-        string humanPlayerGuid = compDuel.player1Guid.value == compDuel.aiPlayerGuid.value
-            ? compDuel.player2Guid.value
-            : compDuel.player1Guid.value;
-        int requiredMoveCount = compDuel.curTurnPlayerGuid.value == humanPlayerGuid ? 2 : 1;
-        return moveCount >= requiredMoveCount;
+        PlayerFlag localPlayerFlag = (PlayerFlag)compDuel.localPlayerFlag.value;
+        return DuelLanTakeBackRule.CanTakeBack(mainScene, compDuel, localPlayerFlag);
     }
 
     public static bool CanResign(SceneBase mainScene, SceneComponentDuel compDuel)
