@@ -24,6 +24,7 @@
 - 合法落子会递增 `SceneComponentDuel.lanBoardVersion`，host 随后广播包含棋盘尺寸、下一手玩家、最后一步、棋子列表和 host 权威 KataGo 标准手顺的 `BoardSnapshot`，client 用快照纠正本地棋盘与 `kataGoMoves`。
 - LAN 计时已按 host 权威收敛：host 广播 `TimeState`，client 不自行扣时或裁定超时；host 广播 `PlayerTimeout` 后 client 进入同样的超时终局。
 - `lan_room_config` 已承载局域网房间端口、连接超时、人数上限、广播间隔和缓冲区大小；协议消息名由 `LanRoomProtocol` 枚举按命名约定生成，并通过 `OnXxx` 接收函数注册到协议回调表。
+- LAN 房间搜索端解析 UDP 广播时，加入连接地址以 UDP `remoteEndPoint.Address` 为准；房主广播 payload 中的 host address 只作为 UDP 来源地址为空时的兜底，避免 Android 房主自报地址不可靠导致房间可发现但无法加入。
 - `LeaveRoom` 已作为当前 LAN 会话生命周期协议接入；退出房间弹窗或 LAN 对局会主动通知对端、释放 TCP client/TCP listener/UDP broadcast/UDP discovery 并清空 LAN 消息队列，对端收到后提示联机结束并回主菜单。
 
 ## 主要缺口

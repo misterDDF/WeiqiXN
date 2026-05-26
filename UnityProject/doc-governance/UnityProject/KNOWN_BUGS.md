@@ -10,34 +10,3 @@
 
 ## 未移除 Bug
 
-### Android 首次启动 Loading 进度起点过高且完成跳变
-
-- 状态：已修正实现，待 Android 实机复测后移除
-- 记录日期：2026-05-26
-- 涉及范围：Android 启动 Loading、KataGo 运行文件准备、KataGo native OpenCL 预热进度插值
-- 已观察行为：Android 初次启动 Loading 曾直接从约 58% 开始，随后缓慢插值到约 85%，OpenCL tuning 完成后又直接跳到 100%；修正后实测调优阶段仍会直接从约 20% 开始，OpenCL tuning 约 120 秒完成。
-- 初步判断：Android 启动流程已改为运行文件准备阶段 0%-12%、KataGo 预热阶段 12%-98%、初始主菜单场景加载 98%-100%，但 Android native warmup 实际仍使用通用候选起点，导致 OpenCL 调优开始时可见进度约为 20%；Android OpenCL 插值预估时间 200 秒长于本次设备实测 120 秒。
-- 期望行为：Android 启动 Loading 应从 0% 开始按启动阶段连续推进到 100%；Android OpenCL 首次初始化/调优阶段从 Android warmup 段起点开始，并按约 120 秒预估插值。
-- 移除条件：完成 Unity 脚本编译，并在 Android 设备上复测首次启动进度从低百分比连续推进、OpenCL 调优阶段不再直接从约 20% 开始后移除此条记录。
-
-### Android OpenCL 固定安全 tuning 后 ownership 明显慢且可能闪退
-
-- 状态：定位中
-- 记录日期：2026-05-26
-- 涉及范围：Android KataGo native OpenCL 后端、OpenCL tuning 流程、Adreno OpenCL 运行时、ownership 分析、CPU fallback 候选选择
-- 已观察行为：Android 设备已能加载系统 `libOpenCL.so` 并通过 OpenCL bridge smoke test，运行日志确认使用 `QUALCOMM Adreno(TM) 750`，但当前固定 `tune11_gpuAndroidSafe_x19_y19_c384_mv14.txt` 后真实分析明显卡顿，ownership 请求比 CPU/eigen 路径更慢，且高负载时存在卡顿后闪退风险。
-- 对比现象：固定安全 tuning 能跳过首次调优并验证 OpenCL 初始化链路可用，但该 tuning 参数极保守，不能代表设备实际最优 OpenCL 性能。
-- 初步判断：当前问题不再是资源缺失或 OpenCL 完全不可用，而是 Android 正式运行不应继续依赖验证阶段的固定安全 tuning；需要恢复 KataGo 正式 OpenCL 调优，让设备生成 vendor/device 专用 tuning，并保留 OpenCL 启动失败时回退到 eigen CPU 后端的候选机制。
-- 期望行为：Android OpenCL 首次启动应由 KataGo 在 `KataGoData/opencltuning` 下生成设备专用 tuning；OpenCL 候选初始化、调优或 smoke test 失败时，应按候选顺序选择 `android-eigen`，并在日志中明确记录 fallback 原因。
-- 移除条件：恢复 Android 正式 OpenCL 调优流程，确认 APK 不再打包或强制引用固定安全 tuning，完成 Unity 脚本编译，并在设备上验证首次调优、后续加载设备 tuning、OpenCL 失败时 CPU fallback 均有可诊断日志后移除此条记录。
-
-### KataGo native OpenCL DLL 模式疑似落到 CPU/fallback 路径
-
-- 状态：已修复实现，待运行复测后移除
-- 记录日期：2026-05-25
-- 涉及范围：KataGo Windows native 后端、OpenCL DLL 候选选择、DLL 加载、ownership 分析性能、启动调优流程
-- 已观察行为：清理 OpenCL tuning 缓存后运行 `native` + `native-opencl` DLL 模式，启动调优步骤异常快，表现像没有真正执行 OpenCL 调优或已经落到 fallback；进入对局后 ownership 绘制缓慢。
-- 对比现象：将 `game-config.json` 切回 `exe` 后，OpenCL exe 模式会重新执行正常的较慢调优；在 exe 模式 OpenCL 下 ownership 绘制速度明显更快。
-- 初步判断：当前 `native` 模式可能没有实际使用 OpenCL DLL，或 Unity 进程中同名 `katago_bridge.dll` 的加载/候选切换导致配置显示与真实 native 后端不一致。
-- 期望行为：`native-opencl` 候选必须按完整 DLL 路径加载对应 bridge，并在启动日志中明确输出候选名、实际 DLL 路径、配置路径、模型路径和 native bridge 编译后端；OpenCL 候选失败或被跳过时必须有可诊断日志，不能让界面或日志误判为 OpenCL 已可用。
-- 移除条件：修复 native DLL 加载与诊断，完成 Unity 脚本编译，并通过清理 tuning 后运行 `native-opencl` 的启动日志和 ownership 性能复测确认真实使用 OpenCL 后移除此条记录。
