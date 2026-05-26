@@ -13,12 +13,14 @@ namespace XNClient.ChessBoard
 
         private List<RectCell> cellList = new List<RectCell>();
         private bool isDirty;
+        private bool outerBorderVisible = true;
 
         // 固定通道语义：r=self，g=pointNeighbor.prev，b=pointNeighbor，a=pointNeighbor.next
         private static Color color1 = new Color(1f, 0f, 0f, 0f);
         private static Color color2 = new Color(0f, 1f, 0f, 0f);
         private static Color color3 = new Color(0f, 0f, 1f, 0f);
         private static Color color4 = new Color(0f, 0f, 0f, 1f);
+        private const float RoadWidthScale = 1.5f;
 
         private void LateUpdate()
         {
@@ -104,6 +106,16 @@ namespace XNClient.ChessBoard
             isDirty = true;
         }
 
+        public void SetOuterBorderVisible(bool visible)
+        {
+            if (outerBorderVisible == visible) {
+                return;
+            }
+
+            outerBorderVisible = visible;
+            SetDirty();
+        }
+
         private void TriangulateChunk()
         {
             groundMesh.ClearMesh();
@@ -112,9 +124,58 @@ namespace XNClient.ChessBoard
             foreach (RectCell cell in cellList) {
                 TriangulateCell(cell);
             }
+            TriangulateOuterBorder();
             TriangulateStarPoints();
             groundMesh.RefreshMesh();
             roadMesh.RefreshMesh();
+        }
+
+        private void TriangulateOuterBorder()
+        {
+            if (!outerBorderVisible) {
+                return;
+            }
+
+            float borderWidth = ChessBoardConfig.rectCellSideLength * ChessBoardVisualConfig.boardOuterBorderWidthFactor;
+            if (borderWidth <= 0f) {
+                return;
+            }
+
+            float chunkWidth = chunkSizeX * ChessBoardConfig.rectCellSideLength;
+            float chunkHeight = chunkSizeZ * ChessBoardConfig.rectCellSideLength;
+
+            bool isLeftEdge = startCellX == 0;
+            bool isRightEdge = startCellX + chunkSizeX == gridSize;
+            bool isTopEdge = startCellZ == 0;
+            bool isBottomEdge = startCellZ + chunkSizeZ == gridSize;
+
+            if (isLeftEdge) {
+                AddBorderQuad(-borderWidth, 0f, 0f, chunkHeight);
+            }
+            if (isRightEdge) {
+                AddBorderQuad(chunkWidth, chunkWidth + borderWidth, 0f, chunkHeight);
+            }
+            if (isTopEdge) {
+                float topMinX = isLeftEdge ? -borderWidth : 0f;
+                float topMaxX = isRightEdge ? chunkWidth + borderWidth : chunkWidth;
+                AddBorderQuad(topMinX, topMaxX, chunkHeight, chunkHeight + borderWidth);
+            }
+            if (isBottomEdge) {
+                float bottomMinX = isLeftEdge ? -borderWidth : 0f;
+                float bottomMaxX = isRightEdge ? chunkWidth + borderWidth : chunkWidth;
+                AddBorderQuad(bottomMinX, bottomMaxX, -borderWidth, 0f);
+            }
+        }
+
+        private void AddBorderQuad(float minX, float maxX, float minZ, float maxZ)
+        {
+            Vector3 v1 = new Vector3(minX, 0f, minZ);
+            Vector3 v2 = new Vector3(maxX, 0f, minZ);
+            Vector3 v3 = new Vector3(minX, 0f, maxZ);
+            Vector3 v4 = new Vector3(maxX, 0f, maxZ);
+            groundMesh.AddQuad(v1, v2, v3, v4);
+            groundMesh.AddQuadColor(color1);
+            groundMesh.AddQuadUV0(new Vector4(0f, 0f, 0f, 0f));
         }
 
         private void TriangulateCell(RectCell cell)
@@ -381,7 +442,7 @@ namespace XNClient.ChessBoard
         {
             // 道路内侧小三角，按中线切分为两个
             bool isOnBoardEdgeRoad = ChessBoardUtils.CheckRoadOnBoardEdge(cell.coordinates.x, cell.coordinates.z, gridSize, dir);
-            (Vector3, Vector3) centerOffset = ChessBoardUtils.GetRoadCenterCornerOffsets(dir, isOnBoardEdgeRoad);
+            (Vector3, Vector3) centerOffset = GetRoadCenterCornerOffsets(dir, isOnBoardEdgeRoad);
             Vector3 endPoint1 = cell.centerPosInChunk + centerOffset.Item1;
             Vector3 endPoint2 = cell.centerPosInChunk + centerOffset.Item2;
             Vector3 midPoint = (endPoint1 + endPoint2) / 2f;
@@ -408,8 +469,8 @@ namespace XNClient.ChessBoard
 
             // 道路主体矩形，按中线切分为两份
             if (cell.TryGetLineNeighbor(dir, out RectCell neighbor)) {
-                (Vector3, Vector3) innerOffset = ChessBoardUtils.GetRoadInnerCornerOffsets(dir, cell.isOnEdge, neighbor.isOnEdge);
-                (Vector3, Vector3) outerOffset = ChessBoardUtils.GetRoadOuterCornerOffsets(dir, cell.isOnEdge, neighbor.isOnEdge);
+                (Vector3, Vector3) innerOffset = GetRoadInnerCornerOffsets(dir, cell.isOnEdge, neighbor.isOnEdge);
+                (Vector3, Vector3) outerOffset = GetRoadOuterCornerOffsets(dir, cell.isOnEdge, neighbor.isOnEdge);
                 Vector3 innerEndPoint1 = cell.centerPosInChunk + innerOffset.Item1;
                 Vector3 innerEndPoint2 = cell.centerPosInChunk + innerOffset.Item2;
                 Vector3 innerMidPoint = (innerEndPoint1 + innerEndPoint2) / 2f;
@@ -442,6 +503,38 @@ namespace XNClient.ChessBoard
                     new Vector2(0f, 0f)
                 );
             }
+        }
+
+        private (Vector3, Vector3) GetRoadCenterCornerOffsets(RectDirection dir, bool isOnBoardEdgeRoad)
+        {
+            float factor = GetRoadWidthFactor(isOnBoardEdgeRoad);
+            return (
+                ChessBoardConfig.rectCornerOffsets[(int)dir] * factor,
+                ChessBoardConfig.rectCornerOffsets[(int)dir.GetNextDirection()] * factor);
+        }
+
+        private (Vector3, Vector3) GetRoadInnerCornerOffsets(RectDirection dir, bool isOnEdge, bool isNeighborOnEdge)
+        {
+            float factor = GetRoadWidthFactor(isOnEdge && isNeighborOnEdge);
+            return (
+                ChessBoardConfig.rectCornerOffsets[(int)dir] * factor,
+                ChessBoardConfig.rectCornerOffsets[(int)dir.GetNextDirection()] * factor);
+        }
+
+        private (Vector3, Vector3) GetRoadOuterCornerOffsets(RectDirection dir, bool isOnEdge, bool isNeighborOnEdge)
+        {
+            (Vector3, Vector3) innerOffset = GetRoadInnerCornerOffsets(dir, isOnEdge, isNeighborOnEdge);
+            float factor = 1f - GetRoadWidthFactor(isOnEdge && isNeighborOnEdge);
+            Vector3 midDir = ((innerOffset.Item1 + innerOffset.Item2) / 2f).normalized;
+            return (
+                innerOffset.Item1 + midDir * (ChessBoardConfig.rectCellSideLength / 2f * factor),
+                innerOffset.Item2 + midDir * (ChessBoardConfig.rectCellSideLength / 2f * factor));
+        }
+
+        private float GetRoadWidthFactor(bool isBoardEdgeRoad)
+        {
+            float factor = isBoardEdgeRoad ? ChessBoardConfig.roadBoderFactor : ChessBoardConfig.roadNormalFactor;
+            return factor * RoadWidthScale;
         }
 
         public string GetDebugCellLayout()

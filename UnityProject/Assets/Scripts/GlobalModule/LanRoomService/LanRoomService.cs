@@ -240,8 +240,14 @@ public partial class LanRoomService : ModuleBase
         StopRoom();
     }
 
-    public void StartSearchRooms()
+    public bool StartSearchRooms()
     {
+        LanRoomSessionState state = SessionState;
+        if (state.role != LanRoomRole.None) {
+            lastStatus = state.GetDisplayText();
+            return false;
+        }
+
         StopSearchRooms();
         lock (roomLock) {
             discoveredRooms.Clear();
@@ -260,11 +266,13 @@ public partial class LanRoomService : ModuleBase
             discoveryThread.Start();
 
             lastStatus = MessageText.Get("lan_room_searching");
+            return true;
         }
         catch (Exception e) {
             lastStatus = MessageText.Format("lan_room_search_failed", e.Message);
             XNLogger.LogError("Start LAN room search failed.", ("error", e.ToString()));
             StopSearchRooms();
+            return false;
         }
     }
 
@@ -338,7 +346,7 @@ public partial class LanRoomService : ModuleBase
         }
     }
 
-    public void SetLocalReady(bool ready)
+    public void SetLocalReady(bool ready, bool updateStatus = true)
     {
         LanRoomRole role;
         lock (sessionLock) {
@@ -359,7 +367,9 @@ public partial class LanRoomService : ModuleBase
             SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.Ready)}|CLIENT|{BoolToInt(ready)}");
         }
 
-        lastStatus = ready ? MessageText.Get("lan_room_ready") : MessageText.Get("lan_room_ready_cancelled");
+        if (updateStatus) {
+            lastStatus = ready ? MessageText.Get("lan_room_ready") : MessageText.Get("lan_room_ready_cancelled");
+        }
     }
 
     public bool TryStartGame()
@@ -1042,7 +1052,8 @@ public partial class LanRoomService : ModuleBase
             try {
                 byte[] data = discoveryClient.Receive(ref remoteEndPoint);
                 string payload = Encoding.UTF8.GetString(data);
-                if (TryParseRoom(payload, remoteEndPoint.Address.ToString(), out LanRoomInfo room)) {
+                if (TryParseRoom(payload, remoteEndPoint.Address.ToString(), out LanRoomInfo room) &&
+                    !IsHostedRoom(room)) {
                     lock (roomLock) {
                         discoveredRooms[room.roomId] = room;
                     }
@@ -1111,6 +1122,12 @@ public partial class LanRoomService : ModuleBase
                 XNLogger.LogWarn("Accept LAN room client failed.", ("error", e.Message));
             }
         }
+    }
+
+    private bool IsHostedRoom(LanRoomInfo room)
+    {
+        return !string.IsNullOrEmpty(hostedRoomId) &&
+            string.Equals(room.roomId, hostedRoomId, StringComparison.Ordinal);
     }
 
     private bool TryParseRoom(string payload, string fallbackAddress, out LanRoomInfo room)

@@ -212,14 +212,18 @@ public class DuelAuthoritySystem : SystemBase
         }
 
         PlayerFlag requesterFlag = ResolveLocalPlayerFlagForLanConfirm(compDuel);
-        if (requesterFlag == 0) {
+        if (requesterFlag == 0 || !DuelLanTakeBackRule.TryGetRequiredRemoveCount(scene, compDuel, requesterFlag, out int removeCount)) {
+            return false;
+        }
+
+        if (DuelMoveHistory.Count(compDuel.kataGoMoves) < removeCount) {
             return false;
         }
 
         return Global.Instance.lanRoomService.SubmitLocalTakeBack(
             requesterFlag,
             compDuel.lanBoardVersion.value,
-            1);
+            removeCount);
     }
 
     private void OnSubmitLanDuelTakeBackConfirm(OnSubmitLanDuelTakeBackConfirm evt)
