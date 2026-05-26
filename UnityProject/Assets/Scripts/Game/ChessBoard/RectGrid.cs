@@ -12,8 +12,20 @@ namespace XNClient.ChessBoard
         public int gridSize;
         private List<RectGridChunk> chunkList = new List<RectGridChunk>();
         private List<RectCell> cellList = new List<RectCell>();
+        private GameObject coordinateLabelRoot;
         private GameObject ownershipRoot;
         private GameObject latestMoveMarkerRoot;
+        private bool boardCoordinateFrameVisible = true;
+
+        private const float CoordinateLabelSurfaceYOffset = 0.04f;
+        private const float CoordinateLabelBoundsPaddingFactor = 0.22f;
+        private const float CoordinateLabelOuterOffsetFactor = 0.38f;
+        private const int CoordinateLabelFontSize = 84;
+        private const float CoordinateLabelCharacterSize = 0.32f;
+        private const float CoordinateLabelShadowCharacterSize = 0.30f;
+        private static readonly Vector3 CoordinateLabelShadowOffset = new Vector3(0.025f, -0.004f, -0.025f);
+        private static readonly Color CoordinateLabelColor = new Color(0.23f, 0.15f, 0.07f, 0.98f);
+        private static readonly Color CoordinateLabelShadowColor = new Color(0.08f, 0.05f, 0.02f, 0.55f);
 
         private const float OwnershipSquareSizeFactor = ChessBoardConfig.starPointRadiusFactor * 2f * 1.5f;
         private const float OwnershipLineWidthFactor = ChessBoardConfig.roadNormalFactor * 1.5f;
@@ -45,6 +57,7 @@ namespace XNClient.ChessBoard
 
             CreateChunks();
             CreateCells();
+            RefreshBoardCoordinateFrame();
         }
 
         public void SetBoardMaterials(Material blackMaterial, Material whiteMaterial)
@@ -61,11 +74,27 @@ namespace XNClient.ChessBoard
 
         public Bounds GetGridBounds()
         {
+            EnsureCoordinateLabels();
+
             float gridSideLength = gridSize * ChessBoardConfig.rectCellSideLength;
             Vector3 localCenter = new Vector3(gridSideLength / 2f, 0f, gridSideLength / 2f);
             Vector3 worldCenter = transform.TransformPoint(localCenter);
-            Vector3 size = new Vector3(gridSideLength, 0f, gridSideLength);
+            float coordinatePadding = boardCoordinateFrameVisible
+                ? ChessBoardConfig.rectCellSideLength *
+                    (ChessBoardVisualConfig.boardOuterBorderWidthFactor + CoordinateLabelBoundsPaddingFactor)
+                : 0f;
+            Vector3 size = new Vector3(gridSideLength + coordinatePadding * 2f, 0f, gridSideLength + coordinatePadding * 2f);
             return new Bounds(worldCenter, size);
+        }
+
+        public void SetBoardCoordinateFrameVisible(bool visible)
+        {
+            if (boardCoordinateFrameVisible == visible) {
+                return;
+            }
+
+            boardCoordinateFrameVisible = visible;
+            RefreshBoardCoordinateFrame();
         }
 
         public Vector3 GetCellCenterLocalPosition(int x, int z)
@@ -165,6 +194,129 @@ namespace XNClient.ChessBoard
 
             Destroy(latestMoveMarkerRoot);
             latestMoveMarkerRoot = null;
+        }
+
+        private void CreateCoordinateLabels()
+        {
+            ClearCoordinateLabels();
+
+            coordinateLabelRoot = new GameObject("CoordinateLabelRoot");
+            coordinateLabelRoot.transform.SetParent(transform, false);
+
+            float boardSideLength = gridSize * ChessBoardConfig.rectCellSideLength;
+            float labelOuterOffset = ChessBoardConfig.rectCellSideLength *
+                ChessBoardVisualConfig.boardOuterBorderWidthFactor *
+                CoordinateLabelOuterOffsetFactor;
+            for (int x = 0; x < gridSize; x++) {
+                string columnLabel = GetGoCoordinateColumnLabel(x);
+                float centerX = GetCellCenterLocalPosition(x, 0).x;
+                CreateCoordinateLabel(
+                    $"CoordinateTop_{columnLabel}",
+                    columnLabel,
+                    new Vector3(centerX, CoordinateLabelSurfaceYOffset, boardSideLength + labelOuterOffset));
+            }
+
+            for (int z = 0; z < gridSize; z++) {
+                string rowLabel = (gridSize - z).ToString();
+                float centerZ = GetCellCenterLocalPosition(0, gridSize - 1 - z).z;
+                CreateCoordinateLabel(
+                    $"CoordinateLeft_{rowLabel}",
+                    rowLabel,
+                    new Vector3(-labelOuterOffset, CoordinateLabelSurfaceYOffset, centerZ));
+            }
+        }
+
+        private void EnsureCoordinateLabels()
+        {
+            if (!boardCoordinateFrameVisible || gridSize <= 0 || coordinateLabelRoot != null) {
+                return;
+            }
+
+            CreateCoordinateLabels();
+        }
+
+        private void RefreshBoardCoordinateFrame()
+        {
+            foreach (RectGridChunk chunk in chunkList) {
+                if (chunk != null) {
+                    chunk.SetOuterBorderVisible(boardCoordinateFrameVisible);
+                }
+            }
+
+            if (boardCoordinateFrameVisible) {
+                EnsureCoordinateLabels();
+            } else {
+                ClearCoordinateLabels();
+            }
+        }
+
+        private void ClearCoordinateLabels()
+        {
+            if (coordinateLabelRoot == null) {
+                return;
+            }
+
+            Destroy(coordinateLabelRoot);
+            coordinateLabelRoot = null;
+        }
+
+        private void CreateCoordinateLabel(string objectName, string labelText, Vector3 localPosition)
+        {
+            if (coordinateLabelRoot == null) {
+                return;
+            }
+
+            CreateCoordinateLabelMesh(
+                objectName + "_Shadow",
+                labelText,
+                localPosition + CoordinateLabelShadowOffset,
+                CoordinateLabelShadowCharacterSize,
+                CoordinateLabelShadowColor,
+                0);
+            CreateCoordinateLabelMesh(
+                objectName,
+                labelText,
+                localPosition,
+                CoordinateLabelCharacterSize,
+                CoordinateLabelColor,
+                1);
+        }
+
+        private void CreateCoordinateLabelMesh(string objectName, string labelText, Vector3 localPosition, float characterSize, Color color, int sortingOrder)
+        {
+            GameObject labelGO = new GameObject(objectName);
+            labelGO.transform.SetParent(coordinateLabelRoot.transform, false);
+            labelGO.transform.localPosition = localPosition;
+            labelGO.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            labelGO.transform.localScale = Vector3.one;
+
+            TextMesh textMesh = labelGO.AddComponent<TextMesh>();
+            textMesh.text = labelText;
+            textMesh.fontSize = CoordinateLabelFontSize;
+            textMesh.characterSize = characterSize;
+            textMesh.fontStyle = FontStyle.Bold;
+            textMesh.alignment = TextAlignment.Center;
+            textMesh.anchor = TextAnchor.MiddleCenter;
+            textMesh.color = color;
+            textMesh.richText = false;
+
+            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (font != null) {
+                textMesh.font = font;
+            }
+
+            MeshRenderer meshRenderer = labelGO.GetComponent<MeshRenderer>();
+            if (meshRenderer != null) {
+                meshRenderer.receiveShadows = false;
+                meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                meshRenderer.sortingOrder = sortingOrder;
+            }
+        }
+
+        private string GetGoCoordinateColumnLabel(int x)
+        {
+            int labelIndex = x < 8 ? x : x + 1;
+            return ((char)('A' + labelIndex)).ToString();
         }
 
         private int[] BuildOwnershipFlags(JArray ownership, float ownershipThreshold, int expectedCount)
@@ -287,6 +439,8 @@ namespace XNClient.ChessBoard
 
         private void OnDestroy()
         {
+            ClearCoordinateLabels();
+
             if (latestMoveMarkerMesh != null) {
                 Destroy(latestMoveMarkerMesh);
                 latestMoveMarkerMesh = null;

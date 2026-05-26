@@ -96,6 +96,7 @@
 **编译验证**
 
 - 修改 Unity C# 代码、asmdef、Editor 脚本或会影响 Unity 脚本导入的资源后，必须触发 Unity Editor 脚本编译作为最小验证。
+- 修改 Unity C# 代码、新增或修改 Editor 菜单函数、修改 asmdef、prefab、scene、material、asset 或其他会被 Unity 导入/序列化的资源后，必须先通过 Unity MCP 执行 `Assets/Refresh` 菜单项或等效 Editor 刷新入口，让 Unity Editor 实际感知改动；不能只停留在文件系统 diff。若改动涉及 C#、asmdef 或 Editor 菜单函数，刷新后还必须执行脚本编译验证并检查 Console。
 - 编译验证优先使用已连接的 Unity MCP 触发脚本重编译，并检查 Unity Console 编译错误；当前通用入口为 MCP `recompile_scripts`，可用时不再使用 `dotnet build UnityProject.sln` 作为常规验证。
 - Unity MCP 触发重编译、Domain Reload 等编辑器操作时，执行、等待和读取日志应拆成多次调用。若 MCP 因 Domain Reload 短暂断开，应重试轻量检查。
 - `dotnet build UnityProject.sln` 不能作为 Unity 编译的权威验证；除非 Unity Editor 或 MCP 不可用且需要辅助定位纯 C# 编译问题，否则不再执行。
@@ -107,6 +108,7 @@
 
 - 能通过 Unity MCP 完成的编辑器操作优先使用 MCP，包括脚本重编译、Console 日志读取、场景对象查询与修改、材质和资源的常规编辑器操作。
 - prefab、场景和资源导入相关修改应优先走 Unity 编辑器能力；当现有 MCP 工具能覆盖目标 prefab 或资源操作时使用 MCP。
+- 任何 C#、Editor 菜单、asmdef、prefab、scene、material 或 asset 改动完成后，交付前必须至少通过 Unity MCP 执行一次 `Assets/Refresh` 菜单项或等效 Editor 刷新入口；若涉及 C#、asmdef 或 Editor 菜单函数，还必须在刷新后执行脚本编译验证，并检查 Console 错误。
 - 当前 MCP 未提供完整既有 prefab asset 层级编辑能力时，不直接手写复杂 prefab YAML；应改用 Unity 编辑器脚本、明确的编辑器菜单或人工维护 prefab，再通过 MCP 执行导入、编译和日志检查。
 - 固定 UI 控件仍必须由 prefab 或场景显式维护并通过现有 Binder 绑定；MCP 只是优先编辑入口，不改变 UI 维护边界。
 - 页面或弹窗 prefab 的界面根节点 `RectTransform` 默认必须使用四向 Stretch 锚点以适配多平台分辨率；仅在该界面明确是非全屏固定尺寸承载物且已有父级自适应布局时，才允许使用固定锚点，并应在对应 prefab 维护说明或交付说明中说明原因。
@@ -122,7 +124,7 @@
 
 - 代码或文档修改已经落地。
 - 必要检查已经完成；如无法执行，需要记录原因。
-- 涉及 Unity C# 代码变更时，已触发 Unity Editor 编译并确认无编译错误；无法执行时已说明原因和剩余风险。
+- 涉及 Unity C#、Editor 菜单、asmdef、prefab、scene、material 或 asset 变更时，已通过 Unity MCP 执行 `Assets/Refresh` 菜单项或等效 Editor 刷新入口；涉及 C#、asmdef 或 Editor 菜单函数时，已在刷新后完成脚本编译验证并确认 Console 无相关错误；无法执行时已说明原因和剩余风险。
 - 已判断对本地对局基线的影响。
 - 已判断是否触发四件套文档或模块文档更新。
 - 被触发的权威文档已经同步更新。

@@ -10,6 +10,28 @@
 
 ## 未移除 Bug
 
+### 棋盘坐标标签运行时不可见
+
+- 状态：已修复实现，待运行复测后移除
+- 记录日期：2026-05-25
+- 涉及范围：`RectGrid` 坐标标签生成、棋盘表现、对局相机俯视显示
+- 已观察行为：棋盘运行后没有看到坐标标注。
+- 初步判断：当前 MCP 查看到的编辑器场景中 `RectGrid.gridSize` 仍为 `0`，说明该场景快照未经过运行时棋盘初始化；同时坐标标签使用 `TextMesh` 并旋转为 `+90°`，文字正面朝下，俯视相机可能只能看到背面。
+- 期望行为：棋盘初始化后应生成 `CoordinateLabelRoot`，坐标标签应正面朝上并在棋盘四周可见。
+- 当前处理：已让 `GetGridBounds()` 在取景前补建缺失的坐标标签，并将坐标标签旋转改为正面朝上、文本锚点居中。
+- 移除条件：完成 Unity 脚本编译和运行时进对局验证，确认棋盘四周可见坐标后移除此条记录。
+
+### 棋盘坐标标签使用旧内置字体名触发运行时异常
+
+- 状态：已修复实现，待运行复测后移除
+- 记录日期：2026-05-25
+- 涉及范围：`RectGrid` 坐标标签生成、棋盘初始化、对局运行时启动
+- 已观察行为：运行棋盘场景后触发 `ArgumentException: Arial.ttf is no longer a valid built in font. Please use LegacyRuntime.ttf`。
+- 可见表现：对局启动阶段发生运行时异常，可能导致棋盘场景中断或 crash。
+- 期望行为：坐标标签应使用 Unity 当前允许的内置字体名，避免运行时异常。
+- 当前处理：定位到 `RectGrid.CreateCoordinateLabel()` 中通过 `Resources.GetBuiltinResource<Font>("Arial.ttf")` 获取字体；已改为 `LegacyRuntime.ttf` 并完成 Unity 脚本编译验证。
+- 移除条件：修复字体名、完成 Unity 脚本编译和运行时最小验证后移除此条记录。
+
 ### KataGo native OpenCL DLL 模式疑似落到 CPU/fallback 路径
 
 - 状态：已修复实现，待运行复测后移除

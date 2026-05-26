@@ -63,6 +63,11 @@ public class DuelPageBoardInputController
         Transform gridTransform = compChessBoard.chessBoardGrid.transform;
         Vector3 localHitPoint = gridTransform.InverseTransformPoint(hitInfo.point);
         float cellSideLength = ChessBoardConfig.rectCellSideLength;
+        float boardSideLength = compChessBoard.chessBoardGrid.gridSize * cellSideLength;
+        if (localHitPoint.x < 0f || localHitPoint.x > boardSideLength || localHitPoint.z < 0f || localHitPoint.z > boardSideLength) {
+            SetAimChessPreviewActive(false);
+            return;
+        }
 
         int nearestCellX = Mathf.RoundToInt(localHitPoint.x / cellSideLength - 0.5f);
         int nearestCellZ = compChessBoard.chessBoardGrid.gridSize - 1 - Mathf.RoundToInt(localHitPoint.z / cellSideLength - 0.5f);

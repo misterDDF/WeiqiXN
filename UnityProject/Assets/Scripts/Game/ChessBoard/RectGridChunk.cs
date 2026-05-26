@@ -13,6 +13,7 @@ namespace XNClient.ChessBoard
 
         private List<RectCell> cellList = new List<RectCell>();
         private bool isDirty;
+        private bool outerBorderVisible = true;
 
         // 固定通道语义：r=self，g=pointNeighbor.prev，b=pointNeighbor，a=pointNeighbor.next
         private static Color color1 = new Color(1f, 0f, 0f, 0f);
@@ -104,6 +105,16 @@ namespace XNClient.ChessBoard
             isDirty = true;
         }
 
+        public void SetOuterBorderVisible(bool visible)
+        {
+            if (outerBorderVisible == visible) {
+                return;
+            }
+
+            outerBorderVisible = visible;
+            SetDirty();
+        }
+
         private void TriangulateChunk()
         {
             groundMesh.ClearMesh();
@@ -112,9 +123,58 @@ namespace XNClient.ChessBoard
             foreach (RectCell cell in cellList) {
                 TriangulateCell(cell);
             }
+            TriangulateOuterBorder();
             TriangulateStarPoints();
             groundMesh.RefreshMesh();
             roadMesh.RefreshMesh();
+        }
+
+        private void TriangulateOuterBorder()
+        {
+            if (!outerBorderVisible) {
+                return;
+            }
+
+            float borderWidth = ChessBoardConfig.rectCellSideLength * ChessBoardVisualConfig.boardOuterBorderWidthFactor;
+            if (borderWidth <= 0f) {
+                return;
+            }
+
+            float chunkWidth = chunkSizeX * ChessBoardConfig.rectCellSideLength;
+            float chunkHeight = chunkSizeZ * ChessBoardConfig.rectCellSideLength;
+
+            bool isLeftEdge = startCellX == 0;
+            bool isRightEdge = startCellX + chunkSizeX == gridSize;
+            bool isTopEdge = startCellZ == 0;
+            bool isBottomEdge = startCellZ + chunkSizeZ == gridSize;
+
+            if (isLeftEdge) {
+                AddBorderQuad(-borderWidth, 0f, 0f, chunkHeight);
+            }
+            if (isRightEdge) {
+                AddBorderQuad(chunkWidth, chunkWidth + borderWidth, 0f, chunkHeight);
+            }
+            if (isTopEdge) {
+                float topMinX = isLeftEdge ? -borderWidth : 0f;
+                float topMaxX = isRightEdge ? chunkWidth + borderWidth : chunkWidth;
+                AddBorderQuad(topMinX, topMaxX, chunkHeight, chunkHeight + borderWidth);
+            }
+            if (isBottomEdge) {
+                float bottomMinX = isLeftEdge ? -borderWidth : 0f;
+                float bottomMaxX = isRightEdge ? chunkWidth + borderWidth : chunkWidth;
+                AddBorderQuad(bottomMinX, bottomMaxX, -borderWidth, 0f);
+            }
+        }
+
+        private void AddBorderQuad(float minX, float maxX, float minZ, float maxZ)
+        {
+            Vector3 v1 = new Vector3(minX, 0f, minZ);
+            Vector3 v2 = new Vector3(maxX, 0f, minZ);
+            Vector3 v3 = new Vector3(minX, 0f, maxZ);
+            Vector3 v4 = new Vector3(maxX, 0f, maxZ);
+            groundMesh.AddQuad(v1, v2, v3, v4);
+            groundMesh.AddQuadColor(color1);
+            groundMesh.AddQuadUV0(new Vector4(0f, 0f, 0f, 0f));
         }
 
         private void TriangulateCell(RectCell cell)

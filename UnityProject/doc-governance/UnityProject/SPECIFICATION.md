@@ -61,6 +61,7 @@
 - `SceneComponentChessBoard` 保存当前棋盘配置 id、运行时按棋盘位置索引缓存的棋子信息、用于简单重复局面对比的上一局面快照、`RectGrid` 引用、对局虚拟相机引用和运行时棋子表现缓存。棋盘规则状态以 `chessInfoDict` 为权威，棋子 prefab 由表现缓存按位置显示、隐藏和复用；LAN 快照纠偏、悔棋回放和读档恢复在最终规则状态确定后同步表现缓存，不再通过整盘销毁重建棋子 prefab 更新画面。
 - `SceneComponentDuel` 保存双方玩家 guid、当前回合玩家 guid、本端玩家座位、双方显示名、时间配置、让子配置、电脑对局配置、局域网对局标记、局域网角色、局域网 host 座位、局域网棋盘版本、超时/胜者 guid、连续虚手数、终局原因、最终数子分数、复盘归档身份字段和运行时 KataGo 标准 `moves` 手顺。
 - `RectGrid` 及其相关棋盘类使用 `RectCoordinates` 生成和寻址矩形棋盘；`RectCoordinates` 的逻辑行列语义与 KataGo 坐标保持一致。
+- `RectGrid` 会在棋盘四周显示围棋常用坐标：列标使用 `A` 到 `T` 但跳过 `I`，行标按从上到下递减显示 `boardSize` 到 `1`，用于和当前棋盘逻辑坐标保持一致的可见提示。
 - `ChessBoardSystem` 根据所选棋盘尺寸初始化网格，并把对局虚拟相机调整为轻透视俯视以覆盖棋盘；相机使用较窄 FOV 和小倾角，在保留棋盘读盘清晰度的同时提供少量真实桌面透视。Duel 场景显式维护主相机 URP post-processing 和全局 `DuelLookVolume`，Volume 引用 `Assets/Scenes/Duel/Profiles/DuelLookProfile.asset`，使用 ACES tonemapping、轻微色彩校正、低强度 Bloom 和 Vignette 统一棋盘画面。
 - `DuelSystem` 在新对局中创建两个本地玩家，按让子配置预置黑棋，并启动对局状态机；分先和让先对局从玩家 1 / 黑方开始，让子对局摆子后从玩家 2 / 白方开始。
 - 电脑对局仍复用本地双玩家和本地回合 FSM，人类可选择执黑、执白或猜先，AI 控制另一方；人类座位显示本地用户名，AI 座位显示 AI 文案，AI 难度配置随场景状态保存。
