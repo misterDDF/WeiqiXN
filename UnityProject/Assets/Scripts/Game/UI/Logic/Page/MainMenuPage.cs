@@ -3,7 +3,6 @@ using UnityEngine;
 public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
 {
     public override string pageName => UIPage.GetPageName<MainMenuPage>();
-    private StateRoot layoutStateRoot;
     private bool hasAppliedLayoutState;
     private bool lastPortraitLayout;
 
@@ -11,7 +10,6 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
     {
         base.OnLoaded();
 
-        layoutStateRoot = gameObject.GetComponent<StateRoot>();
         ApplyCurrentLayoutState(true);
 
         binder.btn_new_game.onClick.AddListener(OnClickBtnNewGame);
@@ -41,7 +39,7 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
 
     private void ApplyCurrentLayoutState(bool force)
     {
-        if (layoutStateRoot == null) {
+        if (binder.sr_platform == null) {
             return;
         }
 
@@ -50,7 +48,7 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
             return;
         }
 
-        layoutStateRoot.SetState(isPortrait ? "Portrait" : "Landscape", force);
+        binder.sr_platform.SetState(isPortrait ? "Portrait" : "Landscape", force);
         hasAppliedLayoutState = true;
         lastPortraitLayout = isPortrait;
     }

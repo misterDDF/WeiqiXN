@@ -6,6 +6,7 @@ using UnityEngine.UI;
 
 public class MainMenuPageUI : UIBinderBase
 {
+	public StateRoot sr_platform;
 	public Button btn_new_game;
 	public Button btn_exit;
 	public Button btn_user_info;

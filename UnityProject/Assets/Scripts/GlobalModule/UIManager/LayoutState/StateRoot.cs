@@ -521,10 +521,8 @@ public static class MainMenuStateRootSetup
             RectTransform rootRect = Require<RectTransform>(prefabRoot.transform, "");
             SetRootRect(rootRect);
 
-            var stateRoot = prefabRoot.GetComponent<StateRoot>();
-            if (stateRoot == null) {
-                stateRoot = prefabRoot.AddComponent<StateRoot>();
-            }
+            StateRoot stateRoot = EnsurePlatformStateRoot(prefabRoot.transform);
+            UpdateBinderReferences(prefabRoot, stateRoot);
 
             RemoveOldLayoutComponents(prefabRoot);
 
@@ -533,6 +531,7 @@ public static class MainMenuStateRootSetup
             stateRoot.EditableStates.Add(CreatePortrait(prefabRoot.transform));
             stateRoot.SetState(0, true);
 
+            EditorUtility.SetDirty(stateRoot);
             EditorUtility.SetDirty(prefabRoot);
             PrefabUtility.SaveAsPrefabAsset(prefabRoot, PrefabPath);
         } finally {
@@ -541,6 +540,54 @@ public static class MainMenuStateRootSetup
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
+    }
+
+    private static StateRoot EnsurePlatformStateRoot(Transform root)
+    {
+        Transform platform = root.Find("sr_platform");
+        if (platform == null) {
+            GameObject platformGo = new GameObject("sr_platform", typeof(RectTransform));
+            platform = platformGo.transform;
+            platform.SetParent(root, false);
+        }
+
+        platform.SetSiblingIndex(0);
+        RectTransform platformRect = Require<RectTransform>(platform, "");
+        SetRootRect(platformRect);
+
+        StateRoot stateRoot = platform.GetComponent<StateRoot>();
+        if (stateRoot == null) {
+            stateRoot = platform.gameObject.AddComponent<StateRoot>();
+        }
+
+        StateRoot rootStateRoot = root.GetComponent<StateRoot>();
+        if (rootStateRoot != null) {
+            UnityEngine.Object.DestroyImmediate(rootStateRoot, true);
+        }
+
+        return stateRoot;
+    }
+
+    private static void UpdateBinderReferences(GameObject prefabRoot, StateRoot stateRoot)
+    {
+        UIBinderEditor binderEditor = prefabRoot.GetComponent<UIBinderEditor>();
+        if (binderEditor != null) {
+            int nodeIndex = binderEditor.nodeList.FindIndex(node => node.name == "sr_platform");
+            if (nodeIndex >= 0) {
+                binderEditor.nodeList[nodeIndex].value = stateRoot;
+            } else {
+                binderEditor.nodeList.Insert(0, new UIBinderNode("sr_platform", stateRoot));
+            }
+            EditorUtility.SetDirty(binderEditor);
+        }
+
+        MainMenuPageUI binder = prefabRoot.GetComponent<MainMenuPageUI>();
+        if (binder == null) {
+            binder = prefabRoot.AddComponent<MainMenuPageUI>();
+        }
+
+        binder.sr_platform = stateRoot;
+        EditorUtility.SetDirty(binder);
     }
 
     private static void RemoveOldLayoutComponents(GameObject prefabRoot)

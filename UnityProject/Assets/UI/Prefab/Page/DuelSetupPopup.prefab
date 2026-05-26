@@ -8797,15 +8797,16 @@ RectTransform:
   m_GameObject: {fileID: 4734126463101137651}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.5, y: 1.5, z: 1.5}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
+  - {fileID: 5940333298804442653}
   - {fileID: 8872438426279859327}
   - {fileID: 4718226608104790927}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
+  m_AnchorMax: {x: 1, y: 1}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -8886,6 +8887,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   generateTime: 639127894014663162
   nodeList:
+  - name: sr_platform
+    value: {fileID: 5415504531866409156}
   - name: btn_9x9
     value: {fileID: 5798868952742395946}
   - name: btn_13x13
@@ -8946,6 +8949,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   generatedTime: 639127894095520174
+  sr_platform: {fileID: 5415504531866409156}
   btn_9x9: {fileID: 5798868952742395946}
   btn_13x13: {fileID: 2009918361218289492}
   btn_19x19: {fileID: 5718201890374386899}
@@ -9338,6 +9342,212 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   m_IsOn: 0
+--- !u!1 &4913060161690201659
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5940333298804442653}
+  - component: {fileID: 5415504531866409156}
+  m_Layer: 0
+  m_Name: sr_platform
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &5940333298804442653
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4913060161690201659}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2160115119136549998}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 1, y: 1}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 0, y: 0}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &5415504531866409156
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4913060161690201659}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 06c666ab3b55ef1499a353ceefcd1c63, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  states:
+  - name: Landscape
+    elements:
+    - name: mask
+      elementType: 1
+      target: {fileID: 8872438426279859327}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 0, y: 0}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: panel_main
+      elementType: 1
+      target: {fileID: 4718226608104790927}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 920, y: 660}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: bg
+      elementType: 1
+      target: {fileID: 8166305803191851994}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 0, y: 0}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_close
+      elementType: 1
+      target: {fileID: 6952786260472810772}
+      property:
+        boolValue: 1
+        anchorMin: {x: 1, y: 1}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: -46, y: -42}
+        sizeDelta: {x: 56, y: 56}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_start
+      elementType: 1
+      target: {fileID: 6272090847233235184}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 310, y: -255}
+        sizeDelta: {x: 166, y: 48}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelSettings
+      elementType: 1
+      target: {fileID: 7697542163698576846}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: -102.9, y: -172.43}
+        sizeDelta: {x: -269.8061, y: 0}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelSettings_layout
+      elementType: 2
+      target: {fileID: 8626453723440011271}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 0, y: 0}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 0, y: 0}
+        pivot: {x: 0, y: 0}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 1
+        childControlHeight: 0
+        childForceExpandWidth: 1
+        childForceExpandHeight: 1
+  currentStateIndex: 0
 --- !u!1 &4940430870661848218
 GameObject:
   m_ObjectHideFlags: 0

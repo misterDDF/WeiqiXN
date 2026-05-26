@@ -6,6 +6,7 @@ using UnityEngine.UI;
 
 public class DuelSetupPopupUI : UIBinderBase
 {
+	public StateRoot sr_platform;
 	public Button btn_9x9;
 	public Button btn_13x13;
 	public Button btn_19x19;
