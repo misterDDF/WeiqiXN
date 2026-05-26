@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 using XNClient.ChessBoard;
 
 public class DuelPageBoardInputController
@@ -10,7 +11,7 @@ public class DuelPageBoardInputController
     public void Refresh(SceneBase mainScene, SceneComponentDuel compDuel, DuelInputAuthorityState inputState, bool blockInput)
     {
         aimCoords.SetValue(-1, -1);
-        if (blockInput || !inputState.CanSubmitMove) {
+        if (blockInput || IsPointerOverUI() || !inputState.CanSubmitMove) {
             SetAimChessPreviewActive(false);
             return;
         }
@@ -128,5 +129,10 @@ public class DuelPageBoardInputController
         if (aimChessPreview != null) {
             aimChessPreview.SetActive(isActive);
         }
+    }
+
+    private bool IsPointerOverUI()
+    {
+        return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
     }
 }
