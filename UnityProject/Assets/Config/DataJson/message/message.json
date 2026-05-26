@@ -164,6 +164,26 @@
     "text": "正在初始化 GPU KataGo 引擎并执行 OpenCL 调优，完成后会继续验证 9路、13路、19路棋盘。",
     "remark": "OpenCL 调优进度详情"
   },
+  "katago_android_opencl_warmup": {
+    "id": "katago_android_opencl_warmup",
+    "text": "正在优先预热 Android GPU KataGo 引擎。",
+    "remark": "Android OpenCL 优先预热详情"
+  },
+  "katago_android_opencl_first_init": {
+    "id": "katago_android_opencl_first_init",
+    "text": "正在初始化 Android GPU KataGo 引擎，首次启动可能需要较长时间。",
+    "remark": "Android OpenCL 首次初始化详情"
+  },
+  "katago_android_opencl_progress_init": {
+    "id": "katago_android_opencl_progress_init",
+    "text": "正在初始化 Android GPU KataGo 引擎，完成后会继续验证 9路、13路、19路棋盘。",
+    "remark": "Android OpenCL 初始化进度详情"
+  },
+  "katago_android_opencl_unavailable_native_warmup": {
+    "id": "katago_android_opencl_unavailable_native_warmup",
+    "text": "Android GPU 引擎不可用，正在预热 Android 本地 KataGo 引擎。",
+    "remark": "Android OpenCL 不可用转 native/eigen"
+  },
   "katago_android_native_warmup": {
     "id": "katago_android_native_warmup",
     "text": "正在预热 Android 本地 KataGo 引擎。",

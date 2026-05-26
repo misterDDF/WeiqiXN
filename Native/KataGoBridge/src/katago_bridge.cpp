@@ -4,6 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdlib>
 #include <cstring>
 #include <deque>
 #include <fstream>
@@ -19,6 +20,13 @@
 #include <ghc/filesystem.hpp>
 
 using json = nlohmann::json;
+
+#if defined(__ANDROID__) && defined(USE_OPENCL_BACKEND) && defined(KATAGO_BRIDGE_ANDROID_OPENCL_DIAGNOSTICS)
+extern "C" {
+void weiqixn_bridge_android_opencl_diag_set_work_dir(const char* workingDirectory);
+void weiqixn_bridge_android_opencl_diag_log(const char* message);
+}
+#endif
 
 #if defined(_WIN32)
 #define KG_EXPORT extern "C" __declspec(dllexport)
@@ -38,8 +46,31 @@ std::string trimCopy(const std::string& value) {
   return value.substr(begin, end - begin + 1);
 }
 
+std::string trimConfigValue(const std::string& value) {
+  std::string trimmed = trimCopy(value);
+  if (trimmed.size() >= 2) {
+    char begin = trimmed.front();
+    char end = trimmed.back();
+    if ((begin == '"' && end == '"') || (begin == '\'' && end == '\'')) {
+      return trimmed.substr(1, trimmed.size() - 2);
+    }
+  }
+
+  return trimmed;
+}
+
 bool isRuntimePathKey(const std::string& key) {
-  return key == "logDir" || key == "logDirDated" || key == "logFile" || key == "homeDataDir";
+  return key == "logDir" || key == "logDirDated" || key == "logFile" || key == "homeDataDir" || key == "openclTunerFile";
+}
+
+void configureAndroidOpenClIcdEnvironment() {
+#if defined(__ANDROID__) && defined(USE_OPENCL_BACKEND)
+  // Android vendor libOpenCL.so may itself be an ICD loader. Pointing
+  // OCL_ICD_FILENAMES back at libOpenCL.so can make the loader re-enter itself
+  // instead of using the device vendor driver, so leave vendor discovery to the
+  // system library by default.
+  unsetenv("OCL_ICD_FILENAMES");
+#endif
 }
 
 std::string toConfigPathText(const ghc::filesystem::path& path) {
@@ -64,6 +95,46 @@ std::string quoteConfigValue(const std::string& value) {
   return quoted;
 }
 
+bool ensureDirectoryExists(const ghc::filesystem::path& directory, const std::string& description, std::string& error) {
+  std::error_code directoryError;
+  if (ghc::filesystem::exists(directory, directoryError)) {
+    if (directoryError) {
+      error = "Could not inspect " + description + ": " + directory.u8string() + ", error: " + directoryError.message();
+      return false;
+    }
+
+    if (!ghc::filesystem::is_directory(directory, directoryError)) {
+      if (directoryError) {
+        error = "Could not inspect " + description + ": " + directory.u8string() + ", error: " + directoryError.message();
+        return false;
+      }
+
+      error = description + " exists but is not a directory: " + directory.u8string();
+      return false;
+    }
+
+    return true;
+  }
+
+  if (directoryError) {
+    error = "Could not inspect " + description + ": " + directory.u8string() + ", error: " + directoryError.message();
+    return false;
+  }
+
+  ghc::filesystem::create_directories(directory, directoryError);
+  if (!directoryError) {
+    return true;
+  }
+
+  std::error_code retryError;
+  if (ghc::filesystem::exists(directory, retryError) && ghc::filesystem::is_directory(directory, retryError)) {
+    return true;
+  }
+
+  error = "Could not create " + description + ": " + directory.u8string() + ", error: " + directoryError.message();
+  return false;
+}
+
 bool tryBuildRuntimePathOverrideConfig(
     const std::string& configPath,
     const std::string& workingDirectory,
@@ -83,46 +154,48 @@ bool tryBuildRuntimePathOverrideConfig(
   }
 
   std::vector<std::pair<std::string, std::string>> overrides;
+  std::vector<std::string> originalLines;
   std::string line;
   while (std::getline(configFile, line)) {
-    size_t commentIndex = line.find('#');
+    std::string configLine = line;
+    size_t commentIndex = configLine.find('#');
     if (commentIndex != std::string::npos) {
-      line = line.substr(0, commentIndex);
+      configLine = configLine.substr(0, commentIndex);
     }
 
-    size_t equalsIndex = line.find('=');
+    size_t equalsIndex = configLine.find('=');
     if (equalsIndex == std::string::npos) {
       continue;
     }
 
-    std::string key = trimCopy(line.substr(0, equalsIndex));
-    std::string value = trimCopy(line.substr(equalsIndex + 1));
+    std::string key = trimCopy(configLine.substr(0, equalsIndex));
+    std::string value = trimConfigValue(configLine.substr(equalsIndex + 1));
     if (!isRuntimePathKey(key) || value.empty()) {
+      originalLines.push_back(line);
       continue;
     }
 
     ghc::filesystem::path valuePath = ghc::filesystem::u8path(value);
     if (valuePath.is_absolute()) {
+      originalLines.push_back(line);
       continue;
     }
 
     ghc::filesystem::path absolutePath = ghc::filesystem::u8path(workingDirectory) / valuePath;
     overrides.push_back(std::make_pair(key, toConfigPathText(absolutePath)));
+    originalLines.push_back("# WeiqiXN bridge replaced relative runtime path: " + line);
   }
 
   if (overrides.empty()) {
     return true;
   }
 
-  ghc::filesystem::path overrideDirectory = ghc::filesystem::u8path(workingDirectory) / "KataGoData";
-  std::error_code directoryError;
-  ghc::filesystem::create_directories(overrideDirectory, directoryError);
-  if (directoryError) {
-    error = "Could not create KataGo bridge runtime config directory: " + overrideDirectory.u8string() + ", error: " + directoryError.message();
+  ghc::filesystem::path overrideDirectory = ghc::filesystem::u8path(workingDirectory);
+  if (!ensureDirectoryExists(overrideDirectory, "KataGo bridge runtime config directory", error)) {
     return false;
   }
 
-  ghc::filesystem::path overridePath = overrideDirectory / "weiqixn_bridge_runtime_paths.cfg";
+  ghc::filesystem::path overridePath = overrideDirectory / "weiqixn_bridge_resolved_config.cfg";
   std::ofstream overrideFile(overridePath.u8string(), std::ios::out | std::ios::trunc);
   if (!overrideFile.good()) {
     error = "Could not write KataGo bridge runtime config: " + overridePath.u8string();
@@ -130,6 +203,11 @@ bool tryBuildRuntimePathOverrideConfig(
   }
 
   overrideFile << "# Generated by WeiqiXN native KataGo bridge. Do not edit.\n";
+  overrideFile << "# Original config: " << toConfigPathText(ghc::filesystem::u8path(configPath)) << "\n";
+  for (const std::string& originalLine : originalLines) {
+    overrideFile << originalLine << "\n";
+  }
+  overrideFile << "\n# WeiqiXN runtime path overrides.\n";
   for (const auto& kv : overrides) {
     overrideFile << kv.first << " = " << quoteConfigValue(kv.second) << "\n";
   }
@@ -285,6 +363,13 @@ class KataGoBridgeEngine final {
       return false;
     }
 
+#if defined(__ANDROID__) && defined(USE_OPENCL_BACKEND) && defined(KATAGO_BRIDGE_ANDROID_OPENCL_DIAGNOSTICS)
+    weiqixn_bridge_android_opencl_diag_set_work_dir(workingDirectory);
+    weiqixn_bridge_android_opencl_diag_log(std::string("kg_create_engine config=").append(configPath).append(" model=").append(modelPath).c_str());
+#endif
+
+    configureAndroidOpenClIcdEnvironment();
+
     workDir = workingDirectory == nullptr ? std::string() : std::string(workingDirectory);
     std::string runtimeOverrideConfigPath;
     if (!tryBuildRuntimePathOverrideConfig(configPath, workDir, runtimeOverrideConfigPath, error)) {
@@ -294,11 +379,7 @@ class KataGoBridgeEngine final {
     args.clear();
     args.push_back("analysis");
     args.push_back("-config");
-    args.push_back(configPath);
-    if (!runtimeOverrideConfigPath.empty()) {
-      args.push_back("-config");
-      args.push_back(runtimeOverrideConfigPath);
-    }
+    args.push_back(runtimeOverrideConfigPath.empty() ? std::string(configPath) : runtimeOverrideConfigPath);
     args.push_back("-model");
     args.push_back(modelPath);
     args.push_back("-quit-without-waiting");
@@ -353,12 +434,17 @@ class KataGoBridgeEngine final {
       if (!output->waitPopLine(line, waitMs)) {
         if (stopped.load()) {
           error = "KataGo bridge engine stopped before returning a result.";
+          std::string diagnostics = buildDiagnosticsText();
+          if (!diagnostics.empty()) {
+            error += " Recent KataGo output: " + diagnostics;
+          }
           return false;
         }
         continue;
       }
 
       if (line.empty() || line[0] != '{') {
+        rememberDiagnosticLine(line);
         continue;
       }
 
@@ -376,6 +462,7 @@ class KataGoBridgeEngine final {
         return true;
       }
       catch (const std::exception&) {
+        rememberDiagnosticLine(line);
         continue;
       }
     }
@@ -414,13 +501,18 @@ class KataGoBridgeEngine final {
   void runAnalysisThread() {
     std::streambuf* oldCin = nullptr;
     std::streambuf* oldCout = nullptr;
+    std::streambuf* oldCerr = nullptr;
 
     {
       std::lock_guard<std::mutex> lock(globalStreamMutex);
       oldCin = std::cin.rdbuf(input.get());
       oldCout = std::cout.rdbuf(output.get());
+      oldCerr = std::cerr.rdbuf(output.get());
     }
 
+#if defined(__ANDROID__) && defined(USE_OPENCL_BACKEND) && defined(KATAGO_BRIDGE_ANDROID_OPENCL_DIAGNOSTICS)
+    weiqixn_bridge_android_opencl_diag_log("analysis thread entering MainCmds::analysis");
+#endif
     int result = 1;
     try {
       result = MainCmds::analysis(args);
@@ -436,8 +528,12 @@ class KataGoBridgeEngine final {
       std::lock_guard<std::mutex> lock(globalStreamMutex);
       std::cin.rdbuf(oldCin);
       std::cout.rdbuf(oldCout);
+      std::cerr.rdbuf(oldCerr);
     }
 
+#if defined(__ANDROID__) && defined(USE_OPENCL_BACKEND) && defined(KATAGO_BRIDGE_ANDROID_OPENCL_DIAGNOSTICS)
+    weiqixn_bridge_android_opencl_diag_log(std::string("analysis thread exited result=").append(std::to_string(result)).c_str());
+#endif
     exitCode.store(result);
     stopped.store(true);
     if (output) {
@@ -445,11 +541,44 @@ class KataGoBridgeEngine final {
     }
   }
 
+  void rememberDiagnosticLine(const std::string& line) {
+    std::string value = trimCopy(line);
+    if (value.empty()) {
+      return;
+    }
+
+    const size_t maxLineLength = 500;
+    if (value.size() > maxLineLength) {
+      value = value.substr(0, maxLineLength) + "...";
+    }
+
+    std::lock_guard<std::mutex> lock(diagnosticMutex);
+    const size_t maxLineCount = 12;
+    while (recentDiagnostics.size() >= maxLineCount) {
+      recentDiagnostics.pop_front();
+    }
+    recentDiagnostics.push_back(value);
+  }
+
+  std::string buildDiagnosticsText() {
+    std::lock_guard<std::mutex> lock(diagnosticMutex);
+    std::string result;
+    for (const std::string& line : recentDiagnostics) {
+      if (!result.empty()) {
+        result += " | ";
+      }
+      result += line;
+    }
+    return result;
+  }
+
   static std::mutex globalStreamMutex;
 
   std::mutex stateMutex;
+  std::mutex diagnosticMutex;
   std::unique_ptr<BlockingInputStreamBuf> input;
   std::unique_ptr<LineOutputStreamBuf> output;
+  std::deque<std::string> recentDiagnostics;
   std::thread worker;
   std::vector<std::string> args;
   std::string workDir;

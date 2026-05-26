@@ -3,11 +3,15 @@ param(
     [string]$KataGoSourceDir = 'F:\WorkSpace\KataGo\cpp',
     [string]$EigenDir = 'F:\WorkSpace\KataGoDeps\eigen-5.0.1',
     [string]$ZlibSourceDir = 'F:\WorkSpace\KataGoDeps\zlib-1.3.2',
+    [string]$OpenClIncludeDir = 'F:\WorkSpace\KataGoDeps\OpenCL-Headers',
+    [string]$OpenClLibrary = $env:ANDROID_OPENCL_LIBRARY,
     [string]$Abi = 'arm64-v8a',
     [string]$Backend = 'EIGEN',
     [int]$ApiLevel = 23,
     [string]$NdkRoot = $env:ANDROID_NDK_HOME,
     [string]$CMakeExe = $env:CMAKE_EXE,
+    [string]$OutputLibraryName,
+    [switch]$CopyOpenClLoader,
     [switch]$SkipUnityCopy
 )
 
@@ -128,7 +132,16 @@ function Resolve-NinjaExe {
 
 $bridgeRoot = Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')
 $repoRootPath = Resolve-Path -LiteralPath $RepoRoot
-$buildDir = Join-Path $bridgeRoot "build-android-$Abi"
+$normalizedBackend = $Backend.ToUpperInvariant()
+if ($normalizedBackend -ne 'EIGEN' -and $normalizedBackend -ne 'OPENCL') {
+    throw "Backend must be EIGEN or OPENCL. Current value: $Backend"
+}
+
+if ([string]::IsNullOrWhiteSpace($OutputLibraryName)) {
+    $OutputLibraryName = if ($normalizedBackend -eq 'OPENCL') { 'libkatago_bridge_opencl.so' } else { 'libkatago_bridge_eigen.so' }
+}
+
+$buildDir = Join-Path $bridgeRoot "build-android-$Abi-$($normalizedBackend.ToLowerInvariant())"
 $toolchainPath = Join-Path (Resolve-NdkRoot $NdkRoot) 'build\cmake\android.toolchain.cmake'
 $cmakePath = Resolve-CMakeExe $CMakeExe
 $ninjaPath = Resolve-NinjaExe
@@ -145,8 +158,19 @@ $configureArgs = @(
     "-DKATAGO_SOURCE_DIR=$KataGoSourceDir",
     "-DEIGEN3_INCLUDE_DIRS=$EigenDir",
     "-DZLIB_SOURCE_DIR=$ZlibSourceDir",
-    "-DKATAGO_BRIDGE_BACKEND=$Backend"
+    "-DKATAGO_BRIDGE_BACKEND=$normalizedBackend"
 )
+
+if ($normalizedBackend -eq 'OPENCL') {
+    if (-not [string]::IsNullOrWhiteSpace($OpenClIncludeDir) -and (Test-Path -LiteralPath $OpenClIncludeDir)) {
+        $configureArgs += "-DOpenCL_INCLUDE_DIR=$OpenClIncludeDir"
+        $configureArgs += "-DOpenCL_INCLUDE_DIRS=$OpenClIncludeDir"
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($OpenClLibrary)) {
+        $configureArgs += "-DOpenCL_LIBRARY=$OpenClLibrary"
+    }
+}
 
 & $cmakePath @configureArgs
 
@@ -160,8 +184,14 @@ if (-not (Test-Path -LiteralPath $sourceSo)) {
 if (-not $SkipUnityCopy) {
     $targetDir = Join-Path $repoRootPath "UnityProject\Assets\Plugins\Android\libs\$Abi"
     New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
-    Copy-Item -LiteralPath $sourceSo -Destination (Join-Path $targetDir 'libkatago_bridge.so') -Force
-    Write-Host "Copied Android bridge to Unity plugin path: $targetDir"
+    Copy-Item -LiteralPath $sourceSo -Destination (Join-Path $targetDir $OutputLibraryName) -Force
+    Write-Host "Copied Android bridge to Unity plugin path: $(Join-Path $targetDir $OutputLibraryName)"
+
+    if ($CopyOpenClLoader -and $normalizedBackend -eq 'OPENCL' -and -not [string]::IsNullOrWhiteSpace($OpenClLibrary) -and (Test-Path -LiteralPath $OpenClLibrary)) {
+        $openClLibraryName = Split-Path -Leaf $OpenClLibrary
+        Copy-Item -LiteralPath $OpenClLibrary -Destination (Join-Path $targetDir $openClLibraryName) -Force
+        Write-Host "Copied Android OpenCL loader to Unity plugin path: $(Join-Path $targetDir $openClLibraryName)"
+    }
 }
 
 Write-Host "Android bridge build complete: $sourceSo"

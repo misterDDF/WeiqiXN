@@ -17,8 +17,10 @@
     },
     "android": {
       "abi": "arm64-v8a",
-      "nativeLibraryName": "katago_bridge",
-      "neuralNetBackend": "eigen"
+      "preferOpenCl": true,
+      "allowCpuFallback": true,
+      "nativeOpenClLibraryName": "katago_bridge_opencl",
+      "nativeCpuLibraryName": "katago_bridge_eigen"
     }
   }
 }

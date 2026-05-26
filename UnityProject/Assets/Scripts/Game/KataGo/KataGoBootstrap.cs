@@ -17,12 +17,13 @@ public static class KataGoBootstrap
     private const string OpenClEngineName = "opencl";
     private const string CpuEngineName = "eigenavx2";
     private const string NativeBridgeDllName = "katago_bridge.dll";
-    private const string AndroidNativeBridgeSoName = "libkatago_bridge.so";
-    private const string AndroidNativeEngineName = "android-eigen";
+    private const string AndroidNativeOpenClEngineName = "android-opencl";
+    private const string AndroidNativeCpuEngineName = "android-eigen";
     private const string ModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
     private const string AnalysisConfigFileName = "analysis_example.cfg";
     private const string NoWriteAnalysisConfigFileName = "analysis_nowrite.cfg";
     private const int OpenClSmokeTestTimeoutMs = 300000;
+    private const int AndroidOpenClSmokeTestTimeoutMs = int.MaxValue;
     private const int CpuSmokeTestTimeoutMs = 45000;
     private const int SmokeTestProgressPollMs = 250;
     private const int OpenClWarmupEstimatedMs = 55000;
@@ -243,8 +244,10 @@ public static class KataGoBootstrap
             writeFailureReason = null,
             modelFileName = runtimePaths.modelFileName,
             androidAbi = runtimePaths.abi,
-            androidNativeLibraryName = kataGoConfig.androidNativeLibraryName,
-            androidNeuralNetBackend = kataGoConfig.androidNeuralNetBackend,
+            androidPreferOpenCl = kataGoConfig.androidPreferOpenCl,
+            androidAllowCpuFallback = kataGoConfig.androidAllowCpuFallback,
+            androidNativeOpenClLibraryName = kataGoConfig.androidNativeOpenClLibraryName,
+            androidNativeCpuLibraryName = kataGoConfig.androidNativeCpuLibraryName,
         };
 #else
         return new PlatformConfig
@@ -373,21 +376,47 @@ public static class KataGoBootstrap
 #if UNITY_ANDROID && !UNITY_EDITOR
     private static KataGoPaths[] ResolveAndroidNativeCandidatePaths(PlatformConfig platformConfig)
     {
+        if (!platformConfig.androidPreferOpenCl) {
+            return new[]
+            {
+                ResolveAndroidNativePaths(platformConfig, AndroidNativeCpuEngineName, platformConfig.androidNativeCpuLibraryName, CpuSmokeTestTimeoutMs, true),
+            };
+        }
+
+        if (!platformConfig.androidAllowCpuFallback) {
+            return new[] 
+            {
+                ResolveAndroidNativePaths(platformConfig, AndroidNativeOpenClEngineName, platformConfig.androidNativeOpenClLibraryName, AndroidOpenClSmokeTestTimeoutMs, false),
+            };
+        }
+
         return new[]
         {
-            new KataGoPaths
-            {
-                exePath = null,
-                nativeLibraryPath = AndroidNativeBridgeSoName,
-                configPath = Path.Combine(platformConfig.engineRoot, NoWriteAnalysisConfigFileName),
-                modelPath = Path.Combine(platformConfig.kataGoRoot, "models", platformConfig.modelFileName),
-                workingDirectory = platformConfig.engineRoot,
-                engineName = AndroidNativeEngineName,
-                smokeTestTimeoutMs = CpuSmokeTestTimeoutMs,
-                noWriteMode = true,
-                isNative = true,
-                skipNativeLibraryFileCheck = true,
-            },
+            ResolveAndroidNativePaths(platformConfig, AndroidNativeOpenClEngineName, platformConfig.androidNativeOpenClLibraryName, AndroidOpenClSmokeTestTimeoutMs, false),
+            ResolveAndroidNativePaths(platformConfig, AndroidNativeCpuEngineName, platformConfig.androidNativeCpuLibraryName, CpuSmokeTestTimeoutMs, true),
+        };
+    }
+
+    private static KataGoPaths ResolveAndroidNativePaths(
+        PlatformConfig platformConfig,
+        string engineName,
+        string nativeLibraryName,
+        int smokeTestTimeoutMs,
+        bool noWriteMode)
+    {
+        string configFileName = noWriteMode ? NoWriteAnalysisConfigFileName : AnalysisConfigFileName;
+        return new KataGoPaths
+        {
+            exePath = null,
+            nativeLibraryPath = nativeLibraryName,
+            configPath = Path.Combine(platformConfig.engineRoot, configFileName),
+            modelPath = Path.Combine(platformConfig.kataGoRoot, "models", platformConfig.modelFileName),
+            workingDirectory = platformConfig.engineRoot,
+            engineName = engineName,
+            smokeTestTimeoutMs = smokeTestTimeoutMs,
+            noWriteMode = noWriteMode,
+            isNative = true,
+            skipNativeLibraryFileCheck = true,
         };
     }
 #endif
@@ -803,7 +832,7 @@ public static class KataGoBootstrap
     private static void StartNativeEngine(KataGoPaths paths)
     {
 #if UNITY_ANDROID && !UNITY_EDITOR
-        androidNativeEngine = new AndroidNativeKataGoEngine();
+        androidNativeEngine = new AndroidNativeKataGoEngine(paths.nativeLibraryPath);
         androidNativeEngine.Start(
             paths.configPath,
             paths.modelPath,
@@ -1149,6 +1178,10 @@ public static class KataGoBootstrap
     {
 #if UNITY_ANDROID && !UNITY_EDITOR
         if (IsAndroidNativeEngine(paths)) {
+            if (IsOpenClEngine(paths)) {
+                return MessageText.Get("katago_android_opencl_first_init");
+            }
+
             return MessageText.Format("katago_android_native_verify_board", boardSize);
         }
 #endif
@@ -1168,6 +1201,10 @@ public static class KataGoBootstrap
     {
 #if UNITY_ANDROID && !UNITY_EDITOR
         if (IsAndroidNativeEngine(paths)) {
+            if (IsOpenClEngine(paths)) {
+                return MessageText.Get("katago_android_opencl_progress_init");
+            }
+
             return MessageText.Format("katago_android_native_verify_board", boardSize);
         }
 #endif
@@ -1203,7 +1240,8 @@ public static class KataGoBootstrap
     private static bool IsAndroidNativeEngine(KataGoPaths paths)
     {
         return paths.isNative
-            && string.Equals(paths.engineName, AndroidNativeEngineName, StringComparison.OrdinalIgnoreCase);
+            && (string.Equals(paths.engineName, AndroidNativeOpenClEngineName, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(paths.engineName, AndroidNativeCpuEngineName, StringComparison.OrdinalIgnoreCase));
     }
 #endif
 
@@ -1260,6 +1298,14 @@ public static class KataGoBootstrap
     {
 #if UNITY_ANDROID && !UNITY_EDITOR
         if (IsAndroidNativeEngine(paths)) {
+            if (IsOpenClEngine(paths)) {
+                return MessageText.Get("katago_android_opencl_warmup");
+            }
+
+            if (isFallback) {
+                return MessageText.Get("katago_android_opencl_unavailable_native_warmup");
+            }
+
             return MessageText.Get("katago_android_native_warmup");
         }
 #endif
@@ -1618,7 +1664,9 @@ public static class KataGoBootstrap
         public string windowsNativeOpenClEngineName;
         public string windowsNativeCpuEngineName;
         public string androidAbi;
-        public string androidNativeLibraryName;
-        public string androidNeuralNetBackend;
+        public bool androidPreferOpenCl;
+        public bool androidAllowCpuFallback;
+        public string androidNativeOpenClLibraryName;
+        public string androidNativeCpuLibraryName;
     }
 }

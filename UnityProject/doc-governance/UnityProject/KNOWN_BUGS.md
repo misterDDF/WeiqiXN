@@ -10,6 +10,17 @@
 
 ## 未移除 Bug
 
+### Android OpenCL 固定安全 tuning 后 ownership 明显慢且可能闪退
+
+- 状态：定位中
+- 记录日期：2026-05-26
+- 涉及范围：Android KataGo native OpenCL 后端、OpenCL tuning 流程、Adreno OpenCL 运行时、ownership 分析、CPU fallback 候选选择
+- 已观察行为：Android 设备已能加载系统 `libOpenCL.so` 并通过 OpenCL bridge smoke test，运行日志确认使用 `QUALCOMM Adreno(TM) 750`，但当前固定 `tune11_gpuAndroidSafe_x19_y19_c384_mv14.txt` 后真实分析明显卡顿，ownership 请求比 CPU/eigen 路径更慢，且高负载时存在卡顿后闪退风险。
+- 对比现象：固定安全 tuning 能跳过首次调优并验证 OpenCL 初始化链路可用，但该 tuning 参数极保守，不能代表设备实际最优 OpenCL 性能。
+- 初步判断：当前问题不再是资源缺失或 OpenCL 完全不可用，而是 Android 正式运行不应继续依赖验证阶段的固定安全 tuning；需要恢复 KataGo 正式 OpenCL 调优，让设备生成 vendor/device 专用 tuning，并保留 OpenCL 启动失败时回退到 eigen CPU 后端的候选机制。
+- 期望行为：Android OpenCL 首次启动应由 KataGo 在 `KataGoData/opencltuning` 下生成设备专用 tuning；OpenCL 候选初始化、调优或 smoke test 失败时，应按候选顺序选择 `android-eigen`，并在日志中明确记录 fallback 原因。
+- 移除条件：恢复 Android 正式 OpenCL 调优流程，确认 APK 不再打包或强制引用固定安全 tuning，完成 Unity 脚本编译，并在设备上验证首次调优、后续加载设备 tuning、OpenCL 失败时 CPU fallback 均有可诊断日志后移除此条记录。
+
 ### KataGo native OpenCL DLL 模式疑似落到 CPU/fallback 路径
 
 - 状态：已修复实现，待运行复测后移除

@@ -57,20 +57,51 @@ KataGo/engines/win-x64/native-opencl/katago_bridge.dll
 
 The current bridge wraps KataGo's analysis command in-process and redirects standard input/output internally. Treat it as one engine instance per process. The Windows Unity native backend tries `native-opencl` first when configured, then falls back to `native-eigen` when CPU fallback is enabled. After the Windows DLL path is validated in Unity, the same CMake entry should be extended for Android `arm64-v8a` `.so` output.
 
-Build the Android `arm64-v8a` `.so` and copy it into Unity's Android plugin path:
+Build the Android `arm64-v8a` eigen `.so` and copy it into Unity's Android plugin path:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File Native/KataGoBridge/tools/build_android_bridge.ps1
+powershell -ExecutionPolicy Bypass -File Native/KataGoBridge/tools/build_android_bridge.ps1 -Backend EIGEN
+```
+
+Build the Android OpenCL ICD loader used for linking the OpenCL bridge:
+
+```powershell
+& 'C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe' `
+  -S 'F:\WorkSpace\KataGoDeps\OpenCL-ICD-Loader' `
+  -B 'F:\WorkSpace\WeiqiXN\Native\KataGoBridge\build-android-opencl-icd' `
+  -G Ninja `
+  -DCMAKE_TOOLCHAIN_FILE='F:\Unity 2022.3.45f1\Editor\Data\PlaybackEngines\AndroidPlayer\NDK\build\cmake\android.toolchain.cmake' `
+  -DANDROID_ABI=arm64-v8a `
+  -DANDROID_PLATFORM=android-23 `
+  -DCMAKE_BUILD_TYPE=Release `
+  -DOPENCL_ICD_LOADER_HEADERS_DIR='F:\WorkSpace\KataGoDeps\OpenCL-Headers' `
+  -DENABLE_OPENCL_LAYERS=OFF `
+  -DBUILD_TESTING=OFF
+& 'C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe' `
+  --build 'F:\WorkSpace\WeiqiXN\Native\KataGoBridge\build-android-opencl-icd' `
+  --config Release
+```
+
+Build the Android OpenCL `.so` and copy the bridge into Unity's Android plugin path:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Native/KataGoBridge/tools/build_android_bridge.ps1 `
+  -Backend OPENCL `
+  -OpenClIncludeDir 'F:\WorkSpace\KataGoDeps\OpenCL-Headers' `
+  -OpenClLibrary 'F:\WorkSpace\WeiqiXN\Native\KataGoBridge\build-android-opencl-icd\libOpenCL.so'
 ```
 
 Default output:
 
 ```text
-Native/KataGoBridge/build-android-arm64-v8a/out/libkatago_bridge.so
-UnityProject/Assets/Plugins/Android/libs/arm64-v8a/libkatago_bridge.so
+Native/KataGoBridge/build-android-arm64-v8a-eigen/out/libkatago_bridge.so
+Native/KataGoBridge/build-android-arm64-v8a-opencl/out/libkatago_bridge.so
+UnityProject/Assets/Plugins/Android/libs/arm64-v8a/libkatago_bridge_eigen.so
+UnityProject/Assets/Plugins/Android/libs/arm64-v8a/libkatago_bridge_opencl.so
 ```
 
 The script expects Unity Android Build Support or an Android NDK available through `ANDROID_NDK_HOME`, `ANDROID_NDK_ROOT`, `ANDROID_SDK_ROOT`, or `ANDROID_HOME`. Pass `-NdkRoot` or `-CMakeExe` when those tools are installed outside the default locations.
+Android Unity runtime loads fixed P/Invoke library names for each candidate: `katago_bridge_opencl` is tried first when configured, and `katago_bridge_eigen` remains the required fallback. The OpenCL bridge links against `libOpenCL.so`, but Android packages should not bundle a same-named OpenCL loader by default; runtime resolution should use the device system's public `libOpenCL.so` when available.
 
 Smoke test the runtime copy:
 

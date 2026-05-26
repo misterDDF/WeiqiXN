@@ -6,6 +6,7 @@ using XNClient.Logger;
 public sealed class KataGoRuntimePreparer
 {
     private const string AndroidAbi = "arm64-v8a";
+    private const string AnalysisConfigFileName = "analysis_example.cfg";
     private const string NoWriteAnalysisConfigFileName = "analysis_nowrite.cfg";
     private const string DefaultModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
     private const string AndroidPackagedModelSuffix = ".bytes";
@@ -23,6 +24,9 @@ public sealed class KataGoRuntimePreparer
 
     private PrepareState state = PrepareState.None;
     private IStreamingAssetsFileCopyRequest copyRequest;
+    private string[] configFileNamesToCopy = Array.Empty<string>();
+    private int configCopyIndex;
+    private string currentConfigDestinationPath = string.Empty;
     private float cachedCheckStartTime;
     private RuntimePaths runtimePaths;
     private string statusText = string.Empty;
@@ -47,14 +51,6 @@ public sealed class KataGoRuntimePreparer
         detailText = MessageText.Get("katago_runtime_prepare_checking");
         runtimePaths = ResolveRuntimePaths();
         modelWasCached = IsRuntimePrepared(runtimePaths);
-
-        if (modelWasCached) {
-            state = PrepareState.CachedCheck;
-            cachedCheckStartTime = Time.realtimeSinceStartup;
-            progress = 0.1f;
-            detailText = MessageText.Get("katago_runtime_prepare_cached");
-            return;
-        }
 
         StartCopyConfig();
     }
@@ -94,6 +90,7 @@ public sealed class KataGoRuntimePreparer
         string engineRoot = Path.Combine(root, "engines", "android", abi);
         string modelRoot = Path.Combine(root, "models");
         string configPath = Path.Combine(engineRoot, NoWriteAnalysisConfigFileName);
+        string openClConfigPath = Path.Combine(engineRoot, AnalysisConfigFileName);
         string modelPath = Path.Combine(modelRoot, modelFileName);
 
         return new RuntimePaths(
@@ -101,6 +98,7 @@ public sealed class KataGoRuntimePreparer
             engineRoot,
             modelRoot,
             configPath,
+            openClConfigPath,
             modelPath,
             modelFileName,
             abi);
@@ -110,6 +108,12 @@ public sealed class KataGoRuntimePreparer
     {
         if (!File.Exists(paths.configPath) || !File.Exists(paths.modelPath)) {
             return false;
+        }
+
+        if (GameConfig.Current.kataGo.androidPreferOpenCl) {
+            if (!File.Exists(paths.openClConfigPath)) {
+                return false;
+            }
         }
 
         string markerPath = BuildReadyMarkerPath(paths);
@@ -125,11 +129,22 @@ public sealed class KataGoRuntimePreparer
     {
         Directory.CreateDirectory(runtimePaths.engineRoot);
         Directory.CreateDirectory(runtimePaths.modelRoot);
-        string relativePath = $"KataGo/engines/android/{runtimePaths.abi}/{NoWriteAnalysisConfigFileName}";
-        copyRequest = StreamingAssetsReader.Default.CopyToFile(relativePath, runtimePaths.configPath);
+        configFileNamesToCopy = GameConfig.Current.kataGo.androidPreferOpenCl
+            ? new[] { NoWriteAnalysisConfigFileName, AnalysisConfigFileName }
+            : new[] { NoWriteAnalysisConfigFileName };
+        configCopyIndex = 0;
+        StartCurrentConfigCopy();
         state = PrepareState.CopyingConfig;
         progress = 0.05f;
         detailText = MessageText.Get("katago_runtime_prepare_config");
+    }
+
+    private void StartCurrentConfigCopy()
+    {
+        string configFileName = configFileNamesToCopy[configCopyIndex];
+        currentConfigDestinationPath = Path.Combine(runtimePaths.engineRoot, configFileName);
+        string relativePath = $"KataGo/engines/android/{runtimePaths.abi}/{configFileName}";
+        copyRequest = StreamingAssetsReader.Default.CopyToFile(relativePath, currentConfigDestinationPath);
         XNLogger.LogInfo(
             "Start copying Android KataGo config.",
             ("source", copyRequest.SourcePathOrUrl),
@@ -143,7 +158,8 @@ public sealed class KataGoRuntimePreparer
             return;
         }
 
-        progress = Mathf.Lerp(0.05f, 0.12f, copyRequest.Progress);
+        float configProgressStep = (configCopyIndex + copyRequest.Progress) / Mathf.Max(1f, configFileNamesToCopy.Length);
+        progress = Mathf.Lerp(0.05f, 0.12f, configProgressStep);
         if (!copyRequest.IsDone) {
             return;
         }
@@ -155,6 +171,25 @@ public sealed class KataGoRuntimePreparer
 
         copyRequest.Dispose();
         copyRequest = null;
+        configCopyIndex++;
+        if (configCopyIndex < configFileNamesToCopy.Length) {
+            StartCurrentConfigCopy();
+            return;
+        }
+
+        ContinueAfterConfigFiles();
+    }
+
+    private void ContinueAfterConfigFiles()
+    {
+        if (modelWasCached) {
+            state = PrepareState.CachedCheck;
+            cachedCheckStartTime = Time.realtimeSinceStartup;
+            progress = 0.12f;
+            detailText = MessageText.Get("katago_runtime_prepare_cached");
+            return;
+        }
+
         StartCopyModel();
     }
 
@@ -217,6 +252,7 @@ public sealed class KataGoRuntimePreparer
             "Android KataGo runtime prepared.",
             ("root", runtimePaths.root),
             ("configPath", runtimePaths.configPath),
+            ("openClConfigPath", runtimePaths.openClConfigPath),
             ("modelPath", runtimePaths.modelPath),
             ("cached", modelWasCached.ToString()));
     }
@@ -270,6 +306,7 @@ public sealed class KataGoRuntimePreparer
         public readonly string engineRoot;
         public readonly string modelRoot;
         public readonly string configPath;
+        public readonly string openClConfigPath;
         public readonly string modelPath;
         public readonly string modelFileName;
         public readonly string abi;
@@ -279,6 +316,7 @@ public sealed class KataGoRuntimePreparer
             string engineRoot,
             string modelRoot,
             string configPath,
+            string openClConfigPath,
             string modelPath,
             string modelFileName,
             string abi)
@@ -287,6 +325,7 @@ public sealed class KataGoRuntimePreparer
             this.engineRoot = engineRoot ?? string.Empty;
             this.modelRoot = modelRoot ?? string.Empty;
             this.configPath = configPath ?? string.Empty;
+            this.openClConfigPath = openClConfigPath ?? string.Empty;
             this.modelPath = modelPath ?? string.Empty;
             this.modelFileName = modelFileName ?? string.Empty;
             this.abi = abi ?? string.Empty;

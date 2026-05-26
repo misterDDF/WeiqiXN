@@ -113,9 +113,29 @@ if(ANDROID)
   target_link_libraries(katago_bridge PRIVATE log)
 endif()
 
+option(KATAGO_BRIDGE_ANDROID_OPENCL_DIAGNOSTICS "Enable Android OpenCL startup stage diagnostics" ON)
+if(ANDROID AND KATAGO_BRIDGE_BACKEND STREQUAL "OPENCL" AND KATAGO_BRIDGE_ANDROID_OPENCL_DIAGNOSTICS)
+  target_sources(katago_bridge PRIVATE src/katago_bridge_opencl_diagnostics.cpp)
+  target_compile_definitions(katago_bridge PRIVATE KATAGO_BRIDGE_ANDROID_OPENCL_DIAGNOSTICS=1)
+  target_link_options(katago_bridge PRIVATE
+    "LINKER:--wrap=clGetPlatformIDs"
+    "LINKER:--wrap=clGetPlatformInfo"
+    "LINKER:--wrap=clGetDeviceIDs"
+    "LINKER:--wrap=clGetDeviceInfo"
+    "LINKER:--wrap=_ZN11NNEvaluatorC1ERKNSt6__ndk112basic_stringIcNS0_11char_traitsIcEENS0_9allocatorIcEEEES8_S8_P6LoggeriiibbiibS8_S8_b9enabled_tSB_iRKNS0_6vectorIiNS4_IiEEEES8_bi"
+    "LINKER:--wrap=_ZN9NeuralNet13loadModelFileERKNSt6__ndk112basic_stringIcNS0_11char_traitsIcEENS0_9allocatorIcEEEES8_"
+    "LINKER:--wrap=_ZN9NeuralNet20createComputeContextERKNSt6__ndk16vectorIiNS0_9allocatorIiEEEEP6LoggeriiRKNS0_12basic_stringIcNS0_11char_traitsIcEENS2_IcEEEESF_b9enabled_tSG_PK11LoadedModel"
+    "LINKER:--wrap=_ZN10DeviceInfo25getAllDeviceInfosOnSystemEP6Logger"
+    "LINKER:--wrap=_ZN11OpenCLTuner14loadOrAutoTuneENSt6__ndk112basic_stringIcNS0_11char_traitsIcEENS0_9allocatorIcEEEERKS6_S8_iP6Loggerbii9enabled_tSB_SB_SB_NS_18ModelInfoForTuningEb"
+  )
+endif()
+
 set_target_properties(katago_bridge PROPERTIES
   OUTPUT_NAME "katago_bridge"
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/out"
   LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/out"
   ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/out"
+  C_VISIBILITY_PRESET hidden
+  CXX_VISIBILITY_PRESET hidden
+  VISIBILITY_INLINES_HIDDEN ON
 )

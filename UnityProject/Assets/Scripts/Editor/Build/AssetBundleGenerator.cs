@@ -22,7 +22,8 @@ public class AssetBundleGenerator
     private const string KataGoNativeOpenClEngineName = "native-opencl";
     private const string KataGoNativeCpuEngineName = "native-eigen";
     private const string KataGoNativeBridgeDllName = "katago_bridge.dll";
-    private const string KataGoAndroidBridgeSoName = "libkatago_bridge.so";
+    private const string KataGoAndroidOpenClBridgeSoName = "libkatago_bridge_opencl.so";
+    private const string KataGoAndroidCpuBridgeSoName = "libkatago_bridge_eigen.so";
     private const string KataGoModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
     private const string KataGoAnalysisConfigFileName = "analysis_example.cfg";
     private const string KataGoNoWriteAnalysisConfigFileName = "analysis_nowrite.cfg";
@@ -600,13 +601,39 @@ public class AssetBundleGenerator
         }
 
         string abi = string.IsNullOrWhiteSpace(kataGoConfig.androidAbi) ? "arm64-v8a" : kataGoConfig.androidAbi;
-        string pluginPath = Path.Combine(Application.dataPath, "Plugins", "Android", "libs", abi, KataGoAndroidBridgeSoName);
+        string pluginRoot = Path.Combine(Application.dataPath, "Plugins", "Android", "libs", abi);
+        string openClPluginPath = Path.Combine(pluginRoot, KataGoAndroidOpenClBridgeSoName);
+        string cpuPluginPath = Path.Combine(pluginRoot, KataGoAndroidCpuBridgeSoName);
+        string legacyPluginPath = Path.Combine(pluginRoot, "libkatago_bridge.so");
         string configPath = Path.Combine(kataGoRoot, "engines", "win-x64", KataGoNativeCpuEngineName, KataGoNoWriteAnalysisConfigFileName);
+        string openClConfigPath = Path.Combine(kataGoRoot, "engines", "win-x64", KataGoNativeOpenClEngineName, KataGoAnalysisConfigFileName);
         string modelPath = Path.Combine(kataGoRoot, "models", ResolveKataGoModelFileName(kataGoConfig));
 
         List<string> missingPaths = new List<string>();
-        if (!File.Exists(pluginPath)) {
-            missingPaths.Add(pluginPath);
+        if (!File.Exists(cpuPluginPath)) {
+            if (File.Exists(legacyPluginPath)) {
+                File.Copy(legacyPluginPath, cpuPluginPath, true);
+                AssetDatabase.Refresh();
+                Debug.Log($"Legacy Android KataGo bridge copied as eigen fallback. source: {legacyPluginPath}, target: {cpuPluginPath}");
+            }
+            else {
+                missingPaths.Add(cpuPluginPath);
+            }
+        }
+
+        if (kataGoConfig.androidPreferOpenCl && File.Exists(openClPluginPath)) {
+            if (!File.Exists(openClConfigPath)) {
+                missingPaths.Add(openClConfigPath);
+            }
+            Debug.Log($"Android KataGo OpenCL bridge found. path: {openClPluginPath}");
+        }
+        else if (kataGoConfig.androidPreferOpenCl) {
+            if (!kataGoConfig.androidAllowCpuFallback) {
+                missingPaths.Add(openClPluginPath);
+            }
+            else {
+                Debug.LogWarning($"Optional Android KataGo OpenCL bridge is not bundled. Android player will use eigen fallback only. path: {openClPluginPath}");
+            }
         }
 
         if (!File.Exists(configPath)) {
@@ -619,11 +646,11 @@ public class AssetBundleGenerator
 
         if (missingPaths.Count > 0) {
             throw new FileNotFoundException(
-                "Android native KataGo build requires the arm64 bridge plugin, no-write analysis config, and model. Missing paths: "
+                "Android native KataGo build requires the arm64 bridge plugin, analysis config, and model. Missing paths: "
                 + string.Join(", ", missingPaths));
         }
 
-        Debug.Log($"Android KataGo runtime source checked. abi: {abi}, bridge: {pluginPath}");
+        Debug.Log($"Android KataGo runtime source checked. abi: {abi}, cpuBridge: {cpuPluginPath}, openClBridge: {openClPluginPath}");
     }
 
     private static void CopyAndroidKataGoRuntimeToStreamingAssets(string kataGoSourceRoot, GameConfig.KataGoConfig kataGoConfig)
@@ -636,6 +663,7 @@ public class AssetBundleGenerator
 
         string modelFileName = ResolveKataGoModelFileName(kataGoConfig);
         string sourceConfigPath = Path.Combine(kataGoSourceRoot, "engines", "win-x64", KataGoNativeCpuEngineName, KataGoNoWriteAnalysisConfigFileName);
+        string sourceOpenClConfigPath = Path.Combine(kataGoSourceRoot, "engines", "win-x64", KataGoNativeOpenClEngineName, KataGoAnalysisConfigFileName);
         string sourceModelPath = Path.Combine(kataGoSourceRoot, "models", modelFileName);
         string targetRoot = Path.Combine(Application.streamingAssetsPath, KataGoRuntimeEnvironment.DirectoryName);
         string targetEngineRoot = Path.Combine(targetRoot, "engines", "android", kataGoConfig.androidAbi);
@@ -648,6 +676,10 @@ public class AssetBundleGenerator
         Directory.CreateDirectory(targetEngineRoot);
         Directory.CreateDirectory(targetModelRoot);
         File.Copy(sourceConfigPath, Path.Combine(targetEngineRoot, KataGoNoWriteAnalysisConfigFileName), true);
+        if (kataGoConfig.androidPreferOpenCl && File.Exists(sourceOpenClConfigPath)) {
+            File.Copy(sourceOpenClConfigPath, Path.Combine(targetEngineRoot, KataGoAnalysisConfigFileName), true);
+        }
+
         // Avoid Android aapt unpacking *.gz assets and changing the APK entry name.
         File.Copy(sourceModelPath, Path.Combine(targetModelRoot, modelFileName + KataGoAndroidPackagedModelSuffix), true);
         AssetDatabase.Refresh();

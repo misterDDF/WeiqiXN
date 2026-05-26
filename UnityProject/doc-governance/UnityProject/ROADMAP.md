@@ -12,6 +12,7 @@
 ## Active Goals
 
 - 2026-05-25: Windows native KataGo bridge now follows the same OpenCL-first, CPU-fallback direction as the exe backend. Unity runtime fallback logging is in place; the remaining OpenCL bridge deliverable is a successful `native-opencl/katago_bridge.dll` build after installing or pointing CMake at an OpenCL SDK (`CL/cl.h` and `OpenCL.lib`).
+- 2026-05-26: Android native KataGo has moved to the same OpenCL-first, eigen-fallback direction at the Unity candidate layer. Android now expects `libkatago_bridge_opencl.so`, `libkatago_bridge_eigen.so`, and a merged `uses-native-library libOpenCL.so` manifest declaration; OpenCL runtime resolution should use the device system public `libOpenCL.so` rather than a bundled same-named loader. OpenCL runtime success still depends on device vendor OpenCL availability and falls back to eigen when startup or smoke tests fail.
 
 **活跃目标**
 
@@ -32,6 +33,7 @@
 
 - 根目录 `game-config.json` 已成为 KataGo 后端选择入口；Windows Editor/Player 当前默认使用 `native` DLL bridge，可切换为 `exe` 回到旧子进程路径，Android/iOS 先预留 native 方向。
 - Windows `native-eigen` bridge 已能编译为 `katago_bridge.dll`，运行资源放在 `KataGo/engines/win-x64/native-eigen/`，Unity 侧通过 P/Invoke 调用同一套 analysis JSON 合同。
+- Android native bridge 已拆成 `katago_bridge_opencl` 和 `katago_bridge_eigen` 两个固定 P/Invoke 入口；Android 启动候选按 OpenCL 优先、eigen fallback 排列，OpenCL 缺失、加载失败、后端不匹配或 smoke test 失败时回退到 eigen。
 - Windows PC 打包入口会读取 `game-config.json`，按 `windowsPlayer` 校验 exe 或 native 运行资源，并在构建后复制 `game-config.json` 和对应 KataGo runtime；native 包只带 `native-eigen/` 与模型，不带 `katago.exe`。
 - 当前阶段先收口 Windows DLL bridge；Android `.so` 方案在 DLL 路径通过 Unity 运行验证后继续推进，不作为本轮完成条件。
 
