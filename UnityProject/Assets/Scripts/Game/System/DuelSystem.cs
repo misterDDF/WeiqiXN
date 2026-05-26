@@ -457,15 +457,21 @@ public class DuelSystem : SystemBase
 
         DuelScoreResult scoreResult = await QueryScoreResult(compDuel, "duel-score");
         if (scoreResult == null) {
+            scene.GetSystem<DuelInputAuthoritySystem>()?.RefreshLocalInputAuthority();
             scene.EmitSystemEvent(new OnDuelScoreFailed(true));
             return;
         }
 
         scene.EmitSystemEvent(new OnDuelScoreResult(scoreResult, true));
+        scene.GetSystem<DuelInputAuthoritySystem>()?.RefreshLocalInputAuthority();
     }
 
     private void OnConfirmDuelScore(OnConfirmDuelScore evt)
     {
+        if (!CanConfirmScoreResult()) {
+            return;
+        }
+
         EndGameByScore(evt.scoreResult, DuelGameEndReason.Score);
     }
 
@@ -759,6 +765,8 @@ public class DuelSystem : SystemBase
             return;
         }
 
+        compDuel.isScoring = true;
+        compDuel.localInputPlayerFlag.value = 0;
         Global.Instance.lanRoomService?.BroadcastScoreResult(BuildLanScoreResultMessage(request, scoreResult));
     }
 
@@ -895,6 +903,16 @@ public class DuelSystem : SystemBase
     private void EmitTakeBackResult(bool success, string message, int removedMoveCount = 0)
     {
         scene.EmitSystemEvent(new OnDuelTakeBackResult(success, message, removedMoveCount));
+    }
+
+    private bool CanConfirmScoreResult()
+    {
+        var compDuel = scene.GetComponent<SceneComponentDuel>();
+        return compDuel != null
+            && compDuel.duelFSM != null
+            && compDuel.duelFSM.isActivated
+            && compDuel.duelFSM.curState != null
+            && compDuel.duelFSM.curState.stateName == DuelStateDefine.STATE_TURN_INPUT;
     }
 
     private void EndGameByScore(DuelScoreResult scoreResult, string reason)
