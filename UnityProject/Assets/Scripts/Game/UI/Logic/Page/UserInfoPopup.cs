@@ -265,6 +265,11 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
             return;
         }
 
-        SetSaveTip("复盘浏览稍后开放");
+        ClosePage();
+        SceneCreateParams sceneCreateParams = new SceneCreateParams
+        {
+            replayGameId = item.gameId,
+        };
+        Global.Instance.sceneManager.EnterMainScene(SceneConfig.REPLAY_SCENE_TYPE_ID, sceneCreateParams);
     }
 }

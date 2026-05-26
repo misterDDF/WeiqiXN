@@ -20,7 +20,7 @@ public class SceneComponentChessBoard : SceneComponentBase
     [SkipSavableCheck]
     public ChessStoneViewCache stoneViewCache;
 
-    public SceneComponentChessBoard(DuelScene scene) : base(scene)
+    public SceneComponentChessBoard(SceneBase scene) : base(scene)
     {
 
     }

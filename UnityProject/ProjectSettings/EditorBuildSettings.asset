@@ -14,4 +14,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Duel/Duel.unity
     guid: 308893dcee9641942a3ef2c2287efaf1
+  - enabled: 1
+    path: Assets/Scenes/Replay/Replay.unity
+    guid: 5b48973256fc4b3e91c09581dcae9c6a
   m_configObjects: {}

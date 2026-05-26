@@ -3,6 +3,7 @@ public class SceneCreateParams
     public static SceneCreateParams Default => new SceneCreateParams();
 
     public string saveFilePath;
+    public string replayGameId;
 
     public DuelSceneCreateParamas duelSceneCreateParamas;
 }

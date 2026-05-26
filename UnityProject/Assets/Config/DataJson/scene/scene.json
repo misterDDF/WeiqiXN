@@ -8,5 +8,10 @@
     "id": "Duel",
     "unitySceneName": "Duel",
     "sceneType": "Duel"
+  },
+  "Replay": {
+    "id": "Replay",
+    "unitySceneName": "Replay",
+    "sceneType": "Replay"
   }
 }

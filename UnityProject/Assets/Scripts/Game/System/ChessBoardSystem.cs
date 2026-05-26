@@ -35,7 +35,7 @@ public class ChessBoardSystem : SystemBase
         if (scene.sceneCreateParams.saveFilePath == null) {
             if (scene.sceneCreateParams.duelSceneCreateParamas != null) {
                 compChessBoard.boardCfgId.value = scene.sceneCreateParams.duelSceneCreateParamas.boardCfgId;
-            } else {
+            } else if (string.IsNullOrEmpty(compChessBoard.boardCfgId.value)) {
                 XNLogger.LogError("Scene create params for duel scene is empty, init scene with default values.");
                 compChessBoard.boardCfgId.value = "9x9";
             }
@@ -559,19 +559,18 @@ public class ChessBoardSystem : SystemBase
         duelVCamTransform.position = gridBound.center - viewDir * cameraDistance;
     }
 
-    private void RestoreBoardFromKataGoRecord(SceneComponentChessBoard compChessBoard)
+    public bool TryRestoreBoardFromKataGoRecord(SceneComponentChessBoard compChessBoard, string recordFilePath)
     {
-        string recordFilePath = GameSaveConfig.GetDuelRecordSavePath(0);
         if (!KataGoDuelRecordFile.TryLoad(recordFilePath, out var recordJson) ||
             !KataGoDuelRecordFile.TryGetMoves(recordJson, out var moves)) {
             XNLogger.LogError("Restore board from KataGo record failed.", ("recordFilePath", recordFilePath));
-            return;
+            return false;
         }
 
         var compDuel = scene.GetComponent<SceneComponentDuel>();
         if (compDuel == null) {
             XNLogger.LogError("Restore board from KataGo record failed, duel component not found.");
-            return;
+            return false;
         }
 
         compChessBoard.chessInfoDict.Clear();
@@ -581,7 +580,7 @@ public class ChessBoardSystem : SystemBase
         int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : chessBoardData?.boardSize ?? 19;
         if (!KataGoDuelRecordFile.TryGetBoardSize(recordJson, out int recordBoardSize)) {
             XNLogger.LogError("KataGo duel record board size invalid, restore skipped.", ("recordFilePath", recordFilePath));
-            return;
+            return false;
         }
 
         if (recordBoardSize != boardSize) {
@@ -589,7 +588,7 @@ public class ChessBoardSystem : SystemBase
                 "KataGo duel record board size mismatch, restore skipped.",
                 ("recordBoardSize", recordBoardSize.ToString()),
                 ("boardSize", boardSize.ToString()));
-            return;
+            return false;
         }
 
         RectCoordinates latestMoveCoords = null;
@@ -603,7 +602,7 @@ public class ChessBoardSystem : SystemBase
                     compChessBoard.chessInfoDict.Clear();
                     compChessBoard.lastChessInfoDict.Clear();
                     compDuel.ResetKataGoMoves();
-                    return;
+                    return false;
                 }
             }
         }
@@ -614,7 +613,7 @@ public class ChessBoardSystem : SystemBase
                 compChessBoard.chessInfoDict.Clear();
                 compChessBoard.lastChessInfoDict.Clear();
                 compDuel.ResetKataGoMoves();
-                return;
+                return false;
             }
 
             if (isPass) {
@@ -627,7 +626,7 @@ public class ChessBoardSystem : SystemBase
                 compChessBoard.chessInfoDict.Clear();
                 compChessBoard.lastChessInfoDict.Clear();
                 compDuel.ResetKataGoMoves();
-                return;
+                return false;
             }
 
             latestMoveCoords = coords.Clone();
@@ -639,6 +638,14 @@ public class ChessBoardSystem : SystemBase
         if (latestMoveCoords != null) {
             DrawLatestMoveMarker(compChessBoard, latestMovePlayerFlag, latestMoveCoords);
         }
+
+        return true;
+    }
+
+    private void RestoreBoardFromKataGoRecord(SceneComponentChessBoard compChessBoard)
+    {
+        string recordFilePath = GameSaveConfig.GetDuelRecordSavePath(0);
+        TryRestoreBoardFromKataGoRecord(compChessBoard, recordFilePath);
     }
 
     private bool ApplyRecordInitialStone(SceneComponentChessBoard compChessBoard, PlayerFlag playerFlag, RectCoordinates coords)

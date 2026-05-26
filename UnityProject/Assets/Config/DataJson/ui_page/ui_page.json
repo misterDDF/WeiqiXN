@@ -23,6 +23,12 @@
     "isPopup": true,
     "isLoadAsync": true
   },
+  "ReplayPage": {
+    "id": "ReplayPage",
+    "contextType": "General",
+    "isPopup": true,
+    "isLoadAsync": true
+  },
   "DuelSetupPopup": {
     "id": "DuelSetupPopup",
     "contextType": "General",
