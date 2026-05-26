@@ -34,6 +34,7 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
         SetStatus(MessageText.Get("lan_room_choose_action"));
         RefreshRoomList(null);
         hasEnteredLanDuel = false;
+        RefreshActionButtons();
     }
 
     protected override void OnUpdate()
@@ -55,12 +56,25 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
         if (Global.Instance.lanRoomService.IsSearching || Global.Instance.lanRoomService.IsHosting) {
             SetStatus(Global.Instance.lanRoomService.LastStatus);
         }
+        RefreshActionButtons();
         TryAutoStartGame();
         TryEnterLanDuel();
     }
 
     public void OnClickBtnCreateRoom()
     {
+        if (Global.Instance.lanRoomService == null) {
+            SetStatus(MessageText.Get("lan_room_service_not_ready"));
+            return;
+        }
+
+        LanRoomSessionState state = Global.Instance.lanRoomService.SessionState;
+        if (state.role != LanRoomRole.None) {
+            SetStatus(Global.Instance.lanRoomService.LastStatus);
+            RefreshActionButtons();
+            return;
+        }
+
         DuelSetupPopup.OpenForLanRoom(CreateRoomWithConfig);
     }
 
@@ -81,9 +95,10 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
             duelParams.lanHostPlayerFlag,
             duelParams.lanHostPlayerSideCfgId);
         Global.Instance.lanRoomService.CreateRoom(MessageText.Get("lan_room_default_host_name"));
-        Global.Instance.lanRoomService.SetLocalReady(true);
+        Global.Instance.lanRoomService.SetLocalReady(true, false);
         RefreshRoomList(null);
         SetStatus(Global.Instance.lanRoomService.LastStatus);
+        RefreshActionButtons();
     }
 
     public void OnClickBtnSearchRoom()
@@ -93,17 +108,34 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
             return;
         }
 
-        Global.Instance.lanRoomService.StartSearchRooms();
+        if (Global.Instance.lanRoomService.IsHosting) {
+            SetStatus(Global.Instance.lanRoomService.LastStatus);
+            RefreshActionButtons();
+            return;
+        }
+
+        LanRoomSessionState state = Global.Instance.lanRoomService.SessionState;
+        if (state.role != LanRoomRole.None) {
+            SetStatus(Global.Instance.lanRoomService.LastStatus);
+            RefreshActionButtons();
+            return;
+        }
+
+        if (!Global.Instance.lanRoomService.StartSearchRooms()) {
+            RefreshRoomList(null);
+            SetStatus(Global.Instance.lanRoomService.LastStatus);
+            RefreshActionButtons();
+            return;
+        }
+
         nextSearchRefreshTime = 0f;
         RefreshRoomList(Global.Instance.lanRoomService.GetDiscoveredRooms());
         SetStatus(Global.Instance.lanRoomService.LastStatus);
+        RefreshActionButtons();
     }
 
     public void OnClickBtnClose()
     {
-        if (!hasEnteredLanDuel) {
-            Global.Instance.lanRoomService?.LeaveCurrentSession(LanRoomLeaveReason.CancelRoom);
-        }
         ClosePage();
     }
 
@@ -126,6 +158,7 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
     {
         RefreshRoomList(null);
         SetStatus(MessageText.Get("lan_room_peer_left"));
+        RefreshActionButtons();
     }
 
     private void RefreshRoomList(IReadOnlyList<LanRoomInfo> rooms)
@@ -181,8 +214,26 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
 
     protected override void OnClose()
     {
+        LeaveLanSessionIfPopupClosingBeforeDuel();
         ClearRoomItems();
         base.OnClose();
+    }
+
+    private void LeaveLanSessionIfPopupClosingBeforeDuel()
+    {
+        if (hasEnteredLanDuel) {
+            return;
+        }
+
+        LanRoomService service = Global.Instance.lanRoomService;
+        if (service == null) {
+            return;
+        }
+
+        LanRoomSessionState state = service.SessionState;
+        if (service.IsSearching || service.IsHosting || state.role != LanRoomRole.None) {
+            service.LeaveCurrentSession(LanRoomLeaveReason.CancelRoom);
+        }
     }
 
     private void SetStatus(string status)
@@ -201,6 +252,29 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
     {
         if (button != null) {
             button.onClick.AddListener(action);
+        }
+    }
+
+    private void RefreshActionButtons()
+    {
+        LanRoomService service = Global.Instance.lanRoomService;
+        bool hasService = service != null;
+        bool isInSession = false;
+        bool isHosting = false;
+        bool isSearching = false;
+
+        if (hasService) {
+            LanRoomSessionState state = service.SessionState;
+            isInSession = state.role != LanRoomRole.None;
+            isHosting = service.IsHosting;
+            isSearching = service.IsSearching;
+        }
+
+        if (binder.btn_create_room != null) {
+            binder.btn_create_room.interactable = hasService && !isInSession && !isHosting;
+        }
+        if (binder.btn_search_room != null) {
+            binder.btn_search_room.interactable = hasService && !isInSession && !isHosting && !isSearching;
         }
     }
 
