@@ -574,7 +574,7 @@ public static class MainMenuStateRootSetup
         AddRect(state, "panel_buttons", Require<RectTransform>(root, "panel_buttons"), new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 120), Vector2.zero, new Vector2(0.5f, 0));
         AddVerticalLayout(state, "panel_buttons_layout", Require<VerticalLayoutGroup>(root, "panel_buttons"), TextAnchor.UpperCenter, 18);
         AddButtonRects(state, root, 360, 84);
-        AddRect(state, "btn_user_info", Require<RectTransform>(root, "btn_user_info"), new Vector2(1, 1), new Vector2(1, 1), new Vector2(-80, -96), new Vector2(72, 72), new Vector2(0.5f, 0.5f));
+        AddRect(state, "btn_user_info", Require<RectTransform>(root, "btn_user_info"), new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -96), new Vector2(72, 72), new Vector2(0.5f, 0.5f));
         return state;
     }
 
