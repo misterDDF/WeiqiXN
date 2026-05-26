@@ -13,10 +13,12 @@ public static class KataGoBootstrap
     private static readonly object startupStatusLock = new object();
     private static KataGoStartupStatus startupStatus = KataGoStartupStatus.NotStarted;
 
-#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN || UNITY_ANDROID
     private const string OpenClEngineName = "opencl";
     private const string CpuEngineName = "eigenavx2";
     private const string NativeBridgeDllName = "katago_bridge.dll";
+    private const string AndroidNativeBridgeSoName = "libkatago_bridge.so";
+    private const string AndroidNativeEngineName = "android-eigen";
     private const string ModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
     private const string AnalysisConfigFileName = "analysis_example.cfg";
     private const string NoWriteAnalysisConfigFileName = "analysis_nowrite.cfg";
@@ -31,8 +33,13 @@ public static class KataGoBootstrap
     private static readonly int[] SmokeTestBoardSizes = { 9, 13, 19 };
     private static readonly float[] SmokeTestBoardProgressWeights = { 0.90f, 0.05f, 0.05f };
 
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
     private static Win32KataGoProcess process;
-    private static Win32NativeKataGoEngine nativeEngine;
+    private static Win32NativeKataGoEngine windowsNativeEngine;
+#endif
+#if UNITY_ANDROID && !UNITY_EDITOR
+    private static AndroidNativeKataGoEngine androidNativeEngine;
+#endif
     private static readonly SemaphoreSlim analysisSemaphore = new SemaphoreSlim(1, 1);
     private static KataGoPaths[] engineCandidates;
     private static KataGoPaths activePaths;
@@ -65,7 +72,7 @@ public static class KataGoBootstrap
             return;
         }
 
-#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN || UNITY_ANDROID
         KataGoBackendMode backendMode = GameConfig.Current.kataGo.ResolveCurrentBackend();
         if (backendMode == KataGoBackendMode.Disabled) {
             SetStartupStatus(MessageText.Get("katago_unavailable_status"), "KataGo backend is disabled by game-config.json.", 1f, true, false, true, null);
@@ -73,6 +80,7 @@ public static class KataGoBootstrap
             return;
         }
 
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
         if (!platformConfig.canWriteGameRoot) {
             ShowGameRootWriteWarning(platformConfig);
             XNLogger.LogWarn(
@@ -80,9 +88,14 @@ public static class KataGoBootstrap
                 ("gameRoot", platformConfig.gameRoot),
                 ("reason", platformConfig.writeFailureReason));
         }
+#endif
 
         if (backendMode == KataGoBackendMode.Native) {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            KataGoPaths[] nativeCandidates = ResolveAndroidNativeCandidatePaths(platformConfig);
+#else
             KataGoPaths[] nativeCandidates = ResolveNativeCandidatePaths(platformConfig);
+#endif
             if (nativeCandidates.Length == 0) {
                 SetStartupStatus(MessageText.Get("katago_failed_status"), MessageText.Get("katago_no_engine_candidates"), 1f, true, true, false, null);
                 XNLogger.LogError("KataGo native startup skipped.", ("reason", "No KataGo native engine candidates resolved."));
@@ -93,6 +106,7 @@ public static class KataGoBootstrap
             return;
         }
 
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
         KataGoPaths[] candidates = ResolveCandidatePaths(platformConfig);
         if (candidates.Length == 0) {
             SetStartupStatus(MessageText.Get("katago_failed_status"), MessageText.Get("katago_no_engine_candidates"), 1f, true, true, false, null);
@@ -101,6 +115,10 @@ public static class KataGoBootstrap
         }
 
         StartProcessTask(candidates);
+#else
+        SetStartupStatus(MessageText.Get("katago_unavailable_status"), "Android KataGo only supports native backend.", 1f, true, false, true, null);
+        XNLogger.LogWarn("KataGo startup skipped.", ("reason", "Android KataGo only supports native backend."));
+#endif
 #else
         SetStartupStatus(MessageText.Get("katago_unavailable_status"), MessageText.Get("katago_local_process_not_compiled"), 1f, true, false, true, null);
         XNLogger.LogWarn("KataGo startup skipped.", ("reason", "Local process startup is not compiled for this platform."));
@@ -120,7 +138,7 @@ public static class KataGoBootstrap
 
     public static async Task<JObject> AnalyzeAsync(JObject query)
     {
-#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN || UNITY_ANDROID
         if (query == null) {
             XNLogger.LogError("KataGo analyze failed, query is null.");
             return null;
@@ -136,6 +154,7 @@ public static class KataGoBootstrap
 
                 return await Task.Run(() => AnalyzeNative(query, AnalyzeTimeoutMs));
             }
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
             else {
                 if (!await EnsureProcessReadyAsync()) {
                     XNLogger.LogError("KataGo analyze failed, process is not running.");
@@ -144,6 +163,10 @@ public static class KataGoBootstrap
 
                 return await Task.Run(() => Analyze(query, AnalyzeTimeoutMs));
             }
+#else
+            XNLogger.LogError("KataGo analyze failed, non-native backend is unsupported on Android.");
+            return null;
+#endif
         }
         finally {
             analysisSemaphore.Release();
@@ -205,6 +228,23 @@ public static class KataGoBootstrap
             windowsAllowCpuFallback = kataGoConfig.windowsAllowCpuFallback,
             windowsNativeOpenClEngineName = kataGoConfig.windowsNativeOpenClEngineName,
             windowsNativeCpuEngineName = kataGoConfig.windowsNativeCpuEngineName,
+        };
+#elif UNITY_ANDROID
+        KataGoRuntimePreparer.RuntimePaths runtimePaths = KataGoRuntimePreparer.ResolveRuntimePaths();
+        GameConfig.KataGoConfig kataGoConfig = GameConfig.Current.kataGo;
+        return new PlatformConfig
+        {
+            isSupported = true,
+            unsupportedReason = null,
+            gameRoot = Application.persistentDataPath,
+            kataGoRoot = runtimePaths.root,
+            engineRoot = runtimePaths.engineRoot,
+            canWriteGameRoot = true,
+            writeFailureReason = null,
+            modelFileName = runtimePaths.modelFileName,
+            androidAbi = runtimePaths.abi,
+            androidNativeLibraryName = kataGoConfig.androidNativeLibraryName,
+            androidNeuralNetBackend = kataGoConfig.androidNeuralNetBackend,
         };
 #else
         return new PlatformConfig
@@ -328,6 +368,31 @@ public static class KataGoBootstrap
         };
     }
 
+#endif
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+    private static KataGoPaths[] ResolveAndroidNativeCandidatePaths(PlatformConfig platformConfig)
+    {
+        return new[]
+        {
+            new KataGoPaths
+            {
+                exePath = null,
+                nativeLibraryPath = AndroidNativeBridgeSoName,
+                configPath = Path.Combine(platformConfig.engineRoot, NoWriteAnalysisConfigFileName),
+                modelPath = Path.Combine(platformConfig.kataGoRoot, "models", platformConfig.modelFileName),
+                workingDirectory = platformConfig.engineRoot,
+                engineName = AndroidNativeEngineName,
+                smokeTestTimeoutMs = CpuSmokeTestTimeoutMs,
+                noWriteMode = true,
+                isNative = true,
+                skipNativeLibraryFileCheck = true,
+            },
+        };
+    }
+#endif
+
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
     private static void StartProcessTask(KataGoPaths[] candidates)
     {
         engineCandidates = candidates;
@@ -339,7 +404,9 @@ public static class KataGoBootstrap
         SetStartupStatus(MessageText.Get("katago_warmup_status"), MessageText.Get("katago_detecting_engine"), 0.05f, false, false, false, null);
         startupTask = Task.Run(() => StartFirstAvailableEngine(candidates, 0, cancellationTokenSource.Token));
     }
+#endif
 
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN || UNITY_ANDROID
     private static void StopProcessTask()
     {
         try {
@@ -381,7 +448,7 @@ public static class KataGoBootstrap
             await startupTask;
         }
 
-        if (nativeEngine != null && nativeEngine.IsRunning) {
+        if (IsNativeEngineRunning()) {
             return true;
         }
 
@@ -401,9 +468,10 @@ public static class KataGoBootstrap
         startupTask = Task.Run(() => StartFirstAvailableNativeEngine(candidates, restartIndex, cancellationTokenSource.Token));
         await startupTask;
 
-        return nativeEngine != null && nativeEngine.IsRunning;
+        return IsNativeEngineRunning();
     }
 
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
     private static async Task<bool> EnsureProcessReadyAsync()
     {
         if (startupTask != null && !startupTask.IsCompleted) {
@@ -442,7 +510,9 @@ public static class KataGoBootstrap
             return false;
         }
     }
+#endif
 
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
     private static void ShowGameRootWriteWarning(PlatformConfig platformConfig)
     {
         if (gameRootWriteWarningShown) {
@@ -456,7 +526,9 @@ public static class KataGoBootstrap
 
         ConfirmPopup.ShowTip(title, message, null, MessageText.Get("common_got_it"));
     }
+#endif
 
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
     private static void StartFirstAvailableEngine(KataGoPaths[] candidates, int startCandidateIndex, CancellationToken cancellationToken)
     {
         StopProcess();
@@ -538,6 +610,7 @@ public static class KataGoBootstrap
         SetStartupStatus(MessageText.Get("katago_failed_status"), MessageText.Get("katago_all_engines_unavailable"), 1f, true, true, false, null);
         XNLogger.LogError("KataGo startup failed, no engine candidate is available.");
     }
+#endif
 
     private static void StartFirstAvailableNativeEngine(KataGoPaths[] candidates, int startCandidateIndex, CancellationToken cancellationToken)
     {
@@ -612,7 +685,7 @@ public static class KataGoBootstrap
                     ("candidateIndex", i.ToString()),
                     ("candidateCount", candidates.Length.ToString()),
                     ("libraryPath", paths.nativeLibraryPath),
-                    ("bridgeBackend", nativeEngine?.BridgeBackend ?? "null"),
+                    ("bridgeBackend", GetNativeBridgeBackendForLog()),
                     ("configPath", paths.configPath),
                     ("noWriteMode", paths.noWriteMode.ToString()),
                     ("modelPath", paths.modelPath));
@@ -689,14 +762,60 @@ public static class KataGoBootstrap
         }
     }
 
+    private static bool IsNativeEngineRunning()
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        return androidNativeEngine != null && androidNativeEngine.IsRunning;
+#else
+        return windowsNativeEngine != null && windowsNativeEngine.IsRunning;
+#endif
+    }
+
+    private static string GetNativeBridgeBackend()
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        return androidNativeEngine?.BridgeBackend ?? string.Empty;
+#else
+        return windowsNativeEngine?.BridgeBackend ?? string.Empty;
+#endif
+    }
+
+    private static string GetNativeBridgeBackendForLog()
+    {
+        string backend = GetNativeBridgeBackend();
+        return string.IsNullOrEmpty(backend) ? "null" : backend;
+    }
+
+    private static JObject AnalyzeWithNativeEngine(JObject query, int timeoutMs)
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        AndroidNativeKataGoEngine currentEngine = androidNativeEngine;
+#else
+        Win32NativeKataGoEngine currentEngine = windowsNativeEngine;
+#endif
+        if (currentEngine == null || !currentEngine.IsRunning) {
+            throw new InvalidOperationException("KataGo native engine is not running.");
+        }
+
+        return currentEngine.Analyze(query, timeoutMs);
+    }
+
     private static void StartNativeEngine(KataGoPaths paths)
     {
-        nativeEngine = new Win32NativeKataGoEngine();
-        nativeEngine.Start(
+#if UNITY_ANDROID && !UNITY_EDITOR
+        androidNativeEngine = new AndroidNativeKataGoEngine();
+        androidNativeEngine.Start(
+            paths.configPath,
+            paths.modelPath,
+            paths.workingDirectory);
+#else
+        windowsNativeEngine = new Win32NativeKataGoEngine();
+        windowsNativeEngine.Start(
             paths.nativeLibraryPath,
             paths.configPath,
             paths.modelPath,
             paths.workingDirectory);
+#endif
     }
 
     private static void RunNativeSmokeTest(KataGoPaths paths, float progressStart, float progressEnd, CancellationToken cancellationToken)
@@ -741,7 +860,7 @@ public static class KataGoBootstrap
                 () =>
                 {
                     StartNativeEngine(paths);
-                    return nativeEngine.Analyze(query, paths.smokeTestTimeoutMs);
+                    return AnalyzeWithNativeEngine(query, paths.smokeTestTimeoutMs);
                 },
                 () => BuildSmokeTestProgressDetail(paths, boardSize, boardIndex),
                 startTime,
@@ -749,12 +868,12 @@ public static class KataGoBootstrap
                 progressEnd,
                 cancellationToken,
                 GetEstimatedBoardWarmupMs(paths, boardIndex));
-            ValidateNativeBridgeBackend(paths, nativeEngine.BridgeBackend);
+            ValidateNativeBridgeBackend(paths, GetNativeBridgeBackend());
             XNLogger.LogInfo(
                 "KataGo native engine started.",
                 ("engine", paths.engineName),
                 ("libraryPath", paths.nativeLibraryPath),
-                ("bridgeBackend", nativeEngine.BridgeBackend),
+                ("bridgeBackend", GetNativeBridgeBackend()),
                 ("configPath", paths.configPath),
                 ("noWriteMode", paths.noWriteMode.ToString()),
                 ("modelPath", paths.modelPath));
@@ -762,7 +881,7 @@ public static class KataGoBootstrap
         else {
             result = RunStartupOperationWithProgress(
                 paths,
-                () => nativeEngine.Analyze(query, paths.smokeTestTimeoutMs),
+                () => AnalyzeWithNativeEngine(query, paths.smokeTestTimeoutMs),
                 () => BuildSmokeTestProgressDetail(paths, boardSize, boardIndex),
                 startTime,
                 progressStart,
@@ -797,6 +916,7 @@ public static class KataGoBootstrap
             ("ownershipLength", ownership?.Count.ToString() ?? "null"));
     }
 
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
     private static bool TryStartAndSmokeTest(KataGoPaths paths, float progressStart, float progressEnd, float failureProgress, CancellationToken cancellationToken)
     {
         try {
@@ -955,6 +1075,7 @@ public static class KataGoBootstrap
 
         throw new TimeoutException($"KataGo {boardSize}x{boardSize} smoke test timed out after {paths.smokeTestTimeoutMs}ms.");
     }
+#endif
 
     private static JObject BuildSmokeTestQuery(string requestId, int boardSize)
     {
@@ -1026,6 +1147,12 @@ public static class KataGoBootstrap
 
     private static string BuildSmokeTestStageDetail(KataGoPaths paths, int boardSize, int boardIndex)
     {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (IsAndroidNativeEngine(paths)) {
+            return MessageText.Format("katago_android_native_verify_board", boardSize);
+        }
+#endif
+
         if (IsOpenClInitializationStage(paths, boardIndex)) {
             return MessageText.Get("katago_opencl_first_init");
         }
@@ -1039,6 +1166,12 @@ public static class KataGoBootstrap
 
     private static string BuildSmokeTestProgressDetail(KataGoPaths paths, int boardSize, int boardIndex)
     {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (IsAndroidNativeEngine(paths)) {
+            return MessageText.Format("katago_android_native_verify_board", boardSize);
+        }
+#endif
+
         if (IsOpenClInitializationStage(paths, boardIndex)) {
             return MessageText.Get("katago_opencl_progress_init");
         }
@@ -1065,6 +1198,14 @@ public static class KataGoBootstrap
     {
         return !IsOpenClEngine(paths);
     }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+    private static bool IsAndroidNativeEngine(KataGoPaths paths)
+    {
+        return paths.isNative
+            && string.Equals(paths.engineName, AndroidNativeEngineName, StringComparison.OrdinalIgnoreCase);
+    }
+#endif
 
     private static float GetSmokeTestProgressWeightBefore(int boardIndex)
     {
@@ -1117,6 +1258,12 @@ public static class KataGoBootstrap
 
     private static string BuildCandidateDetail(KataGoPaths paths, bool isFallback)
     {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (IsAndroidNativeEngine(paths)) {
+            return MessageText.Get("katago_android_native_warmup");
+        }
+#endif
+
         if (paths.noWriteMode && IsCpuEngine(paths)) {
             return MessageText.Get("katago_no_write_cpu_warmup");
         }
@@ -1132,6 +1279,7 @@ public static class KataGoBootstrap
         return MessageText.Format("katago_engine_warmup", paths.engineName);
     }
 
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
     private static JObject Analyze(JObject query, int timeoutMs)
     {
         try {
@@ -1197,6 +1345,7 @@ public static class KataGoBootstrap
             return null;
         }
     }
+#endif
 
     private static JObject AnalyzeNative(JObject query, int timeoutMs)
     {
@@ -1207,13 +1356,7 @@ public static class KataGoBootstrap
                 return null;
             }
 
-            Win32NativeKataGoEngine currentEngine = nativeEngine;
-            if (currentEngine == null || !currentEngine.IsRunning) {
-                XNLogger.LogError("KataGo native analyze failed, engine exited.");
-                return null;
-            }
-
-            JObject result = currentEngine.Analyze(query, timeoutMs);
+            JObject result = AnalyzeWithNativeEngine(query, timeoutMs);
             LogKataGoResultDiagnostics(result, requestId);
 
             if (!HasAnalysisPayload(result) && result["error"] == null) {
@@ -1274,6 +1417,7 @@ public static class KataGoBootstrap
         return string.Join(",", result.Properties().Select(property => property.Name));
     }
 
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
     private static void StopProcess()
     {
         Win32KataGoProcess currentProcess = process;
@@ -1294,11 +1438,21 @@ public static class KataGoBootstrap
             XNLogger.LogInfo("KataGo process stopped.");
         }
     }
+#else
+    private static void StopProcess()
+    {
+    }
+#endif
 
     private static void StopNativeEngine()
     {
-        Win32NativeKataGoEngine currentEngine = nativeEngine;
-        nativeEngine = null;
+#if UNITY_ANDROID && !UNITY_EDITOR
+        AndroidNativeKataGoEngine currentEngine = androidNativeEngine;
+        androidNativeEngine = null;
+#else
+        Win32NativeKataGoEngine currentEngine = windowsNativeEngine;
+        windowsNativeEngine = null;
+#endif
 
         if (currentEngine == null) {
             return;
@@ -1316,6 +1470,7 @@ public static class KataGoBootstrap
         }
     }
 
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
     private static string ReadOutputLineBefore(DateTime deadline, CancellationToken cancellationToken, string operationName, int timeoutMs)
     {
         TimeSpan remaining = deadline - DateTime.UtcNow;
@@ -1351,6 +1506,7 @@ public static class KataGoBootstrap
 
         return currentProcess.TryReadOutputLineBefore(deadline, cancellationToken, operationName, timeoutMs, maxWaitMs, out line);
     }
+#endif
 
     private struct KataGoPaths
     {
@@ -1363,11 +1519,12 @@ public static class KataGoBootstrap
         public int smokeTestTimeoutMs;
         public bool noWriteMode;
         public bool isNative;
+        public bool skipNativeLibraryFileCheck;
 
         public bool IsValid(out string reason)
         {
             if (isNative) {
-                if (!File.Exists(nativeLibraryPath)) {
+                if (!skipNativeLibraryFileCheck && !File.Exists(nativeLibraryPath)) {
                     reason = $"katago_bridge.dll not found: {nativeLibraryPath}";
                     return false;
                 }
@@ -1460,5 +1617,8 @@ public static class KataGoBootstrap
         public bool windowsAllowCpuFallback;
         public string windowsNativeOpenClEngineName;
         public string windowsNativeCpuEngineName;
+        public string androidAbi;
+        public string androidNativeLibraryName;
+        public string androidNeuralNetBackend;
     }
 }

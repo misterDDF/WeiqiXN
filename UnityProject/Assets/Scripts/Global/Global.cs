@@ -10,6 +10,7 @@ public class Global
     {
         None,
         LoadingResources,
+        PreparingKataGoRuntime,
         WarmingKataGo,
         Running,
         Failed,
@@ -39,6 +40,7 @@ public class Global
 
     private StartupState startupState = StartupState.None;
     private float kataGoWarmupStartTime;
+    private KataGoRuntimePreparer kataGoRuntimePreparer;
 
     public void Start()
     {
@@ -67,7 +69,12 @@ public class Global
     private void TryFinishStartup()
     {
         if (startupState == StartupState.LoadingResources) {
-            TryStartKataGoWarmup();
+            TryStartPostResourceStartup();
+            return;
+        }
+
+        if (startupState == StartupState.PreparingKataGoRuntime) {
+            TryFinishKataGoRuntimePrepare();
             return;
         }
 
@@ -76,7 +83,7 @@ public class Global
         }
     }
 
-    private void TryStartKataGoWarmup()
+    private void TryStartPostResourceStartup()
     {
         if (resourceManager == null) {
             return;
@@ -89,6 +96,28 @@ public class Global
         }
 
         if (!resourceManager.isReady) {
+            return;
+        }
+
+        InitUiAndSceneManagers();
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+        LoadingPage.SetProgress(
+            MessageText.Get("katago_runtime_prepare_status"),
+            MessageText.Get("katago_runtime_prepare_checking"),
+            0.2f);
+        uiManager.ShowPage<LoadingPage>();
+        kataGoRuntimePreparer = new KataGoRuntimePreparer();
+        kataGoRuntimePreparer.Start();
+        startupState = StartupState.PreparingKataGoRuntime;
+#else
+        StartKataGoWarmup();
+#endif
+    }
+
+    private void InitUiAndSceneManagers()
+    {
+        if (uiManager != null && sceneManager != null) {
             return;
         }
 
@@ -105,12 +134,48 @@ public class Global
             XNLogger.LogInfo("Ingame debug console go loaded.");
         }
 #endif
+    }
 
+    private void TryFinishKataGoRuntimePrepare()
+    {
+        if (kataGoRuntimePreparer == null) {
+            StartKataGoWarmup();
+            return;
+        }
+
+        kataGoRuntimePreparer.Update();
+        LoadingPage.SetProgress(
+            kataGoRuntimePreparer.StatusText,
+            kataGoRuntimePreparer.DetailText,
+            Mathf.Lerp(0.2f, 0.55f, kataGoRuntimePreparer.Progress));
+
+        if (!kataGoRuntimePreparer.IsDone) {
+            return;
+        }
+
+        if (kataGoRuntimePreparer.IsFailed) {
+            string prepareError = kataGoRuntimePreparer.Error;
+            XNLogger.LogError("Android KataGo runtime prepare failed before warmup.", ("error", prepareError));
+            kataGoRuntimePreparer.Dispose();
+            kataGoRuntimePreparer = null;
+            FinishStartupAfterKataGoFailure(prepareError);
+            return;
+        }
+
+        kataGoRuntimePreparer.Dispose();
+        kataGoRuntimePreparer = null;
+        StartKataGoWarmup();
+    }
+
+    private void StartKataGoWarmup()
+    {
         LoadingPage.SetProgress(
             MessageText.Get("katago_warmup_status"),
             MessageText.Get("katago_starting_detail"),
-            0.05f);
-        uiManager.ShowPage<LoadingPage>();
+            ResolveKataGoWarmupDisplayProgress(0.05f));
+        if (!LoadingPage.hasActivePage) {
+            uiManager.ShowPage<LoadingPage>();
+        }
         kataGoWarmupStartTime = Time.realtimeSinceStartup;
         KataGoBootstrap.Start();
         startupState = StartupState.WarmingKataGo;
@@ -119,7 +184,7 @@ public class Global
     private void TryFinishKataGoWarmup()
     {
         KataGoBootstrap.KataGoStartupStatus kataGoStatus = KataGoBootstrap.GetStartupStatus();
-        LoadingPage.SetProgress(kataGoStatus.statusText, kataGoStatus.detailText, kataGoStatus.progress);
+        LoadingPage.SetProgress(kataGoStatus.statusText, kataGoStatus.detailText, ResolveKataGoWarmupDisplayProgress(kataGoStatus.progress));
 
         if (!kataGoStatus.isFinished) {
             return;
@@ -143,6 +208,21 @@ public class Global
                 ("detail", kataGoStatus.detailText));
         }
 
+        EnterMainMenuAfterStartup();
+    }
+
+    private void FinishStartupAfterKataGoFailure(string detail)
+    {
+        LoadingPage.SetProgress(
+            MessageText.Get("katago_failed_status"),
+            string.IsNullOrEmpty(detail) ? MessageText.Get("katago_all_engines_unavailable") : detail,
+            0.9f);
+        XNLogger.LogError("Global startup continues after Android KataGo runtime prepare failed.", ("detail", detail ?? string.Empty));
+        EnterMainMenuAfterStartup();
+    }
+
+    private void EnterMainMenuAfterStartup()
+    {
         LoadingPage.SetProgress(
             MessageText.Get("scene_loading_status"),
             MessageText.Get("scene_enter_main_menu"),
@@ -150,6 +230,15 @@ public class Global
         sceneManager.EnterMainScene(SceneConfig.MAIN_MENU_SCENE_TYPE_ID, SceneCreateParams.Default);
         User.Instance.Init();
         startupState = StartupState.Running;
+    }
+
+    private static float ResolveKataGoWarmupDisplayProgress(float kataGoProgress)
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        return Mathf.Lerp(0.55f, 0.9f, Mathf.Clamp01(kataGoProgress));
+#else
+        return kataGoProgress;
+#endif
     }
 
     public void Update()
@@ -181,6 +270,8 @@ public class Global
             moduleList[i].OnDestroy();
         }
         moduleList.Clear();
+        kataGoRuntimePreparer?.Dispose();
+        kataGoRuntimePreparer = null;
         User.Instance.Destroy();
         startupState = StartupState.None;
         _instance = null;

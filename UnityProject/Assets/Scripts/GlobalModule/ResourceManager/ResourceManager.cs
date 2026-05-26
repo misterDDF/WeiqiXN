@@ -2,9 +2,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using UnityEngine;
-using UnityEngine.Networking;
 using XNLogger = XNClient.Logger.XNLogger;
 
 public class ResourceManager : ModuleBase
@@ -22,8 +20,8 @@ public class ResourceManager : ModuleBase
     private Dictionary<string, IResourceLoadHandler> loadHandlerMap = new Dictionary<string, IResourceLoadHandler>();
     private Dictionary<string, IResourceLoadBinder> binderMap = new Dictionary<string, IResourceLoadBinder>();
 
-#if UNITY_WEBGL && !UNITY_EDITOR
-    private enum WebGLPreloadState
+#if !UNITY_EDITOR
+    private enum AssetBundlePreloadState
     {
         None,
         LoadingManifest,
@@ -32,11 +30,11 @@ public class ResourceManager : ModuleBase
         Failed,
     }
 
-    private WebGLPreloadState webGLPreloadState = WebGLPreloadState.None;
-    private UnityWebRequest webGLManifestRequest;
-    private UnityWebRequest webGLBundleRequest;
-    private Queue<string> webGLPendingBundleNames = new Queue<string>();
-    private string webGLCurrentBundleName;
+    private AssetBundlePreloadState assetBundlePreloadState = AssetBundlePreloadState.None;
+    private IStreamingAssetsTextRequest manifestRequest;
+    private IStreamingAssetsAssetBundleRequest bundleRequest;
+    private Queue<string> pendingBundleNames = new Queue<string>();
+    private string currentBundleName;
 #endif
 
     protected class PackInfoFile
@@ -58,20 +56,16 @@ public class ResourceManager : ModuleBase
 #if UNITY_EDITOR
         resLoader = new AssetDatabaseLoader(this);
         isReady = true;
-#elif UNITY_WEBGL
-        resLoader = new AssetBundleLoader(this);
-        StartPreloadAssetBundlesWebGL();
 #else
-        PreloadAssetBundles();
         resLoader = new AssetBundleLoader(this);
-        isReady = !isFailed;
+        StartPreloadAssetBundles();
 #endif
     }
 
     public override void Update()
     {
-#if UNITY_WEBGL && !UNITY_EDITOR
-        UpdatePreloadAssetBundlesWebGL();
+#if !UNITY_EDITOR
+        UpdatePreloadAssetBundles();
 #endif
 
         // AssetRequest
@@ -121,39 +115,132 @@ public class ResourceManager : ModuleBase
         }
     }
 
-    public void PreloadAssetBundles()
+#if !UNITY_EDITOR
+    private void StartPreloadAssetBundles()
     {
-        if (!Directory.Exists(GlobalConfig.PATH_ASSET_BUNDLE)) {
-            XNLogger.LogError("Asset bundle directory not found.", ("bundleDir", GlobalConfig.PATH_ASSET_BUNDLE));
-            isFailed = true;
+        string manifestRelativePath = $"AssetBundles/{ASSET_BUNDLE_MANIFEST_FILE_NAME}";
+        manifestRequest = StreamingAssetsReader.Default.ReadText(manifestRelativePath);
+        assetBundlePreloadState = AssetBundlePreloadState.LoadingManifest;
+        XNLogger.LogInfo("Start preload asset bundle manifest.", ("manifestPath", manifestRequest.PathOrUrl));
+    }
+
+    private void UpdatePreloadAssetBundles()
+    {
+        switch (assetBundlePreloadState) {
+            case AssetBundlePreloadState.LoadingManifest:
+                UpdateAssetBundleManifestRequest();
+                break;
+            case AssetBundlePreloadState.LoadingBundle:
+                UpdateAssetBundleRequest();
+                break;
+        }
+    }
+
+    private void UpdateAssetBundleManifestRequest()
+    {
+        if (manifestRequest == null || !manifestRequest.IsDone) {
             return;
         }
 
-        foreach (string filePath in Directory.GetFiles(GlobalConfig.PATH_ASSET_BUNDLE)) {
-            if (ShouldSkipAssetBundleFile(filePath)) {
-                continue;
-            }
+        if (!manifestRequest.IsSuccess) {
+            XNLogger.LogError(
+                "Load asset bundle manifest failed.",
+                ("path", manifestRequest.PathOrUrl),
+                ("error", manifestRequest.Error)
+            );
+            FinishAssetBundlePreload(false);
+            return;
+        }
 
-            string bundleName = Path.GetFileName(filePath);
-            AssetBundle bundle = AssetBundle.LoadFromFile(filePath);
-            if (bundle == null) {
-                XNLogger.LogError("Load asset bundle failed.", ("bundlePath", filePath));
-                continue;
+        try {
+            JArray bundleNameArray = JArray.Parse(manifestRequest.Text);
+            foreach (JToken bundleNameToken in bundleNameArray) {
+                string bundleName = bundleNameToken.Value<string>();
+                if (!string.IsNullOrEmpty(bundleName)) {
+                    pendingBundleNames.Enqueue(bundleName);
+                }
             }
+        }
+        catch (Exception ex) {
+            XNLogger.LogError("Parse asset bundle manifest failed.", ("error", ex.Message));
+            FinishAssetBundlePreload(false);
+            return;
+        }
+        finally {
+            manifestRequest.Dispose();
+            manifestRequest = null;
+        }
 
-            RegisterLoadedAssetBundle(bundleName, bundle);
+        if (pendingBundleNames.Count <= 0) {
+            XNLogger.LogWarn("Asset bundle manifest is empty.");
+            FinishAssetBundlePreload(true);
+            return;
+        }
+
+        StartNextAssetBundleRequest();
+    }
+
+    private void StartNextAssetBundleRequest()
+    {
+        if (pendingBundleNames.Count <= 0) {
+            FinishAssetBundlePreload(true);
+            return;
+        }
+
+        currentBundleName = pendingBundleNames.Dequeue();
+        string bundleRelativePath = $"AssetBundles/{currentBundleName}";
+        bundleRequest = StreamingAssetsReader.Default.LoadAssetBundle(bundleRelativePath);
+        assetBundlePreloadState = AssetBundlePreloadState.LoadingBundle;
+        XNLogger.LogInfo("Start preload asset bundle.", ("bundleName", currentBundleName), ("bundlePath", bundleRequest.PathOrUrl));
+    }
+
+    private void UpdateAssetBundleRequest()
+    {
+        if (bundleRequest == null || !bundleRequest.IsDone) {
+            return;
+        }
+
+        if (!bundleRequest.IsSuccess) {
+            XNLogger.LogError(
+                "Load asset bundle failed.",
+                ("bundleName", currentBundleName),
+                ("path", bundleRequest.PathOrUrl),
+                ("error", bundleRequest.Error)
+            );
+            FinishAssetBundlePreload(false);
+            return;
+        }
+
+        AssetBundle bundle = bundleRequest.AssetBundle;
+        if (bundle == null) {
+            XNLogger.LogError("Loaded asset bundle is null.", ("bundleName", currentBundleName));
+            FinishAssetBundlePreload(false);
+            return;
+        }
+
+        RegisterLoadedAssetBundle(currentBundleName, bundle);
+        bundleRequest.Dispose();
+        bundleRequest = null;
+        currentBundleName = string.Empty;
+        StartNextAssetBundleRequest();
+    }
+
+    private void FinishAssetBundlePreload(bool success)
+    {
+        assetBundlePreloadState = success ? AssetBundlePreloadState.Done : AssetBundlePreloadState.Failed;
+        isReady = success;
+        isFailed = !success;
+
+        manifestRequest?.Dispose();
+        manifestRequest = null;
+        bundleRequest?.Dispose();
+        bundleRequest = null;
+
+        if (success) {
+            XNLogger.LogInfo("Preload asset bundles success.", ("bundleCount", bundleDict.Count.ToString()));
         }
     }
-
-    private static bool ShouldSkipAssetBundleFile(string filePath)
-    {
-        string fileName = Path.GetFileName(filePath);
-        string extension = Path.GetExtension(filePath);
-        return string.Equals(fileName, ASSET_BUNDLE_MANIFEST_FILE_NAME, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(extension, ".manifest", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(extension, ".meta", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(extension, ".json", StringComparison.OrdinalIgnoreCase);
-    }
+#endif
 
     private void RegisterLoadedAssetBundle(string bundleName, AssetBundle bundle)
     {
@@ -172,135 +259,6 @@ public class ResourceManager : ModuleBase
             path2BundleName[assetPath] = canonicalBundleName;
         }
     }
-
-#if UNITY_WEBGL && !UNITY_EDITOR
-    private void StartPreloadAssetBundlesWebGL()
-    {
-        string manifestUrl = $"{GlobalConfig.PATH_ASSET_BUNDLE}/{ASSET_BUNDLE_MANIFEST_FILE_NAME}";
-        webGLManifestRequest = UnityWebRequest.Get(manifestUrl);
-        webGLManifestRequest.SendWebRequest();
-        webGLPreloadState = WebGLPreloadState.LoadingManifest;
-        XNLogger.LogInfo("Start preload WebGL asset bundle manifest.", ("manifestUrl", manifestUrl));
-    }
-
-    private void UpdatePreloadAssetBundlesWebGL()
-    {
-        switch (webGLPreloadState) {
-            case WebGLPreloadState.LoadingManifest:
-                UpdateWebGLManifestRequest();
-                break;
-            case WebGLPreloadState.LoadingBundle:
-                UpdateWebGLBundleRequest();
-                break;
-        }
-    }
-
-    private void UpdateWebGLManifestRequest()
-    {
-        if (webGLManifestRequest == null || !webGLManifestRequest.isDone) {
-            return;
-        }
-
-        if (webGLManifestRequest.result != UnityWebRequest.Result.Success) {
-            XNLogger.LogError(
-                "Load WebGL asset bundle manifest failed.",
-                ("url", webGLManifestRequest.url),
-                ("error", webGLManifestRequest.error)
-            );
-            FinishWebGLPreload(false);
-            return;
-        }
-
-        try {
-            JArray bundleNameArray = JArray.Parse(webGLManifestRequest.downloadHandler.text);
-            foreach (JToken bundleNameToken in bundleNameArray) {
-                string bundleName = bundleNameToken.Value<string>();
-                if (!string.IsNullOrEmpty(bundleName)) {
-                    webGLPendingBundleNames.Enqueue(bundleName);
-                }
-            }
-        }
-        catch (Exception ex) {
-            XNLogger.LogError("Parse WebGL asset bundle manifest failed.", ("error", ex.Message));
-            FinishWebGLPreload(false);
-            return;
-        }
-        finally {
-            webGLManifestRequest.Dispose();
-            webGLManifestRequest = null;
-        }
-
-        if (webGLPendingBundleNames.Count <= 0) {
-            XNLogger.LogWarn("WebGL asset bundle manifest is empty.");
-            FinishWebGLPreload(true);
-            return;
-        }
-
-        StartNextWebGLBundleRequest();
-    }
-
-    private void StartNextWebGLBundleRequest()
-    {
-        if (webGLPendingBundleNames.Count <= 0) {
-            FinishWebGLPreload(true);
-            return;
-        }
-
-        webGLCurrentBundleName = webGLPendingBundleNames.Dequeue();
-        string bundleUrl = $"{GlobalConfig.PATH_ASSET_BUNDLE}/{webGLCurrentBundleName}";
-        webGLBundleRequest = UnityWebRequestAssetBundle.GetAssetBundle(bundleUrl);
-        webGLBundleRequest.SendWebRequest();
-        webGLPreloadState = WebGLPreloadState.LoadingBundle;
-        XNLogger.LogInfo("Start preload WebGL asset bundle.", ("bundleName", webGLCurrentBundleName), ("bundleUrl", bundleUrl));
-    }
-
-    private void UpdateWebGLBundleRequest()
-    {
-        if (webGLBundleRequest == null || !webGLBundleRequest.isDone) {
-            return;
-        }
-
-        if (webGLBundleRequest.result != UnityWebRequest.Result.Success) {
-            XNLogger.LogError(
-                "Load WebGL asset bundle failed.",
-                ("bundleName", webGLCurrentBundleName),
-                ("url", webGLBundleRequest.url),
-                ("error", webGLBundleRequest.error)
-            );
-            FinishWebGLPreload(false);
-            return;
-        }
-
-        AssetBundle bundle = DownloadHandlerAssetBundle.GetContent(webGLBundleRequest);
-        if (bundle == null) {
-            XNLogger.LogError("Downloaded WebGL asset bundle is null.", ("bundleName", webGLCurrentBundleName));
-            FinishWebGLPreload(false);
-            return;
-        }
-
-        RegisterLoadedAssetBundle(webGLCurrentBundleName, bundle);
-        webGLBundleRequest.Dispose();
-        webGLBundleRequest = null;
-        webGLCurrentBundleName = string.Empty;
-        StartNextWebGLBundleRequest();
-    }
-
-    private void FinishWebGLPreload(bool success)
-    {
-        webGLPreloadState = success ? WebGLPreloadState.Done : WebGLPreloadState.Failed;
-        isReady = success;
-        isFailed = !success;
-
-        webGLManifestRequest?.Dispose();
-        webGLManifestRequest = null;
-        webGLBundleRequest?.Dispose();
-        webGLBundleRequest = null;
-
-        if (success) {
-            XNLogger.LogInfo("Preload WebGL asset bundles success.", ("bundleCount", bundleDict.Count.ToString()));
-        }
-    }
-#endif
 
     public GameObject LoadGamePrefabWithConfigId(string configId)
     {
@@ -402,10 +360,10 @@ public class ResourceManager : ModuleBase
 
     public override void OnDestroy()
     {
-#if UNITY_WEBGL && !UNITY_EDITOR
-        webGLManifestRequest?.Dispose();
-        webGLBundleRequest?.Dispose();
-        webGLPendingBundleNames.Clear();
+#if !UNITY_EDITOR
+        manifestRequest?.Dispose();
+        bundleRequest?.Dispose();
+        pendingBundleNames.Clear();
 #endif
         HashSet<AssetBundle> unloadedBundles = new HashSet<AssetBundle>();
         foreach (AssetBundle bundle in bundleDict.Values) {

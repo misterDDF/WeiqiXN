@@ -23,6 +23,7 @@ public static class BuildConfig
 
     public const string BUILD_PATH_ROOT = "../Build";
     public readonly static string BUILD_PATH_WINDOWS = $"{BUILD_PATH_ROOT}/PC/WeiqiXN.exe";
+    public readonly static string BUILD_PATH_ANDROID = $"{BUILD_PATH_ROOT}/Android/WeiqiXN.apk";
     public const string BUILD_PATH_WEBGL = "../WebGL";
     public const string ASSET_BUNDLE_MANIFEST_FILE_NAME = "bundle_manifest.json";
 }

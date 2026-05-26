@@ -57,6 +57,21 @@ KataGo/engines/win-x64/native-opencl/katago_bridge.dll
 
 The current bridge wraps KataGo's analysis command in-process and redirects standard input/output internally. Treat it as one engine instance per process. The Windows Unity native backend tries `native-opencl` first when configured, then falls back to `native-eigen` when CPU fallback is enabled. After the Windows DLL path is validated in Unity, the same CMake entry should be extended for Android `arm64-v8a` `.so` output.
 
+Build the Android `arm64-v8a` `.so` and copy it into Unity's Android plugin path:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Native/KataGoBridge/tools/build_android_bridge.ps1
+```
+
+Default output:
+
+```text
+Native/KataGoBridge/build-android-arm64-v8a/out/libkatago_bridge.so
+UnityProject/Assets/Plugins/Android/libs/arm64-v8a/libkatago_bridge.so
+```
+
+The script expects Unity Android Build Support or an Android NDK available through `ANDROID_NDK_HOME`, `ANDROID_NDK_ROOT`, `ANDROID_SDK_ROOT`, or `ANDROID_HOME`. Pass `-NdkRoot` or `-CMakeExe` when those tools are installed outside the default locations.
+
 Smoke test the runtime copy:
 
 ```powershell

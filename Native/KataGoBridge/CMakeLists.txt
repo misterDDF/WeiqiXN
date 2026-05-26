@@ -48,6 +48,7 @@ set(USE_BACKEND "${KATAGO_BRIDGE_BACKEND}" CACHE STRING "KataGo neural net backe
 set(NO_GIT_REVISION 1 CACHE BOOL "Do not embed KataGo git revision" FORCE)
 set(BUILD_DISTRIBUTED 0 CACHE BOOL "Do not build distributed training support" FORCE)
 
+find_package(Threads REQUIRED)
 add_subdirectory("${KATAGO_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/katago-upstream")
 set_target_properties(katago PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
@@ -105,6 +106,11 @@ endif()
 
 if(MSVC)
   target_compile_definitions(katago_bridge PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+endif()
+
+if(ANDROID)
+  target_compile_definitions(katago_bridge PRIVATE BYTE_ORDER=1234 LITTLE_ENDIAN=1234 BIG_ENDIAN=4321)
+  target_link_libraries(katago_bridge PRIVATE log)
 endif()
 
 set_target_properties(katago_bridge PROPERTIES

@@ -22,9 +22,11 @@ public class AssetBundleGenerator
     private const string KataGoNativeOpenClEngineName = "native-opencl";
     private const string KataGoNativeCpuEngineName = "native-eigen";
     private const string KataGoNativeBridgeDllName = "katago_bridge.dll";
+    private const string KataGoAndroidBridgeSoName = "libkatago_bridge.so";
     private const string KataGoModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
     private const string KataGoAnalysisConfigFileName = "analysis_example.cfg";
     private const string KataGoNoWriteAnalysisConfigFileName = "analysis_nowrite.cfg";
+    private const string KataGoAndroidPackagedModelSuffix = ".bytes";
 
     [MenuItem(CustomEditorMenuPaths.Build + "/打PC包")]
     public static void BuildWindows()
@@ -50,6 +52,40 @@ public class AssetBundleGenerator
         CopyKataGoRuntimeToWindowsBuild(kataGoSourceRoot, kataGoConfig);
         CopyGameConfigToWindowsBuild();
         Debug.Log($"Windows Player打包完成！输出路径：{buildOutputPath}");
+    }
+
+    [MenuItem(CustomEditorMenuPaths.Build + "/Build Android APK")]
+    public static void BuildAndroid()
+    {
+        AndroidBuildToolchainConfigurator.ConfigureForUnityEmbeddedTools();
+        GameConfig.Reload();
+        GameConfig.KataGoConfig kataGoConfig = GameConfig.Current.kataGo;
+        BuildAssetBundlesForTarget(BuildTarget.Android);
+        string kataGoSourceRoot = ResolveKataGoSourceRoot();
+        ValidateAndroidKataGoRuntimeSource(kataGoSourceRoot, kataGoConfig);
+        CopyAndroidKataGoRuntimeToStreamingAssets(kataGoSourceRoot, kataGoConfig);
+
+        PrepareBuildRootDirectory(Path.GetDirectoryName(BuildConfig.BUILD_PATH_ANDROID));
+        PlayerSettings.SetScriptingBackend(BuildTargetGroup.Android, ScriptingImplementation.IL2CPP);
+        PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+        PlayerSettings.SetIl2CppCompilerConfiguration(BuildTargetGroup.Android, Il2CppCompilerConfiguration.Master);
+        PlayerSettings.stripEngineCode = false;
+        PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
+        PlayerSettings.allowedAutorotateToPortrait = true;
+        PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
+        PlayerSettings.allowedAutorotateToLandscapeLeft = false;
+        PlayerSettings.allowedAutorotateToLandscapeRight = false;
+        PlayerSettings.SetStackTraceLogType(LogType.Log, StackTraceLogType.ScriptOnly);
+        EditorUserBuildSettings.buildAppBundle = false;
+
+        string buildOutputPath = Path.GetFullPath(BuildConfig.BUILD_PATH_ANDROID);
+        var buildOptions = BuildOptions.CompressWithLz4HC | BuildOptions.Development;
+        BuildReport report = BuildPipeline.BuildPlayer(PlayerScenes, buildOutputPath, BuildTarget.Android, buildOptions);
+        if (report.summary.result != BuildResult.Succeeded) {
+            throw new Exception($"Build Android player failed, outputPath: {buildOutputPath}, result: {report.summary.result}.");
+        }
+
+        Debug.Log($"Android Player build complete. outputPath: {buildOutputPath}");
     }
 
     [MenuItem(CustomEditorMenuPaths.Build + "/打WebGL包")]
@@ -549,6 +585,73 @@ public class AssetBundleGenerator
                 "Windows native KataGo build requires every configured native candidate bridge/config and model under the repository KataGo directory. Missing paths: "
                 + string.Join(", ", missingPaths));
         }
+    }
+
+    private static void ValidateAndroidKataGoRuntimeSource(string kataGoRoot, GameConfig.KataGoConfig kataGoConfig)
+    {
+        KataGoBackendMode backendMode = kataGoConfig.ResolveAndroidPlayerBackend();
+        if (backendMode == KataGoBackendMode.Disabled) {
+            Debug.LogWarning("KataGo Android player backend is disabled by game-config.json.");
+            return;
+        }
+
+        if (backendMode != KataGoBackendMode.Native) {
+            throw new NotSupportedException($"Android KataGo backend is unsupported: {backendMode}. Only native is supported.");
+        }
+
+        string abi = string.IsNullOrWhiteSpace(kataGoConfig.androidAbi) ? "arm64-v8a" : kataGoConfig.androidAbi;
+        string pluginPath = Path.Combine(Application.dataPath, "Plugins", "Android", "libs", abi, KataGoAndroidBridgeSoName);
+        string configPath = Path.Combine(kataGoRoot, "engines", "win-x64", KataGoNativeCpuEngineName, KataGoNoWriteAnalysisConfigFileName);
+        string modelPath = Path.Combine(kataGoRoot, "models", ResolveKataGoModelFileName(kataGoConfig));
+
+        List<string> missingPaths = new List<string>();
+        if (!File.Exists(pluginPath)) {
+            missingPaths.Add(pluginPath);
+        }
+
+        if (!File.Exists(configPath)) {
+            missingPaths.Add(configPath);
+        }
+
+        if (!File.Exists(modelPath)) {
+            missingPaths.Add(modelPath);
+        }
+
+        if (missingPaths.Count > 0) {
+            throw new FileNotFoundException(
+                "Android native KataGo build requires the arm64 bridge plugin, no-write analysis config, and model. Missing paths: "
+                + string.Join(", ", missingPaths));
+        }
+
+        Debug.Log($"Android KataGo runtime source checked. abi: {abi}, bridge: {pluginPath}");
+    }
+
+    private static void CopyAndroidKataGoRuntimeToStreamingAssets(string kataGoSourceRoot, GameConfig.KataGoConfig kataGoConfig)
+    {
+        KataGoBackendMode backendMode = kataGoConfig.ResolveAndroidPlayerBackend();
+        if (backendMode == KataGoBackendMode.Disabled) {
+            Debug.LogWarning("KataGo Android player backend is disabled, skip copying KataGo runtime.");
+            return;
+        }
+
+        string modelFileName = ResolveKataGoModelFileName(kataGoConfig);
+        string sourceConfigPath = Path.Combine(kataGoSourceRoot, "engines", "win-x64", KataGoNativeCpuEngineName, KataGoNoWriteAnalysisConfigFileName);
+        string sourceModelPath = Path.Combine(kataGoSourceRoot, "models", modelFileName);
+        string targetRoot = Path.Combine(Application.streamingAssetsPath, KataGoRuntimeEnvironment.DirectoryName);
+        string targetEngineRoot = Path.Combine(targetRoot, "engines", "android", kataGoConfig.androidAbi);
+        string targetModelRoot = Path.Combine(targetRoot, "models");
+
+        if (Directory.Exists(targetRoot)) {
+            Directory.Delete(targetRoot, true);
+        }
+
+        Directory.CreateDirectory(targetEngineRoot);
+        Directory.CreateDirectory(targetModelRoot);
+        File.Copy(sourceConfigPath, Path.Combine(targetEngineRoot, KataGoNoWriteAnalysisConfigFileName), true);
+        // Avoid Android aapt unpacking *.gz assets and changing the APK entry name.
+        File.Copy(sourceModelPath, Path.Combine(targetModelRoot, modelFileName + KataGoAndroidPackagedModelSuffix), true);
+        AssetDatabase.Refresh();
+        Debug.Log($"Android KataGo runtime copied to StreamingAssets. root: {targetRoot}");
     }
 
     private static NativeRuntimeCandidate[] ResolveWindowsNativeRuntimeCandidates(GameConfig.KataGoConfig kataGoConfig)

@@ -164,6 +164,16 @@
     "text": "正在初始化 GPU KataGo 引擎并执行 OpenCL 调优，完成后会继续验证 9路、13路、19路棋盘。",
     "remark": "OpenCL 调优进度详情"
   },
+  "katago_android_native_warmup": {
+    "id": "katago_android_native_warmup",
+    "text": "正在预热 Android 本地 KataGo 引擎。",
+    "remark": "Android native/eigen 预热详情"
+  },
+  "katago_android_native_verify_board": {
+    "id": "katago_android_native_verify_board",
+    "text": "Android 本地 KataGo 引擎正在验证 {0}路棋盘。",
+    "remark": "Android native/eigen 棋盘验证，0=棋盘路数"
+  },
   "katago_no_write_cpu_warmup": {
     "id": "katago_no_write_cpu_warmup",
     "text": "游戏目录不可写，已跳过 GPU 预热，正在预热 CPU KataGo 引擎。",
@@ -188,6 +198,46 @@
     "id": "katago_wait_start_status",
     "text": "AI模型等待启动",
     "remark": "KataGo 等待启动状态"
+  },
+  "katago_runtime_prepare_status": {
+    "id": "katago_runtime_prepare_status",
+    "text": "AI运行文件准备中...",
+    "remark": "Android KataGo 运行文件准备状态"
+  },
+  "katago_runtime_prepare_checking": {
+    "id": "katago_runtime_prepare_checking",
+    "text": "正在检查 AI 运行文件。",
+    "remark": "Android KataGo 运行文件检查详情"
+  },
+  "katago_runtime_prepare_cached": {
+    "id": "katago_runtime_prepare_cached",
+    "text": "AI 运行文件已就绪，正在快速校验。",
+    "remark": "Android KataGo 运行文件缓存命中详情"
+  },
+  "katago_runtime_prepare_cached_done": {
+    "id": "katago_runtime_prepare_cached_done",
+    "text": "AI 运行文件检查完成。",
+    "remark": "Android KataGo 运行文件缓存校验完成详情"
+  },
+  "katago_runtime_prepare_config": {
+    "id": "katago_runtime_prepare_config",
+    "text": "正在准备 AI 配置文件。",
+    "remark": "Android KataGo 配置文件复制详情"
+  },
+  "katago_runtime_prepare_model_first": {
+    "id": "katago_runtime_prepare_model_first",
+    "text": "首次启动正在复制 AI 模型文件，请稍候。",
+    "remark": "Android KataGo 首次模型复制详情"
+  },
+  "katago_runtime_prepare_model_progress": {
+    "id": "katago_runtime_prepare_model_progress",
+    "text": "首次启动正在复制 AI 模型文件，已完成 {0}。",
+    "remark": "Android KataGo 首次模型复制进度，0=已复制大小"
+  },
+  "katago_runtime_prepare_done": {
+    "id": "katago_runtime_prepare_done",
+    "text": "AI 运行文件准备完成。",
+    "remark": "Android KataGo 运行文件准备完成详情"
   },
   "lan_room_choose_action": {
     "id": "lan_room_choose_action",

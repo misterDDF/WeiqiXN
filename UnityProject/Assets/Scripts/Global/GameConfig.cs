@@ -49,7 +49,9 @@ public sealed class GameConfig
     {
         string configPath = ResolveConfigPath();
         if (!File.Exists(configPath)) {
+#if !UNITY_ANDROID || UNITY_EDITOR
             Debug.LogWarning($"Game config not found, using defaults. path: {configPath}");
+#endif
             return new GameConfig(KataGoConfig.Default);
         }
 
@@ -72,6 +74,8 @@ public sealed class GameConfig
 #elif UNITY_STANDALONE_WIN
         DirectoryInfo dataDirectory = Directory.GetParent(Application.dataPath);
         return dataDirectory?.FullName ?? Directory.GetCurrentDirectory();
+#elif UNITY_ANDROID
+        return Application.persistentDataPath;
 #else
         return Directory.GetCurrentDirectory();
 #endif
@@ -183,6 +187,11 @@ public sealed class GameConfig
         public KataGoBackendMode ResolveWindowsPlayerBackend()
         {
             return ParseBackendMode(windowsPlayerBackend);
+        }
+
+        public KataGoBackendMode ResolveAndroidPlayerBackend()
+        {
+            return ParseBackendMode(androidPlayerBackend);
         }
 
         private static string NormalizeBackend(string value, string fallback)
