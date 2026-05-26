@@ -14,6 +14,7 @@ public class DuelScene : SceneBase
     public override void OnSceneLoaded()
     {
         base.OnSceneLoaded();
+        Global.RequestKeepAwake(Global.KeepAwakeReason.Duel);
 
         foreach (var rootObj in unityScene.GetRootGameObjects()) {
             DuelSceneFixedRef fixedRef = rootObj.GetComponent<DuelSceneFixedRef>();
@@ -38,5 +39,11 @@ public class DuelScene : SceneBase
         AddSystem(new DuelReplayArchiveSystem(this));
 
         Global.Instance.uiManager.ShowPage<DuelPage>();
+    }
+
+    public override void OnSceneExit()
+    {
+        Global.ReleaseKeepAwake(Global.KeepAwakeReason.Duel);
+        base.OnSceneExit();
     }
 }

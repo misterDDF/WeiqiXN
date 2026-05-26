@@ -7,6 +7,7 @@ using XNLogger = XNClient.Logger.XNLogger;
 public class ClientMain
 {
     private static ClientMain _instance;
+    private static ClientLifecycleProxy lifecycleProxy;
     public static ClientMain Instance
     {
         get
@@ -21,6 +22,7 @@ public class ClientMain
     private void Start()
     {
         XNLogger.Instance.Init();
+        EnsureLifecycleProxy();
         Global.Instance.Start();
     }
 
@@ -44,6 +46,10 @@ public class ClientMain
         KataGoBootstrap.Stop();
         Global.Instance.Destroy();
         XNLogger.Instance.Destroy();
+        if (lifecycleProxy != null) {
+            GameObject.Destroy(lifecycleProxy.gameObject);
+            lifecycleProxy = null;
+        }
         _instance = null;
     }
 
@@ -73,8 +79,10 @@ public class ClientMain
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void OnSubsystemRegistration()
     {
+        Application.quitting -= ClientMain.Instance.Destroy;
         Application.quitting += ClientMain.Instance.Destroy;
 #if UNITY_EDITOR
+        EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
         EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
 #endif
         ClientMain.Instance.InitPlayerLoop();
@@ -84,6 +92,17 @@ public class ClientMain
     private static void OnBeforeFirstSceneLoad()
     {
         ClientMain.Instance.Start();
+    }
+
+    private static void EnsureLifecycleProxy()
+    {
+        if (lifecycleProxy != null) {
+            return;
+        }
+
+        GameObject lifecycleProxyGO = new GameObject("ClientLifecycleProxy");
+        GameObject.DontDestroyOnLoad(lifecycleProxyGO);
+        lifecycleProxy = lifecycleProxyGO.AddComponent<ClientLifecycleProxy>();
     }
 
     private struct CustomUpdate

@@ -27,12 +27,14 @@ public static class KataGoBootstrap
     private const int CpuSmokeTestTimeoutMs = 45000;
     private const int SmokeTestProgressPollMs = 250;
     private const int OpenClWarmupEstimatedMs = 55000;
+    private const int AndroidOpenClWarmupEstimatedMs = 120000;
     private const int CpuWarmupEstimatedMs = 10000;
     private const int SmokeTestMaxVisits = 1;
     private const int AnalyzeTimeoutMs = 45000;
     private const bool HumanSlProfileEnabled = false;
     private static readonly int[] SmokeTestBoardSizes = { 9, 13, 19 };
     private static readonly float[] SmokeTestBoardProgressWeights = { 0.90f, 0.05f, 0.05f };
+    private static readonly float[] AndroidOpenClSmokeTestProgressWeights = { 1f, 0f, 0f };
 
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
     private static Win32KataGoProcess process;
@@ -579,9 +581,9 @@ public static class KataGoBootstrap
             }
 
             KataGoPaths paths = candidates[i];
-            float candidateStartProgress = GetCandidateStartProgress(i, candidates.Length);
-            float candidateEndProgress = GetCandidateEndProgress(i, candidates.Length);
-            float candidateFailureProgress = GetCandidateFailureProgress(i, candidates.Length);
+            float candidateStartProgress = GetNativeCandidateStartProgress(paths, i, candidates.Length);
+            float candidateEndProgress = GetNativeCandidateEndProgress(paths, i, candidates.Length);
+            float candidateFailureProgress = GetNativeCandidateFailureProgress(paths, i, candidates.Length);
             SetStartupStatus(
                 MessageText.Get("katago_warmup_status"),
                 BuildCandidateDetail(paths, i > 0),
@@ -663,9 +665,9 @@ public static class KataGoBootstrap
             }
 
             KataGoPaths paths = candidates[i];
-            float candidateStartProgress = GetCandidateStartProgress(i, candidates.Length);
-            float candidateEndProgress = GetCandidateEndProgress(i, candidates.Length);
-            float candidateFailureProgress = GetCandidateFailureProgress(i, candidates.Length);
+            float candidateStartProgress = GetNativeCandidateStartProgress(paths, i, candidates.Length);
+            float candidateEndProgress = GetNativeCandidateEndProgress(paths, i, candidates.Length);
+            float candidateFailureProgress = GetNativeCandidateFailureProgress(paths, i, candidates.Length);
             SetStartupStatus(
                 MessageText.Get("katago_warmup_status"),
                 BuildCandidateDetail(paths, i > 0),
@@ -852,8 +854,8 @@ public static class KataGoBootstrap
         for (int i = 0; i < SmokeTestBoardSizes.Length; i++) {
             cancellationToken.ThrowIfCancellationRequested();
             int boardSize = SmokeTestBoardSizes[i];
-            float boardProgressStart = Mathf.Lerp(progressStart, progressEnd, GetSmokeTestProgressWeightBefore(i));
-            float boardProgressEnd = Mathf.Lerp(progressStart, progressEnd, GetSmokeTestProgressWeightBefore(i + 1));
+            float boardProgressStart = Mathf.Lerp(progressStart, progressEnd, GetSmokeTestProgressWeightBefore(paths, i));
+            float boardProgressEnd = Mathf.Lerp(progressStart, progressEnd, GetSmokeTestProgressWeightBefore(paths, i + 1));
             RunNativeBoardSmokeTest(paths, boardSize, i, boardProgressStart, boardProgressEnd, cancellationToken);
         }
 
@@ -1014,8 +1016,8 @@ public static class KataGoBootstrap
     {
         for (int i = 0; i < SmokeTestBoardSizes.Length; i++) {
             int boardSize = SmokeTestBoardSizes[i];
-            float boardProgressStart = Mathf.Lerp(progressStart, progressEnd, GetSmokeTestProgressWeightBefore(i));
-            float boardProgressEnd = Mathf.Lerp(progressStart, progressEnd, GetSmokeTestProgressWeightBefore(i + 1));
+            float boardProgressStart = Mathf.Lerp(progressStart, progressEnd, GetSmokeTestProgressWeightBefore(paths, i));
+            float boardProgressEnd = Mathf.Lerp(progressStart, progressEnd, GetSmokeTestProgressWeightBefore(paths, i + 1));
             RunBoardSmokeTest(paths, boardSize, i, boardProgressStart, boardProgressEnd, cancellationToken);
         }
 
@@ -1245,26 +1247,96 @@ public static class KataGoBootstrap
     }
 #endif
 
-    private static float GetSmokeTestProgressWeightBefore(int boardIndex)
+    private static float GetSmokeTestProgressWeightBefore(KataGoPaths paths, int boardIndex)
     {
         float weight = 0f;
-        int safeCount = Math.Min(boardIndex, SmokeTestBoardProgressWeights.Length);
+        float[] weights = GetSmokeTestProgressWeights(paths);
+        int safeCount = Math.Min(boardIndex, weights.Length);
         for (int i = 0; i < safeCount; i++) {
-            weight += SmokeTestBoardProgressWeights[i];
+            weight += weights[i];
         }
 
         return Mathf.Clamp01(weight);
     }
 
+    private static float GetSmokeTestProgressWeight(KataGoPaths paths, int boardIndex)
+    {
+        float[] weights = GetSmokeTestProgressWeights(paths);
+        return boardIndex >= 0 && boardIndex < weights.Length
+            ? weights[boardIndex]
+            : 1f / Mathf.Max(1f, SmokeTestBoardSizes.Length);
+    }
+
+    private static float[] GetSmokeTestProgressWeights(KataGoPaths paths)
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (IsAndroidNativeEngine(paths) && IsOpenClEngine(paths)) {
+            return AndroidOpenClSmokeTestProgressWeights;
+        }
+#endif
+
+        return SmokeTestBoardProgressWeights;
+    }
+
     private static int GetEstimatedBoardWarmupMs(KataGoPaths paths, int boardIndex)
     {
-        int totalEstimatedMs = IsOpenClEngine(paths)
-            ? OpenClWarmupEstimatedMs
-            : CpuWarmupEstimatedMs;
-        float weight = boardIndex >= 0 && boardIndex < SmokeTestBoardProgressWeights.Length
-            ? SmokeTestBoardProgressWeights[boardIndex]
-            : 1f / Mathf.Max(1f, SmokeTestBoardSizes.Length);
+        int totalEstimatedMs = GetEstimatedWarmupMs(paths);
+        float weight = GetSmokeTestProgressWeight(paths, boardIndex);
         return Math.Max(1, Mathf.RoundToInt(totalEstimatedMs * weight));
+    }
+
+    private static int GetEstimatedWarmupMs(KataGoPaths paths)
+    {
+        if (!IsOpenClEngine(paths)) {
+            return CpuWarmupEstimatedMs;
+        }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (IsAndroidNativeEngine(paths)) {
+            return AndroidOpenClWarmupEstimatedMs;
+        }
+#endif
+
+        return OpenClWarmupEstimatedMs;
+    }
+
+    private static float GetNativeCandidateStartProgress(KataGoPaths paths, int candidateIndex, int candidateCount)
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (IsAndroidNativeEngine(paths)) {
+            if (candidateIndex > 0) {
+                return 0.98f;
+            }
+
+            if (IsOpenClEngine(paths)) {
+                return 0f;
+            }
+        }
+#endif
+
+        return GetCandidateStartProgress(candidateIndex, candidateCount);
+    }
+
+    private static float GetNativeCandidateEndProgress(KataGoPaths paths, int candidateIndex, int candidateCount)
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (IsAndroidNativeEngine(paths)) {
+            return 1f;
+        }
+#endif
+
+        return GetCandidateEndProgress(candidateIndex, candidateCount);
+    }
+
+    private static float GetNativeCandidateFailureProgress(KataGoPaths paths, int candidateIndex, int candidateCount)
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (IsAndroidNativeEngine(paths) && candidateIndex == 0 && candidateCount > 1) {
+            return 0.98f;
+        }
+#endif
+
+        return GetCandidateFailureProgress(candidateIndex, candidateCount);
     }
 
     private static float GetCandidateStartProgress(int candidateIndex, int candidateCount)

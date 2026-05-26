@@ -48,6 +48,7 @@ public class SceneBase : SavableObj, ITimerAttacher, IEventReceiver, IResourceLo
     public virtual void OnSceneLoaded()
     {
         Global.Instance.uiManager.TryClosePage<LoadingPage>();
+        Global.ReleaseKeepAwake(Global.KeepAwakeReason.Startup);
     }
 
     protected virtual void OnUpdate()

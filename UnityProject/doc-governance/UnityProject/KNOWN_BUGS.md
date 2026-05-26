@@ -10,6 +10,16 @@
 
 ## 未移除 Bug
 
+### Android 首次启动 Loading 进度起点过高且完成跳变
+
+- 状态：已修正实现，待 Android 实机复测后移除
+- 记录日期：2026-05-26
+- 涉及范围：Android 启动 Loading、KataGo 运行文件准备、KataGo native OpenCL 预热进度插值
+- 已观察行为：Android 初次启动 Loading 曾直接从约 58% 开始，随后缓慢插值到约 85%，OpenCL tuning 完成后又直接跳到 100%；修正后实测调优阶段仍会直接从约 20% 开始，OpenCL tuning 约 120 秒完成。
+- 初步判断：Android 启动流程已改为运行文件准备阶段 0%-12%、KataGo 预热阶段 12%-98%、初始主菜单场景加载 98%-100%，但 Android native warmup 实际仍使用通用候选起点，导致 OpenCL 调优开始时可见进度约为 20%；Android OpenCL 插值预估时间 200 秒长于本次设备实测 120 秒。
+- 期望行为：Android 启动 Loading 应从 0% 开始按启动阶段连续推进到 100%；Android OpenCL 首次初始化/调优阶段从 Android warmup 段起点开始，并按约 120 秒预估插值。
+- 移除条件：完成 Unity 脚本编译，并在 Android 设备上复测首次启动进度从低百分比连续推进、OpenCL 调优阶段不再直接从约 20% 开始后移除此条记录。
+
 ### Android OpenCL 固定安全 tuning 后 ownership 明显慢且可能闪退
 
 - 状态：定位中

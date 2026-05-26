@@ -34,7 +34,7 @@ P0-P2 架构迭代已完成阶段收口：规则结果、手顺/ownership/保存
 
 - 非法落子采用合法预览口径：不能落的位置不显示预览棋子；`ChessBoardSystem` 保留拒绝事件边界用于诊断或后续联机结果。
 - 鼠标输入在 `DuelPage` 中直接读取，标注了 `TODO input manager`。
-- `LoadingPage` 已显示 KataGo 启动预热和 Unity 场景异步加载进度；进度仍包含 KataGo 单个 smoke query 内部的时间插值，不是 KataGo 原生细粒度调优进度。
+- `LoadingPage` 已显示 KataGo 启动预热和 Unity 场景异步加载进度；Android 首启 Loading 将运行文件准备、KataGo native 预热和主菜单场景加载映射为 0%-100% 的连续进度。进度仍包含 KataGo 单个 smoke query 内部的时间插值，不是 KataGo 原生细粒度调优进度。
 - 对局结束规则仍不完整：已有虚手、请求数子、连续虚手终局、认输和基础终局结果 UI 原型，但仍没有死子确认和线上裁定模型。
 - 保存已有触发入口和保存结果反馈；读档/继续对局暂不作为正式功能。
 - 事件分发、FSM 参数/状态转移和 AI 细节诊断日志已改为 `LoggerConfig` 开关控制，默认不再输出高频常规事件。

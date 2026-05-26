@@ -5,6 +5,22 @@ using XNClient.Logger;
 public class Global
 {
     private const float MinKataGoWarmupLoadingSeconds = 1.5f;
+#if UNITY_ANDROID && !UNITY_EDITOR
+    private const float AndroidRuntimePrepareProgressEnd = 0.12f;
+    private const float AndroidWarmupProgressStart = AndroidRuntimePrepareProgressEnd;
+    private const float AndroidStartupSceneLoadProgressStart = 0.98f;
+    private static readonly HashSet<KeepAwakeReason> androidKeepAwakeReasons = new HashSet<KeepAwakeReason>();
+    private static int androidPreviousSleepTimeout = SleepTimeout.SystemSetting;
+    private static bool androidKeepAwakeApplied;
+    private static bool androidApplicationHasFocus = true;
+    private static bool androidApplicationIsPaused;
+#endif
+
+    public enum KeepAwakeReason
+    {
+        Startup,
+        Duel,
+    }
 
     private enum StartupState
     {
@@ -100,12 +116,13 @@ public class Global
         }
 
         InitUiAndSceneManagers();
+        RequestKeepAwake(KeepAwakeReason.Startup);
 
 #if UNITY_ANDROID && !UNITY_EDITOR
         LoadingPage.SetProgress(
             MessageText.Get("katago_runtime_prepare_status"),
             MessageText.Get("katago_runtime_prepare_checking"),
-            0.2f);
+            0f);
         uiManager.ShowPage<LoadingPage>();
         kataGoRuntimePreparer = new KataGoRuntimePreparer();
         kataGoRuntimePreparer.Start();
@@ -147,7 +164,7 @@ public class Global
         LoadingPage.SetProgress(
             kataGoRuntimePreparer.StatusText,
             kataGoRuntimePreparer.DetailText,
-            Mathf.Lerp(0.2f, 0.55f, kataGoRuntimePreparer.Progress));
+            ResolveAndroidRuntimePrepareDisplayProgress(kataGoRuntimePreparer.Progress));
 
         if (!kataGoRuntimePreparer.IsDone) {
             return;
@@ -172,7 +189,7 @@ public class Global
         LoadingPage.SetProgress(
             MessageText.Get("katago_warmup_status"),
             MessageText.Get("katago_starting_detail"),
-            ResolveKataGoWarmupDisplayProgress(0.05f));
+            ResolveKataGoWarmupDisplayProgress(0f));
         if (!LoadingPage.hasActivePage) {
             uiManager.ShowPage<LoadingPage>();
         }
@@ -216,17 +233,20 @@ public class Global
         LoadingPage.SetProgress(
             MessageText.Get("katago_failed_status"),
             string.IsNullOrEmpty(detail) ? MessageText.Get("katago_all_engines_unavailable") : detail,
-            0.9f);
+            ResolveKataGoWarmupDisplayProgress(1f));
         XNLogger.LogError("Global startup continues after Android KataGo runtime prepare failed.", ("detail", detail ?? string.Empty));
         EnterMainMenuAfterStartup();
     }
 
     private void EnterMainMenuAfterStartup()
     {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        LoadingPage.SetProgressRange(AndroidStartupSceneLoadProgressStart, 1f);
+#endif
         LoadingPage.SetProgress(
             MessageText.Get("scene_loading_status"),
             MessageText.Get("scene_enter_main_menu"),
-            0.95f);
+            0f);
         sceneManager.EnterMainScene(SceneConfig.MAIN_MENU_SCENE_TYPE_ID, SceneCreateParams.Default);
         User.Instance.Init();
         startupState = StartupState.Running;
@@ -235,11 +255,103 @@ public class Global
     private static float ResolveKataGoWarmupDisplayProgress(float kataGoProgress)
     {
 #if UNITY_ANDROID && !UNITY_EDITOR
-        return Mathf.Lerp(0.55f, 0.9f, Mathf.Clamp01(kataGoProgress));
+        return Mathf.Lerp(AndroidWarmupProgressStart, AndroidStartupSceneLoadProgressStart, Mathf.Clamp01(kataGoProgress));
 #else
         return kataGoProgress;
 #endif
     }
+
+    private static float ResolveAndroidRuntimePrepareDisplayProgress(float prepareProgress)
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        return Mathf.Lerp(0f, AndroidRuntimePrepareProgressEnd, Mathf.Clamp01(prepareProgress));
+#else
+        return prepareProgress;
+#endif
+    }
+
+    public static void RequestKeepAwake(KeepAwakeReason reason)
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (!androidKeepAwakeReasons.Add(reason)) {
+            return;
+        }
+
+        ApplyAndroidKeepAwakeState();
+        XNLogger.LogInfo("Android keep-awake reason added.", ("reason", reason.ToString()));
+#endif
+    }
+
+    public static void ReleaseKeepAwake(KeepAwakeReason reason)
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        if (!androidKeepAwakeReasons.Remove(reason)) {
+            return;
+        }
+
+        ApplyAndroidKeepAwakeState();
+        XNLogger.LogInfo("Android keep-awake reason removed.", ("reason", reason.ToString()));
+#endif
+    }
+
+    public static void OnApplicationFocusChanged(bool hasFocus)
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        androidApplicationHasFocus = hasFocus;
+        ApplyAndroidKeepAwakeState();
+#endif
+    }
+
+    public static void OnApplicationPauseChanged(bool isPaused)
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        androidApplicationIsPaused = isPaused;
+        ApplyAndroidKeepAwakeState();
+#endif
+    }
+
+    public static void ReleaseAllKeepAwake()
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        androidKeepAwakeReasons.Clear();
+        ApplyAndroidKeepAwakeState();
+#endif
+    }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+    private static void ApplyAndroidKeepAwakeState()
+    {
+        bool shouldKeepAwake = androidApplicationHasFocus && !androidApplicationIsPaused && androidKeepAwakeReasons.Count > 0;
+        if (shouldKeepAwake) {
+            if (!androidKeepAwakeApplied) {
+                androidPreviousSleepTimeout = Screen.sleepTimeout;
+                androidKeepAwakeApplied = true;
+            }
+
+            if (Screen.sleepTimeout != SleepTimeout.NeverSleep) {
+                Screen.sleepTimeout = SleepTimeout.NeverSleep;
+                XNLogger.LogInfo(
+                    "Android keep-awake enabled.",
+                    ("reasonCount", androidKeepAwakeReasons.Count.ToString()),
+                    ("previousSleepTimeout", androidPreviousSleepTimeout.ToString()));
+            }
+            return;
+        }
+
+        if (!androidKeepAwakeApplied) {
+            return;
+        }
+
+        Screen.sleepTimeout = androidPreviousSleepTimeout;
+        androidKeepAwakeApplied = false;
+        XNLogger.LogInfo(
+            "Android keep-awake restored.",
+            ("restoredSleepTimeout", androidPreviousSleepTimeout.ToString()),
+            ("reasonCount", androidKeepAwakeReasons.Count.ToString()),
+            ("hasFocus", androidApplicationHasFocus.ToString()),
+            ("isPaused", androidApplicationIsPaused.ToString()));
+    }
+#endif
 
     public void Update()
     {
@@ -272,6 +384,7 @@ public class Global
         moduleList.Clear();
         kataGoRuntimePreparer?.Dispose();
         kataGoRuntimePreparer = null;
+        ReleaseAllKeepAwake();
         User.Instance.Destroy();
         startupState = StartupState.None;
         _instance = null;

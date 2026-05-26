@@ -5,6 +5,8 @@ public class LoadingPage : UIPageWithBinder<LoadingPageUI>
 {
     private static LoadingPage activePage;
     private static LoadingProgressData currentProgress = new LoadingProgressData(MessageText.Get("loading_default"), string.Empty, 0f);
+    private static float progressRangeStart;
+    private static float progressRangeEnd = 1f;
 
     public override string pageName => UIPage.GetPageName<LoadingPage>();
 
@@ -12,8 +14,23 @@ public class LoadingPage : UIPageWithBinder<LoadingPageUI>
 
     public static void SetProgress(string statusText, string detailText, float progress)
     {
-        currentProgress = new LoadingProgressData(statusText, detailText, Mathf.Clamp01(progress));
+        currentProgress = new LoadingProgressData(statusText, detailText, ResolveDisplayProgress(progress));
         activePage?.RefreshProgress();
+    }
+
+    public static void SetProgressRange(float start, float end)
+    {
+        progressRangeStart = Mathf.Clamp01(start);
+        progressRangeEnd = Mathf.Clamp01(end);
+        if (progressRangeEnd < progressRangeStart) {
+            progressRangeEnd = progressRangeStart;
+        }
+    }
+
+    public static void ResetProgressRange()
+    {
+        progressRangeStart = 0f;
+        progressRangeEnd = 1f;
     }
 
     protected override void OnLoaded()
@@ -38,6 +55,7 @@ public class LoadingPage : UIPageWithBinder<LoadingPageUI>
             activePage = null;
         }
 
+        ResetProgressRange();
         base.OnClose();
     }
 
@@ -61,6 +79,11 @@ public class LoadingPage : UIPageWithBinder<LoadingPageUI>
         if (text != null) {
             text.text = value ?? string.Empty;
         }
+    }
+
+    private static float ResolveDisplayProgress(float progress)
+    {
+        return Mathf.Lerp(progressRangeStart, progressRangeEnd, Mathf.Clamp01(progress));
     }
 
     private struct LoadingProgressData
