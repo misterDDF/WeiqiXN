@@ -10,6 +10,16 @@
 
 ## 未移除 Bug
 
+### Android 房主广播地址可能导致 LAN 房间可发现但无法加入
+
+- 状态：修复中，待设备复测后确认
+- 记录日期：2026-05-26
+- 涉及范围：`LanRoomService` 局域网房间发现、Android 房主、UDP discovery、TCP 加入连接地址
+- 已观察行为：Android 设备创建 LAN 房间时，PC 和 Android 客户端都可以通过 UDP 搜索到房间，但点击加入时连接失败；PC 创建房间时 PC/Android 加入路径已验证可用。
+- 初步判断：发现端当前优先使用房主广播 payload 中的 `hostAddress` 作为 TCP 连接地址，而 Android 房主通过 `Dns.GetHostEntry(Dns.GetHostName())` 计算本机地址不稳定，可能广播 loopback、虚拟网卡或非当前 Wi-Fi 地址，导致房间可发现但 TCP 加入不可达。
+- 期望行为：发现端应优先使用 UDP `remoteEndPoint.Address` 作为加入房间的 TCP 连接地址；只有 UDP 来源地址为空时才回退到房主广播的地址字段。
+- 移除条件：完成 LAN 房间解析修复和 Unity 脚本编译验证，并在 Android 房主 + PC/Android 客户端场景复测加入成功后移除此条记录。
+
 ### Android OpenCL 固定安全 tuning 后 ownership 明显慢且可能闪退
 
 - 状态：定位中

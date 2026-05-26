@@ -1130,7 +1130,7 @@ public partial class LanRoomService : ModuleBase
             string.Equals(room.roomId, hostedRoomId, StringComparison.Ordinal);
     }
 
-    private bool TryParseRoom(string payload, string fallbackAddress, out LanRoomInfo room)
+    private bool TryParseRoom(string payload, string remoteAddress, out LanRoomInfo room)
     {
         room = default;
         string[] parts = payload.Split('|');
@@ -1144,7 +1144,9 @@ public partial class LanRoomService : ModuleBase
             return false;
         }
 
-        string hostAddress = string.IsNullOrEmpty(parts[3]) ? fallbackAddress : parts[3];
+        // The UDP source address is the address that actually reached this client.
+        // Android-reported local addresses can point at loopback or non-Wi-Fi interfaces.
+        string hostAddress = string.IsNullOrEmpty(remoteAddress) ? parts[3] : remoteAddress;
         if (parts.Length == 7) {
             room = new LanRoomInfo(parts[1], parts[2], hostAddress, tcpPort, playerCount, maxPlayerCount);
             return true;
