@@ -50,7 +50,7 @@
 - KataGo 接入目标已覆盖 Windows Unity Editor 和 Windows PC 包；两者统一使用仓库根目录 `KataGo/` 作为运行资源源目录，PC 构建成功后由构建脚本按后端复制到包体根目录 `<BuildRoot>/KataGo/`，避免 Unity 导入 KataGo `.dll`。
 - 最小闭环是：本地配置 KataGo 后端、模型和 analysis 配置；Unity 通过 exe 子进程或 native bridge 启动 analysis engine；用当前或固定测试棋局发起 JSON 请求；解析 `ownership`；通过对局页“形式”按钮在棋盘上呈现 ownership overlay，并在日志中呈现成功、超时、启动失败和缺少资源文件等状态。Windows 构建入口会按 `game-config.json` 校验 exe 或 native 运行资源。
 - 当前已接入 Play 模式和 Windows PC 包启动 smoke test：启动 Loading 阶段会按 `game-config.json` 选择后端。exe 后端优先使用 `opencl` 引擎，后台加载模型并依次验证 9 路、13 路、19 路 `ownershipLength` 日志；OpenCL 缺失、启动失败或任一 smoke test 失败时会自动 fallback 到 `eigenavx2` 引擎。native 后端使用 `native-eigen/katago_bridge.dll` 并验证同一组 smoke query。启动时会检查游戏根目录写权限；不可写时会通过 `ConfirmPopup` 提示模式提示、跳过 OpenCL，并使用 no-write analysis 配置关闭 KataGo 文件写入。
-- 当前已新增 KataGo 标准棋谱链路和第一版形势按钮链路：合法落子直接维护 KataGo `moves`，让子棋的预置黑子输出到 KataGo `initialStones`，保存对局时生成可直接作为 ownership analysis 请求骨架的记录 JSON；`DuelPage` 右下角“形式”按钮会请求当前对局 `ownership`，绘制棋盘 overlay，并在按钮上方显示黑方目数和白方贴目后目数；当前盘面快照式 `initialStones` 入口仅保留为调试或无手顺场景。读档/继续对局暂不作为当前正式功能。
+- 当前已新增 KataGo 标准棋谱链路和第一版形势按钮链路：合法落子直接维护 KataGo `moves`，让子棋的预置黑子输出到 KataGo `initialStones`，保存对局时生成完整手顺 analysis 请求骨架；`DuelPage` 右下角“形式”按钮会按当前棋盘快照请求 `ownership`，绘制棋盘 overlay，并在按钮上方显示黑方目数和白方贴目后目数；ownership 数子复用同一当前盘面快照口径。读档/继续对局暂不作为当前正式功能。
 - 当前已接入 KataGo ownership 数子、虚手终局、认输和基础终局结果 UI：设置面板请求数子时会先显示“数子中...”确认弹窗并禁用确认按钮，结果返回后更新同一弹窗；形势按钮旁的虚手按钮支持双方连续虚手后直接按 ownership 结算结束，设置面板认输按钮通过通用二次确认进入终局，右侧中部结算面板显示胜方和结束原因；虚手写入 KataGo 标准 `moves` 的 `pass` 项。
 - 本地棋盘状态数子算法已从当前结算路径移除；当前阶段“请求数子”和双方连续虚手只依赖 KataGo `ownership`，没有新落子或虚手时复用 ownership 缓存。死子确认和完整线上裁定模型仍未实现，后续需要重新明确正式规则口径。
 - Windows PC 离线包已纳入当前 KataGo 验证范围；移动端 `.so`、WebGL、跨平台发布、外部模型分发和完整数子 UI 仍不是当前完成条件。Windows OpenCL/Eigen fallback 仍服务于 exe 后端，native 后端先验证 Eigen/no-write bridge。

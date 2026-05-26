@@ -22,11 +22,6 @@ public static class KataGoPositionJsonBuilder
 
     public static JObject BuildOwnershipAnalysisJson(DuelScene duelScene, string requestId, int maxVisits = DefaultMaxVisits)
     {
-        SceneComponentDuel compDuel = duelScene.GetComponent<SceneComponentDuel>();
-        if (compDuel != null && DuelMoveHistory.Count(compDuel.kataGoMoves) > 0) {
-            return BuildAnalysisJsonWithMoveHistory(duelScene, requestId, maxVisits);
-        }
-
         return BuildAnalysisJsonWithCurrentBoard(duelScene, requestId, maxVisits);
     }
 
