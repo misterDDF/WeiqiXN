@@ -22,11 +22,11 @@ public class UiPageDataType
             if (jsonObj != null) {
                 foreach (var property in jsonObj.Properties()) {
                     try {
-                    var item = property.Value.ToObject<UiPageDataType>();
-                    UiPageDict[property.Name] = item;
-                }
+                        var item = property.Value.ToObject<UiPageDataType>();
+                        UiPageDict[property.Name] = item;
+                    }
                     catch (Exception ex) {
-                    XNLogger.LogError($"读表错误，跳过条目 {property.Name}: {ex.Message}");
+                        XNLogger.LogError($"读表错误，跳过条目 {property.Name}: {ex.Message}");
                     }
                 }
             }

@@ -61,7 +61,7 @@ public class ReplayScene : SceneBase
         AddSystem(new ChessBoardSystem(this));
 
         if (isReplayLoaded) {
-            ApplyReplayCursor(0);
+            ApplyReplayCursor(replayMoves.Count);
             ChessBoardSystem chessBoardSystem = GetSystem<ChessBoardSystem>();
             if (chessBoardSystem == null) {
                 XNLogger.LogError("Replay scene restore failed.", ("gameId", gameId), ("recordFilePath", recordFilePath));
@@ -73,6 +73,7 @@ public class ReplayScene : SceneBase
 
     public override void OnSceneExit()
     {
+        Global.Instance.uiManager.TryClosePage<ReplayPage>();
         Global.ReleaseKeepAwake(Global.KeepAwakeReason.Duel);
         base.OnSceneExit();
     }

@@ -25,8 +25,8 @@
   },
   "ReplayPage": {
     "id": "ReplayPage",
-    "contextType": "General",
-    "isPopup": true,
+    "contextType": "Header",
+    "isPopup": false,
     "isLoadAsync": true
   },
   "DuelSetupPopup": {
