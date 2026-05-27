@@ -26,7 +26,8 @@
 - `RectGridChunk` 负责分块 mesh 和棋盘视觉结构。
 - `RectGrid` 会在棋盘外边框区域生成围棋常用坐标标签，列标跳过 `I`，行标按从上到下递减显示；标签使用加粗平铺文本并只作为纯表现层提示，不写入规则状态。外边框和坐标标签由 `RectGrid.SetBoardCoordinateFrameVisible(bool)` 统一切换，便于后续设置项控制。
 - `RectGrid` 可以绘制和清除 ownership overlay：形势分析结果会按 KataGo `ownership` 行序直接在棋盘交叉点显示黑白小方块，低于当前阈值的中立或未明确控制点不绘制；同色相邻控制点之间会用对应颜色细线连接；overlay 位于棋子模型上方，只作为 AI 预测控制区域的表现层，不写入棋盘规则状态。
-- `RectGrid` 会在最新一手棋子上方绘制三角标记，标记高度与 ownership overlay 一致；黑棋使用白色三角，白棋使用黑色三角。最新手标记只作为表现层，不写入棋盘规则状态。
+- `ChessStoneViewCache` / `ChessStoneView` 负责棋子上方标记：对局最新手三角和复盘手数数字都绑定到当前可见棋子，黑棋使用白色标记、白棋使用黑色标记；棋子隐藏、提掉或复用时自动清理，落子动画到达棋面后显示，不等待后续抖动完全结束。标记只作为表现层，不写入棋盘规则状态。
+- `ReplaySystem` 使用棋子级手数数字：普通复盘只标当前最新非虚手主线手数，试下模式标仍留在棋盘上的每一步试下分支编号。手数数字与最新手三角通过单一 `StoneMarkerIntent` 互斥。
 - `SceneComponentChessBoard` 负责棋盘配置 id、运行时当前棋子信息、上一局面棋子信息、棋盘引用和虚拟相机引用；棋子字典不再作为持久化棋盘权威。
 - `ChessStoneViewCache` 负责棋子 prefab 表现缓存。规则状态仍以 `SceneComponentChessBoard.chessInfoDict` 为权威；普通落子、提子、LAN 快照纠偏、读档恢复和悔棋重建只把最终棋盘状态同步给表现缓存，由缓存按棋盘位置显示、隐藏或复用黑白棋子 prefab，避免整盘销毁重建造成闪动。
 - `ChessBoardSystem.Init()` 根据棋盘配置初始化网格，设置对局虚拟相机为轻透视俯视：相机仍看向棋盘中心并自动按棋盘尺寸和屏幕宽高比完整取景，但使用较窄 FOV 和小倾角保留少量真实桌面透视。对局画面的后处理由 Duel 场景显式维护：主相机开启 URP post-processing，全局 `DuelLookVolume` 引用 `Assets/Scenes/Duel/Profiles/DuelLookProfile.asset`，Profile 包含 ACES tonemapping、轻微色彩校正、低强度 Bloom 和 Vignette；读档/继续对局暂不作为当前正式功能。

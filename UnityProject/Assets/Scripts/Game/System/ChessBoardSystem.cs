@@ -104,7 +104,7 @@ public class ChessBoardSystem : SystemBase
 
         DuelMoveRule.ApplyMoveResult(compChessBoard, moveResult);
         ApplyMoveStoneViews(compChessBoard, moveResult, playerFlag, coords);
-        DrawLatestMoveMarker(compChessBoard, playerFlag, coords);
+        ApplyLatestMoveMarker(compChessBoard, playerFlag, coords);
         int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : chessBoardData?.boardSize ?? 19;
         compDuel.AppendKataGoMove(playerFlag, coords, boardSize);
         scene.EmitSystemEvent(new OnAfterAddChessToBoard(playerFlag, coords.Clone()));
@@ -191,7 +191,7 @@ public class ChessBoardSystem : SystemBase
 
         DuelMoveRule.ApplyMoveResult(compChessBoard, moveResult);
         ApplyMoveStoneViews(compChessBoard, moveResult, move.playerFlag, move.coords);
-        DrawLatestMoveMarker(compChessBoard, move.playerFlag, move.coords);
+        ApplyLatestMoveMarker(compChessBoard, move.playerFlag, move.coords);
         int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : chessBoardData?.boardSize ?? 19;
         compDuel.AppendKataGoMove(move.playerFlag, move.coords, boardSize);
         if (move.boardVersion > 0) {
@@ -369,6 +369,7 @@ public class ChessBoardSystem : SystemBase
     {
         compChessBoard.chessInfoDict.Clear();
         compChessBoard.lastChessInfoDict.Clear();
+        compChessBoard.GetStoneViewCache().ClearStoneMarkers();
         compChessBoard.chessBoardGrid.ClearLatestMoveMarker();
         ClearOwnershipState(compDuel, compChessBoard);
 
@@ -405,9 +406,10 @@ public class ChessBoardSystem : SystemBase
         bool emitAcceptedMoveEvent,
         bool appendFallbackMove)
     {
+        compChessBoard.GetStoneViewCache().ClearStoneMarkers();
         compChessBoard.chessBoardGrid.ClearLatestMoveMarker();
         if (snapshot.latestMoveCoords != null && snapshot.latestMovePlayerFlag != 0) {
-            DrawLatestMoveMarker(compChessBoard, snapshot.latestMovePlayerFlag, snapshot.latestMoveCoords);
+            ApplyLatestMoveMarker(compChessBoard, snapshot.latestMovePlayerFlag, snapshot.latestMoveCoords);
         }
 
         compDuel.lanBoardVersion.value = snapshot.boardVersion;
@@ -475,17 +477,17 @@ public class ChessBoardSystem : SystemBase
         return false;
     }
 
-    private void DrawLatestMoveMarker(SceneComponentChessBoard compChessBoard, PlayerFlag playerFlag, RectCoordinates coords)
+    private void ApplyLatestMoveMarker(SceneComponentChessBoard compChessBoard, PlayerFlag playerFlag, RectCoordinates coords)
     {
-        if (compChessBoard?.chessBoardGrid == null || coords == null) {
+        if (compChessBoard == null || coords == null) {
             return;
         }
 
         try {
-            compChessBoard.chessBoardGrid.DrawLatestMoveMarker(coords.x, coords.z, playerFlag == PlayerFlag.Player1);
+            compChessBoard.GetStoneViewCache().ApplyLatestMoveMarker(coords, playerFlag);
         }
         catch (System.Exception ex) {
-            XNLogger.LogError("Latest move marker draw failed.", ("err", ex.Message));
+            XNLogger.LogError("Latest move marker apply failed.", ("err", ex.Message));
         }
     }
 
@@ -501,6 +503,9 @@ public class ChessBoardSystem : SystemBase
         Material latestMoveOnWhiteStoneMaterial = LoadRuntimeMaterial(LatestMoveOnWhiteStoneMaterialConfigId);
         rectGrid.SetBoardMaterials(blackMaterial, whiteMaterial);
         rectGrid.SetLatestMoveMarkerMaterials(latestMoveOnBlackStoneMaterial, latestMoveOnWhiteStoneMaterial);
+
+        SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
+        compChessBoard?.GetStoneViewCache().SetLatestMoveMarkerMaterials(latestMoveOnBlackStoneMaterial, latestMoveOnWhiteStoneMaterial);
     }
 
     private Material LoadRuntimeMaterial(string configId)
@@ -636,7 +641,7 @@ public class ChessBoardSystem : SystemBase
         compChessBoard.GetStoneViewCache().SyncFromChessInfoDict();
 
         if (latestMoveCoords != null) {
-            DrawLatestMoveMarker(compChessBoard, latestMovePlayerFlag, latestMoveCoords);
+            ApplyLatestMoveMarker(compChessBoard, latestMovePlayerFlag, latestMoveCoords);
         }
 
         return true;

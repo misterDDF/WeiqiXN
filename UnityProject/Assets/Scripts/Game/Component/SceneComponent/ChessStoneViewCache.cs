@@ -20,8 +20,12 @@ public class ChessStoneViewCache
     private readonly SceneBase scene;
     private readonly SceneComponentChessBoard compChessBoard;
     private readonly Dictionary<int, Dictionary<PlayerFlag, GameObject>> stoneViews = new Dictionary<int, Dictionary<PlayerFlag, GameObject>>();
+    private readonly Dictionary<int, ChessStoneView> visibleStoneViews = new Dictionary<int, ChessStoneView>();
     private readonly Dictionary<int, PlayerFlag> visibleStoneFlags = new Dictionary<int, PlayerFlag>();
+    private readonly Dictionary<int, StoneMarkerIntent> pendingStoneMarkers = new Dictionary<int, StoneMarkerIntent>();
     private readonly HashSet<string> loadingViewKeys = new HashSet<string>();
+    private Material latestMoveMarkerOnBlackStoneMaterial;
+    private Material latestMoveMarkerOnWhiteStoneMaterial;
     private bool isDestroyed;
 
     public ChessStoneViewCache(SceneBase scene, SceneComponentChessBoard compChessBoard)
@@ -42,11 +46,16 @@ public class ChessStoneViewCache
         }
 
         HideOtherStoneAt(posIndex, playerFlag);
+        bool wasVisible = visibleStoneFlags.TryGetValue(posIndex, out PlayerFlag visibleFlag) && visibleFlag == playerFlag;
         visibleStoneFlags[posIndex] = playerFlag;
 
         if (TryGetStoneView(posIndex, playerFlag, out GameObject go)) {
             ApplyStoneTransform(go, coords);
             go.SetActive(true);
+            ChessStoneView stoneView = EnsureStoneView(go);
+            stoneView.Bind(posIndex, playerFlag, !wasVisible);
+            visibleStoneViews[posIndex] = stoneView;
+            ApplyPendingMarkerToView(posIndex, stoneView);
             return;
         }
 
@@ -76,10 +85,13 @@ public class ChessStoneViewCache
             return;
         }
 
+        ClearStoneMarkers();
         visibleStoneFlags.Clear();
+        visibleStoneViews.Clear();
         foreach (Dictionary<PlayerFlag, GameObject> viewsAtPos in stoneViews.Values) {
             foreach (GameObject go in viewsAtPos.Values) {
                 if (go != null) {
+                    EnsureStoneView(go).Unbind();
                     go.SetActive(false);
                 }
             }
@@ -137,6 +149,62 @@ public class ChessStoneViewCache
         SyncStones(targetStones);
     }
 
+    public void SetLatestMoveMarkerMaterials(Material onBlackStoneMaterial, Material onWhiteStoneMaterial)
+    {
+        latestMoveMarkerOnBlackStoneMaterial = onBlackStoneMaterial;
+        latestMoveMarkerOnWhiteStoneMaterial = onWhiteStoneMaterial;
+
+        foreach (ChessStoneView stoneView in visibleStoneViews.Values) {
+            if (stoneView != null) {
+                stoneView.SetLatestMoveMarkerMaterials(latestMoveMarkerOnBlackStoneMaterial, latestMoveMarkerOnWhiteStoneMaterial);
+            }
+        }
+    }
+
+    public void ClearStoneMarkers()
+    {
+        pendingStoneMarkers.Clear();
+        foreach (ChessStoneView stoneView in visibleStoneViews.Values) {
+            if (stoneView != null) {
+                stoneView.ClearMarker();
+            }
+        }
+    }
+
+    public void ApplyLatestMoveMarker(RectCoordinates coords, PlayerFlag playerFlag)
+    {
+        int posIndex = GetValidPosIndex(coords, playerFlag);
+        if (posIndex < 0) {
+            ClearStoneMarkers();
+            return;
+        }
+
+        Dictionary<int, StoneMarkerIntent> markers = new Dictionary<int, StoneMarkerIntent>
+        {
+            [posIndex] = StoneMarkerIntent.LatestTriangle(playerFlag == PlayerFlag.Player1)
+        };
+        ApplyStoneMarkers(markers);
+    }
+
+    public void ApplyStoneMarkers(Dictionary<int, StoneMarkerIntent> markers)
+    {
+        ClearStoneMarkers();
+        if (markers == null) {
+            return;
+        }
+
+        foreach (KeyValuePair<int, StoneMarkerIntent> kvp in markers) {
+            if (!kvp.Value.IsValid) {
+                continue;
+            }
+
+            pendingStoneMarkers[kvp.Key] = kvp.Value;
+            if (visibleStoneViews.TryGetValue(kvp.Key, out ChessStoneView stoneView) && stoneView != null) {
+                stoneView.SetMarker(kvp.Value);
+            }
+        }
+    }
+
     public void Destroy()
     {
         foreach (Dictionary<PlayerFlag, GameObject> viewsAtPos in stoneViews.Values) {
@@ -148,7 +216,9 @@ public class ChessStoneViewCache
         }
 
         stoneViews.Clear();
+        visibleStoneViews.Clear();
         visibleStoneFlags.Clear();
+        pendingStoneMarkers.Clear();
         loadingViewKeys.Clear();
         isDestroyed = true;
     }
@@ -193,6 +263,7 @@ public class ChessStoneViewCache
 
         foreach (KeyValuePair<PlayerFlag, GameObject> kvp in viewsAtPos) {
             if (kvp.Key != visibleFlag && kvp.Value != null) {
+                EnsureStoneView(kvp.Value).Unbind();
                 kvp.Value.SetActive(false);
             }
         }
@@ -201,12 +272,14 @@ public class ChessStoneViewCache
     private void HideStoneAt(int posIndex)
     {
         visibleStoneFlags.Remove(posIndex);
+        visibleStoneViews.Remove(posIndex);
         if (!stoneViews.TryGetValue(posIndex, out Dictionary<PlayerFlag, GameObject> viewsAtPos)) {
             return;
         }
 
         foreach (GameObject go in viewsAtPos.Values) {
             if (go != null) {
+                EnsureStoneView(go).Unbind();
                 go.SetActive(false);
             }
         }
@@ -243,8 +316,41 @@ public class ChessStoneViewCache
             ApplyStoneTransform(go, coords);
             bool shouldShow = visibleStoneFlags.TryGetValue(posIndex, out PlayerFlag visibleFlag) && visibleFlag == playerFlag;
             go.SetActive(shouldShow);
+            ChessStoneView stoneView = EnsureStoneView(go);
+            stoneView.SetLatestMoveMarkerMaterials(latestMoveMarkerOnBlackStoneMaterial, latestMoveMarkerOnWhiteStoneMaterial);
+            if (shouldShow) {
+                stoneView.Bind(posIndex, playerFlag, true);
+                visibleStoneViews[posIndex] = stoneView;
+                ApplyPendingMarkerToView(posIndex, stoneView);
+            } else {
+                stoneView.Unbind();
+            }
         }) == null) {
             loadingViewKeys.Remove(viewKey);
+        }
+    }
+
+    private ChessStoneView EnsureStoneView(GameObject go)
+    {
+        ChessStoneView stoneView = go.GetComponent<ChessStoneView>();
+        if (stoneView == null) {
+            stoneView = go.AddComponent<ChessStoneView>();
+        }
+
+        stoneView.SetLatestMoveMarkerMaterials(latestMoveMarkerOnBlackStoneMaterial, latestMoveMarkerOnWhiteStoneMaterial);
+        return stoneView;
+    }
+
+    private void ApplyPendingMarkerToView(int posIndex, ChessStoneView stoneView)
+    {
+        if (stoneView == null) {
+            return;
+        }
+
+        if (pendingStoneMarkers.TryGetValue(posIndex, out StoneMarkerIntent marker)) {
+            stoneView.SetMarker(marker);
+        } else {
+            stoneView.ClearMarker();
         }
     }
 

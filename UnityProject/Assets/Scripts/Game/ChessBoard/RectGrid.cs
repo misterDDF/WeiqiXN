@@ -6,6 +6,22 @@ using XNClient.Logger;
 
 namespace XNClient.ChessBoard
 {
+    public readonly struct RectGridMoveNumberMarker
+    {
+        public readonly int x;
+        public readonly int z;
+        public readonly int moveNumber;
+        public readonly bool isBlackStone;
+
+        public RectGridMoveNumberMarker(int x, int z, int moveNumber, bool isBlackStone)
+        {
+            this.x = x;
+            this.z = z;
+            this.moveNumber = moveNumber;
+            this.isBlackStone = isBlackStone;
+        }
+    }
+
     public class RectGrid : MonoBehaviour
     {
         public GameObject chunkPrefab;
@@ -15,6 +31,7 @@ namespace XNClient.ChessBoard
         private GameObject coordinateLabelRoot;
         private GameObject ownershipRoot;
         private GameObject latestMoveMarkerRoot;
+        private GameObject moveNumberMarkerRoot;
         private bool boardCoordinateFrameVisible = true;
 
         private const float CoordinateLabelSurfaceYOffset = 0.04f;
@@ -33,9 +50,14 @@ namespace XNClient.ChessBoard
         private const float OwnershipLineYOffset = 0.042f;
         private const float LatestMoveMarkerYOffset = 0.05f;
         private const float LatestMoveMarkerSizeFactor = ChessBoardConfig.starPointRadiusFactor * 2f * 2.3f;
+        private const float MoveNumberMarkerYOffset = 1.74f;
+        private const int MoveNumberMarkerFontSize = 48;
+        private const float MoveNumberMarkerCharacterSize = 0.46f;
         private const int OwnershipNeutral = 0;
         private const int OwnershipBlack = 1;
         private const int OwnershipWhite = -1;
+        private static readonly Color MoveNumberOnBlackStoneColor = new Color(1f, 1f, 1f, 1f);
+        private static readonly Color MoveNumberOnWhiteStoneColor = new Color(0f, 0f, 0f, 1f);
 
         private Material blackMaterial;
         private Material whiteMaterial;
@@ -157,6 +179,7 @@ namespace XNClient.ChessBoard
         public void DrawLatestMoveMarker(int x, int z, bool isBlackStone)
         {
             ClearLatestMoveMarker();
+            ClearMoveNumberMarkers();
             if (x < 0 || x >= gridSize || z < 0 || z >= gridSize) {
                 XNLogger.LogError(
                     "Latest move marker position is outside board, draw skipped.",
@@ -194,6 +217,48 @@ namespace XNClient.ChessBoard
 
             Destroy(latestMoveMarkerRoot);
             latestMoveMarkerRoot = null;
+        }
+
+        public void DrawMoveNumberMarker(int x, int z, int moveNumber, bool isBlackStone)
+        {
+            DrawMoveNumberMarkers(new[]
+            {
+                new RectGridMoveNumberMarker(x, z, moveNumber, isBlackStone)
+            });
+        }
+
+        public void DrawMoveNumberMarkers(IEnumerable<RectGridMoveNumberMarker> markers)
+        {
+            ClearMoveNumberMarkers();
+            ClearLatestMoveMarker();
+            if (markers == null) {
+                return;
+            }
+
+            moveNumberMarkerRoot = new GameObject("MoveNumberMarkerRoot");
+            moveNumberMarkerRoot.transform.SetParent(transform, false);
+
+            foreach (RectGridMoveNumberMarker marker in markers) {
+                if (marker.x < 0 || marker.x >= gridSize || marker.z < 0 || marker.z >= gridSize || marker.moveNumber <= 0) {
+                    continue;
+                }
+
+                CreateMoveNumberMarker(marker);
+            }
+
+            if (moveNumberMarkerRoot.transform.childCount == 0) {
+                ClearMoveNumberMarkers();
+            }
+        }
+
+        public void ClearMoveNumberMarkers()
+        {
+            if (moveNumberMarkerRoot == null) {
+                return;
+            }
+
+            Destroy(moveNumberMarkerRoot);
+            moveNumberMarkerRoot = null;
         }
 
         private void CreateCoordinateLabels()
@@ -310,6 +375,37 @@ namespace XNClient.ChessBoard
                 meshRenderer.receiveShadows = false;
                 meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 meshRenderer.sortingOrder = sortingOrder;
+            }
+        }
+
+        private void CreateMoveNumberMarker(RectGridMoveNumberMarker marker)
+        {
+            GameObject labelGO = new GameObject($"MoveNumber_{marker.moveNumber}_{marker.x}_{marker.z}");
+            labelGO.transform.SetParent(moveNumberMarkerRoot.transform, false);
+            labelGO.transform.localPosition = GetOwnershipLocalPosition(marker.x, marker.z, MoveNumberMarkerYOffset);
+            labelGO.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            labelGO.transform.localScale = Vector3.one;
+
+            TextMesh textMesh = labelGO.AddComponent<TextMesh>();
+            textMesh.text = marker.moveNumber.ToString();
+            textMesh.fontSize = MoveNumberMarkerFontSize;
+            textMesh.characterSize = MoveNumberMarkerCharacterSize;
+            textMesh.fontStyle = FontStyle.Bold;
+            textMesh.alignment = TextAlignment.Center;
+            textMesh.anchor = TextAnchor.MiddleCenter;
+            textMesh.color = marker.isBlackStone ? MoveNumberOnBlackStoneColor : MoveNumberOnWhiteStoneColor;
+            textMesh.richText = false;
+
+            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (font != null) {
+                textMesh.font = font;
+            }
+
+            MeshRenderer meshRenderer = labelGO.GetComponent<MeshRenderer>();
+            if (meshRenderer != null) {
+                meshRenderer.receiveShadows = false;
+                meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                meshRenderer.sortingOrder = 20;
             }
         }
 
@@ -440,6 +536,9 @@ namespace XNClient.ChessBoard
         private void OnDestroy()
         {
             ClearCoordinateLabels();
+            ClearOwnership();
+            ClearLatestMoveMarker();
+            ClearMoveNumberMarkers();
 
             if (latestMoveMarkerMesh != null) {
                 Destroy(latestMoveMarkerMesh);

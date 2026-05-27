@@ -1,12 +1,14 @@
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using XNClient.ChessBoard;
 
 public class ReplayPage : UIPageWithBinder<ReplayPageUI>
 {
     private const float HudPanelAlpha = 0.72f;
     private const float RootPanelAlpha = 0f;
     private bool hudLayoutApplied;
+    private DuelPageBoardInputController boardInput;
 
     public override string pageName => UIPage.GetPageName<ReplayPage>();
 
@@ -14,6 +16,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
     {
         base.OnLoaded();
 
+        boardInput = new DuelPageBoardInputController();
         binder.btn_close.onClick.AddListener(OnClickClose);
         binder.btn_first.onClick.AddListener(OnClickFirst);
         binder.btn_prev.onClick.AddListener(OnClickPrev);
@@ -33,12 +36,18 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
             binder.btn_try_mode.onClick.RemoveListener(OnClickTryMode);
         }
 
+        boardInput?.Dispose();
+        boardInput = null;
         base.OnClose();
     }
 
     protected override void OnOpen()
     {
         base.OnOpen();
+        if (boardInput == null) {
+            boardInput = new DuelPageBoardInputController();
+        }
+
         ApplyHudLayout();
         RefreshControls();
     }
@@ -47,24 +56,43 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
     {
         base.OnUpdate();
         RefreshControls();
+        RefreshTryModeInput();
+
+        if (Input.GetKeyDown(KeyCode.Mouse0)) {
+            OnMouse0Down();
+        }
     }
 
     private void RefreshControls()
     {
+        ReplaySystem replaySystem = GetReplaySystem();
         ReplayScene replayScene = Global.Instance.sceneManager.mainScene as ReplayScene;
-        bool canBrowse = replayScene != null && replayScene.IsReplayLoaded && replayScene.ReplayMoveCount > 0;
+        bool canBrowse = replaySystem != null && replaySystem.IsReplayLoaded && replaySystem.ReplayMoveCount > 0 && !replaySystem.IsTryMode;
+        bool canTryMode = replaySystem != null && replaySystem.IsReplayLoaded;
 
         binder.txt_title.text = replayScene != null ? replayScene.configData.id : "Replay";
-        binder.txt_summary.text = replayScene != null ? replayScene.BuildSummaryText() : "未加载复盘场景";
-        binder.txt_status.text = replayScene != null ? replayScene.ReplayStatus : string.Empty;
-        binder.txt_move_cursor.text = replayScene != null ? replayScene.BuildCursorText() : "0 / 0";
-        binder.txt_move_detail.text = replayScene != null ? replayScene.BuildMoveDetailText() : "未加载复盘";
-        binder.txt_analysis_placeholder.text = replayScene != null ? replayScene.BuildActionHint() : "试下、图表和 AI 推荐将在后续复盘控制层接入。";
+        binder.txt_summary.text = replaySystem != null ? replaySystem.BuildSummaryText() : "未加载复盘场景";
+        binder.txt_status.text = replaySystem != null ? replaySystem.ReplayStatus : string.Empty;
+        binder.txt_move_cursor.text = replaySystem != null ? replaySystem.BuildCursorText() : "0 / 0";
+        binder.txt_move_detail.text = replaySystem != null ? replaySystem.BuildMoveDetailText() : "未加载复盘";
+        binder.txt_analysis_placeholder.text = replaySystem != null ? replaySystem.BuildActionHint() : "试下、图表和 AI 推荐将在后续复盘控制层接入。";
         binder.btn_first.interactable = canBrowse;
         binder.btn_prev.interactable = canBrowse;
         binder.btn_next.interactable = canBrowse;
         binder.btn_last.interactable = canBrowse;
-        binder.btn_try_mode.interactable = false;
+        binder.btn_try_mode.interactable = canTryMode;
+        SetTryModeButtonText(replaySystem != null && replaySystem.IsTryMode ? "退出试下" : "试下");
+    }
+
+    private void RefreshTryModeInput()
+    {
+        ReplaySystem replaySystem = GetReplaySystem();
+        SceneBase mainScene = Global.Instance.sceneManager.mainScene;
+        SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
+        DuelInputAuthorityState inputState = replaySystem != null && replaySystem.IsTryMode
+            ? new DuelInputAuthorityState(replaySystem.CurrentTryPlayerFlag)
+            : default;
+        boardInput?.Refresh(mainScene, compDuel, inputState, false);
     }
 
     private void OnClickClose()
@@ -204,26 +232,56 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
 
     private void OnClickFirst()
     {
-        (Global.Instance.sceneManager.mainScene as ReplayScene)?.GoFirst();
+        GetReplaySystem()?.GoFirst();
     }
 
     private void OnClickPrev()
     {
-        (Global.Instance.sceneManager.mainScene as ReplayScene)?.GoPrev();
+        GetReplaySystem()?.GoPrev();
     }
 
     private void OnClickNext()
     {
-        (Global.Instance.sceneManager.mainScene as ReplayScene)?.GoNext();
+        GetReplaySystem()?.GoNext();
     }
 
     private void OnClickLast()
     {
-        (Global.Instance.sceneManager.mainScene as ReplayScene)?.GoLast();
+        GetReplaySystem()?.GoLast();
     }
 
     private void OnClickTryMode()
     {
-        binder.txt_status.text = "试下模式将在后续阶段接入";
+        GetReplaySystem()?.ToggleTryMode();
+    }
+
+    private void OnMouse0Down()
+    {
+        ReplaySystem replaySystem = GetReplaySystem();
+        if (replaySystem == null || !replaySystem.IsTryMode) {
+            return;
+        }
+
+        DuelInputAuthorityState inputState = new DuelInputAuthorityState(replaySystem.CurrentTryPlayerFlag);
+        if (boardInput != null && boardInput.TryGetMoveCoords(inputState, out RectCoordinates coords)) {
+            replaySystem.TryApplyTryMove(coords);
+        }
+    }
+
+    private ReplaySystem GetReplaySystem()
+    {
+        return Global.Instance.sceneManager.mainScene?.GetSystem<ReplaySystem>();
+    }
+
+    private void SetTryModeButtonText(string text)
+    {
+        if (binder.btn_try_mode == null) {
+            return;
+        }
+
+        TextMeshProUGUI buttonText = binder.btn_try_mode.GetComponentInChildren<TextMeshProUGUI>();
+        if (buttonText != null) {
+            buttonText.text = text;
+        }
     }
 }

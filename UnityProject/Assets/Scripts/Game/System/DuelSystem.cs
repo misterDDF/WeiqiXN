@@ -809,6 +809,7 @@ public class DuelSystem : SystemBase
 
         compChessBoard.chessInfoDict.Clear();
         compChessBoard.lastChessInfoDict.Clear();
+        compChessBoard.GetStoneViewCache().ClearStoneMarkers();
         compChessBoard.chessBoardGrid?.ClearLatestMoveMarker();
         compDuel.ResetKataGoMoves();
         ApplyInitialHandicapStones(compDuel, false);
@@ -834,11 +835,10 @@ public class DuelSystem : SystemBase
             latestMovePlayerFlag = playerFlag;
         }
 
-        if (latestMoveCoords != null) {
-            compChessBoard.chessBoardGrid?.DrawLatestMoveMarker(latestMoveCoords.x, latestMoveCoords.z, latestMovePlayerFlag == PlayerFlag.Player1);
-        }
-
         compChessBoard.GetStoneViewCache().SyncFromChessInfoDict();
+        if (latestMoveCoords != null) {
+            compChessBoard.GetStoneViewCache().ApplyLatestMoveMarker(latestMoveCoords, latestMovePlayerFlag);
+        }
         return true;
     }
 
