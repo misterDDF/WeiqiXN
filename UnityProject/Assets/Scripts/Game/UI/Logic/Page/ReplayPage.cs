@@ -299,11 +299,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
             return;
         }
 
-        if (!replaySystem.IsTryMode && !replaySystem.EnterTryMode()) {
-            return;
-        }
-
-        replaySystem.TryApplyTryMove(coords);
+        replaySystem.TryApplyBoardMove(coords);
     }
 
     private ReplaySystem GetReplaySystem()
