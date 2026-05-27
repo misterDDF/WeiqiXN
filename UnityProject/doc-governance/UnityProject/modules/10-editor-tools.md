@@ -4,6 +4,7 @@
 
 - `Assets/Scripts/Editor/UI/UICodeGenerator.cs`
 - `Assets/Scripts/Editor/UI/CSCodeGenerator.cs`
+- `Assets/Scripts/Editor/UI/UIPagePrefabPreviewPlatformMenu.cs`
 - `Assets/Scripts/Editor/Inspector/UIBinderEditor_Inspector.cs`
 - `Assets/Scripts/Editor/Inspector/UIBinderBase_Inspector.cs`
 - `Assets/Scripts/Editor/CustomEditorMenuPaths.cs`
@@ -28,6 +29,7 @@
 - `UICodeGenerator` 会根据 `UIBinderEditor` 节点导出 Binder 脚本。
 - 如果 UI 逻辑文件不存在，生成器会创建基础 `UIPageWithBinder<T>` 或 `UIWidgetWithBinder<T>` 逻辑类。
 - 生成脚本会自动刷新 AssetDatabase。
+- Page prefab 右键菜单提供 `切换预览平台/PC端` 和 `切换预览平台/移动端`，可从 Project 面板的 Page prefab asset 触发，也可在 Page prefab 的 Prefab Mode 中从 Hierarchy 右键触发；入口仅对 `Assets/UI/Prefab/Page/*.prefab` 且带 `CanvasScaler` 的 prefab 生效。菜单直接保存 prefab 的 CanvasScaler 预览尺寸并同步切换 Editor Game 窗口固定分辨率，PC 预览为 `1600x900`，移动端预览为 `720x1280`。
 - 项目已有多份生成的 `*PageUI.cs` 和页面逻辑类。
 - AssetBundle、TMP sprite、TextureArray 等编辑器工具文件已经存在。
 - 项目自维护编辑器菜单统一挂在 Unity 顶部菜单 `自定义功能` 下；迁移既有菜单时保留去掉原 `Assets/` 前缀后的多层结构，例如 `Assets/打包/打PC包` 对应 `自定义功能/打包/打PC包`。KataGo OpenCL 预热缓存可通过 `自定义功能/KataGo/清除opencl预热文件` 清除，命令执行结束后会弹窗提示清除成功、未找到缓存或失败原因。
