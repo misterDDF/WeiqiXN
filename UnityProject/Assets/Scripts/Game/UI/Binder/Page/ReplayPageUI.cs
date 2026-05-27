@@ -12,6 +12,11 @@ public class ReplayPageUI : UIBinderBase
     public TextMeshProUGUI txt_move_cursor;
     public TextMeshProUGUI txt_move_detail;
     public TextMeshProUGUI txt_analysis_placeholder;
+    public TextMeshProUGUI txt_scrub_preview;
+    public RectTransform rect_chart_area;
+    public Image img_move_scrubber_hit;
+    public Image img_chart_cursor;
+    public ReplayAnalysisChartGraphic chart_analysis;
     public Button btn_close;
     public Button btn_first;
     public Button btn_prev;

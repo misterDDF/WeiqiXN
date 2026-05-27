@@ -51,6 +51,10 @@ public class SceneBase : SavableObj, ITimerAttacher, IEventReceiver, IResourceLo
         Global.ReleaseKeepAwake(Global.KeepAwakeReason.Startup);
     }
 
+    protected virtual void ConfigureLoadingProgressBeforeSceneLoad()
+    {
+    }
+
     protected virtual void OnUpdate()
     {
         if (!isLoaded && unitySceneLoadAsync != null) {
@@ -218,6 +222,7 @@ public class SceneBase : SavableObj, ITimerAttacher, IEventReceiver, IResourceLo
     {
         UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnUnitySceneLoaded;
         try {
+            ConfigureLoadingProgressBeforeSceneLoad();
             unitySceneLoadAsync = UnityEngine.SceneManagement.SceneManager.LoadSceneAsync(configData.unitySceneName);
             LoadingPage.SetProgress(
                 MessageText.Get("scene_loading_status"),
