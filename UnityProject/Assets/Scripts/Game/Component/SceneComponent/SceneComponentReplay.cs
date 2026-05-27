@@ -6,6 +6,7 @@ public class SceneComponentReplay : SceneComponentBase
     public readonly List<ReplayMoveState> replayMoves = new List<ReplayMoveState>();
     public readonly List<ReplayMoveState> replayInitialStones = new List<ReplayMoveState>();
     public readonly List<ReplayMoveState> tryMoves = new List<ReplayMoveState>();
+    public readonly Dictionary<int, List<ReplayAiVariationMove>> aiRecommendationVariations = new Dictionary<int, List<ReplayAiVariationMove>>();
     public int replayBoardSize;
     public float replayKomi = KataGoDuelRecordFile.Komi;
     public int replayCursorMoveIndex;
@@ -14,6 +15,7 @@ public class SceneComponentReplay : SceneComponentBase
     public bool isReplayLoaded;
     public bool isTryMode;
     public bool isAiAnalyzing;
+    public bool hasAiAnalysisRender;
     public int aiAnalysisVersion;
     public float lastAiAnalysisRequestTime;
     public string aiAnalysisStatus;
@@ -32,4 +34,10 @@ public class ReplayMoveState
     public string pointText;
     public DuelMoveResult moveResult;
     public SavableObjectDict<ChessInfo> previousLastChessInfoDict;
+}
+
+public class ReplayAiVariationMove
+{
+    public PlayerFlag playerFlag;
+    public RectCoordinates coords;
 }
