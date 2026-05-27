@@ -1,15 +1,17 @@
-﻿using System.IO;
-using XNClient.Logger;
+using UnityEngine;
 
 public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
 {
     public override string pageName => UIPage.GetPageName<MainMenuPage>();
+    private bool hasAppliedLayoutState;
+    private bool lastPortraitLayout;
 
     protected override void OnLoaded()
     {
         base.OnLoaded();
 
-        binder.btn_continue.onClick.AddListener(OnClickBtnContinue);
+        ApplyCurrentLayoutState(true);
+
         binder.btn_new_game.onClick.AddListener(OnClickBtnNewGame);
         if (binder.btn_ai_game != null) {
             binder.btn_ai_game.onClick.AddListener(OnClickBtnAiGame);
@@ -25,29 +27,30 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
     {
         base.OnOpen();
 
-        binder.btn_continue.interactable = File.Exists(GameSaveConfig.GetDuelSceneSavePath(0)) &&
-            File.Exists(GameSaveConfig.GetDuelRecordSavePath(0)) &&
-            File.Exists(GameSaveConfig.GetDuelSaveInfoPath(0));
+        ApplyCurrentLayoutState(false);
     }
 
-    public void OnClickBtnContinue()
+    protected override void OnUpdate()
     {
-        string saveFilePath = GameSaveConfig.GetDuelSceneSavePath(0);
-        string recordFilePath = GameSaveConfig.GetDuelRecordSavePath(0);
-        string saveInfoFilePath = GameSaveConfig.GetDuelSaveInfoPath(0);
-        if (File.Exists(saveFilePath) && File.Exists(recordFilePath) && File.Exists(saveInfoFilePath)) {
-            SceneCreateParams sceneCreateParams = new SceneCreateParams()
-            {
-                saveFilePath = saveFilePath,
-            };
-            Global.Instance.sceneManager.EnterMainScene(SceneConfig.DUEL_SCENE_TYPE_ID, sceneCreateParams);
-        } else {
-            XNLogger.LogError(
-                "Save file, record file or save info file not exist, reload duel scene failed.",
-                ("saveFilePath", saveFilePath),
-                ("recordFilePath", recordFilePath),
-                ("saveInfoFilePath", saveInfoFilePath));
+        base.OnUpdate();
+
+        ApplyCurrentLayoutState(false);
+    }
+
+    private void ApplyCurrentLayoutState(bool force)
+    {
+        if (binder.sr_platform == null) {
+            return;
         }
+
+        bool isPortrait = UIUtils.IsPortrait(rectTransform);
+        if (!force && hasAppliedLayoutState && isPortrait == lastPortraitLayout) {
+            return;
+        }
+
+        binder.SetSrPlatformState(isPortrait ? MainMenuPageUI.SrPlatformState.Portrait : MainMenuPageUI.SrPlatformState.Landscape, force);
+        hasAppliedLayoutState = true;
+        lastPortraitLayout = isPortrait;
     }
 
     public void OnClickBtnNewGame()

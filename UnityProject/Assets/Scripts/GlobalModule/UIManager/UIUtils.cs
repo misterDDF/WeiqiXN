@@ -28,5 +28,15 @@ public static class UIUtils
         int typeValue = (int)contextType;
         return typeValue * UIConfig.CONTEXT_INCREASE_CANVAS_ORDER;
     }
+
+    public static bool IsPortrait(UnityEngine.Rect rect)
+    {
+        return rect.height > rect.width;
+    }
+
+    public static bool IsPortrait(UnityEngine.RectTransform rectTransform)
+    {
+        return rectTransform != null && IsPortrait(rectTransform.rect);
+    }
 }
 

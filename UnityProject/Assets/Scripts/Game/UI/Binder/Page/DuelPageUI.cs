@@ -31,7 +31,6 @@ public class DuelPageUI : UIBinderBase
 	public Button btn_settings_request_score;
 	public Button btn_settings_take_back;
 	public Button btn_settings_resign;
-	public Button btn_settings_save;
 	public Button btn_settings_exit;
 	public Button btn_settings_close;
 	public GameObject panel_game_end_result;

@@ -24,7 +24,7 @@
 - `chess_board.json` 已配置 `9x9`、`13x13`、`19x19`。
 - `duel_ai_difficulty.json` 已配置电脑对局难度选项、KataGo human policy profile、基础访问次数、基础候选点数量、失误率、采样温度、基础最大亏损目数、访问权重、提前虚手开关、思考延迟，以及 9 路、13 路、19 路分别使用的实时访问上限、候选点数量、最大亏损目数覆盖值和动态预算阈值。
 - `scene.json` 已配置 MainMenu 和 Duel。
-- `ui_page.json` 已配置 LoadingPage、MainMenuPage、SavingPopup、UserInfoPopup、DuelSetupPopup、DuelPage。
+- `ui_page.json` 已配置 LoadingPage、MainMenuPage、UserInfoPopup、ReplayPage、DuelSetupPopup、LanRoomPopup、DuelPage、ConfirmPopup。
 - `message.json` 已配置运行时 UI 展示文案，包括通用弹窗按钮、Loading 状态、局域网房间状态、对局 HUD 和操作反馈文案；代码侧通过 `MessageText` 消费。
 
 ## 设计观察

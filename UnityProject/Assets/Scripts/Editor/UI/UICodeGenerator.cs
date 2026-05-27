@@ -8,6 +8,18 @@ using XNLogger = XNClient.Logger.XNLogger;
 
 public static class UICodeGenerator
 {
+    private static readonly HashSet<string> CSharpKeywords = new HashSet<string>
+    {
+        "abstract", "as", "base", "bool", "break", "byte", "case", "catch", "char", "checked", "class",
+        "const", "continue", "decimal", "default", "delegate", "do", "double", "else", "enum", "event",
+        "explicit", "extern", "false", "finally", "fixed", "float", "for", "foreach", "goto", "if",
+        "implicit", "in", "int", "interface", "internal", "is", "lock", "long", "namespace", "new",
+        "null", "object", "operator", "out", "override", "params", "private", "protected", "public",
+        "readonly", "ref", "return", "sbyte", "sealed", "short", "sizeof", "stackalloc", "static",
+        "string", "struct", "switch", "this", "throw", "true", "try", "typeof", "uint", "ulong",
+        "unchecked", "unsafe", "ushort", "using", "virtual", "void", "volatile", "while",
+    };
+
     public static void ExportUIScripts(UIBinderEditor uibinderEditor)
     {
         ExportUIBinder(uibinderEditor);
@@ -36,6 +48,7 @@ public static class UICodeGenerator
             var uiBinderTypes = TypeCache.GetTypesDerivedFrom(typeof(UIBinderBase));
             var uiLogicTypes = TypeCache.GetTypesDerivedFrom(typeof(UILogicBase));
             List<(string, UIBinderEditor)> widgetBinderEditors = new List<(string, UIBinderEditor)>();
+            List<(string, StateRoot)> stateRoots = new List<(string, StateRoot)>();
             foreach (var node in uiBinderEditor.nodeList) {
                 if (node.value is UIBinderEditor childBinderEditor) {
                     Type binderType = uiBinderTypes.FirstOrDefault(t => t.Name == childBinderEditor.binderClsName);
@@ -49,7 +62,14 @@ public static class UICodeGenerator
                     }
                 } else {
                     generator.AddLine($"public {node.value.GetType().Name} {node.name};");
+                    if (node.value is StateRoot stateRoot) {
+                        stateRoots.Add((node.name, stateRoot));
+                    }
                 }
+            }
+
+            foreach (var (fieldName, stateRoot) in stateRoots) {
+                ExportStateRootAccessors(generator, fieldName, stateRoot);
             }
 
             if (widgetBinderEditors.Count > 0) {
@@ -72,6 +92,67 @@ public static class UICodeGenerator
             writer.Write(generator.OutputCode());
             writer.Flush();
         }
+    }
+
+    private static void ExportStateRootAccessors(CSCodeGenerator generator, string fieldName, StateRoot stateRoot)
+    {
+        string stateEnumName = $"{ToPascalIdentifier(fieldName, "StateRoot")}State";
+        string setStateMethodName = $"Set{ToPascalIdentifier(fieldName, "StateRoot")}State";
+
+        generator.AddLine();
+        using (generator.AddBlock($"public enum {stateEnumName}")) {
+            HashSet<string> memberNames = new HashSet<string>();
+            for (int i = 0; i < stateRoot.States.Count; i++) {
+                string memberName = ToUniqueIdentifier(ToPascalIdentifier(stateRoot.States[i].name, $"State{i}"), memberNames);
+                generator.AddLine($"{memberName} = {i},");
+            }
+        }
+
+        generator.AddLine();
+        using (generator.AddBlock($"public void {setStateMethodName}({stateEnumName} state, bool force = false)")) {
+            generator.AddLine($"if ({fieldName} != null) {{");
+            generator.lineStartTabs++;
+            generator.AddLine($"{fieldName}.SetState((int)state, force);");
+            generator.lineStartTabs--;
+            generator.AddLine("}");
+        }
+    }
+
+    private static string ToUniqueIdentifier(string identifier, HashSet<string> usedIdentifiers)
+    {
+        string uniqueIdentifier = identifier;
+        int suffix = 1;
+        while (!usedIdentifiers.Add(uniqueIdentifier)) {
+            uniqueIdentifier = $"{identifier}{suffix}";
+            suffix++;
+        }
+
+        return uniqueIdentifier;
+    }
+
+    private static string ToPascalIdentifier(string value, string fallback)
+    {
+        StringBuilder builder = new StringBuilder();
+        bool uppercaseNext = true;
+        foreach (char c in value ?? string.Empty) {
+            if (char.IsLetterOrDigit(c)) {
+                builder.Append(uppercaseNext ? char.ToUpperInvariant(c) : c);
+                uppercaseNext = false;
+            } else {
+                uppercaseNext = true;
+            }
+        }
+
+        string identifier = builder.Length > 0 ? builder.ToString() : fallback;
+        if (!char.IsLetter(identifier[0]) && identifier[0] != '_') {
+            identifier = $"_{identifier}";
+        }
+
+        if (CSharpKeywords.Contains(identifier)) {
+            identifier = $"_{identifier}";
+        }
+
+        return identifier;
     }
 
     private static void ExportUILogic(UIBinderEditor uiBinderEditor)
