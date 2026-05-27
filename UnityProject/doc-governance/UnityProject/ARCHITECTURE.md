@@ -28,6 +28,7 @@
 - `BoardSnapshot` 是当前 LAN 权威局面纠偏点，携带棋盘尺寸、下一手玩家、最后一步、棋子列表和 host 权威 KataGo 标准手顺。client 应用快照时必须同时纠正棋盘与 `SceneComponentDuel.kataGoMoves`，并清除 ownership 缓存和旧形势显示，避免形势、数子或保存继续读取旧手顺。
 - 实体表示运行时游戏对象。`Chess` 是带 Unity `GameObject` 的棋子实体；`Player` 是回合归属实体，并通过组件保存对局信息。
 - 事件连接 UI、系统和实体。UI 发出 `OnSubmitDuelMove`、`OnSubmitDuelScore`、`OnSubmitDuelTakeBack` 等系统事件；系统发出 `OnAfterAddChessToBoard`、`OnDuelMoveRejected` 等领域结果事件，UI 只展示结果，不重复承担棋规判断。`OnAddChessToBoard` 仍保留为本地落子应用的兼容入口，不再作为页面或 AI 的首选提交入口。
+- UI 中存在多状态切换的固定表现时，应优先通过 prefab 上的 `StateRoot` 维护状态差异，由页面代码只调用 Binder 暴露的状态切换入口，例如 `SetSrPlatformState(...)` 或 `StateRoot.SetState(...)`。横竖屏布局、模式面板、固定控件显隐、布局参数和同类可枚举表现状态不应在页面业务代码中逐项设置 `RectTransform`、`LayoutGroup`、`SetActive` 或其它表现属性；页面代码只负责根据业务条件选择语义状态。动态列表实例化、文本数值刷新、进度条数值和输入内容这类运行时数据展示不属于 `StateRoot` 的职责。
 - `DuelPage` 只负责页面生命周期、事件注册和按钮命令转发；`DuelPageBoardInputController` 负责棋盘鼠标命中、合法预览棋子生命周期和点击落子坐标输出，并只在 `DuelInputAuthority` 授予本端输入权时显示预览或输出点击坐标；`DuelPageHudView` 负责玩家信息、形势结果、数子确认文案、终局面板、动作提示和设置按钮状态；`DuelPageInteractionState` 集中计算悔棋、认输、AI 身份和读秒显示可用性，不再保存 LAN 座位输入判断。
 - `ReplayPage` 是与 `ReplayScene` 生命周期绑定的 Header 主页面，只负责类悬浮 HUD 控制层、向 `ReplaySystem` 转发按钮命令和试下输入、展示 `ReplaySystem` 输出的状态文本；棋盘渲染、提子、局面重建和试下落子应用都归属 `ReplaySystem` 与棋盘表现链路，最新手标记和手数数字由 `ChessStoneViewCache` / `ChessStoneView` 绑定到棋子表现生命周期，不允许回退成页面内文本棋盘或页面内棋规实现。
 - `DuelFSM` 表示本地回合生命周期，回合开始、输入、超时和结束由状态机管理，而不是由 UI 直接切换。
@@ -80,6 +81,7 @@
 **架构护栏**
 
 - 不要把权威玩法状态修改直接写进 UI 页面类；UI 应该发出命令或事件，并展示状态。
+- 不要在页面业务代码中直接编排固定 UI 多状态表现。凡是可以枚举为页面/弹窗状态的布局、显隐或固定控件表现，都应落在 prefab 的 `StateRoot` 中，代码只选择状态名或状态枚举；确实需要直接改 UI 组件属性时，应限于运行时数据填充或临时动态对象，并在代码边界上保持清晰。
 - 不要在复盘 UI 页面内实现棋规、提子或棋盘渲染；复盘必须走独立场景和对局棋盘表现链路，UI 只驱动浏览游标、试下输入转发和展示状态，并保持不遮挡棋盘主体区域的 HUD 形态。
 - 不要绕过 `DuelMoveRule` 的落子结果模型来实现联机、AI 或回放。现有合法落子路径必须继续作为本地基线，或被明确提取为共享规则服务。
 - 不要让网络代码直接耦合 Unity 预制体实例化；网络命令应描述领域动作，而不是描述预制体操作。
