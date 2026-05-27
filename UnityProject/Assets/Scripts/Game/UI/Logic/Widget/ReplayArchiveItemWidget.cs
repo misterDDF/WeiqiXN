@@ -5,8 +5,8 @@ using UnityEngine.UI;
 
 public class ReplayArchiveItemWidget : UIWidgetWithBinder<ReplayArchiveItemWidgetUI>
 {
-    public const float ItemHeight = 44f;
-    public const float ItemSpacing = 4f;
+    public const float ItemHeight = 88f;
+    public const float ItemSpacing = 8f;
 
     private DuelReplayIndexItem replayItem;
     private Action<DuelReplayIndexItem> clickHandler;

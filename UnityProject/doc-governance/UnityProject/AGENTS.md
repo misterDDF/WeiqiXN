@@ -111,12 +111,12 @@
 - 任何 C#、Editor 菜单、asmdef、prefab、scene、material 或 asset 改动完成后，交付前必须至少通过 Unity MCP 执行一次 `Assets/Refresh` 菜单项或等效 Editor 刷新入口；若涉及 C#、asmdef 或 Editor 菜单函数，还必须在刷新后执行脚本编译验证，并检查 Console 错误。
 - 当前 MCP 未提供完整既有 prefab asset 层级编辑能力时，不直接手写复杂 prefab YAML；应改用 Unity 编辑器脚本、明确的编辑器菜单或人工维护 prefab，再通过 MCP 执行导入、编译和日志检查。
 - 固定 UI 控件仍必须由 prefab 或场景显式维护并通过现有 Binder 绑定；MCP 只是优先编辑入口，不改变 UI 维护边界。
-- 页面或弹窗 prefab 的界面根节点 `RectTransform` 默认必须使用四向 Stretch 锚点以适配多平台分辨率；仅在该界面明确是非全屏固定尺寸承载物且已有父级自适应布局时，才允许使用固定锚点，并应在对应 prefab 维护说明或交付说明中说明原因。
-- 修改既有 UI prefab 时，页面根节点、Canvas、CanvasScaler、GraphicRaycaster、主面板根节点、布局容器和棋盘承载节点默认视为受保护布局节点。除非任务明确要求调整这些节点，否则不得修改其 `RectTransform`、`Canvas`、`CanvasScaler`、`LayoutGroup` 或 `ContentSizeFitter` 配置。
-- 所有 `Assets/UI/Prefab/Page/*.prefab` 的页面根节点必须使用全屏 Stretch 布局，根 `RectTransform` 固定为 `anchorMin=(0,0)`、`anchorMax=(1,1)`、`anchoredPosition=(0,0)`、`sizeDelta=(0,0)`、`scale=(1,1,1)`，以保证多分辨率和多平台自适应；除非任务明确是修复页面根节点适配，否则不得把页面根节点改回居中固定锚点或固定尺寸。
+- `Assets/UI/Prefab/Page/*.prefab` 的 prefab 根节点必须作为 Unity Canvas 根节点维护，根节点上的 `RectTransform`、`Canvas`、`CanvasScaler` 和 `GraphicRaycaster` 一律视为受保护编辑器结构，不得为了界面铺满或横竖屏适配修改根 `RectTransform`；这样可避免 Unity Prefab 预览把页面 prefab 误判为非合法 Canvas 并额外创建 environment Canvas。
+- 页面或弹窗的全屏铺满布局必须放在 Canvas 根节点下的 `PanelRoot` 子节点上维护；`PanelRoot` 的 `RectTransform` 使用四向 Stretch（`anchorMin=(0,0)`、`anchorMax=(1,1)`、`anchoredPosition=(0,0)`、`sizeDelta=(0,0)`、`scale=(1,1,1)`）承载页面内容。新增 Page prefab 若缺少该节点，应先补 `PanelRoot`，再在其下维护主面板、布局容器和状态节点。
+- 修改既有 UI prefab 时，Canvas 根节点、Canvas、CanvasScaler、GraphicRaycaster、`PanelRoot`、主面板根节点、布局容器和棋盘承载节点默认视为受保护布局节点。除非任务明确要求调整这些节点，否则不得修改其 `RectTransform`、`Canvas`、`CanvasScaler`、`LayoutGroup` 或 `ContentSizeFitter` 配置。
 - `MainMenuPage.prefab` 的主菜单按钮栈和其布局容器默认视为受保护布局节点，尤其是 `panel_buttons` 一类承载既有按钮排列的节点；除非任务明确要求调整主菜单布局，否则不得修改这些节点的 `RectTransform`、`LayoutGroup`、`ContentSizeFitter`、锚点、尺寸、间距或父子关系。
 - UI prefab 修改完成后必须检查 prefab diff，确认改动只落在目标控件、目标子树和 Binder 引用上；若发现受保护布局节点出现非预期变化，必须先恢复这些变化再继续编译或交付。
-- 使用 Unity 编辑器脚本或 MCP 辅助修改 prefab 时，脚本必须按稳定路径定位目标父节点和模板节点，不得对页面根节点执行缩放、锚点、父子关系或自动布局重排操作，除非当前任务就是修复这些布局属性。
+- 使用 Unity 编辑器脚本或 MCP 辅助修改 prefab 时，脚本必须按稳定路径定位目标父节点和模板节点，不得对 Canvas 根节点执行缩放、锚点、父子关系或自动布局重排操作；需要铺满页面时只允许修改或创建根下 `PanelRoot`，除非当前任务就是修复 Canvas prefab 结构。
 
 ## Done Definition
 

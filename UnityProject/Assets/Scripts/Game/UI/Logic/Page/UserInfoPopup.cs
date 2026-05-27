@@ -9,12 +9,16 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
     private readonly List<ReplayArchiveItemWidget> replayItemWidgets = new List<ReplayArchiveItemWidget>();
     private int replayPageIndex;
     private bool replayLoadFailed;
+    private bool hasAppliedLayoutState;
+    private bool lastPortraitLayout;
 
     public override string pageName => UIPage.GetPageName<UserInfoPopup>();
 
     protected override void OnLoaded()
     {
         base.OnLoaded();
+
+        ApplyCurrentLayoutState(true);
 
         binder.btn_close.onClick.AddListener(OnClickBtnClose);
         if (binder.btn_edit_name != null) {
@@ -32,9 +36,17 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
     {
         base.OnOpen();
 
+        ApplyCurrentLayoutState(false);
         RefreshUserInfo();
         RefreshReplayItems();
         SetSaveTip(string.Empty);
+    }
+
+    protected override void OnUpdate()
+    {
+        base.OnUpdate();
+
+        ApplyCurrentLayoutState(false);
     }
 
     protected override void OnClose()
@@ -85,6 +97,27 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
     {
         if (binder.txt_save_tip != null) {
             binder.txt_save_tip.text = message ?? string.Empty;
+        }
+    }
+
+    private void ApplyCurrentLayoutState(bool force)
+    {
+        if (binder.sr_platform == null) {
+            return;
+        }
+
+        RectTransform layoutRoot = binder.panel_root != null ? binder.panel_root : rectTransform;
+        bool isPortrait = UIUtils.IsPortrait(layoutRoot);
+        if (!force && hasAppliedLayoutState && isPortrait == lastPortraitLayout) {
+            return;
+        }
+
+        binder.SetSrPlatformState(isPortrait ? UserInfoPopupUI.SrPlatformState.Portrait : UserInfoPopupUI.SrPlatformState.Landscape, force);
+        hasAppliedLayoutState = true;
+        lastPortraitLayout = isPortrait;
+
+        if (!force && replayItems.Count > 0) {
+            RefreshReplayPage();
         }
     }
 
