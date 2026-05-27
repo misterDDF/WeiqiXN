@@ -57,27 +57,6 @@ public class OnExitMainScene : SystemEventBase
     }
 }
 
-public class OnSaveDuelScene : SystemEventBase
-{
-    public override string GetEventType() => GetEventType<OnSaveDuelScene>();
-}
-
-public class OnDuelSaveResult : SystemEventBase
-{
-    public override string GetEventType() => GetEventType<OnDuelSaveResult>();
-
-    public bool success;
-    public int saveSlotIndex;
-    public string errorMessage;
-
-    public OnDuelSaveResult(bool success, int saveSlotIndex, string errorMessage)
-    {
-        this.success = success;
-        this.saveSlotIndex = saveSlotIndex;
-        this.errorMessage = errorMessage;
-    }
-}
-
 public class OnRequestDuelOwnership : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnRequestDuelOwnership>();

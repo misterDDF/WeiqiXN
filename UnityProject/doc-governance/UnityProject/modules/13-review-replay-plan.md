@@ -37,7 +37,7 @@
 当前项目已经具备以下基础能力：
 
 - 本地对局与存档链路已存在，`GameSaveConfig` 已经定义了 `save/{slot}/` 路径结构。
-- `DuelSaveSystem` 当前以固定槽位写入 `DuelScene.json`、`DuelRecord.json` 和 `SaveInfo.json`。
+- 当前正式保存入口由 `DuelReplayArchiveSystem` 自动写入复盘归档；手动运行中检查点入口已移除。
 - `KataGoDuelRecordFile` 已能够保存和加载标准化对局记录。
 - `KataGoPositionJsonBuilder` 已能构造带 `moves` 的分析请求。
 - `DuelAiAnalyzeService`、`DuelAiMoveSelector` 已经具备 AI 分析与候选点选择基础。
@@ -77,7 +77,7 @@
 
 ### 2026-05-25 当前落地口径
 
-- 运行中检查点继续使用 `save/0/`，由手动保存按钮触发，不进入复盘历史索引。
+- 手动运行中检查点入口已移除；当前正式保存入口只保留复盘归档。若后续需要崩溃恢复或继续对局，应重新定义独立检查点路径，且不得进入复盘历史索引。
 - 第一手有效手顺后，`DuelReplayArchiveSystem` 为当前局生成稳定 `gameId`，并覆盖写入 `save/replay/{gameId}/DuelScene.json`、`DuelRecord.json` 和 `SaveInfo.json`。
 - 成功落子、成功虚手、成功悔棋、数子失败回滚和终局都会覆盖同一局归档目录；悔棋不会拆成多条历史。
 - `save/replay/ReplayIndex.json` 是最近对局列表的数据来源，只收录手数大于 15 的可见复盘归档，并按 `lastUpdatedAtUtc` 倒序维护。

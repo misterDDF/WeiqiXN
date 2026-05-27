@@ -1,16 +1,12 @@
 ﻿using Newtonsoft.Json.Linq;
 using System;
 using System.IO;
-using System.Threading.Tasks;
 using XNClient.Logger;
 
 public class GameSaveManager : ModuleBase
 {
-    public bool savingLock;
-
     public override void Init()
     {
-        savingLock = false;
     }
 
     public bool SaveData(SavableObj savableObj, string saveFilePath)
@@ -19,11 +15,6 @@ public class GameSaveManager : ModuleBase
         XNLogger.LogWarn("Save data is skipped on WebGL platform.", ("saveFilePath", saveFilePath));
         return false;
 #else
-        if (savingLock) {
-            XNLogger.LogError("Saving lock is being occupied, save data failed.");
-            return false;
-        }
-
         try {
             string saveRootName = Path.GetFileNameWithoutExtension(saveFilePath);
             string saveDirPath = Path.GetDirectoryName(saveFilePath);
@@ -43,47 +34,6 @@ public class GameSaveManager : ModuleBase
         catch (Exception ex) {
             XNLogger.LogError("Save data failed.", ("saveFilePath", saveFilePath), ("err", ex.Message));
             return false;
-        }
-#endif
-    }
-
-    public async Task<bool> SaveDataAsync(SavableObj savableObj, string saveFilePath)
-    {
-#if UNITY_WEBGL && !UNITY_EDITOR
-        XNLogger.LogWarn("Save data async is skipped on WebGL platform.", ("saveFilePath", saveFilePath));
-        await Task.CompletedTask;
-        return false;
-#else
-        if (savingLock) {
-            XNLogger.LogError("Saving lock is being occupied, save data async failed.");
-            return false;
-        }
-
-        savingLock = true;
-        try {
-            Global.Instance.uiManager.ShowPage<SavingPopup>();
-            string saveRootName = Path.GetFileNameWithoutExtension(saveFilePath);
-            string saveDirPath = Path.GetDirectoryName(saveFilePath);
-            Directory.CreateDirectory(saveDirPath);
-            if (!File.Exists(saveFilePath)) {
-                File.Create(saveFilePath).Close();
-            }
-
-            if (string.IsNullOrEmpty(savableObj.savePath)) {
-                savableObj.savePath = saveRootName;
-            }
-            JObject saveJObject = savableObj.SaveObj();
-            await File.WriteAllTextAsync(saveFilePath, saveJObject.ToString());
-            XNLogger.LogInfo("Save data async success.", ("saveRootName", saveRootName), ("saveFilePath", saveFilePath));
-            return true;
-        }
-        catch (Exception ex) {
-            XNLogger.LogError("Save data async failed.", ("saveFilePath", saveFilePath), ("err", ex.Message));
-            return false;
-        }
-        finally {
-            savingLock = false;
-            Global.Instance.uiManager.ClosePage<SavingPopup>();
         }
 #endif
     }

@@ -28,7 +28,6 @@ public class DuelScene : SceneBase
             }
         }
 
-        AddSystem(new DuelSaveSystem(this));
         AddSystem(new ChessBoardSystem(this));
         AddSystem(new DuelOwnershipSystem(this));
         AddSystem(new DuelAuthoritySystem(this));

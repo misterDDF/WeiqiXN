@@ -27,7 +27,6 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         RegisterSystemEvent<OnDuelPassAccepted>(OnDuelPassAccepted);
         RegisterSystemEvent<OnDuelTakeBackResult>(OnDuelTakeBackResult);
         RegisterSystemEvent<OnAfterAddChessToBoard>(OnAfterAddChessToBoard);
-        RegisterSystemEvent<OnDuelSaveResult>(OnDuelSaveResult);
         RegisterSystemEvent<OnApplyLanDuelScoreRequest>(OnApplyLanDuelScoreRequest);
         RegisterSystemEvent<OnLanDuelScoreConfirmRequest>(OnLanDuelScoreConfirmRequest);
         RegisterSystemEvent<OnLanDuelScoreResultConfirmRequest>(OnLanDuelScoreResultConfirmRequest);
@@ -148,13 +147,6 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         hudView.OnAfterAddChessToBoard(evt);
     }
 
-    public void OnDuelSaveResult(OnDuelSaveResult evt)
-    {
-        hudView.ShowActionNotice(evt != null && evt.success
-            ? MessageText.Get("duel_save_success")
-            : MessageText.Get("duel_save_failed"));
-    }
-
     public void OnApplyLanDuelScoreRequest(OnApplyLanDuelScoreRequest evt)
     {
         if (evt == null || pendingScorePopupRequestId <= 0) {
@@ -247,11 +239,6 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         if (boardInput.TryGetMoveCoords(inputState, out RectCoordinates coords)) {
             EmitSystemEvent(new OnSubmitDuelMove(coords));
         }
-    }
-
-    public void OnClickBtnSave()
-    {
-        EmitSystemEvent(new OnSaveDuelScene());
     }
 
     public void OnClickBtnExit()
@@ -379,7 +366,6 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         AddButtonListener(binder.btn_settings_request_score, OnClickBtnRequestScore);
         AddButtonListener(binder.btn_settings_take_back, OnClickBtnTakeBack);
         AddButtonListener(binder.btn_settings_resign, OnClickBtnResign);
-        AddButtonListener(binder.btn_settings_save, OnClickBtnSave);
         AddButtonListener(binder.btn_settings_exit, OnClickBtnExit);
         AddButtonListener(binder.btn_settings_close, hudView.CloseSettingsPanel);
     }
