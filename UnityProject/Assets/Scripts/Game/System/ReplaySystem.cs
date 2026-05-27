@@ -15,7 +15,6 @@ public class ReplaySystem : SystemBase
     private const string ConfigAiMaxVisits19 = "aiMaxVisits19";
     private const string ConfigAiDisplayCandidateLimit = "aiDisplayCandidateLimit";
     private const string ConfigAiRequestCandidateLimit = "aiRequestCandidateLimit";
-    private const string ConfigAiIncludeOwnership = "aiIncludeOwnership";
     private const string ConfigAiIncludePolicy = "aiIncludePolicy";
     private const string ConfigAiShowCurrentPlayerWinrate = "aiShowCurrentPlayerWinrate";
     private const string ConfigAiWinrateMinDisplay = "aiWinrateMinDisplay";
@@ -217,7 +216,7 @@ public class ReplaySystem : SystemBase
                 replayScene,
                 requestId,
                 ResolveAiMaxVisits(compReplay.replayBoardSize),
-                GetReplayConfigBool(ConfigAiIncludeOwnership, false),
+                true,
                 GetReplayConfigBool(ConfigAiIncludePolicy, false));
 
             JObject result = await KataGoBootstrap.AnalyzeAsync(query);
@@ -226,6 +225,7 @@ public class ReplaySystem : SystemBase
             }
 
             List<RectGridAiRecommendationMarker> markers = BuildAiRecommendationMarkers(result);
+            DrawAiAnalysisOwnership(result);
             if (markers.Count == 0) {
                 compReplay.aiAnalysisStatus = "AI暂无推荐点";
                 return;
@@ -464,6 +464,16 @@ public class ReplaySystem : SystemBase
         return float.TryParse(token?.ToString(), out value);
     }
 
+    private void DrawAiAnalysisOwnership(JObject result)
+    {
+        JArray ownership = result?["ownership"] as JArray;
+        if (ownership == null || compChessBoard?.chessBoardGrid == null) {
+            return;
+        }
+
+        compChessBoard.chessBoardGrid.DrawOwnership(ownership, DuelOwnershipQueryService.OwnershipThreshold);
+    }
+
     private void ClearAiRecommendationMarkers()
     {
         if (compReplay != null) {
@@ -473,6 +483,7 @@ public class ReplaySystem : SystemBase
         }
 
         compChessBoard?.chessBoardGrid?.ClearAiRecommendationMarkers();
+        compChessBoard?.chessBoardGrid?.ClearOwnership();
     }
 
     private bool TryLoadReplayRecord(JObject recordJson)

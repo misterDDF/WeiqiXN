@@ -40,6 +40,30 @@ namespace XNClient.ChessBoard
 
     public class RectGrid : MonoBehaviour
     {
+        private readonly struct RectGridAiRecommendationMarkerDrawContext
+        {
+            public readonly RectGridAiRecommendationMarker marker;
+            public readonly float alpha;
+
+            public RectGridAiRecommendationMarkerDrawContext(RectGridAiRecommendationMarker marker, float alpha)
+            {
+                this.marker = marker;
+                this.alpha = alpha;
+            }
+        }
+
+        private readonly struct OwnershipPointDrawContext
+        {
+            public readonly int flag;
+            public readonly float alpha;
+
+            public OwnershipPointDrawContext(int flag, float alpha)
+            {
+                this.flag = flag;
+                this.alpha = alpha;
+            }
+        }
+
         public GameObject chunkPrefab;
         public int gridSize;
         private List<RectGridChunk> chunkList = new List<RectGridChunk>();
@@ -61,31 +85,36 @@ namespace XNClient.ChessBoard
         private static readonly Color CoordinateLabelColor = new Color(0.23f, 0.15f, 0.07f, 0.98f);
         private static readonly Color CoordinateLabelShadowColor = new Color(0.08f, 0.05f, 0.02f, 0.55f);
 
-        private const float OwnershipSquareSizeFactor = ChessBoardConfig.starPointRadiusFactor * 2f * 1.5f;
-        private const float OwnershipLineWidthFactor = ChessBoardConfig.roadNormalFactor * 1.5f;
+        private const float OwnershipSquareSizeFactor = ChessBoardConfig.starPointRadiusFactor * 2f * 2.5f;
         private const float OwnershipYOffset = 0.04f;
-        private const float OwnershipLineYOffset = 0.042f;
+        private const float OwnershipBlackPointMinAlpha = 0.55f;
+        private const float OwnershipBlackPointMaxAlpha = 0.95f;
+        private const float OwnershipWhitePointMinAlpha = 0.35f;
+        private const float OwnershipWhitePointMaxAlpha = 0.75f;
         private const float LatestMoveMarkerYOffset = 0.05f;
         private const float LatestMoveMarkerSizeFactor = ChessBoardConfig.starPointRadiusFactor * 2f * 2.3f;
         private const float MoveNumberMarkerYOffset = 1.74f;
         private const int MoveNumberMarkerFontSize = 48;
         private const float MoveNumberMarkerCharacterSize = 0.46f;
-        private const float AiRecommendationCircleYOffset = 0.075f;
-        private const float AiRecommendationTextYOffset = 0.087f;
-        private const float AiRecommendationMarkerSizeFactor = 0.62f;
+        private const float AiRecommendationCircleYOffset = 0.10f;
+        private const float AiRecommendationTextYOffset = 0.115f;
+        private const float AiRecommendationMarkerSizeFactor = 0.96f;
+        private const float AiRecommendationOutlineYOffset = 0.106f;
+        private const float AiRecommendationOutlineWidth = 0.3f;
         private const int AiRecommendationCircleSegments = 40;
-        private const int AiRecommendationFontSize = 56;
-        private const float AiRecommendationCharacterSize = 0.40f;
+        private const int AiRecommendationFontSize = 58;
+        private const float AiRecommendationCharacterSize = 0.46f;
+        private const float AiRecommendationTextLeftOffset = 0.14f;
         private const int OwnershipNeutral = 0;
         private const int OwnershipBlack = 1;
         private const int OwnershipWhite = -1;
         private static readonly Color MoveNumberOnBlackStoneColor = new Color(1f, 1f, 1f, 1f);
         private static readonly Color MoveNumberOnWhiteStoneColor = new Color(0f, 0f, 0f, 1f);
-        private static readonly Color AiRecommendationLowColor = new Color(0.18f, 0.36f, 0.18f, 0.78f);
-        private static readonly Color AiRecommendationHighColor = new Color(0.05f, 0.95f, 0.22f, 0.9f);
-        private static readonly Color AiRecommendationTextColor = new Color(1f, 1f, 1f, 1f);
-        private static readonly Color AiRecommendationTextShadowColor = new Color(0f, 0f, 0f, 0.45f);
-        private static readonly Vector3 AiRecommendationTextShadowOffset = new Vector3(0.018f, 0f, -0.018f);
+        private const float AiRecommendationLowestAlpha = 0.35f;
+        private const float AiRecommendationHighestAlpha = 0.85f;
+        private static readonly Color AiRecommendationColor = new Color(0.05f, 0.85f, 0.20f, 1f);
+        private static readonly Color AiRecommendationOutlineColor = new Color(0f, 0f, 0f, 0.92f);
+        private static readonly Color AiRecommendationTextColor = new Color(0f, 0f, 0f, 1f);
 
         private Material blackMaterial;
         private Material whiteMaterial;
@@ -93,7 +122,9 @@ namespace XNClient.ChessBoard
         private Material latestMoveMarkerOnWhiteStoneMaterial;
         private Mesh latestMoveMarkerMesh;
         private Mesh aiRecommendationCircleMesh;
-        private readonly List<Material> aiRecommendationMarkerMaterials = new List<Material>();
+        private Mesh aiRecommendationCircleOutlineMesh;
+        private Material aiRecommendationCircleMaterial;
+        private Material aiRecommendationOutlineMaterial;
 
         public void InitGrid(int gridSize)
         {
@@ -177,23 +208,25 @@ namespace XNClient.ChessBoard
             ownershipRoot = new GameObject("OwnershipRoot");
             ownershipRoot.transform.SetParent(transform, false);
 
-            int[] ownershipFlags = BuildOwnershipFlags(ownership, ownershipThreshold, expectedCount);
+            OwnershipPointDrawContext[] ownershipPoints = BuildOwnershipPointDrawContexts(
+                ownership,
+                ownershipThreshold,
+                expectedCount);
             float squareSize = ChessBoardConfig.rectCellSideLength * OwnershipSquareSizeFactor;
             for (int z = 0; z < gridSize; z++) {
                 for (int x = 0; x < gridSize; x++) {
-                    int ownershipFlag = ownershipFlags[z * gridSize + x];
-                    if (ownershipFlag == OwnershipNeutral) {
+                    OwnershipPointDrawContext ownershipPoint = ownershipPoints[z * gridSize + x];
+                    if (ownershipPoint.flag == OwnershipNeutral) {
                         continue;
                     }
 
-                    Material material = GetOwnershipMaterial(ownershipFlag);
+                    Material material = GetOwnershipMaterial(ownershipPoint.flag);
                     if (material != null) {
-                        CreateOwnershipSquare(x, z, squareSize, material);
+                        CreateOwnershipSquare(x, z, squareSize, material, ownershipPoint.alpha);
                     }
                 }
             }
 
-            DrawOwnershipLines(ownershipFlags);
         }
 
         public void ClearOwnership()
@@ -306,12 +339,17 @@ namespace XNClient.ChessBoard
             aiRecommendationMarkerRoot = new GameObject("AiRecommendationMarkerRoot");
             aiRecommendationMarkerRoot.transform.SetParent(transform, false);
 
+            List<RectGridAiRecommendationMarker> validMarkers = new List<RectGridAiRecommendationMarker>();
             foreach (RectGridAiRecommendationMarker marker in markers) {
                 if (marker.x < 0 || marker.x >= gridSize || marker.z < 0 || marker.z >= gridSize) {
                     continue;
                 }
 
-                CreateAiRecommendationMarker(marker);
+                validMarkers.Add(marker);
+            }
+
+            foreach (RectGridAiRecommendationMarkerDrawContext markerContext in CreateAiRecommendationMarkerDrawContexts(validMarkers)) {
+                CreateAiRecommendationMarker(markerContext);
             }
 
             if (aiRecommendationMarkerRoot.transform.childCount == 0) {
@@ -325,8 +363,6 @@ namespace XNClient.ChessBoard
                 Destroy(aiRecommendationMarkerRoot);
                 aiRecommendationMarkerRoot = null;
             }
-
-            ClearAiRecommendationMarkerMaterials();
         }
 
         private void CreateCoordinateLabels()
@@ -477,25 +513,27 @@ namespace XNClient.ChessBoard
             }
         }
 
-        private void CreateAiRecommendationMarker(RectGridAiRecommendationMarker marker)
+        private void CreateAiRecommendationMarker(RectGridAiRecommendationMarkerDrawContext markerContext)
         {
+            RectGridAiRecommendationMarker marker = markerContext.marker;
             int winratePercent = Mathf.Clamp(marker.winratePercent, 1, 100);
-            CreateAiRecommendationCircle(marker, winratePercent);
+            CreateAiRecommendationCircle(marker, markerContext.alpha);
+            CreateAiRecommendationCircleOutline(marker);
             CreateAiRecommendationText(marker, winratePercent);
         }
 
-        private void CreateAiRecommendationCircle(RectGridAiRecommendationMarker marker, int winratePercent)
+        private void CreateAiRecommendationCircle(RectGridAiRecommendationMarker marker, float alpha)
         {
             GameObject circle = new GameObject($"AiRecommendationCircle_{marker.order}_{marker.x}_{marker.z}");
             circle.transform.SetParent(aiRecommendationMarkerRoot.transform, false);
             circle.transform.localPosition = GetOwnershipLocalPosition(marker.x, marker.z, AiRecommendationCircleYOffset);
-            circle.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            circle.transform.localRotation = Quaternion.identity;
             circle.transform.localScale = Vector3.one;
 
             MeshFilter meshFilter = circle.AddComponent<MeshFilter>();
             meshFilter.sharedMesh = GetAiRecommendationCircleMesh();
 
-            Material material = CreateAiRecommendationMaterial(winratePercent);
+            Material material = GetAiRecommendationCircleMaterial();
             if (material == null) {
                 return;
             }
@@ -505,27 +543,54 @@ namespace XNClient.ChessBoard
             meshRenderer.receiveShadows = false;
             meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             meshRenderer.sortingOrder = 28;
+            ApplyAiRecommendationColor(meshRenderer, material, ResolveAiRecommendationColor(alpha));
+        }
+
+        private void CreateAiRecommendationCircleOutline(RectGridAiRecommendationMarker marker)
+        {
+            GameObject outline = new GameObject($"AiRecommendationCircleOutline_{marker.order}_{marker.x}_{marker.z}");
+            outline.transform.SetParent(aiRecommendationMarkerRoot.transform, false);
+            outline.transform.localPosition = GetOwnershipLocalPosition(marker.x, marker.z, AiRecommendationOutlineYOffset);
+            outline.transform.localRotation = Quaternion.identity;
+            outline.transform.localScale = Vector3.one;
+
+            MeshFilter meshFilter = outline.AddComponent<MeshFilter>();
+            meshFilter.sharedMesh = GetAiRecommendationCircleOutlineMesh();
+
+            Material material = GetAiRecommendationOutlineMaterial();
+            if (material == null) {
+                return;
+            }
+
+            MeshRenderer meshRenderer = outline.AddComponent<MeshRenderer>();
+            meshRenderer.sharedMaterial = material;
+            meshRenderer.receiveShadows = false;
+            meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            meshRenderer.sortingOrder = 29;
+            ApplyAiRecommendationColor(meshRenderer, material, AiRecommendationOutlineColor);
         }
 
         private void CreateAiRecommendationText(RectGridAiRecommendationMarker marker, int winratePercent)
         {
             string text = winratePercent.ToString();
             Vector3 localPosition = GetOwnershipLocalPosition(marker.x, marker.z, AiRecommendationTextYOffset);
-            CreateAiRecommendationTextMesh(
-                $"AiRecommendationTextShadow_{marker.order}_{marker.x}_{marker.z}",
-                text,
-                localPosition + AiRecommendationTextShadowOffset,
-                AiRecommendationTextShadowColor,
-                29);
+            Vector3 numberPosition = localPosition + new Vector3(-AiRecommendationTextLeftOffset, 0f, 0f);
             CreateAiRecommendationTextMesh(
                 $"AiRecommendationText_{marker.order}_{marker.x}_{marker.z}",
                 text,
-                localPosition,
+                numberPosition,
                 AiRecommendationTextColor,
                 30);
         }
 
-        private void CreateAiRecommendationTextMesh(string objectName, string labelText, Vector3 localPosition, Color color, int sortingOrder)
+        private void CreateAiRecommendationTextMesh(
+            string objectName,
+            string labelText,
+            Vector3 localPosition,
+            Color color,
+            int sortingOrder,
+            int fontSize = AiRecommendationFontSize,
+            float characterSize = AiRecommendationCharacterSize)
         {
             GameObject labelGO = new GameObject(objectName);
             labelGO.transform.SetParent(aiRecommendationMarkerRoot.transform, false);
@@ -535,8 +600,8 @@ namespace XNClient.ChessBoard
 
             TextMesh textMesh = labelGO.AddComponent<TextMesh>();
             textMesh.text = labelText;
-            textMesh.fontSize = AiRecommendationFontSize;
-            textMesh.characterSize = AiRecommendationCharacterSize;
+            textMesh.fontSize = fontSize;
+            textMesh.characterSize = characterSize;
             textMesh.fontStyle = FontStyle.Bold;
             textMesh.alignment = TextAlignment.Center;
             textMesh.anchor = TextAnchor.MiddleCenter;
@@ -562,57 +627,66 @@ namespace XNClient.ChessBoard
             return ((char)('A' + labelIndex)).ToString();
         }
 
-        private int[] BuildOwnershipFlags(JArray ownership, float ownershipThreshold, int expectedCount)
+        private OwnershipPointDrawContext[] BuildOwnershipPointDrawContexts(
+            JArray ownership,
+            float ownershipThreshold,
+            int expectedCount)
         {
             int[] ownershipFlags = new int[expectedCount];
+            float[] ownershipStrengths = new float[expectedCount];
+            float blackMinStrength = float.MaxValue;
+            float blackMaxStrength = float.MinValue;
+            float whiteMinStrength = float.MaxValue;
+            float whiteMaxStrength = float.MinValue;
+
             for (int ownershipIndex = 0; ownershipIndex < expectedCount; ownershipIndex++) {
                 if (!float.TryParse(ownership[ownershipIndex]?.ToString(), out float ownershipValue)) {
                     continue;
                 }
 
-                if (Mathf.Abs(ownershipValue) <= ownershipThreshold) {
+                float ownershipStrength = Mathf.Abs(ownershipValue);
+                if (ownershipStrength <= ownershipThreshold) {
                     continue;
                 }
 
-                ownershipFlags[ownershipIndex] = ownershipValue > 0f ? OwnershipBlack : OwnershipWhite;
-            }
-
-            return ownershipFlags;
-        }
-
-        private void DrawOwnershipLines(int[] ownershipFlags)
-        {
-            float lineWidth = ChessBoardConfig.rectCellSideLength * OwnershipLineWidthFactor;
-            float lineLength = ChessBoardConfig.rectCellSideLength;
-            for (int z = 0; z < gridSize; z++) {
-                for (int x = 0; x < gridSize; x++) {
-                    int ownershipFlag = ownershipFlags[z * gridSize + x];
-                    if (ownershipFlag == OwnershipNeutral) {
-                        continue;
-                    }
-
-                    if (x + 1 < gridSize && ownershipFlags[z * gridSize + x + 1] == ownershipFlag) {
-                        Vector3 centerA = GetOwnershipLocalPosition(x, z, OwnershipLineYOffset);
-                        Vector3 centerB = GetOwnershipLocalPosition(x + 1, z, OwnershipLineYOffset);
-                        Material material = GetOwnershipMaterial(ownershipFlag);
-                        if (material != null) {
-                            CreateOwnershipLine(centerA, centerB, lineLength, lineWidth, true, material);
-                        }
-                    }
-
-                    if (z + 1 < gridSize && ownershipFlags[(z + 1) * gridSize + x] == ownershipFlag) {
-                        Vector3 centerA = GetOwnershipLocalPosition(x, z, OwnershipLineYOffset);
-                        Vector3 centerB = GetOwnershipLocalPosition(x, z + 1, OwnershipLineYOffset);
-                        Material material = GetOwnershipMaterial(ownershipFlag);
-                        if (material != null) {
-                            CreateOwnershipLine(centerA, centerB, lineLength, lineWidth, false, material);
-                        }
-                    }
+                int ownershipFlag = ownershipValue > 0f ? OwnershipBlack : OwnershipWhite;
+                ownershipFlags[ownershipIndex] = ownershipFlag;
+                ownershipStrengths[ownershipIndex] = ownershipStrength;
+                if (ownershipFlag == OwnershipBlack) {
+                    blackMinStrength = Mathf.Min(blackMinStrength, ownershipStrength);
+                    blackMaxStrength = Mathf.Max(blackMaxStrength, ownershipStrength);
+                } else {
+                    whiteMinStrength = Mathf.Min(whiteMinStrength, ownershipStrength);
+                    whiteMaxStrength = Mathf.Max(whiteMaxStrength, ownershipStrength);
                 }
             }
+
+            OwnershipPointDrawContext[] ownershipPoints = new OwnershipPointDrawContext[expectedCount];
+            for (int ownershipIndex = 0; ownershipIndex < expectedCount; ownershipIndex++) {
+                int ownershipFlag = ownershipFlags[ownershipIndex];
+                if (ownershipFlag == OwnershipNeutral) {
+                    continue;
+                }
+
+                float minStrength = ownershipFlag == OwnershipBlack ? blackMinStrength : whiteMinStrength;
+                float maxStrength = ownershipFlag == OwnershipBlack ? blackMaxStrength : whiteMaxStrength;
+                float t = Mathf.Approximately(minStrength, maxStrength)
+                    ? 1f
+                    : Mathf.InverseLerp(minStrength, maxStrength, ownershipStrengths[ownershipIndex]);
+                float minAlpha = ownershipFlag == OwnershipBlack
+                    ? OwnershipBlackPointMinAlpha
+                    : OwnershipWhitePointMinAlpha;
+                float maxAlpha = ownershipFlag == OwnershipBlack
+                    ? OwnershipBlackPointMaxAlpha
+                    : OwnershipWhitePointMaxAlpha;
+                float alpha = Mathf.Lerp(minAlpha, maxAlpha, t);
+                ownershipPoints[ownershipIndex] = new OwnershipPointDrawContext(ownershipFlag, alpha);
+            }
+
+            return ownershipPoints;
         }
 
-        private void CreateOwnershipSquare(int x, int z, float squareSize, Material material)
+        private void CreateOwnershipSquare(int x, int z, float squareSize, Material material, float alpha)
         {
             GameObject square = GameObject.CreatePrimitive(PrimitiveType.Quad);
             square.name = $"Ownership_{x}_{z}";
@@ -622,22 +696,7 @@ namespace XNClient.ChessBoard
             square.transform.localScale = new Vector3(squareSize, squareSize, 1f);
 
             RemoveOwnershipCollider(square);
-            ApplyOwnershipMaterial(square, material);
-        }
-
-        private void CreateOwnershipLine(Vector3 centerA, Vector3 centerB, float lineLength, float lineWidth, bool isHorizontal, Material material)
-        {
-            GameObject line = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            line.name = isHorizontal ? "OwnershipLine_H" : "OwnershipLine_V";
-            line.transform.SetParent(ownershipRoot.transform, false);
-            line.transform.localPosition = (centerA + centerB) * 0.5f;
-            line.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            line.transform.localScale = isHorizontal
-                ? new Vector3(lineLength, lineWidth, 1f)
-                : new Vector3(lineWidth, lineLength, 1f);
-
-            RemoveOwnershipCollider(line);
-            ApplyOwnershipMaterial(line, material);
+            ApplyOwnershipMaterial(square, material, alpha);
         }
 
         private Vector3 GetOwnershipLocalPosition(int x, int z, float y)
@@ -691,7 +750,37 @@ namespace XNClient.ChessBoard
             return aiRecommendationCircleMesh;
         }
 
-        private Material CreateAiRecommendationMaterial(int winratePercent)
+        private Mesh GetAiRecommendationCircleOutlineMesh()
+        {
+            if (aiRecommendationCircleOutlineMesh == null) {
+                aiRecommendationCircleOutlineMesh = CreateRingMesh(
+                    ChessBoardConfig.rectCellSideLength * AiRecommendationMarkerSizeFactor,
+                    AiRecommendationOutlineWidth,
+                    AiRecommendationCircleSegments);
+            }
+
+            return aiRecommendationCircleOutlineMesh;
+        }
+
+        private Material GetAiRecommendationCircleMaterial()
+        {
+            if (aiRecommendationCircleMaterial == null) {
+                aiRecommendationCircleMaterial = CreateAiRecommendationMaterial(AiRecommendationColor);
+            }
+
+            return aiRecommendationCircleMaterial;
+        }
+
+        private Material GetAiRecommendationOutlineMaterial()
+        {
+            if (aiRecommendationOutlineMaterial == null) {
+                aiRecommendationOutlineMaterial = CreateAiRecommendationMaterial(AiRecommendationOutlineColor);
+            }
+
+            return aiRecommendationOutlineMaterial;
+        }
+
+        private Material CreateAiRecommendationMaterial(Color markerColor)
         {
             Shader shader = GetAiRecommendationMaterialShader();
             if (shader == null) {
@@ -699,9 +788,31 @@ namespace XNClient.ChessBoard
             }
 
             Material material = new Material(shader);
-            material.color = ResolveAiRecommendationColor(winratePercent);
-            aiRecommendationMarkerMaterials.Add(material);
+            material.color = markerColor;
+            if (material.HasProperty("_BaseColor")) {
+                material.SetColor("_BaseColor", markerColor);
+            }
+            if (material.HasProperty("_Color")) {
+                material.SetColor("_Color", Color.white);
+            }
             return material;
+        }
+
+        private void ApplyAiRecommendationColor(MeshRenderer renderer, Material material, Color color)
+        {
+            if (renderer == null || material == null) {
+                return;
+            }
+
+            MaterialPropertyBlock propertyBlock = new MaterialPropertyBlock();
+            if (material.HasProperty("_BaseColor")) {
+                propertyBlock.SetColor("_BaseColor", color);
+            }
+            if (material.HasProperty("_Color")) {
+                propertyBlock.SetColor("_Color", Color.white);
+            }
+
+            renderer.SetPropertyBlock(propertyBlock);
         }
 
         private Shader GetAiRecommendationMaterialShader()
@@ -712,22 +823,60 @@ namespace XNClient.ChessBoard
                 ?? whiteMaterial?.shader;
         }
 
-        private Color ResolveAiRecommendationColor(int winratePercent)
+        private Color ResolveAiRecommendationColor(float alpha)
         {
-            float t = Mathf.InverseLerp(1f, 100f, Mathf.Clamp(winratePercent, 1, 100));
-            t = Mathf.Pow(t, 0.75f);
-            return Color.Lerp(AiRecommendationLowColor, AiRecommendationHighColor, t);
+            Color color = AiRecommendationColor;
+            color.a = Mathf.Clamp(alpha, AiRecommendationLowestAlpha, AiRecommendationHighestAlpha);
+            return color;
+        }
+
+        private List<RectGridAiRecommendationMarkerDrawContext> CreateAiRecommendationMarkerDrawContexts(
+            List<RectGridAiRecommendationMarker> markers)
+        {
+            List<RectGridAiRecommendationMarkerDrawContext> markerContexts =
+                new List<RectGridAiRecommendationMarkerDrawContext>();
+            if (markers == null || markers.Count == 0) {
+                return markerContexts;
+            }
+
+            List<int> sortedWinrates = new List<int>();
+            foreach (RectGridAiRecommendationMarker marker in markers) {
+                int winratePercent = Mathf.Clamp(marker.winratePercent, 1, 100);
+                if (!sortedWinrates.Contains(winratePercent)) {
+                    sortedWinrates.Add(winratePercent);
+                }
+            }
+
+            sortedWinrates.Sort((left, right) => right.CompareTo(left));
+            Dictionary<int, float> alphaByWinrate = new Dictionary<int, float>(sortedWinrates.Count);
+            int denominator = sortedWinrates.Count - 1;
+            for (int i = 0; i < sortedWinrates.Count; i++) {
+                float t = denominator <= 0 ? 0f : (float)i / denominator;
+                float alpha = Mathf.Lerp(AiRecommendationHighestAlpha, AiRecommendationLowestAlpha, t);
+                alphaByWinrate[sortedWinrates[i]] = alpha;
+            }
+
+            foreach (RectGridAiRecommendationMarker marker in markers) {
+                int winratePercent = Mathf.Clamp(marker.winratePercent, 1, 100);
+                markerContexts.Add(new RectGridAiRecommendationMarkerDrawContext(
+                    marker,
+                    alphaByWinrate[winratePercent]));
+            }
+
+            return markerContexts;
         }
 
         private void ClearAiRecommendationMarkerMaterials()
         {
-            foreach (Material material in aiRecommendationMarkerMaterials) {
-                if (material != null) {
-                    Destroy(material);
-                }
+            if (aiRecommendationCircleMaterial != null) {
+                Destroy(aiRecommendationCircleMaterial);
+                aiRecommendationCircleMaterial = null;
             }
 
-            aiRecommendationMarkerMaterials.Clear();
+            if (aiRecommendationOutlineMaterial != null) {
+                Destroy(aiRecommendationOutlineMaterial);
+                aiRecommendationOutlineMaterial = null;
+            }
         }
 
         private void OnDestroy()
@@ -737,6 +886,7 @@ namespace XNClient.ChessBoard
             ClearLatestMoveMarker();
             ClearMoveNumberMarkers();
             ClearAiRecommendationMarkers();
+            ClearAiRecommendationMarkerMaterials();
 
             if (latestMoveMarkerMesh != null) {
                 Destroy(latestMoveMarkerMesh);
@@ -746,6 +896,11 @@ namespace XNClient.ChessBoard
             if (aiRecommendationCircleMesh != null) {
                 Destroy(aiRecommendationCircleMesh);
                 aiRecommendationCircleMesh = null;
+            }
+
+            if (aiRecommendationCircleOutlineMesh != null) {
+                Destroy(aiRecommendationCircleOutlineMesh);
+                aiRecommendationCircleOutlineMesh = null;
             }
         }
 
@@ -795,6 +950,43 @@ namespace XNClient.ChessBoard
             return circleMesh;
         }
 
+        private Mesh CreateRingMesh(float outerDiameter, float lineWidth, int segmentCount)
+        {
+            float outerRadius = outerDiameter * 0.5f;
+            float innerRadius = Mathf.Max(outerRadius - lineWidth, outerRadius * 0.5f);
+            int safeSegmentCount = Mathf.Max(segmentCount, 12);
+            List<Vector3> vertices = new List<Vector3>((safeSegmentCount + 1) * 2);
+            List<int> triangles = new List<int>(safeSegmentCount * 6);
+
+            for (int i = 0; i <= safeSegmentCount; i++) {
+                float angle = Mathf.PI * 2f * i / safeSegmentCount;
+                float cos = Mathf.Cos(angle);
+                float sin = Mathf.Sin(angle);
+                vertices.Add(new Vector3(cos * outerRadius, 0f, sin * outerRadius));
+                vertices.Add(new Vector3(cos * innerRadius, 0f, sin * innerRadius));
+            }
+
+            for (int i = 0; i < safeSegmentCount; i++) {
+                int outerA = i * 2;
+                int innerA = outerA + 1;
+                int outerB = outerA + 2;
+                int innerB = outerA + 3;
+                triangles.Add(outerA);
+                triangles.Add(innerA);
+                triangles.Add(outerB);
+                triangles.Add(innerA);
+                triangles.Add(innerB);
+                triangles.Add(outerB);
+            }
+
+            Mesh ringMesh = new Mesh();
+            ringMesh.name = "AiRecommendationCircleOutlineMesh";
+            ringMesh.SetVertices(vertices);
+            ringMesh.SetTriangles(triangles, 0);
+            ringMesh.RecalculateNormals();
+            return ringMesh;
+        }
+
         private void RemoveOwnershipCollider(GameObject go)
         {
             Collider collider = go.GetComponent<Collider>();
@@ -803,11 +995,27 @@ namespace XNClient.ChessBoard
             }
         }
 
-        private void ApplyOwnershipMaterial(GameObject go, Material material)
+        private void ApplyOwnershipMaterial(GameObject go, Material material, float alpha)
         {
             MeshRenderer renderer = go.GetComponent<MeshRenderer>();
             if (renderer != null) {
                 renderer.sharedMaterial = material;
+                MaterialPropertyBlock propertyBlock = new MaterialPropertyBlock();
+                float clampedAlpha = Mathf.Clamp01(alpha);
+                if (material.HasProperty("_BaseColor")) {
+                    Color baseColor = material.GetColor("_BaseColor");
+                    baseColor.a = clampedAlpha;
+                    propertyBlock.SetColor("_BaseColor", baseColor);
+                }
+                if (material.HasProperty("_Color")) {
+                    Color legacyColor = material.HasProperty("_Color")
+                        ? material.GetColor("_Color")
+                        : Color.white;
+                    legacyColor.a = 1f;
+                    propertyBlock.SetColor("_Color", legacyColor);
+                }
+
+                renderer.SetPropertyBlock(propertyBlock);
             }
         }
 
