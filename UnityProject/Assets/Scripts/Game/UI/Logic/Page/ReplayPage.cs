@@ -1,11 +1,15 @@
 using TMPro;
+using Unity.VisualScripting;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using XNClient.ChessBoard;
 
 public class ReplayPage : UIPageWithBinder<ReplayPageUI>
 {
     private DuelPageBoardInputController boardInput;
+    private bool isScrubbing;
+    private int scrubTargetMoveIndex;
 
     public override string pageName => UIPage.GetPageName<ReplayPage>();
 
@@ -23,6 +27,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         if (binder.btn_ai_analysis != null) {
             binder.btn_ai_analysis.onClick.AddListener(OnClickAiAnalysis);
         }
+        BindScrubberEvents();
     }
 
     protected override void OnClose()
@@ -37,6 +42,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
             if (binder.btn_ai_analysis != null) {
                 binder.btn_ai_analysis.onClick.RemoveListener(OnClickAiAnalysis);
             }
+            UnbindScrubberEvents();
         }
 
         boardInput?.Dispose();
@@ -84,6 +90,8 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         binder.txt_move_cursor.text = replaySystem != null ? replaySystem.BuildCursorText() : "0 / 0";
         binder.txt_move_detail.text = replaySystem != null ? replaySystem.BuildMoveDetailText() : "未加载复盘";
         binder.txt_analysis_placeholder.text = replaySystem != null ? replaySystem.BuildActionHint() : "试下、图表和 AI 推荐将在后续复盘控制层接入。";
+        RefreshScrubPreview(replaySystem);
+        RefreshChart(replaySystem);
         binder.btn_first.interactable = canBrowse;
         binder.btn_prev.interactable = canBrowse;
         binder.btn_next.interactable = canBrowse;
@@ -152,6 +160,143 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         }
 
         replaySystem.RequestAiAnalysis();
+    }
+
+    private void BindScrubberEvents()
+    {
+        if (binder.img_move_scrubber_hit == null) {
+            return;
+        }
+
+        UIEventTrigger trigger = binder.img_move_scrubber_hit.GetOrAddComponent<UIEventTrigger>();
+        trigger.onPointerDownHandler = OnScrubPointerDown;
+        trigger.onBeginDragHandler = OnScrubDrag;
+        trigger.onDragHandler = OnScrubDrag;
+        trigger.onEndDragHandler = OnScrubEndDrag;
+        trigger.onPointerUpHandler = OnScrubPointerUp;
+    }
+
+    private void UnbindScrubberEvents()
+    {
+        if (binder.img_move_scrubber_hit == null) {
+            return;
+        }
+
+        UIEventTrigger trigger = binder.img_move_scrubber_hit.GetComponent<UIEventTrigger>();
+        if (trigger == null) {
+            return;
+        }
+
+        trigger.onPointerDownHandler = null;
+        trigger.onBeginDragHandler = null;
+        trigger.onDragHandler = null;
+        trigger.onEndDragHandler = null;
+        trigger.onPointerUpHandler = null;
+    }
+
+    private void OnScrubPointerDown(PointerEventData eventData)
+    {
+        isScrubbing = true;
+        UpdateScrubTarget(eventData);
+    }
+
+    private void OnScrubDrag(PointerEventData eventData)
+    {
+        isScrubbing = true;
+        UpdateScrubTarget(eventData);
+    }
+
+    private void OnScrubEndDrag(PointerEventData eventData)
+    {
+        UpdateScrubTarget(eventData);
+        ApplyScrubTarget();
+    }
+
+    private void OnScrubPointerUp(PointerEventData eventData)
+    {
+        if (!isScrubbing) {
+            return;
+        }
+
+        UpdateScrubTarget(eventData);
+        ApplyScrubTarget();
+    }
+
+    private void UpdateScrubTarget(PointerEventData eventData)
+    {
+        ReplaySystem replaySystem = GetReplaySystem();
+        if (replaySystem == null || !replaySystem.IsReplayLoaded || binder.img_move_scrubber_hit == null) {
+            return;
+        }
+
+        RectTransform rectTransform = binder.img_move_scrubber_hit.rectTransform;
+        Camera eventCamera = eventData != null ? eventData.pressEventCamera : null;
+        if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(rectTransform, eventData.position, eventCamera, out Vector2 localPoint)) {
+            return;
+        }
+
+        Rect rect = rectTransform.rect;
+        float normalized = rect.width <= 0f ? 0f : Mathf.InverseLerp(rect.xMin, rect.xMax, localPoint.x);
+        scrubTargetMoveIndex = Mathf.RoundToInt(Mathf.Clamp01(normalized) * replaySystem.ReplayMoveCount);
+        RefreshScrubPreview(replaySystem);
+        RefreshChartCursor(replaySystem, scrubTargetMoveIndex);
+    }
+
+    private void ApplyScrubTarget()
+    {
+        ReplaySystem replaySystem = GetReplaySystem();
+        if (replaySystem != null && replaySystem.IsReplayLoaded) {
+            replaySystem.GoToReplayMove(scrubTargetMoveIndex);
+        }
+
+        isScrubbing = false;
+    }
+
+    private void RefreshScrubPreview(ReplaySystem replaySystem)
+    {
+        if (binder.txt_scrub_preview == null) {
+            return;
+        }
+
+        if (replaySystem == null || !replaySystem.IsReplayLoaded) {
+            binder.txt_scrub_preview.text = string.Empty;
+            return;
+        }
+
+        int targetMoveIndex = isScrubbing ? scrubTargetMoveIndex : replaySystem.ReplayCursorMoveIndex;
+        string previewText = isScrubbing
+            ? replaySystem.BuildScrubPreviewText(targetMoveIndex)
+            : replaySystem.BuildChartSummaryText();
+        binder.txt_scrub_preview.text = previewText;
+    }
+
+    private void RefreshChart(ReplaySystem replaySystem)
+    {
+        if (binder.chart_analysis != null) {
+            binder.chart_analysis.SetData(replaySystem?.ChartPoints, replaySystem != null ? replaySystem.ReplayMoveCount : 0);
+        }
+
+        int cursorMoveIndex = replaySystem != null ? replaySystem.ReplayCursorMoveIndex : 0;
+        RefreshChartCursor(replaySystem, isScrubbing ? scrubTargetMoveIndex : cursorMoveIndex);
+    }
+
+    private void RefreshChartCursor(ReplaySystem replaySystem, int targetMoveIndex)
+    {
+        if (binder.img_chart_cursor == null || binder.img_move_scrubber_hit == null || replaySystem == null || !replaySystem.IsReplayLoaded) {
+            if (binder.img_chart_cursor != null) {
+                binder.img_chart_cursor.enabled = false;
+            }
+            return;
+        }
+
+        RectTransform hitRect = binder.img_move_scrubber_hit.rectTransform;
+        RectTransform cursorRect = binder.img_chart_cursor.rectTransform;
+        float normalized = replaySystem.ReplayMoveCount <= 0
+            ? 0f
+            : Mathf.Clamp01((float)Mathf.Clamp(targetMoveIndex, 0, replaySystem.ReplayMoveCount) / replaySystem.ReplayMoveCount);
+        float localX = Mathf.Lerp(hitRect.rect.xMin, hitRect.rect.xMax, normalized);
+        cursorRect.anchoredPosition = new Vector2(localX, cursorRect.anchoredPosition.y);
+        binder.img_chart_cursor.enabled = true;
     }
 
     private void OnMouse0Down()

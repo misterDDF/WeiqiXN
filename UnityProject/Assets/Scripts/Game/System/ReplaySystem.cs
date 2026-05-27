@@ -20,6 +20,11 @@ public class ReplaySystem : SystemBase
     private const string ConfigAiWinrateMinDisplay = "aiWinrateMinDisplay";
     private const string ConfigAiWinrateMaxDisplay = "aiWinrateMaxDisplay";
     private const string ConfigAiAnalysisCooldownMs = "aiAnalysisCooldownMs";
+    private const string ConfigChartAnalysisEnabled = "chartAnalysisEnabled";
+    private const string ConfigChartMaxVisits9 = "chartMaxVisits9";
+    private const string ConfigChartMaxVisits13 = "chartMaxVisits13";
+    private const string ConfigChartMaxVisits19 = "chartMaxVisits19";
+    private const string ConfigChartLoadingSampleLimit = "chartLoadingSampleLimit";
 
     private SceneComponentReplay compReplay;
     private SceneComponentChessBoard compChessBoard;
@@ -51,6 +56,8 @@ public class ReplaySystem : SystemBase
     public bool IsAiAnalyzing => compReplay != null && compReplay.isAiAnalyzing;
     public bool HasAiAnalysisRender => compReplay != null && compReplay.hasAiAnalysisRender;
     public bool IsAiAnalysisEnabled => GetReplayConfigBool(ConfigAiAnalysisEnabled, true);
+    public bool IsChartReady => compReplay != null && compReplay.isChartReady;
+    public IReadOnlyList<ReplayChartPoint> ChartPoints => compReplay != null ? compReplay.chartPoints : null;
     public string ReplayStatus => BuildReplayStatusText();
 
     public void RestoreDefaultBoard()
@@ -107,6 +114,150 @@ public class ReplaySystem : SystemBase
         }
 
         ApplyReplayCursor(compReplay.replayMoves.Count);
+    }
+
+    public void GoToReplayMove(int targetCursorMoveIndex)
+    {
+        if (!IsReplayLoaded) {
+            return;
+        }
+
+        ClearAiRecommendationMarkers();
+        if (IsTryMode) {
+            ExitTryMode();
+        }
+
+        ApplyReplayCursor(targetCursorMoveIndex);
+    }
+
+    public string BuildScrubPreviewText(int targetCursorMoveIndex)
+    {
+        if (!IsReplayLoaded) {
+            return "未加载复盘";
+        }
+
+        int safeCursor = Mathf.Clamp(targetCursorMoveIndex, 0, compReplay.replayMoves.Count);
+        if (safeCursor <= 0) {
+            return compReplay.replayInitialStones.Count > 0
+                ? $"预览 初始局面 · {compReplay.replayInitialStones.Count} 颗让子"
+                : "预览 初始局面";
+        }
+
+        ReplayMoveState move = compReplay.replayMoves[safeCursor - 1];
+        string moveText = move.isPass ? "虚手" : move.pointText;
+        return $"预览 第 {safeCursor} 手 · {GetPlayerText(move.playerFlag)} {moveText}";
+    }
+
+    public async Task BuildChartDuringLoadingAsync()
+    {
+        if (!IsReplayLoaded || compReplay == null) {
+            return;
+        }
+
+        compReplay.chartPoints.Clear();
+        compReplay.isChartReady = false;
+        compReplay.isChartLoading = true;
+        compReplay.isChartBackgroundBuilding = false;
+        compReplay.chartStatus = string.Empty;
+
+        if (!GetReplayConfigBool(ConfigChartAnalysisEnabled, true)) {
+            compReplay.chartStatus = "复盘图表未启用";
+            compReplay.isChartReady = true;
+            compReplay.isChartLoading = false;
+            return;
+        }
+
+        int moveCount = compReplay.replayMoves.Count;
+        if (moveCount <= 0) {
+            compReplay.chartStatus = "复盘手顺为空";
+            compReplay.isChartReady = true;
+            compReplay.isChartLoading = false;
+            return;
+        }
+
+        int sampleLimit = Mathf.Clamp(GetReplayConfigInt(ConfigChartLoadingSampleLimit, 3), 0, moveCount + 1);
+        if (sampleLimit <= 0) {
+            compReplay.chartStatus = "图表后台生成中";
+            compReplay.isChartLoading = false;
+            StartChartBackgroundBuild();
+            return;
+        }
+
+        List<int> sampleMoveIndexes = BuildChartLoadingSampleMoveIndexes(moveCount, sampleLimit);
+        try {
+            for (int i = 0; i < sampleMoveIndexes.Count; i++) {
+                int moveIndex = sampleMoveIndexes[i];
+                LoadingPage.SetProgress(
+                    "生成复盘图表",
+                    $"分析采样 {i + 1}/{sampleMoveIndexes.Count}（第 {moveIndex} 手）",
+                    (float)(i + 1) / Mathf.Max(sampleMoveIndexes.Count, 1));
+
+                await AnalyzeAndUpsertChartPoint(moveIndex);
+                if (!scene.isMainScene) {
+                    return;
+                }
+            }
+
+            compReplay.chartStatus = $"图表已生成采样 {compReplay.chartPoints.Count} 点";
+        }
+        catch (System.Exception ex) {
+            compReplay.chartStatus = "图表生成失败";
+            compReplay.isChartReady = compReplay.chartPoints.Count > 0;
+            XNLogger.LogError("Replay chart analysis failed.", ("error", ex.Message));
+        }
+        finally {
+            compReplay.isChartLoading = false;
+            LoadingPage.SetProgress("生成复盘图表", compReplay.chartStatus, 1f);
+        }
+    }
+
+    public async void StartChartBackgroundBuild()
+    {
+        await BuildChartInBackgroundAsync();
+    }
+
+    private async Task BuildChartInBackgroundAsync()
+    {
+        if (!scene.isMainScene || !IsReplayLoaded || compReplay == null || compReplay.isChartBackgroundBuilding || compReplay.isChartReady) {
+            return;
+        }
+
+        if (!GetReplayConfigBool(ConfigChartAnalysisEnabled, true)) {
+            return;
+        }
+
+        int moveCount = compReplay.replayMoves.Count;
+        if (moveCount <= 0) {
+            compReplay.isChartReady = true;
+            return;
+        }
+
+        compReplay.isChartBackgroundBuilding = true;
+        try {
+            for (int moveIndex = 0; moveIndex <= moveCount; moveIndex++) {
+                if (!scene.isMainScene) {
+                    return;
+                }
+
+                if (GetChartPoint(moveIndex) != null) {
+                    continue;
+                }
+
+                compReplay.chartStatus = $"图表后台生成 {moveIndex}/{moveCount}";
+                await AnalyzeAndUpsertChartPoint(moveIndex);
+                await Task.Delay(1);
+            }
+
+            compReplay.isChartReady = true;
+            compReplay.chartStatus = $"图表已生成 {compReplay.chartPoints.Count} 点";
+        }
+        catch (System.Exception ex) {
+            compReplay.chartStatus = "图表后台生成失败";
+            XNLogger.LogError("Replay chart background analysis failed.", ("error", ex.Message));
+        }
+        finally {
+            compReplay.isChartBackgroundBuilding = false;
+        }
     }
 
     public bool ToggleTryMode()
@@ -347,12 +498,44 @@ public class ReplaySystem : SystemBase
             return compReplay.aiAnalysisStatus;
         }
 
+        if (!string.IsNullOrEmpty(compReplay.chartStatus)) {
+            return compReplay.chartStatus;
+        }
+
         if (IsTryMode) {
             string playerText = GetPlayerText(ResolveNextTryPlayerFlag());
             return $"试下模式不会写回原始复盘归档。当前轮到{playerText}方试下。";
         }
 
         return "复盘场景已切换到棋盘级渲染，当前页面只保留控制层。";
+    }
+
+    public string BuildChartSummaryText()
+    {
+        if (!IsReplayLoaded) {
+            return "图表未加载";
+        }
+
+        if (compReplay.isChartLoading) {
+            return "图表生成中";
+        }
+
+        if (compReplay.isChartBackgroundBuilding) {
+            return compReplay.chartStatus;
+        }
+
+        if (!compReplay.isChartReady || compReplay.chartPoints.Count == 0) {
+            return string.IsNullOrEmpty(compReplay.chartStatus) ? "暂无图表数据" : compReplay.chartStatus;
+        }
+
+        ReplayChartPoint point = GetChartPoint(compReplay.replayCursorMoveIndex);
+        string winrateText = point != null && point.hasWinrate
+            ? $"黑胜率 {Mathf.RoundToInt(Mathf.Clamp01(point.blackWinrate) * 100f)}%"
+            : "黑胜率 --";
+        string scoreText = point != null && point.hasScoreLead
+            ? $"目差 {FormatScoreLead(point.scoreLead)}"
+            : "目差 --";
+        return $"{winrateText} · {scoreText}";
     }
 
     private void LoadReplayRecord()
@@ -571,6 +754,19 @@ public class ReplaySystem : SystemBase
         return Mathf.Max(GetReplayConfigInt(ConfigAiMaxVisits19, 320), 1);
     }
 
+    private int ResolveChartMaxVisits(int boardSize)
+    {
+        if (boardSize <= 9) {
+            return Mathf.Max(GetReplayConfigInt(ConfigChartMaxVisits9, 96), 1);
+        }
+
+        if (boardSize <= 13) {
+            return Mathf.Max(GetReplayConfigInt(ConfigChartMaxVisits13, 64), 1);
+        }
+
+        return Mathf.Max(GetReplayConfigInt(ConfigChartMaxVisits19, 32), 1);
+    }
+
     private int GetReplayConfigInt(string id, int defaultValue)
     {
         ReplayConfigDataType data = ReplayConfigDataType.GetConfigData(id);
@@ -586,6 +782,169 @@ public class ReplaySystem : SystemBase
     private bool TryParseFloat(JToken token, out float value)
     {
         return float.TryParse(token?.ToString(), out value);
+    }
+
+    private JObject BuildChartAnalysisJson(int moveIndex)
+    {
+        JObject query = new JObject
+        {
+            ["id"] = $"replay-chart-{moveIndex}-{System.DateTime.UtcNow.Ticks}",
+            ["rules"] = KataGoDuelRecordFile.Rules,
+            ["komi"] = compReplay.replayKomi,
+            ["boardXSize"] = compReplay.replayBoardSize,
+            ["boardYSize"] = compReplay.replayBoardSize,
+            ["maxVisits"] = ResolveChartMaxVisits(compReplay.replayBoardSize),
+            ["includeOwnership"] = false,
+            ["includePolicy"] = false,
+            ["initialStones"] = BuildReplayInitialStonesArray(),
+            ["moves"] = BuildReplayMovesArray(moveIndex),
+            ["analyzeTurns"] = new JArray(Mathf.Clamp(moveIndex, 0, compReplay.replayMoves.Count)),
+        };
+        return query;
+    }
+
+    private async Task AnalyzeAndUpsertChartPoint(int moveIndex)
+    {
+        JObject query = BuildChartAnalysisJson(moveIndex);
+        JObject result = await KataGoBootstrap.AnalyzeAsync(query);
+        UpsertChartPoint(ParseChartPoint(moveIndex, result));
+    }
+
+    private void UpsertChartPoint(ReplayChartPoint point)
+    {
+        if (point == null || compReplay == null) {
+            return;
+        }
+
+        for (int i = 0; i < compReplay.chartPoints.Count; i++) {
+            if (compReplay.chartPoints[i] != null && compReplay.chartPoints[i].moveIndex == point.moveIndex) {
+                compReplay.chartPoints[i] = point;
+                SortChartPoints();
+                return;
+            }
+        }
+
+        compReplay.chartPoints.Add(point);
+        SortChartPoints();
+    }
+
+    private void SortChartPoints()
+    {
+        compReplay.chartPoints.Sort((left, right) =>
+        {
+            int leftIndex = left != null ? left.moveIndex : int.MaxValue;
+            int rightIndex = right != null ? right.moveIndex : int.MaxValue;
+            return leftIndex.CompareTo(rightIndex);
+        });
+    }
+
+    private List<int> BuildChartLoadingSampleMoveIndexes(int moveCount, int sampleLimit)
+    {
+        List<int> indexes = new List<int>();
+        int totalCount = moveCount + 1;
+        if (sampleLimit >= totalCount) {
+            for (int i = 0; i < totalCount; i++) {
+                indexes.Add(i);
+            }
+            return indexes;
+        }
+
+        for (int i = 0; i < sampleLimit; i++) {
+            int moveIndex = Mathf.RoundToInt((float)i * moveCount / Mathf.Max(sampleLimit - 1, 1));
+            if (!indexes.Contains(moveIndex)) {
+                indexes.Add(moveIndex);
+            }
+        }
+
+        if (!indexes.Contains(moveCount)) {
+            indexes[indexes.Count - 1] = moveCount;
+        }
+
+        indexes.Sort();
+        return indexes;
+    }
+
+    private JArray BuildReplayInitialStonesArray()
+    {
+        JArray initialStones = new JArray();
+        foreach (ReplayMoveState stone in compReplay.replayInitialStones) {
+            if (stone == null || stone.coords == null || stone.isPass) {
+                continue;
+            }
+
+            string color = KataGoPositionJsonBuilder.ToKataGoColor(stone.playerFlag);
+            if (!string.IsNullOrEmpty(color)) {
+                initialStones.Add(new JArray(color, KataGoPositionJsonBuilder.ToKataGoPoint(stone.coords, compReplay.replayBoardSize)));
+            }
+        }
+
+        return initialStones;
+    }
+
+    private JArray BuildReplayMovesArray(int moveCount)
+    {
+        JArray moves = new JArray();
+        int safeCount = Mathf.Clamp(moveCount, 0, compReplay.replayMoves.Count);
+        for (int i = 0; i < safeCount; i++) {
+            ReplayMoveState move = compReplay.replayMoves[i];
+            if (move == null) {
+                continue;
+            }
+
+            string color = KataGoPositionJsonBuilder.ToKataGoColor(move.playerFlag);
+            if (!string.IsNullOrEmpty(color)) {
+                moves.Add(new JArray(color, move.isPass ? KataGoPositionJsonBuilder.PassPoint : move.pointText));
+            }
+        }
+
+        return moves;
+    }
+
+    private ReplayChartPoint ParseChartPoint(int moveIndex, JObject result)
+    {
+        ReplayChartPoint point = new ReplayChartPoint
+        {
+            moveIndex = moveIndex,
+        };
+
+        JToken rootInfo = result?["rootInfo"];
+        if (TryParseFloat(rootInfo?["winrate"], out float winrate)) {
+            point.hasWinrate = true;
+            point.blackWinrate = Mathf.Clamp01(winrate);
+        }
+
+        if (TryParseFloat(rootInfo?["scoreLead"], out float scoreLead)) {
+            point.hasScoreLead = true;
+            point.scoreLead = scoreLead;
+        }
+
+        return point;
+    }
+
+    private ReplayChartPoint GetChartPoint(int moveIndex)
+    {
+        if (compReplay == null || compReplay.chartPoints.Count == 0) {
+            return null;
+        }
+
+        int safeMoveIndex = Mathf.Clamp(moveIndex, 0, compReplay.replayMoves.Count);
+        foreach (ReplayChartPoint point in compReplay.chartPoints) {
+            if (point != null && point.moveIndex == safeMoveIndex) {
+                return point;
+            }
+        }
+
+        return null;
+    }
+
+    private string FormatScoreLead(float scoreLead)
+    {
+        if (Mathf.Abs(scoreLead) < 0.05f) {
+            return "均势";
+        }
+
+        string sideText = scoreLead > 0f ? "黑+" : "白+";
+        return $"{sideText}{Mathf.Abs(scoreLead):0.0}";
     }
 
     private bool DrawAiAnalysisOwnership(JObject result)

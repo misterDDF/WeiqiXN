@@ -82,5 +82,40 @@
     "valueType": "int",
     "intValue": 500,
     "description": "AI 分析按钮冷却毫秒数"
+  },
+  "chartAnalysisEnabled": {
+    "id": "chartAnalysisEnabled",
+    "group": "chart_analysis",
+    "valueType": "boolean",
+    "boolValue": true,
+    "description": "进入复盘场景 loading 阶段是否生成胜率/目差折线图"
+  },
+  "chartMaxVisits9": {
+    "id": "chartMaxVisits9",
+    "group": "chart_analysis",
+    "valueType": "int",
+    "intValue": 96,
+    "description": "9 路复盘图表每手 KataGo 访问次数"
+  },
+  "chartMaxVisits13": {
+    "id": "chartMaxVisits13",
+    "group": "chart_analysis",
+    "valueType": "int",
+    "intValue": 64,
+    "description": "13 路复盘图表每手 KataGo 访问次数"
+  },
+  "chartMaxVisits19": {
+    "id": "chartMaxVisits19",
+    "group": "chart_analysis",
+    "valueType": "int",
+    "intValue": 32,
+    "description": "19 路复盘图表每手 KataGo 访问次数"
+  },
+  "chartLoadingSampleLimit": {
+    "id": "chartLoadingSampleLimit",
+    "group": "chart_analysis",
+    "valueType": "int",
+    "intValue": 3,
+    "description": "进入复盘场景 loading 阶段最多同步生成的图表种子采样点数量，其余点进入 HUD 后后台补齐"
   }
 }
