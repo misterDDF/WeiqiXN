@@ -14,6 +14,7 @@ public class SceneComponentReplay : SceneComponentBase
     public bool isReplayLoaded;
     public bool isTryMode;
     public bool isAiAnalyzing;
+    public bool hasAiAnalysisRender;
     public int aiAnalysisVersion;
     public float lastAiAnalysisRequestTime;
     public string aiAnalysisStatus;

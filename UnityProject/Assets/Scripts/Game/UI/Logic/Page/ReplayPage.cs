@@ -79,8 +79,8 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         bool canBrowse = replaySystem != null && replaySystem.IsReplayLoaded &&
             (replaySystem.IsTryMode ? replaySystem.TryMoveCount > 0 : replaySystem.ReplayMoveCount > 0);
         bool canTryMode = replaySystem != null && replaySystem.IsReplayLoaded;
-        bool canAiAnalysis = replaySystem != null && replaySystem.IsReplayLoaded &&
-            replaySystem.IsAiAnalysisEnabled && !replaySystem.IsAiAnalyzing;
+        bool canAiAnalysis = replaySystem != null && replaySystem.IsReplayLoaded && !replaySystem.IsAiAnalyzing &&
+            (replaySystem.IsAiAnalysisEnabled || replaySystem.HasAiAnalysisRender);
 
         binder.txt_title.text = replayScene != null ? replayScene.configData.id : "Replay";
         binder.txt_summary.text = replaySystem != null ? replaySystem.BuildSummaryText() : "未加载复盘场景";
@@ -98,7 +98,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         }
         SetButtonText(binder.btn_close, "退出");
         SetTryModeButtonText(replaySystem != null && replaySystem.IsTryMode ? "退出试下" : "试下");
-        SetButtonText(binder.btn_ai_analysis, replaySystem != null && replaySystem.IsAiAnalyzing ? "分析中" : "AI分析");
+        SetButtonText(binder.btn_ai_analysis, GetAiAnalysisButtonText(replaySystem));
     }
 
     private void RefreshTryModeInput()
@@ -274,7 +274,17 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
 
     private void OnClickAiAnalysis()
     {
-        GetReplaySystem()?.RequestAiAnalysis();
+        ReplaySystem replaySystem = GetReplaySystem();
+        if (replaySystem == null) {
+            return;
+        }
+
+        if (replaySystem.HasAiAnalysisRender) {
+            replaySystem.ClearAiAnalysisRender();
+            return;
+        }
+
+        replaySystem.RequestAiAnalysis();
     }
 
     private void OnMouse0Down()
@@ -304,6 +314,19 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
     private void SetTryModeButtonText(string text)
     {
         SetButtonText(binder.btn_try_mode, text);
+    }
+
+    private string GetAiAnalysisButtonText(ReplaySystem replaySystem)
+    {
+        if (replaySystem != null && replaySystem.IsAiAnalyzing) {
+            return "分析中";
+        }
+
+        if (replaySystem != null && replaySystem.HasAiAnalysisRender) {
+            return "关闭ai推荐";
+        }
+
+        return "AI分析";
     }
 
     private void SetButtonText(Button button, string text)

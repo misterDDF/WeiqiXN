@@ -49,6 +49,7 @@ public class ReplaySystem : SystemBase
     public int ReplayBoardSize => compReplay != null ? compReplay.replayBoardSize : 0;
     public PlayerFlag CurrentTryPlayerFlag => compReplay != null ? ResolveNextTryPlayerFlag() : 0;
     public bool IsAiAnalyzing => compReplay != null && compReplay.isAiAnalyzing;
+    public bool HasAiAnalysisRender => compReplay != null && compReplay.hasAiAnalysisRender;
     public bool IsAiAnalysisEnabled => GetReplayConfigBool(ConfigAiAnalysisEnabled, true);
     public string ReplayStatus => BuildReplayStatusText();
 
@@ -178,6 +179,11 @@ public class ReplaySystem : SystemBase
         await RequestAiAnalysisAsync();
     }
 
+    public void ClearAiAnalysisRender()
+    {
+        ClearAiRecommendationMarkers();
+    }
+
     public async Task RequestAiAnalysisAsync()
     {
         if (!IsReplayLoaded || compReplay == null || compChessBoard?.chessBoardGrid == null || compDuel == null) {
@@ -224,14 +230,18 @@ public class ReplaySystem : SystemBase
                 return;
             }
 
+            bool hasOwnershipRender = DrawAiAnalysisOwnership(result);
             List<RectGridAiRecommendationMarker> markers = BuildAiRecommendationMarkers(result);
-            DrawAiAnalysisOwnership(result);
+            bool hasRecommendationRender = false;
             if (markers.Count == 0) {
                 compReplay.aiAnalysisStatus = "AI暂无推荐点";
+                compReplay.hasAiAnalysisRender = hasOwnershipRender;
                 return;
             }
 
             compChessBoard.chessBoardGrid.DrawAiRecommendationMarkers(markers);
+            hasRecommendationRender = true;
+            compReplay.hasAiAnalysisRender = hasOwnershipRender || hasRecommendationRender;
             compReplay.aiAnalysisStatus = $"AI推荐 {markers.Count} 点";
         }
         catch (System.Exception ex) {
@@ -464,14 +474,36 @@ public class ReplaySystem : SystemBase
         return float.TryParse(token?.ToString(), out value);
     }
 
-    private void DrawAiAnalysisOwnership(JObject result)
+    private bool DrawAiAnalysisOwnership(JObject result)
     {
         JArray ownership = result?["ownership"] as JArray;
         if (ownership == null || compChessBoard?.chessBoardGrid == null) {
-            return;
+            return false;
+        }
+
+        if (!HasVisibleOwnership(ownership, compChessBoard.chessBoardGrid.gridSize, DuelOwnershipQueryService.OwnershipThreshold)) {
+            return false;
         }
 
         compChessBoard.chessBoardGrid.DrawOwnership(ownership, DuelOwnershipQueryService.OwnershipThreshold);
+        return true;
+    }
+
+    private bool HasVisibleOwnership(JArray ownership, int boardSize, float ownershipThreshold)
+    {
+        int expectedCount = boardSize * boardSize;
+        if (ownership == null || ownership.Count < expectedCount) {
+            return false;
+        }
+
+        for (int i = 0; i < expectedCount; i++) {
+            if (float.TryParse(ownership[i]?.ToString(), out float ownershipValue) &&
+                Mathf.Abs(ownershipValue) > ownershipThreshold) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void ClearAiRecommendationMarkers()
@@ -479,6 +511,7 @@ public class ReplaySystem : SystemBase
         if (compReplay != null) {
             compReplay.aiAnalysisVersion += 1;
             compReplay.isAiAnalyzing = false;
+            compReplay.hasAiAnalysisRender = false;
             compReplay.aiAnalysisStatus = string.Empty;
         }
 
