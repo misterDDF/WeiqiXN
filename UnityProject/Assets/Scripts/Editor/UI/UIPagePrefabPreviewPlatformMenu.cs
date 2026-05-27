@@ -12,13 +12,15 @@ public static class UIPagePrefabPreviewPlatformMenu
 {
     private const string PagePrefabFolder = "Assets/UI/Prefab/Page/";
     private const double RestoreFocusDelaySeconds = 0.5d;
-    private static readonly Vector2 PcPreviewResolution = new Vector2(1600f, 900f);
-    private static readonly Vector2 MobilePreviewResolution = new Vector2(720f, 1280f);
+    private const string PcPreviewProfileName = "PC";
+    private const string MobilePreviewProfileName = "Mobile";
+    private static readonly Vector2 PcPreviewResolution = UICanvasResolutionProfile.EditorDefaultReferenceResolution;
+    private static readonly Vector2 MobilePreviewResolution = UICanvasResolutionProfile.EditorMobilePreviewReferenceResolution;
 
     [MenuItem("Assets/切换预览平台/PC端", false, 2000)]
     private static void ApplyPcPreview()
     {
-        ApplyPreviewResolution(PcPreviewResolution);
+        ApplyPreviewResolution(PcPreviewResolution, PcPreviewProfileName);
     }
 
     [MenuItem("Assets/切换预览平台/PC端", true)]
@@ -30,7 +32,7 @@ public static class UIPagePrefabPreviewPlatformMenu
     [MenuItem("Assets/切换预览平台/移动端", false, 2001)]
     private static void ApplyMobilePreview()
     {
-        ApplyPreviewResolution(MobilePreviewResolution);
+        ApplyPreviewResolution(MobilePreviewResolution, MobilePreviewProfileName);
     }
 
     [MenuItem("Assets/切换预览平台/移动端", true)]
@@ -42,7 +44,7 @@ public static class UIPagePrefabPreviewPlatformMenu
     [MenuItem("GameObject/切换预览平台/PC端", false, 2000)]
     private static void ApplyHierarchyPcPreview()
     {
-        ApplyPreviewResolution(GetCurrentPagePrefabStagePath(), PcPreviewResolution);
+        ApplyPreviewResolution(GetCurrentPagePrefabStagePath(), PcPreviewResolution, PcPreviewProfileName);
     }
 
     [MenuItem("GameObject/切换预览平台/PC端", true)]
@@ -54,7 +56,7 @@ public static class UIPagePrefabPreviewPlatformMenu
     [MenuItem("GameObject/切换预览平台/移动端", false, 2001)]
     private static void ApplyHierarchyMobilePreview()
     {
-        ApplyPreviewResolution(GetCurrentPagePrefabStagePath(), MobilePreviewResolution);
+        ApplyPreviewResolution(GetCurrentPagePrefabStagePath(), MobilePreviewResolution, MobilePreviewProfileName);
     }
 
     [MenuItem("GameObject/切换预览平台/移动端", true)]
@@ -63,13 +65,13 @@ public static class UIPagePrefabPreviewPlatformMenu
         return IsCurrentPagePrefabStageWithCanvasScaler();
     }
 
-    private static void ApplyPreviewResolution(Vector2 referenceResolution)
+    private static void ApplyPreviewResolution(Vector2 referenceResolution, string profileName)
     {
         string assetPath = GetSelectedPagePrefabPath();
-        ApplyPreviewResolution(assetPath, referenceResolution);
+        ApplyPreviewResolution(assetPath, referenceResolution, profileName);
     }
 
-    private static void ApplyPreviewResolution(string assetPath, Vector2 referenceResolution)
+    private static void ApplyPreviewResolution(string assetPath, Vector2 referenceResolution, string profileName)
     {
         if (string.IsNullOrEmpty(assetPath)) {
             return;
@@ -93,6 +95,7 @@ public static class UIPagePrefabPreviewPlatformMenu
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
 
+        UICanvasResolutionProfile.WriteEditorReferenceResolution(referenceResolution, profileName);
         ApplyGameViewResolution(referenceResolution);
     }
 
