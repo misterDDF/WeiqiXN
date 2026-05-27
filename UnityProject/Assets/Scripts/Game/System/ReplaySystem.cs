@@ -32,8 +32,9 @@ public class ReplaySystem : SystemBase
     public int ReplayCursorMoveIndex => compReplay != null ? compReplay.replayCursorMoveIndex : 0;
     public int ReplayMoveCount => compReplay != null ? compReplay.replayMoves.Count : 0;
     public int TryMoveCount => compReplay != null ? compReplay.tryMoves.Count : 0;
+    public int TryCursorMoveIndex => compReplay != null ? compReplay.tryCursorMoveIndex : 0;
     public int ReplayBoardSize => compReplay != null ? compReplay.replayBoardSize : 0;
-    public PlayerFlag CurrentTryPlayerFlag => IsTryMode ? ResolveNextTryPlayerFlag() : 0;
+    public PlayerFlag CurrentTryPlayerFlag => compReplay != null ? ResolveNextTryPlayerFlag() : 0;
     public string ReplayStatus => BuildReplayStatusText();
 
     public void RestoreDefaultBoard()
@@ -51,6 +52,7 @@ public class ReplaySystem : SystemBase
     public void GoFirst()
     {
         if (IsTryMode) {
+            ApplyTryCursor(0);
             return;
         }
 
@@ -60,6 +62,7 @@ public class ReplaySystem : SystemBase
     public void GoPrev()
     {
         if (IsTryMode) {
+            ApplyTryCursor(compReplay.tryCursorMoveIndex - 1);
             return;
         }
 
@@ -69,6 +72,7 @@ public class ReplaySystem : SystemBase
     public void GoNext()
     {
         if (IsTryMode) {
+            ApplyTryCursor(compReplay.tryCursorMoveIndex + 1);
             return;
         }
 
@@ -78,6 +82,7 @@ public class ReplaySystem : SystemBase
     public void GoLast()
     {
         if (IsTryMode) {
+            ApplyTryCursor(compReplay.tryMoves.Count);
             return;
         }
 
@@ -96,6 +101,7 @@ public class ReplaySystem : SystemBase
         }
 
         compReplay.tryBaseCursorMoveIndex = compReplay.replayCursorMoveIndex;
+        compReplay.tryCursorMoveIndex = 0;
         compReplay.tryMoves.Clear();
         compReplay.isTryMode = true;
         compReplay.replayStatus = string.Empty;
@@ -110,6 +116,7 @@ public class ReplaySystem : SystemBase
 
         compReplay.isTryMode = false;
         compReplay.tryMoves.Clear();
+        compReplay.tryCursorMoveIndex = 0;
         ApplyReplayCursor(compReplay.tryBaseCursorMoveIndex);
         compReplay.replayStatus = string.Empty;
         return true;
@@ -128,13 +135,18 @@ public class ReplaySystem : SystemBase
         }
 
         ReplayMoveState move = CreateReplayMoveState(playerFlag, coords.Clone(), false);
-        if (!ApplyReplayMove(move)) {
+        if (!TryBuildAndApplyTryMove(move)) {
             compReplay.replayStatus = "试下落子失败";
             return false;
         }
 
+        if (compReplay.tryCursorMoveIndex < compReplay.tryMoves.Count) {
+            compReplay.tryMoves.RemoveRange(compReplay.tryCursorMoveIndex, compReplay.tryMoves.Count - compReplay.tryCursorMoveIndex);
+        }
+
         compReplay.tryMoves.Add(move);
-        SyncBoardViews(move, compReplay.tryMoves.Count);
+        compReplay.tryCursorMoveIndex = compReplay.tryMoves.Count;
+        SyncTryBoardMarkers();
         compReplay.replayStatus = string.Empty;
         return true;
     }
@@ -147,7 +159,7 @@ public class ReplaySystem : SystemBase
 
         string boardText = compReplay.replayBoardSize > 0 ? $"{compReplay.replayBoardSize} 路" : "未知棋盘";
         if (IsTryMode) {
-            return $"{boardText} · 主线 {compReplay.replayMoves.Count} 手 · 试下 {compReplay.tryMoves.Count} 手";
+            return $"{boardText} · 主线 {compReplay.replayMoves.Count} 手 · 试下 {compReplay.tryCursorMoveIndex}/{compReplay.tryMoves.Count} 手";
         }
 
         return $"{boardText} · {compReplay.replayMoves.Count} 手 · 复盘场景";
@@ -160,7 +172,7 @@ public class ReplaySystem : SystemBase
         }
 
         if (IsTryMode) {
-            return $"{compReplay.tryBaseCursorMoveIndex}+{compReplay.tryMoves.Count} / {compReplay.replayMoves.Count}";
+            return $"{compReplay.tryBaseCursorMoveIndex}+{compReplay.tryCursorMoveIndex} / {compReplay.replayMoves.Count}";
         }
 
         return $"{compReplay.replayCursorMoveIndex} / {compReplay.replayMoves.Count}";
@@ -173,14 +185,14 @@ public class ReplaySystem : SystemBase
         }
 
         if (IsTryMode) {
-            if (compReplay.tryMoves.Count <= 0) {
+            if (compReplay.tryCursorMoveIndex <= 0) {
                 return $"试下模式：从第 {compReplay.tryBaseCursorMoveIndex} 手开始";
             }
 
-            ReplayMoveState tryMove = compReplay.tryMoves[compReplay.tryMoves.Count - 1];
+            ReplayMoveState tryMove = compReplay.tryMoves[compReplay.tryCursorMoveIndex - 1];
             string tryPlayerText = GetPlayerText(tryMove.playerFlag);
             string tryMoveText = tryMove.isPass ? "虚手" : tryMove.pointText;
-            return $"试下第 {compReplay.tryMoves.Count} 手：{tryPlayerText} {tryMoveText}";
+            return $"试下第 {compReplay.tryCursorMoveIndex} 手：{tryPlayerText} {tryMoveText}";
         }
 
         if (compReplay.replayCursorMoveIndex <= 0) {
@@ -312,6 +324,33 @@ public class ReplaySystem : SystemBase
         SyncBoardViews(latestMove, latestMoveNumber);
     }
 
+    private void ApplyTryCursor(int targetTryCursorMoveIndex)
+    {
+        if (!IsReplayLoaded || !IsTryMode || compChessBoard == null || compDuel == null || compChessBoard.chessBoardGrid == null) {
+            return;
+        }
+
+        int safeCursor = Mathf.Clamp(targetTryCursorMoveIndex, 0, compReplay.tryMoves.Count);
+        if (safeCursor == compReplay.tryCursorMoveIndex) {
+            return;
+        }
+
+        while (compReplay.tryCursorMoveIndex < safeCursor) {
+            if (!ApplyTryStepForward(compReplay.tryCursorMoveIndex)) {
+                break;
+            }
+        }
+
+        while (compReplay.tryCursorMoveIndex > safeCursor) {
+            if (!ApplyTryStepBackward(compReplay.tryCursorMoveIndex - 1)) {
+                break;
+            }
+        }
+
+        SyncTryBoardMarkers();
+        compReplay.replayStatus = string.Empty;
+    }
+
     private void ApplyReplayInitialStones()
     {
         foreach (ReplayMoveState stone in compReplay.replayInitialStones) {
@@ -347,6 +386,127 @@ public class ReplaySystem : SystemBase
         return true;
     }
 
+    private bool TryBuildAndApplyTryMove(ReplayMoveState move)
+    {
+        if (move == null || move.coords == null) {
+            return false;
+        }
+
+        string chessGuid = EntityUtils.CreateGuidWithEntityType(EntityBase.GetEntityType<Chess>());
+        DuelMoveResult moveResult = DuelMoveRule.BuildMoveResult(
+            compChessBoard,
+            new DuelMoveCommand(move.playerFlag, move.coords, chessGuid)
+        );
+        if (!moveResult.accepted) {
+            return false;
+        }
+
+        move.previousLastChessInfoDict = CloneChessInfoDict(compChessBoard.lastChessInfoDict);
+        move.moveResult = moveResult;
+        DuelMoveRule.ApplyMoveResult(compChessBoard, moveResult);
+        compDuel.AppendKataGoMove(move.playerFlag, move.coords, compReplay.replayBoardSize);
+        ApplyTryMoveStoneViews(moveResult, true);
+        return true;
+    }
+
+    private bool ApplyTryStepForward(int stepIndex)
+    {
+        if (stepIndex < 0 || stepIndex >= compReplay.tryMoves.Count) {
+            return false;
+        }
+
+        ReplayMoveState move = compReplay.tryMoves[stepIndex];
+        if (move == null || move.moveResult == null || !move.moveResult.accepted) {
+            return false;
+        }
+
+        DuelMoveRule.ApplyMoveResult(compChessBoard, move.moveResult);
+        compDuel.AppendKataGoMove(move.playerFlag, move.coords, compReplay.replayBoardSize);
+        ApplyTryMoveStoneViews(move.moveResult, true);
+        compReplay.tryCursorMoveIndex = stepIndex + 1;
+        return true;
+    }
+
+    private bool ApplyTryStepBackward(int stepIndex)
+    {
+        if (stepIndex < 0 || stepIndex >= compReplay.tryMoves.Count) {
+            return false;
+        }
+
+        ReplayMoveState move = compReplay.tryMoves[stepIndex];
+        DuelMoveResult moveResult = move?.moveResult;
+        if (moveResult == null || moveResult.previousChessInfoDict == null) {
+            return false;
+        }
+
+        compChessBoard.chessInfoDict = CloneChessInfoDict(moveResult.previousChessInfoDict);
+        compChessBoard.lastChessInfoDict = CloneChessInfoDict(move.previousLastChessInfoDict);
+        compDuel.RemoveLastKataGoMove();
+        RevertTryMoveStoneViews(moveResult);
+        compReplay.tryCursorMoveIndex = stepIndex;
+        return true;
+    }
+
+    private void ApplyTryMoveStoneViews(DuelMoveResult moveResult, bool animatePlacedStone)
+    {
+        if (moveResult == null || compChessBoard == null) {
+            return;
+        }
+
+        ChessStoneViewCache stoneViewCache = compChessBoard.GetStoneViewCache();
+        foreach (int removePosIndex in moveResult.pendingRemovePosIndexes) {
+            RectCoordinates removeCoords = compChessBoard.GetCoordsByPosIndex(removePosIndex);
+            stoneViewCache.HideStone(removeCoords);
+        }
+
+        if (moveResult.coords != null) {
+            stoneViewCache.ShowStone(moveResult.coords, moveResult.playerFlag, animatePlacedStone);
+        }
+    }
+
+    private void RevertTryMoveStoneViews(DuelMoveResult moveResult)
+    {
+        if (moveResult == null || compChessBoard == null) {
+            return;
+        }
+
+        ChessStoneViewCache stoneViewCache = compChessBoard.GetStoneViewCache();
+        if (moveResult.coords != null) {
+            stoneViewCache.HideStone(moveResult.coords);
+        }
+
+        foreach (int restorePosIndex in moveResult.pendingRemovePosIndexes) {
+            string posKey = restorePosIndex.ToString();
+            if (moveResult.previousChessInfoDict == null || !moveResult.previousChessInfoDict.TryGetValue(posKey, out ChessInfo chessInfo) || chessInfo == null) {
+                continue;
+            }
+
+            RectCoordinates restoreCoords = compChessBoard.GetCoordsByPosIndex(restorePosIndex);
+            stoneViewCache.ShowStone(restoreCoords, (PlayerFlag)chessInfo.chessFlag.value, false);
+        }
+    }
+
+    private SavableObjectDict<ChessInfo> CloneChessInfoDict(SavableObjectDict<ChessInfo> source)
+    {
+        SavableObjectDict<ChessInfo> cloned = new SavableObjectDict<ChessInfo>();
+        if (source == null) {
+            return cloned;
+        }
+
+        foreach (var kvp in source) {
+            if (kvp.Value == null) {
+                continue;
+            }
+
+            ChessInfo chessInfo = new ChessInfo();
+            chessInfo.chessGuid.value = kvp.Value.chessGuid.value;
+            chessInfo.chessFlag.value = kvp.Value.chessFlag.value;
+            cloned.SetValue(kvp.Key, chessInfo);
+        }
+
+        return cloned;
+    }
+
     private void SyncBoardViews(ReplayMoveState latestMove, int latestMoveNumber)
     {
         if (compChessBoard == null || compChessBoard.chessBoardGrid == null) {
@@ -354,6 +514,7 @@ public class ReplaySystem : SystemBase
         }
 
         compChessBoard.GetStoneViewCache().SyncFromChessInfoDict();
+        compChessBoard.GetStoneViewCache().ClearStoneMarkers();
         compChessBoard.chessBoardGrid.ClearLatestMoveMarker();
         compChessBoard.chessBoardGrid.ClearMoveNumberMarkers();
 
@@ -384,12 +545,12 @@ public class ReplaySystem : SystemBase
 
     private void ApplyTryMoveNumberMarkers()
     {
-        if (compChessBoard == null || compReplay.tryMoves.Count <= 0) {
+        if (compChessBoard == null || compReplay.tryCursorMoveIndex <= 0) {
             return;
         }
 
         Dictionary<int, StoneMarkerIntent> markers = new Dictionary<int, StoneMarkerIntent>();
-        for (int i = 0; i < compReplay.tryMoves.Count; i++) {
+        for (int i = 0; i < compReplay.tryCursorMoveIndex; i++) {
             ReplayMoveState move = compReplay.tryMoves[i];
             if (move == null || move.isPass || move.coords == null || !IsStoneStillOnBoard(move)) {
                 continue;
@@ -402,6 +563,18 @@ public class ReplaySystem : SystemBase
         }
 
         compChessBoard.GetStoneViewCache().ApplyStoneMarkers(markers);
+    }
+
+    private void SyncTryBoardMarkers()
+    {
+        if (compChessBoard == null || compChessBoard.chessBoardGrid == null) {
+            return;
+        }
+
+        compChessBoard.GetStoneViewCache().ClearStoneMarkers();
+        compChessBoard.chessBoardGrid.ClearLatestMoveMarker();
+        compChessBoard.chessBoardGrid.ClearMoveNumberMarkers();
+        ApplyTryMoveNumberMarkers();
     }
 
     private bool IsStoneStillOnBoard(ReplayMoveState move)
@@ -441,20 +614,24 @@ public class ReplaySystem : SystemBase
 
     private PlayerFlag ResolveNextTryPlayerFlag()
     {
-        if (!IsTryMode) {
+        if (compReplay == null) {
             return 0;
         }
 
-        if (compReplay.tryMoves.Count > 0) {
-            return compReplay.tryMoves[compReplay.tryMoves.Count - 1].playerFlag.GetOpponentPlayerFlag();
+        if (IsTryMode && compReplay.tryMoves.Count > 0) {
+            int lastVisibleTryMoveIndex = Mathf.Min(compReplay.tryCursorMoveIndex, compReplay.tryMoves.Count) - 1;
+            if (lastVisibleTryMoveIndex >= 0) {
+                return compReplay.tryMoves[lastVisibleTryMoveIndex].playerFlag.GetOpponentPlayerFlag();
+            }
         }
 
-        if (compReplay.tryBaseCursorMoveIndex >= 0 && compReplay.tryBaseCursorMoveIndex < compReplay.replayMoves.Count) {
-            return compReplay.replayMoves[compReplay.tryBaseCursorMoveIndex].playerFlag;
+        int baseCursorMoveIndex = IsTryMode ? compReplay.tryBaseCursorMoveIndex : compReplay.replayCursorMoveIndex;
+        if (baseCursorMoveIndex >= 0 && baseCursorMoveIndex < compReplay.replayMoves.Count) {
+            return compReplay.replayMoves[baseCursorMoveIndex].playerFlag;
         }
 
-        if (compReplay.tryBaseCursorMoveIndex > 0 && compReplay.tryBaseCursorMoveIndex <= compReplay.replayMoves.Count) {
-            return compReplay.replayMoves[compReplay.tryBaseCursorMoveIndex - 1].playerFlag.GetOpponentPlayerFlag();
+        if (baseCursorMoveIndex > 0 && baseCursorMoveIndex <= compReplay.replayMoves.Count) {
+            return compReplay.replayMoves[baseCursorMoveIndex - 1].playerFlag.GetOpponentPlayerFlag();
         }
 
         return compReplay.replayInitialStones.Count > 0 ? PlayerFlag.Player2 : PlayerFlag.Player1;

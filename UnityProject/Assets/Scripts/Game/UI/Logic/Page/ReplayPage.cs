@@ -61,13 +61,17 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         if (Input.GetKeyDown(KeyCode.Mouse0)) {
             OnMouse0Down();
         }
+        if (Input.GetKeyDown(KeyCode.Mouse1)) {
+            OnClickPrev();
+        }
     }
 
     private void RefreshControls()
     {
         ReplaySystem replaySystem = GetReplaySystem();
         ReplayScene replayScene = Global.Instance.sceneManager.mainScene as ReplayScene;
-        bool canBrowse = replaySystem != null && replaySystem.IsReplayLoaded && replaySystem.ReplayMoveCount > 0 && !replaySystem.IsTryMode;
+        bool canBrowse = replaySystem != null && replaySystem.IsReplayLoaded &&
+            (replaySystem.IsTryMode ? replaySystem.TryMoveCount > 0 : replaySystem.ReplayMoveCount > 0);
         bool canTryMode = replaySystem != null && replaySystem.IsReplayLoaded;
 
         binder.txt_title.text = replayScene != null ? replayScene.configData.id : "Replay";
@@ -81,6 +85,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         binder.btn_next.interactable = canBrowse;
         binder.btn_last.interactable = canBrowse;
         binder.btn_try_mode.interactable = canTryMode;
+        SetButtonText(binder.btn_close, "退出");
         SetTryModeButtonText(replaySystem != null && replaySystem.IsTryMode ? "退出试下" : "试下");
     }
 
@@ -89,7 +94,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         ReplaySystem replaySystem = GetReplaySystem();
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
-        DuelInputAuthorityState inputState = replaySystem != null && replaySystem.IsTryMode
+        DuelInputAuthorityState inputState = replaySystem != null && replaySystem.IsReplayLoaded
             ? new DuelInputAuthorityState(replaySystem.CurrentTryPlayerFlag)
             : default;
         boardInput?.Refresh(mainScene, compDuel, inputState, false);
@@ -130,7 +135,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
                 new Vector2(1f, 1f),
                 new Vector2(-24f, -24f),
                 new Vector2(320f, 146f));
-            SetPanelImage(sidePanel, new Color(0.08f, 0.08f, 0.08f, HudPanelAlpha), true);
+            SetPanelImage(sidePanel, new Color(0.08f, 0.08f, 0.08f, HudPanelAlpha), false);
         }
 
         if (controlsPanel != null) {
@@ -166,7 +171,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
             SetRect(statusRect, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -92f), new Vector2(280f, 28f));
         }
         if (closeRect != null) {
-            SetRect(closeRect, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-64f, -28f), new Vector2(96f, 38f));
+            SetRect(closeRect, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -178f), new Vector2(96f, 38f));
         }
 
         if (controlsPanel != null) {
@@ -258,14 +263,20 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
     private void OnMouse0Down()
     {
         ReplaySystem replaySystem = GetReplaySystem();
-        if (replaySystem == null || !replaySystem.IsTryMode) {
+        if (replaySystem == null || !replaySystem.IsReplayLoaded) {
             return;
         }
 
         DuelInputAuthorityState inputState = new DuelInputAuthorityState(replaySystem.CurrentTryPlayerFlag);
-        if (boardInput != null && boardInput.TryGetMoveCoords(inputState, out RectCoordinates coords)) {
-            replaySystem.TryApplyTryMove(coords);
+        if (boardInput == null || !boardInput.TryGetMoveCoords(inputState, out RectCoordinates coords)) {
+            return;
         }
+
+        if (!replaySystem.IsTryMode && !replaySystem.EnterTryMode()) {
+            return;
+        }
+
+        replaySystem.TryApplyTryMove(coords);
     }
 
     private ReplaySystem GetReplaySystem()
@@ -275,11 +286,16 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
 
     private void SetTryModeButtonText(string text)
     {
-        if (binder.btn_try_mode == null) {
+        SetButtonText(binder.btn_try_mode, text);
+    }
+
+    private void SetButtonText(Button button, string text)
+    {
+        if (button == null) {
             return;
         }
 
-        TextMeshProUGUI buttonText = binder.btn_try_mode.GetComponentInChildren<TextMeshProUGUI>();
+        TextMeshProUGUI buttonText = button.GetComponentInChildren<TextMeshProUGUI>();
         if (buttonText != null) {
             buttonText.text = text;
         }

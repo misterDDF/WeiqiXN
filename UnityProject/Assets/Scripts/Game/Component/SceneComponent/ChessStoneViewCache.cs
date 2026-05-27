@@ -24,6 +24,7 @@ public class ChessStoneViewCache
     private readonly Dictionary<int, PlayerFlag> visibleStoneFlags = new Dictionary<int, PlayerFlag>();
     private readonly Dictionary<int, StoneMarkerIntent> pendingStoneMarkers = new Dictionary<int, StoneMarkerIntent>();
     private readonly HashSet<string> loadingViewKeys = new HashSet<string>();
+    private readonly Dictionary<string, bool> loadingAnimatePlacementByViewKey = new Dictionary<string, bool>();
     private Material latestMoveMarkerOnBlackStoneMaterial;
     private Material latestMoveMarkerOnWhiteStoneMaterial;
     private bool isDestroyed;
@@ -34,7 +35,7 @@ public class ChessStoneViewCache
         this.compChessBoard = compChessBoard;
     }
 
-    public void ShowStone(RectCoordinates coords, PlayerFlag playerFlag)
+    public void ShowStone(RectCoordinates coords, PlayerFlag playerFlag, bool animatePlacement = true)
     {
         if (isDestroyed) {
             return;
@@ -53,15 +54,17 @@ public class ChessStoneViewCache
             ApplyStoneTransform(go, coords);
             go.SetActive(true);
             ChessStoneView stoneView = EnsureStoneView(go);
-            stoneView.Bind(posIndex, playerFlag, !wasVisible);
+            stoneView.Bind(posIndex, playerFlag, animatePlacement && !wasVisible);
             visibleStoneViews[posIndex] = stoneView;
             ApplyPendingMarkerToView(posIndex, stoneView);
             return;
         }
 
         string viewKey = GetViewKey(posIndex, playerFlag);
-        if (!loadingViewKeys.Contains(viewKey)) {
-            LoadStoneView(posIndex, coords.Clone(), playerFlag, viewKey);
+        if (loadingViewKeys.Contains(viewKey)) {
+            loadingAnimatePlacementByViewKey[viewKey] = animatePlacement;
+        } else {
+            LoadStoneView(posIndex, coords.Clone(), playerFlag, viewKey, animatePlacement);
         }
     }
 
@@ -220,6 +223,7 @@ public class ChessStoneViewCache
         visibleStoneFlags.Clear();
         pendingStoneMarkers.Clear();
         loadingViewKeys.Clear();
+        loadingAnimatePlacementByViewKey.Clear();
         isDestroyed = true;
     }
 
@@ -290,7 +294,7 @@ public class ChessStoneViewCache
         return $"{posIndex}_{(int)playerFlag}";
     }
 
-    private void LoadStoneView(int posIndex, RectCoordinates coords, PlayerFlag playerFlag, string viewKey)
+    private void LoadStoneView(int posIndex, RectCoordinates coords, PlayerFlag playerFlag, string viewKey, bool animatePlacement)
     {
         string gamePrefabTypeId = DuelUtils.GetGamePrefabTypeIdWithPlayerFlag(playerFlag);
         GamePrefabDataType gamePrefabCfg = GamePrefabDataType.GetConfigData(gamePrefabTypeId);
@@ -300,9 +304,14 @@ public class ChessStoneViewCache
         }
 
         loadingViewKeys.Add(viewKey);
+        loadingAnimatePlacementByViewKey[viewKey] = animatePlacement;
         if (Global.Instance.resourceManager.LoadGamePrefabAsync(scene, gamePrefabCfg.resPath, (GameObject go) =>
         {
+            bool shouldAnimatePlacement = loadingAnimatePlacementByViewKey.TryGetValue(viewKey, out bool pendingAnimatePlacement)
+                ? pendingAnimatePlacement
+                : animatePlacement;
             loadingViewKeys.Remove(viewKey);
+            loadingAnimatePlacementByViewKey.Remove(viewKey);
             if (go == null) {
                 return;
             }
@@ -319,7 +328,7 @@ public class ChessStoneViewCache
             ChessStoneView stoneView = EnsureStoneView(go);
             stoneView.SetLatestMoveMarkerMaterials(latestMoveMarkerOnBlackStoneMaterial, latestMoveMarkerOnWhiteStoneMaterial);
             if (shouldShow) {
-                stoneView.Bind(posIndex, playerFlag, true);
+                stoneView.Bind(posIndex, playerFlag, shouldAnimatePlacement);
                 visibleStoneViews[posIndex] = stoneView;
                 ApplyPendingMarkerToView(posIndex, stoneView);
             } else {
@@ -327,6 +336,7 @@ public class ChessStoneViewCache
             }
         }) == null) {
             loadingViewKeys.Remove(viewKey);
+            loadingAnimatePlacementByViewKey.Remove(viewKey);
         }
     }
 

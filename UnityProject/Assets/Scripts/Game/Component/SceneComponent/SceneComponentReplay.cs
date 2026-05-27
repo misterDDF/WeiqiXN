@@ -9,6 +9,7 @@ public class SceneComponentReplay : SceneComponentBase
     public int replayBoardSize;
     public int replayCursorMoveIndex;
     public int tryBaseCursorMoveIndex;
+    public int tryCursorMoveIndex;
     public bool isReplayLoaded;
     public bool isTryMode;
     public string replayStatus;
@@ -24,4 +25,6 @@ public class ReplayMoveState
     public RectCoordinates coords;
     public bool isPass;
     public string pointText;
+    public DuelMoveResult moveResult;
+    public SavableObjectDict<ChessInfo> previousLastChessInfoDict;
 }
