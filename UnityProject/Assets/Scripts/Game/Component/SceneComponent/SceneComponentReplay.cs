@@ -7,11 +7,16 @@ public class SceneComponentReplay : SceneComponentBase
     public readonly List<ReplayMoveState> replayInitialStones = new List<ReplayMoveState>();
     public readonly List<ReplayMoveState> tryMoves = new List<ReplayMoveState>();
     public int replayBoardSize;
+    public float replayKomi = KataGoDuelRecordFile.Komi;
     public int replayCursorMoveIndex;
     public int tryBaseCursorMoveIndex;
     public int tryCursorMoveIndex;
     public bool isReplayLoaded;
     public bool isTryMode;
+    public bool isAiAnalyzing;
+    public int aiAnalysisVersion;
+    public float lastAiAnalysisRequestTime;
+    public string aiAnalysisStatus;
     public string replayStatus;
 
     public SceneComponentReplay(SceneBase scene) : base(scene)

@@ -46,6 +46,27 @@ public static class KataGoPositionJsonBuilder
         return query;
     }
 
+    public static JObject BuildReplayAiAnalysisJson(
+        ReplayScene replayScene,
+        string requestId,
+        int maxVisits,
+        bool includeOwnership,
+        bool includePolicy)
+    {
+        JObject query = BuildBaseAnalysisJson(replayScene, requestId, Math.Max(maxVisits, 1));
+        SceneComponentReplay compReplay = replayScene.GetComponent<SceneComponentReplay>();
+        if (compReplay != null) {
+            query["komi"] = compReplay.replayKomi;
+        }
+
+        query["initialStones"] = BuildReplayInitialStonesArray(replayScene);
+        query["moves"] = BuildMovesArray(replayScene);
+        query["analyzeTurns"] = new JArray((query["moves"] as JArray)?.Count ?? 0);
+        query["includeOwnership"] = includeOwnership;
+        query["includePolicy"] = includePolicy;
+        return query;
+    }
+
     public static JObject BuildAnalysisJsonWithCurrentBoard(DuelScene duelScene, string requestId, int maxVisits = DefaultMaxVisits)
     {
         JObject query = BuildBaseAnalysisJson(duelScene, requestId, maxVisits);
@@ -109,10 +130,10 @@ public static class KataGoPositionJsonBuilder
         return true;
     }
 
-    private static JObject BuildBaseAnalysisJson(DuelScene duelScene, string requestId, int maxVisits)
+    private static JObject BuildBaseAnalysisJson(SceneBase scene, string requestId, int maxVisits)
     {
-        int boardSize = GetBoardSize(duelScene);
-        SceneComponentDuel compDuel = duelScene.GetComponent<SceneComponentDuel>();
+        int boardSize = GetBoardSize(scene);
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
         float komi = compDuel != null
             ? DuelHandicapPlacement.GetKomi(compDuel.handicapCfgId.value)
             : DefaultKomi;
@@ -132,9 +153,9 @@ public static class KataGoPositionJsonBuilder
         return query;
     }
 
-    private static JArray BuildMovesArray(DuelScene duelScene)
+    private static JArray BuildMovesArray(SceneBase scene)
     {
-        SceneComponentDuel compDuel = duelScene.GetComponent<SceneComponentDuel>();
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
         if (compDuel == null) {
             return DuelMoveHistory.CreateEmpty();
         }
@@ -150,6 +171,30 @@ public static class KataGoPositionJsonBuilder
         }
 
         return DuelHandicapPlacement.BuildInitialStonesArray(compDuel.handicapCfgId.value, GetBoardSize(duelScene));
+    }
+
+    private static JArray BuildReplayInitialStonesArray(ReplayScene replayScene)
+    {
+        JArray initialStones = new JArray();
+        SceneComponentReplay compReplay = replayScene.GetComponent<SceneComponentReplay>();
+        if (compReplay == null) {
+            return initialStones;
+        }
+
+        foreach (ReplayMoveState stone in compReplay.replayInitialStones) {
+            if (stone == null || stone.coords == null || stone.isPass) {
+                continue;
+            }
+
+            string color = ToKataGoColor(stone.playerFlag);
+            if (string.IsNullOrEmpty(color)) {
+                continue;
+            }
+
+            initialStones.Add(new JArray(color, ToKataGoPoint(stone.coords, compReplay.replayBoardSize)));
+        }
+
+        return initialStones;
     }
 
     private static JArray BuildInitialStonesArray(DuelScene duelScene)
@@ -186,9 +231,9 @@ public static class KataGoPositionJsonBuilder
         return initialStones;
     }
 
-    private static int GetBoardSize(DuelScene duelScene)
+    private static int GetBoardSize(SceneBase scene)
     {
-        SceneComponentChessBoard compChessBoard = duelScene.GetComponent<SceneComponentChessBoard>();
+        SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
         if (compChessBoard?.chessBoardGrid != null) {
             return compChessBoard.chessBoardGrid.gridSize;
         }

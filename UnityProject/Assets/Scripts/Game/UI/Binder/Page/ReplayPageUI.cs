@@ -18,4 +18,5 @@ public class ReplayPageUI : UIBinderBase
     public Button btn_next;
     public Button btn_last;
     public Button btn_try_mode;
+    public Button btn_ai_analysis;
 }

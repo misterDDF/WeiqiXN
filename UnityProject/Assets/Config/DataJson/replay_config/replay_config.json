@@ -1,0 +1,86 @@
+{
+  "aiAnalysisEnabled": {
+    "id": "aiAnalysisEnabled",
+    "group": "ai_analysis",
+    "valueType": "boolean",
+    "boolValue": true,
+    "description": "是否启用复盘 AI 分析按钮"
+  },
+  "aiMaxVisits9": {
+    "id": "aiMaxVisits9",
+    "group": "ai_analysis",
+    "valueType": "int",
+    "intValue": 800,
+    "description": "9 路 AI 分析 KataGo 访问次数"
+  },
+  "aiMaxVisits13": {
+    "id": "aiMaxVisits13",
+    "group": "ai_analysis",
+    "valueType": "int",
+    "intValue": 512,
+    "description": "13 路 AI 分析 KataGo 访问次数"
+  },
+  "aiMaxVisits19": {
+    "id": "aiMaxVisits19",
+    "group": "ai_analysis",
+    "valueType": "int",
+    "intValue": 320,
+    "description": "19 路 AI 分析 KataGo 访问次数"
+  },
+  "aiDisplayCandidateLimit": {
+    "id": "aiDisplayCandidateLimit",
+    "group": "ai_analysis",
+    "valueType": "int",
+    "intValue": 5,
+    "description": "棋盘上最多显示的 AI 推荐点数量"
+  },
+  "aiRequestCandidateLimit": {
+    "id": "aiRequestCandidateLimit",
+    "group": "ai_analysis",
+    "valueType": "int",
+    "intValue": 12,
+    "description": "从 KataGo moveInfos 中最多解析的候选数量"
+  },
+  "aiIncludeOwnership": {
+    "id": "aiIncludeOwnership",
+    "group": "ai_analysis",
+    "valueType": "boolean",
+    "boolValue": false,
+    "description": "AI 分析请求是否包含 ownership"
+  },
+  "aiIncludePolicy": {
+    "id": "aiIncludePolicy",
+    "group": "ai_analysis",
+    "valueType": "boolean",
+    "boolValue": false,
+    "description": "AI 分析请求是否包含 policy"
+  },
+  "aiShowCurrentPlayerWinrate": {
+    "id": "aiShowCurrentPlayerWinrate",
+    "group": "ai_analysis",
+    "valueType": "boolean",
+    "boolValue": true,
+    "description": "是否显示当前行棋方胜率"
+  },
+  "aiWinrateMinDisplay": {
+    "id": "aiWinrateMinDisplay",
+    "group": "ai_analysis",
+    "valueType": "int",
+    "intValue": 1,
+    "description": "胜率数字最小显示值"
+  },
+  "aiWinrateMaxDisplay": {
+    "id": "aiWinrateMaxDisplay",
+    "group": "ai_analysis",
+    "valueType": "int",
+    "intValue": 100,
+    "description": "胜率数字最大显示值"
+  },
+  "aiAnalysisCooldownMs": {
+    "id": "aiAnalysisCooldownMs",
+    "group": "ai_analysis",
+    "valueType": "int",
+    "intValue": 500,
+    "description": "AI 分析按钮冷却毫秒数"
+  }
+}

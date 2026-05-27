@@ -75,6 +75,7 @@
 - Runtime code should load declared assets through generated config data and `ResourceManager`; do not add new runtime `Shader.Find` or ad hoc string asset lookups for shipped assets.
 - Assembly boundaries remain respected: `XNClient.ChessBoard` owns board rendering primitives, while `ChessBoardSystem` in the main game assembly resolves table/config/global resources and injects materials into `RectGrid`.
 - 棋子上方标记由 `ChessStoneViewCache` / `ChessStoneView` 作为棋子表现能力提供；对局最新手三角和复盘手数数字都以 `StoneMarkerIntent` 绑定到当前可见棋子，棋子隐藏、提掉或复用时自动清理，落子动画到达棋面后显示，不等待后续抖动完全结束。`ReplaySystem` 只生成要显示的棋盘位置、编号和棋色，不把手数字体或棋子上方标记逻辑放进 UI 页面或 Scene 组装类。
+- 空点上的 AI 推荐胜率标记由 `RectGrid` 作为棋盘 overlay 能力绘制，使用棋盘坐标、推荐顺序和 1-100 胜率数字作为输入；复盘或后续分析系统只负责解析 KataGo `moveInfos` 并传入候选点，不在 UI 页面中创建棋盘标记。
 
 **架构护栏**
 

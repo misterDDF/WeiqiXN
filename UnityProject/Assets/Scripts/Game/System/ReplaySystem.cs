@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 using XNClient.ChessBoard;
@@ -7,6 +8,19 @@ using XNClient.Logger;
 public class ReplaySystem : SystemBase
 {
     public override string systemName => GetSystemName<ReplaySystem>();
+
+    private const string ConfigAiAnalysisEnabled = "aiAnalysisEnabled";
+    private const string ConfigAiMaxVisits9 = "aiMaxVisits9";
+    private const string ConfigAiMaxVisits13 = "aiMaxVisits13";
+    private const string ConfigAiMaxVisits19 = "aiMaxVisits19";
+    private const string ConfigAiDisplayCandidateLimit = "aiDisplayCandidateLimit";
+    private const string ConfigAiRequestCandidateLimit = "aiRequestCandidateLimit";
+    private const string ConfigAiIncludeOwnership = "aiIncludeOwnership";
+    private const string ConfigAiIncludePolicy = "aiIncludePolicy";
+    private const string ConfigAiShowCurrentPlayerWinrate = "aiShowCurrentPlayerWinrate";
+    private const string ConfigAiWinrateMinDisplay = "aiWinrateMinDisplay";
+    private const string ConfigAiWinrateMaxDisplay = "aiWinrateMaxDisplay";
+    private const string ConfigAiAnalysisCooldownMs = "aiAnalysisCooldownMs";
 
     private SceneComponentReplay compReplay;
     private SceneComponentChessBoard compChessBoard;
@@ -35,6 +49,8 @@ public class ReplaySystem : SystemBase
     public int TryCursorMoveIndex => compReplay != null ? compReplay.tryCursorMoveIndex : 0;
     public int ReplayBoardSize => compReplay != null ? compReplay.replayBoardSize : 0;
     public PlayerFlag CurrentTryPlayerFlag => compReplay != null ? ResolveNextTryPlayerFlag() : 0;
+    public bool IsAiAnalyzing => compReplay != null && compReplay.isAiAnalyzing;
+    public bool IsAiAnalysisEnabled => GetReplayConfigBool(ConfigAiAnalysisEnabled, true);
     public string ReplayStatus => BuildReplayStatusText();
 
     public void RestoreDefaultBoard()
@@ -51,6 +67,7 @@ public class ReplaySystem : SystemBase
 
     public void GoFirst()
     {
+        ClearAiRecommendationMarkers();
         if (IsTryMode) {
             ApplyTryCursor(0);
             return;
@@ -61,6 +78,7 @@ public class ReplaySystem : SystemBase
 
     public void GoPrev()
     {
+        ClearAiRecommendationMarkers();
         if (IsTryMode) {
             ApplyTryCursor(compReplay.tryCursorMoveIndex - 1);
             return;
@@ -71,6 +89,7 @@ public class ReplaySystem : SystemBase
 
     public void GoNext()
     {
+        ClearAiRecommendationMarkers();
         if (IsTryMode) {
             ApplyTryCursor(compReplay.tryCursorMoveIndex + 1);
             return;
@@ -81,6 +100,7 @@ public class ReplaySystem : SystemBase
 
     public void GoLast()
     {
+        ClearAiRecommendationMarkers();
         if (IsTryMode) {
             ApplyTryCursor(compReplay.tryMoves.Count);
             return;
@@ -100,6 +120,7 @@ public class ReplaySystem : SystemBase
             return false;
         }
 
+        ClearAiRecommendationMarkers();
         compReplay.tryBaseCursorMoveIndex = compReplay.replayCursorMoveIndex;
         compReplay.tryCursorMoveIndex = 0;
         compReplay.tryMoves.Clear();
@@ -114,6 +135,7 @@ public class ReplaySystem : SystemBase
             return false;
         }
 
+        ClearAiRecommendationMarkers();
         compReplay.isTryMode = false;
         compReplay.tryMoves.Clear();
         compReplay.tryCursorMoveIndex = 0;
@@ -128,6 +150,7 @@ public class ReplaySystem : SystemBase
             return false;
         }
 
+        ClearAiRecommendationMarkers();
         PlayerFlag playerFlag = ResolveNextTryPlayerFlag();
         if (playerFlag == 0) {
             compReplay.replayStatus = "试下行棋方无效";
@@ -149,6 +172,80 @@ public class ReplaySystem : SystemBase
         SyncTryBoardMarkers();
         compReplay.replayStatus = string.Empty;
         return true;
+    }
+
+    public async void RequestAiAnalysis()
+    {
+        await RequestAiAnalysisAsync();
+    }
+
+    public async Task RequestAiAnalysisAsync()
+    {
+        if (!IsReplayLoaded || compReplay == null || compChessBoard?.chessBoardGrid == null || compDuel == null) {
+            return;
+        }
+
+        if (!IsAiAnalysisEnabled) {
+            compReplay.aiAnalysisStatus = "AI分析未启用";
+            return;
+        }
+
+        if (compReplay.isAiAnalyzing) {
+            return;
+        }
+
+        int cooldownMs = Mathf.Max(GetReplayConfigInt(ConfigAiAnalysisCooldownMs, 500), 0);
+        if (cooldownMs > 0 && Time.realtimeSinceStartup - compReplay.lastAiAnalysisRequestTime < cooldownMs / 1000f) {
+            return;
+        }
+
+        ClearAiRecommendationMarkers();
+        compReplay.isAiAnalyzing = true;
+        compReplay.aiAnalysisStatus = "AI分析中";
+        compReplay.lastAiAnalysisRequestTime = Time.realtimeSinceStartup;
+        int requestVersion = ++compReplay.aiAnalysisVersion;
+
+        try {
+            ReplayScene replayScene = scene as ReplayScene;
+            if (replayScene == null) {
+                compReplay.aiAnalysisStatus = "AI分析失败";
+                return;
+            }
+
+            string requestId = $"replay-ai-{System.DateTime.UtcNow.Ticks}";
+            JObject query = KataGoPositionJsonBuilder.BuildReplayAiAnalysisJson(
+                replayScene,
+                requestId,
+                ResolveAiMaxVisits(compReplay.replayBoardSize),
+                GetReplayConfigBool(ConfigAiIncludeOwnership, false),
+                GetReplayConfigBool(ConfigAiIncludePolicy, false));
+
+            JObject result = await KataGoBootstrap.AnalyzeAsync(query);
+            if (compReplay == null || requestVersion != compReplay.aiAnalysisVersion) {
+                return;
+            }
+
+            List<RectGridAiRecommendationMarker> markers = BuildAiRecommendationMarkers(result);
+            if (markers.Count == 0) {
+                compReplay.aiAnalysisStatus = "AI暂无推荐点";
+                return;
+            }
+
+            compChessBoard.chessBoardGrid.DrawAiRecommendationMarkers(markers);
+            compReplay.aiAnalysisStatus = $"AI推荐 {markers.Count} 点";
+        }
+        catch (System.Exception ex) {
+            if (compReplay != null && requestVersion == compReplay.aiAnalysisVersion) {
+                compReplay.aiAnalysisStatus = "AI分析失败";
+            }
+
+            XNLogger.LogError("Replay AI analysis failed.", ("error", ex.Message));
+        }
+        finally {
+            if (compReplay != null && requestVersion == compReplay.aiAnalysisVersion) {
+                compReplay.isAiAnalyzing = false;
+            }
+        }
     }
 
     public string BuildSummaryText()
@@ -213,6 +310,10 @@ public class ReplaySystem : SystemBase
             return string.IsNullOrEmpty(compReplay?.replayStatus) ? "复盘尚未加载" : compReplay.replayStatus;
         }
 
+        if (!string.IsNullOrEmpty(compReplay.aiAnalysisStatus)) {
+            return compReplay.aiAnalysisStatus;
+        }
+
         if (IsTryMode) {
             string playerText = GetPlayerText(ResolveNextTryPlayerFlag());
             return $"试下模式不会写回原始复盘归档。当前轮到{playerText}方试下。";
@@ -241,6 +342,9 @@ public class ReplaySystem : SystemBase
         if (KataGoDuelRecordFile.TryLoad(recordFilePath, out JObject recordJson) &&
             KataGoDuelRecordFile.TryGetBoardSize(recordJson, out int boardSize)) {
             compReplay.replayBoardSize = boardSize;
+            compReplay.replayKomi = KataGoDuelRecordFile.TryGetKomi(recordJson, out float komi)
+                ? komi
+                : KataGoDuelRecordFile.Komi;
             compChessBoard.boardCfgId.value = $"{boardSize}x{boardSize}";
             if (TryLoadReplayRecord(recordJson)) {
                 compReplay.isReplayLoaded = true;
@@ -248,6 +352,127 @@ public class ReplaySystem : SystemBase
         } else {
             compReplay.replayStatus = "复盘记录读取失败";
         }
+    }
+
+    private List<RectGridAiRecommendationMarker> BuildAiRecommendationMarkers(JObject result)
+    {
+        List<RectGridAiRecommendationMarker> markers = new List<RectGridAiRecommendationMarker>();
+        JArray moveInfos = result?["moveInfos"] as JArray;
+        if (moveInfos == null || moveInfos.Count == 0 || compChessBoard?.chessBoardGrid == null) {
+            return markers;
+        }
+
+        int boardSize = compChessBoard.chessBoardGrid.gridSize;
+        int displayLimit = Mathf.Clamp(GetReplayConfigInt(ConfigAiDisplayCandidateLimit, 5), 1, 20);
+        int requestLimit = Mathf.Max(GetReplayConfigInt(ConfigAiRequestCandidateLimit, 12), displayLimit);
+        bool showCurrentPlayerWinrate = GetReplayConfigBool(ConfigAiShowCurrentPlayerWinrate, true);
+        int winrateMinDisplay = Mathf.Clamp(GetReplayConfigInt(ConfigAiWinrateMinDisplay, 1), 1, 100);
+        int winrateMaxDisplay = Mathf.Clamp(GetReplayConfigInt(ConfigAiWinrateMaxDisplay, 100), winrateMinDisplay, 100);
+        PlayerFlag currentPlayerFlag = ResolveNextTryPlayerFlag();
+        List<JToken> sortedMoveInfos = BuildSortedMoveInfos(moveInfos);
+        int parsedCount = 0;
+
+        foreach (JToken token in sortedMoveInfos) {
+            if (markers.Count >= displayLimit || parsedCount >= requestLimit) {
+                break;
+            }
+
+            parsedCount += 1;
+            string move = token?["move"]?.ToString();
+            if (string.Equals(move, KataGoPositionJsonBuilder.PassPoint, System.StringComparison.OrdinalIgnoreCase)) {
+                continue;
+            }
+
+            if (!KataGoPositionJsonBuilder.TryParseKataGoPoint(move, boardSize, out RectCoordinates coords) ||
+                !TryParseFloat(token?["winrate"], out float winrate)) {
+                continue;
+            }
+
+            if (!IsLegalAiRecommendation(coords, currentPlayerFlag)) {
+                continue;
+            }
+
+            if (showCurrentPlayerWinrate && currentPlayerFlag == PlayerFlag.Player2) {
+                winrate = 1f - winrate;
+            }
+
+            int winratePercent = Mathf.RoundToInt(Mathf.Clamp01(winrate) * 100f);
+            winratePercent = Mathf.Clamp(winratePercent, winrateMinDisplay, winrateMaxDisplay);
+            markers.Add(new RectGridAiRecommendationMarker(coords.x, coords.z, winratePercent, markers.Count + 1));
+        }
+
+        return markers;
+    }
+
+    private List<JToken> BuildSortedMoveInfos(JArray moveInfos)
+    {
+        List<JToken> sorted = new List<JToken>();
+        foreach (JToken token in moveInfos) {
+            sorted.Add(token);
+        }
+
+        sorted.Sort((left, right) => GetMoveInfoOrder(left).CompareTo(GetMoveInfoOrder(right)));
+        return sorted;
+    }
+
+    private int GetMoveInfoOrder(JToken token)
+    {
+        return int.TryParse(token?["order"]?.ToString(), out int order) ? order : int.MaxValue;
+    }
+
+    private bool IsLegalAiRecommendation(RectCoordinates coords, PlayerFlag playerFlag)
+    {
+        if (coords == null || playerFlag == 0 || compChessBoard == null) {
+            return false;
+        }
+
+        int posIndex = compChessBoard.GetPosIndexByCoords(coords);
+        if (posIndex < 0 || compChessBoard.chessInfoDict.ContainsKey(posIndex.ToString())) {
+            return false;
+        }
+
+        return DuelMoveRule.CheckMoveLegal(compChessBoard, playerFlag, coords);
+    }
+
+    private int ResolveAiMaxVisits(int boardSize)
+    {
+        if (boardSize <= 9) {
+            return Mathf.Max(GetReplayConfigInt(ConfigAiMaxVisits9, 800), 1);
+        }
+
+        if (boardSize <= 13) {
+            return Mathf.Max(GetReplayConfigInt(ConfigAiMaxVisits13, 512), 1);
+        }
+
+        return Mathf.Max(GetReplayConfigInt(ConfigAiMaxVisits19, 320), 1);
+    }
+
+    private int GetReplayConfigInt(string id, int defaultValue)
+    {
+        ReplayConfigDataType data = ReplayConfigDataType.GetConfigData(id);
+        return data != null && data.valueType == "int" ? data.intValue : defaultValue;
+    }
+
+    private bool GetReplayConfigBool(string id, bool defaultValue)
+    {
+        ReplayConfigDataType data = ReplayConfigDataType.GetConfigData(id);
+        return data != null && data.valueType == "boolean" ? data.boolValue : defaultValue;
+    }
+
+    private bool TryParseFloat(JToken token, out float value)
+    {
+        return float.TryParse(token?.ToString(), out value);
+    }
+
+    private void ClearAiRecommendationMarkers()
+    {
+        if (compReplay != null) {
+            compReplay.aiAnalysisVersion += 1;
+            compReplay.isAiAnalyzing = false;
+            compReplay.aiAnalysisStatus = string.Empty;
+        }
+
+        compChessBoard?.chessBoardGrid?.ClearAiRecommendationMarkers();
     }
 
     private bool TryLoadReplayRecord(JObject recordJson)

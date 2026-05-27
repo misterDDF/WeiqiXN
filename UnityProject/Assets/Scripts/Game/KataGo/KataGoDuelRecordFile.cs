@@ -108,6 +108,16 @@ public static class KataGoDuelRecordFile
         return true;
     }
 
+    public static bool TryGetKomi(JObject recordJson, out float komi)
+    {
+        komi = Komi;
+        if (recordJson == null || recordJson["komi"] == null) {
+            return false;
+        }
+
+        return float.TryParse(recordJson["komi"].ToString(), out komi);
+    }
+
     public static bool TryParseMove(JToken moveToken, out PlayerFlag playerFlag, out RectCoordinates coords, out bool isPass, int boardSize)
     {
         playerFlag = 0;

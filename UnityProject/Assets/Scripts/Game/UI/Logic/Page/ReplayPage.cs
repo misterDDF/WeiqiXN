@@ -23,6 +23,9 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         binder.btn_next.onClick.AddListener(OnClickNext);
         binder.btn_last.onClick.AddListener(OnClickLast);
         binder.btn_try_mode.onClick.AddListener(OnClickTryMode);
+        if (binder.btn_ai_analysis != null) {
+            binder.btn_ai_analysis.onClick.AddListener(OnClickAiAnalysis);
+        }
     }
 
     protected override void OnClose()
@@ -34,6 +37,9 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
             binder.btn_next.onClick.RemoveListener(OnClickNext);
             binder.btn_last.onClick.RemoveListener(OnClickLast);
             binder.btn_try_mode.onClick.RemoveListener(OnClickTryMode);
+            if (binder.btn_ai_analysis != null) {
+                binder.btn_ai_analysis.onClick.RemoveListener(OnClickAiAnalysis);
+            }
         }
 
         boardInput?.Dispose();
@@ -73,6 +79,8 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         bool canBrowse = replaySystem != null && replaySystem.IsReplayLoaded &&
             (replaySystem.IsTryMode ? replaySystem.TryMoveCount > 0 : replaySystem.ReplayMoveCount > 0);
         bool canTryMode = replaySystem != null && replaySystem.IsReplayLoaded;
+        bool canAiAnalysis = replaySystem != null && replaySystem.IsReplayLoaded &&
+            replaySystem.IsAiAnalysisEnabled && !replaySystem.IsAiAnalyzing;
 
         binder.txt_title.text = replayScene != null ? replayScene.configData.id : "Replay";
         binder.txt_summary.text = replaySystem != null ? replaySystem.BuildSummaryText() : "未加载复盘场景";
@@ -85,8 +93,12 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         binder.btn_next.interactable = canBrowse;
         binder.btn_last.interactable = canBrowse;
         binder.btn_try_mode.interactable = canTryMode;
+        if (binder.btn_ai_analysis != null) {
+            binder.btn_ai_analysis.interactable = canAiAnalysis;
+        }
         SetButtonText(binder.btn_close, "退出");
         SetTryModeButtonText(replaySystem != null && replaySystem.IsTryMode ? "退出试下" : "试下");
+        SetButtonText(binder.btn_ai_analysis, replaySystem != null && replaySystem.IsAiAnalyzing ? "分析中" : "AI分析");
     }
 
     private void RefreshTryModeInput()
@@ -258,6 +270,11 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
     private void OnClickTryMode()
     {
         GetReplaySystem()?.ToggleTryMode();
+    }
+
+    private void OnClickAiAnalysis()
+    {
+        GetReplaySystem()?.RequestAiAnalysis();
     }
 
     private void OnMouse0Down()
