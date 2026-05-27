@@ -180,7 +180,9 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
 
     private DuelSetupPopupUI.SrPlatformState ResolveLayoutState()
     {
-        return DuelSetupPopupUI.SrPlatformState.Landscape;
+        return UIUtils.IsPortrait(rectTransform)
+            ? DuelSetupPopupUI.SrPlatformState.Portrait
+            : DuelSetupPopupUI.SrPlatformState.Landscape;
     }
 
     private void BindAiDifficultyDropdown()
