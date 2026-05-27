@@ -48,7 +48,7 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
             return;
         }
 
-        binder.sr_platform.SetState(isPortrait ? "Portrait" : "Landscape", force);
+        binder.SetSrPlatformState(isPortrait ? MainMenuPageUI.SrPlatformState.Portrait : MainMenuPageUI.SrPlatformState.Landscape, force);
         hasAppliedLayoutState = true;
         lastPortraitLayout = isPortrait;
     }

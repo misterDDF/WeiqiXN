@@ -241,6 +241,17 @@ public class StateRootEditor : Editor
     private void OnEnable()
     {
         stateRoot = (StateRoot)target;
+        RefreshSerializedProperties();
+    }
+
+    private void RefreshSerializedObject()
+    {
+        serializedObject.Update();
+        RefreshSerializedProperties();
+    }
+
+    private void RefreshSerializedProperties()
+    {
         statesProperty = serializedObject.FindProperty("states");
         currentStateIndexProperty = serializedObject.FindProperty("currentStateIndex");
     }
@@ -282,6 +293,7 @@ public class StateRootEditor : Editor
             if (GUILayout.Button("读取", GUILayout.Width(44))) {
                 Undo.RecordObject(stateRoot, "Capture State");
                 stateRoot.CaptureCurrentState();
+                RefreshSerializedObject();
                 EditorUtility.SetDirty(stateRoot);
             }
         }
@@ -298,7 +310,8 @@ public class StateRootEditor : Editor
                 Undo.RecordObject(stateRoot, "Add State");
                 var state = new StateConfig { name = $"State{stateRoot.EditableStates.Count}" };
                 stateRoot.EditableStates.Add(state);
-                currentStateIndexProperty.intValue = stateRoot.EditableStates.Count - 1;
+                RefreshSerializedObject();
+                currentStateIndexProperty.intValue = statesProperty.arraySize - 1;
                 EditorUtility.SetDirty(stateRoot);
             }
         }
@@ -322,14 +335,16 @@ public class StateRootEditor : Editor
                 }
                 if (GUILayout.Button("读取", GUILayout.Width(44))) {
                     Undo.RecordObject(stateRoot, "Capture State");
-                    currentStateIndexProperty.intValue = stateIndex;
                     state.Capture();
+                    RefreshSerializedObject();
+                    currentStateIndexProperty.intValue = stateIndex;
                     EditorUtility.SetDirty(stateRoot);
                 }
                 using (new EditorGUI.DisabledScope(stateIndex <= 0)) {
                     if (GUILayout.Button("上", GUILayout.Width(28))) {
                         Undo.RecordObject(stateRoot, "Move State");
                         Swap(stateRoot.EditableStates, stateIndex, stateIndex - 1);
+                        RefreshSerializedObject();
                         currentStateIndexProperty.intValue = stateIndex - 1;
                         EditorUtility.SetDirty(stateRoot);
                         return;
@@ -339,6 +354,7 @@ public class StateRootEditor : Editor
                     if (GUILayout.Button("下", GUILayout.Width(28))) {
                         Undo.RecordObject(stateRoot, "Move State");
                         Swap(stateRoot.EditableStates, stateIndex, stateIndex + 1);
+                        RefreshSerializedObject();
                         currentStateIndexProperty.intValue = stateIndex + 1;
                         EditorUtility.SetDirty(stateRoot);
                         return;
@@ -347,7 +363,8 @@ public class StateRootEditor : Editor
                 if (GUILayout.Button("删", GUILayout.Width(28))) {
                     Undo.RecordObject(stateRoot, "Delete State");
                     stateRoot.EditableStates.RemoveAt(stateIndex);
-                    currentStateIndexProperty.intValue = Mathf.Clamp(currentStateIndexProperty.intValue, 0, stateRoot.EditableStates.Count - 1);
+                    RefreshSerializedObject();
+                    currentStateIndexProperty.intValue = Mathf.Clamp(currentStateIndexProperty.intValue, 0, statesProperty.arraySize - 1);
                     EditorUtility.SetDirty(stateRoot);
                     return;
                 }
@@ -363,6 +380,7 @@ public class StateRootEditor : Editor
                     if (check.changed) {
                         Undo.RecordObject(stateRoot, "Rename State");
                         state.name = newName;
+                        RefreshSerializedObject();
                         EditorUtility.SetDirty(stateRoot);
                     }
                 }
@@ -383,6 +401,7 @@ public class StateRootEditor : Editor
                     name = $"Element{state.Elements.Count}",
                     elementType = StateElementType.RectTransform,
                 });
+                RefreshSerializedObject();
                 EditorUtility.SetDirty(stateRoot);
             }
         }
@@ -403,6 +422,7 @@ public class StateRootEditor : Editor
                     element.target = EditorGUILayout.ObjectField(element.target, element.TargetType, true);
                     if (check.changed) {
                         Undo.RecordObject(stateRoot, "Edit Element");
+                        RefreshSerializedObject();
                         EditorUtility.SetDirty(stateRoot);
                     }
                 }
@@ -410,6 +430,7 @@ public class StateRootEditor : Editor
                 if (GUILayout.Button("读", GUILayout.Width(28))) {
                     Undo.RecordObject(stateRoot, "Read Element");
                     element.Capture();
+                    RefreshSerializedObject();
                     EditorUtility.SetDirty(stateRoot);
                 }
                 if (GUILayout.Button("设", GUILayout.Width(28))) {
@@ -421,6 +442,7 @@ public class StateRootEditor : Editor
                     if (GUILayout.Button("上", GUILayout.Width(28))) {
                         Undo.RecordObject(stateRoot, "Move Element");
                         Swap(state.Elements, elementIndex, elementIndex - 1);
+                        RefreshSerializedObject();
                         EditorUtility.SetDirty(stateRoot);
                         return;
                     }
@@ -429,6 +451,7 @@ public class StateRootEditor : Editor
                     if (GUILayout.Button("下", GUILayout.Width(28))) {
                         Undo.RecordObject(stateRoot, "Move Element");
                         Swap(state.Elements, elementIndex, elementIndex + 1);
+                        RefreshSerializedObject();
                         EditorUtility.SetDirty(stateRoot);
                         return;
                     }
@@ -436,6 +459,7 @@ public class StateRootEditor : Editor
                 if (GUILayout.Button("删", GUILayout.Width(28))) {
                     Undo.RecordObject(stateRoot, "Delete Element");
                     state.Elements.RemoveAt(elementIndex);
+                    RefreshSerializedObject();
                     EditorUtility.SetDirty(stateRoot);
                     return;
                 }
@@ -449,6 +473,7 @@ public class StateRootEditor : Editor
                         if (stateIndex == currentStateIndexProperty.intValue) {
                             element.Apply();
                         }
+                        RefreshSerializedObject();
                         EditorUtility.SetDirty(stateRoot);
                     }
                 }

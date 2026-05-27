@@ -30,4 +30,16 @@ public class DuelSetupPopupUI : UIBinderBase
 	public GameObject panel_player_color;
 	public TMP_Dropdown dropdown_player_color;
 	public TMP_Dropdown dropdown_handicap;
+
+	public enum SrPlatformState
+	{
+		Landscape = 0,
+	}
+
+	public void SetSrPlatformState(SrPlatformState state, bool force = false)
+	{
+		if (sr_platform != null) {
+			sr_platform.SetState((int)state, force);
+		}
+	}
 }

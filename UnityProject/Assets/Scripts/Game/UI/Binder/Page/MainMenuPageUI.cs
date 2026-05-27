@@ -12,4 +12,17 @@ public class MainMenuPageUI : UIBinderBase
 	public Button btn_user_info;
 	public Button btn_ai_game;
 	public Button btn_lan_game;
+
+	public enum SrPlatformState
+	{
+		Landscape = 0,
+		Portrait = 1,
+	}
+
+	public void SetSrPlatformState(SrPlatformState state, bool force = false)
+	{
+		if (sr_platform != null) {
+			sr_platform.SetState((int)state, force);
+		}
+	}
 }

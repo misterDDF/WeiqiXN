@@ -173,21 +173,14 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
             return;
         }
 
-        binder.sr_platform.SetState(ResolveLayoutStateName(isPortrait), force);
+        binder.SetSrPlatformState(ResolveLayoutState(), force);
         hasAppliedLayoutState = true;
         lastPortraitLayout = isPortrait;
     }
 
-    private string ResolveLayoutStateName(bool isPortrait)
+    private DuelSetupPopupUI.SrPlatformState ResolveLayoutState()
     {
-        string targetState = isPortrait ? "Portrait" : "Landscape";
-        foreach (StateConfig state in binder.sr_platform.States) {
-            if (state.name == targetState) {
-                return targetState;
-            }
-        }
-
-        return "Landscape";
+        return DuelSetupPopupUI.SrPlatformState.Landscape;
     }
 
     private void BindAiDifficultyDropdown()
