@@ -394,8 +394,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -46, y: -42}
-  m_SizeDelta: {x: 56, y: 56}
+  m_AnchoredPosition: {x: -40, y: -40}
+  m_SizeDelta: {x: 52, y: 52}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &4381663589172487167
 CanvasRenderer:
@@ -514,7 +514,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 39.1151}
+  m_SizeDelta: {x: 0, y: 68}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &344001087123207604
 GameObject:
@@ -811,10 +811,10 @@ RectTransform:
   - {fileID: 2816744923990342990}
   m_Father: {fileID: 4718226608104790927}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 230, y: 62}
-  m_SizeDelta: {x: 164, y: 170}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: 190, y: -440}
+  m_SizeDelta: {x: 150, y: 160}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &2761264807916901831
 CanvasRenderer:
@@ -1071,10 +1071,10 @@ RectTransform:
   - {fileID: 8054307788858580865}
   m_Father: {fileID: 7340611542550528948}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 30}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: 0, y: -48}
+  m_SizeDelta: {x: 0, y: 34}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &6557516912614801759
 CanvasRenderer:
@@ -2174,10 +2174,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 4718226608104790927}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 188}
-  m_SizeDelta: {x: 620, y: 36}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: 0, y: -304}
+  m_SizeDelta: {x: 520, y: 34}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &8672075158170374893
 CanvasRenderer:
@@ -2207,7 +2207,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\u9009\u62E9\u68CB\u76D8\u548C\u8BA1\u65F6\u89C4\u5219"
+  m_text: "\u9009\u62E9\u68CB\u76D8\u8DEF\u6570"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: c2f8cea9e0f05414db8a25dc5b10678d, type: 2}
   m_sharedMaterial: {fileID: 7890784181093762056, guid: c2f8cea9e0f05414db8a25dc5b10678d, type: 2}
@@ -2327,10 +2327,10 @@ RectTransform:
   - {fileID: 4370889976945875128}
   m_Father: {fileID: 5370299905606602467}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -0.000015259, y: 0}
-  m_SizeDelta: {x: 235.7111, y: 38}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: 0, y: -48}
+  m_SizeDelta: {x: 250, y: 34}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &154413504888675263
 CanvasRenderer:
@@ -2464,10 +2464,10 @@ RectTransform:
   - {fileID: 573986567037994035}
   m_Father: {fileID: 4718226608104790927}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 62}
-  m_SizeDelta: {x: 164, y: 170}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: 0, y: -440}
+  m_SizeDelta: {x: 150, y: 160}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &3580333863047430448
 CanvasRenderer:
@@ -3277,10 +3277,10 @@ RectTransform:
   - {fileID: 1880280234233159085}
   m_Father: {fileID: 3134634277977677120}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0.5}
-  m_AnchorMax: {x: 0, y: 0.5}
-  m_AnchoredPosition: {x: 209, y: -0.44705}
-  m_SizeDelta: {x: 190.3114, y: 37.106}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: 0, y: -48}
+  m_SizeDelta: {x: 250, y: 34}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &8041960045191989459
 CanvasRenderer:
@@ -4166,8 +4166,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 1}
   m_AnchorMax: {x: 0.5, y: 1}
-  m_AnchoredPosition: {x: 0, y: -48}
-  m_SizeDelta: {x: 560, y: 140}
+  m_AnchoredPosition: {x: 0, y: -218}
+  m_SizeDelta: {x: 520, y: 86}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &5056937977719424211
 CanvasRenderer:
@@ -4315,10 +4315,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 4718226608104790927}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: -306}
-  m_SizeDelta: {x: 680, y: 28}
+  m_AnchorMin: {x: 0.5, y: 0}
+  m_AnchorMax: {x: 0.5, y: 0}
+  m_AnchoredPosition: {x: 0, y: 18}
+  m_SizeDelta: {x: 520, y: 28}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &7029537350395783942
 CanvasRenderer:
@@ -6011,10 +6011,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 5370299905606602467}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -205, y: 0}
-  m_SizeDelta: {x: 150, y: 30}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: 0, y: -15}
+  m_SizeDelta: {x: 220, y: 28}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &3371156545487403387
 CanvasRenderer:
@@ -6161,10 +6161,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 3886568290592553873}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0.5}
-  m_AnchorMax: {x: 0, y: 0.5}
-  m_AnchoredPosition: {x: 75, y: 0}
-  m_SizeDelta: {x: 150, y: 30}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: 0, y: -15}
+  m_SizeDelta: {x: 220, y: 28}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &1679735978194883709
 CanvasRenderer:
@@ -7693,8 +7693,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 18}
-  m_SizeDelta: {x: 430, y: 62}
+  m_AnchoredPosition: {x: 0, y: 6}
+  m_SizeDelta: {x: 400, y: 48}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &8378267365233865489
 CanvasRenderer:
@@ -7724,7 +7724,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\u9009\u62E9\u68CB\u76D8\u8DEF\u6570"
+  m_text: "\u9009\u62E9\u68CB\u76D8\u548C\u8BA1\u65F6\u89C4\u5219"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: c2f8cea9e0f05414db8a25dc5b10678d, type: 2}
   m_sharedMaterial: {fileID: 7890784181093762056, guid: c2f8cea9e0f05414db8a25dc5b10678d, type: 2}
@@ -8450,7 +8450,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0.025, g: 0.02, b: 0.015, a: 0.22}
+  m_Color: {r: 0.025, g: 0.02, b: 0.015, a: 0.79607844}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -8500,10 +8500,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 6367659145532072779}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: -76}
-  m_SizeDelta: {x: 138, y: 24}
+  m_AnchorMin: {x: 0.5, y: 0}
+  m_AnchorMax: {x: 0.5, y: 0}
+  m_AnchoredPosition: {x: 0, y: 28}
+  m_SizeDelta: {x: 128, y: 32}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &7782299798973965457
 CanvasRenderer:
@@ -8797,15 +8797,16 @@ RectTransform:
   m_GameObject: {fileID: 4734126463101137651}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.5, y: 1.5, z: 1.5}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
+  - {fileID: 5940333298804442653}
   - {fileID: 8872438426279859327}
   - {fileID: 4718226608104790927}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
+  m_AnchorMax: {x: 1, y: 1}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -8847,7 +8848,7 @@ MonoBehaviour:
   m_UiScaleMode: 1
   m_ReferencePixelsPerUnit: 100
   m_ScaleFactor: 1
-  m_ReferenceResolution: {x: 1280, y: 720}
+  m_ReferenceResolution: {x: 720, y: 1280}
   m_ScreenMatchMode: 0
   m_MatchWidthOrHeight: 0.5
   m_PhysicalUnit: 3
@@ -8886,6 +8887,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   generateTime: 639127894014663162
   nodeList:
+  - name: sr_platform
+    value: {fileID: 5415504531866409156}
   - name: btn_9x9
     value: {fileID: 5798868952742395946}
   - name: btn_13x13
@@ -8946,6 +8949,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   generatedTime: 639127894095520174
+  sr_platform: {fileID: 5415504531866409156}
   btn_9x9: {fileID: 5798868952742395946}
   btn_13x13: {fileID: 2009918361218289492}
   btn_19x19: {fileID: 5718201890374386899}
@@ -9012,10 +9016,10 @@ RectTransform:
   - {fileID: 6952786260472810772}
   m_Father: {fileID: 2160115119136549998}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 1, y: 1}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 920, y: 660}
+  m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &4776881019965058655
 GameObject:
@@ -9338,6 +9342,1820 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   m_IsOn: 0
+--- !u!1 &4913060161690201659
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5940333298804442653}
+  - component: {fileID: 5415504531866409156}
+  m_Layer: 0
+  m_Name: sr_platform
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &5940333298804442653
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4913060161690201659}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2160115119136549998}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 1, y: 1}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 0, y: 0}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &5415504531866409156
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4913060161690201659}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 06c666ab3b55ef1499a353ceefcd1c63, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  states:
+  - name: Landscape
+    elements:
+    - name: mask
+      elementType: 1
+      target: {fileID: 8872438426279859327}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 0, y: 0}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: panel_main
+      elementType: 1
+      target: {fileID: 4718226608104790927}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 920, y: 660}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: bg
+      elementType: 1
+      target: {fileID: 8166305803191851994}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 0, y: 0}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_close
+      elementType: 1
+      target: {fileID: 6952786260472810772}
+      property:
+        boolValue: 1
+        anchorMin: {x: 1, y: 1}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: -46, y: -42}
+        sizeDelta: {x: 56, y: 56}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_start
+      elementType: 1
+      target: {fileID: 6272090847233235184}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 310, y: -255}
+        sizeDelta: {x: 166, y: 48}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: img_header
+      elementType: 1
+      target: {fileID: 8946008805685622202}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 1}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: 0, y: -48}
+        sizeDelta: {x: 560, y: 140}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: txt_title
+      elementType: 1
+      target: {fileID: 7403158018478046096}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 0, y: 18}
+        sizeDelta: {x: 430, y: 62}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: txt_subtitle
+      elementType: 1
+      target: {fileID: 5753412497252060392}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 0, y: 188}
+        sizeDelta: {x: 620, y: 36}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: txt_footer_hint
+      elementType: 1
+      target: {fileID: 4279237044896378453}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 0, y: -306}
+        sizeDelta: {x: 680, y: 28}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: section_board_text_plate
+      elementType: 1
+      target: {fileID: 2645961725252310318}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 0, y: 62}
+        sizeDelta: {x: 850, y: 196}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: time_settings_label_board
+      elementType: 1
+      target: {fileID: 3317966113910389213}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: -390, y: 62}
+        sizeDelta: {x: 86, y: 30}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_9x9
+      elementType: 1
+      target: {fileID: 8144129499253185923}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: -230, y: 62}
+        sizeDelta: {x: 164, y: 170}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_9x9/txt_desc
+      elementType: 1
+      target: {fileID: 3586541754374352596}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 0, y: -76}
+        sizeDelta: {x: 138, y: 24}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_13x13
+      elementType: 1
+      target: {fileID: 9018654513968125934}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 0, y: 62}
+        sizeDelta: {x: 164, y: 170}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_13x13/txt_desc
+      elementType: 1
+      target: {fileID: 1412811777338938343}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 0, y: -76}
+        sizeDelta: {x: 138, y: 24}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_19x19
+      elementType: 1
+      target: {fileID: 6367659145532072779}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 230, y: 62}
+        sizeDelta: {x: 164, y: 170}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_19x19/txt_desc
+      elementType: 1
+      target: {fileID: 706679512261102083}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 0, y: -76}
+        sizeDelta: {x: 138, y: 24}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_9x9/preview_board_9
+      elementType: 1
+      target: {fileID: 6884554702720452190}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 0, y: 34}
+        sizeDelta: {x: 78, y: 78}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_13x13/preview_board_13
+      elementType: 1
+      target: {fileID: 2656173438255421694}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 0, y: 34}
+        sizeDelta: {x: 78, y: 78}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_19x19/preview_board_19
+      elementType: 1
+      target: {fileID: 7386892947781975158}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 0, y: 34}
+        sizeDelta: {x: 78, y: 78}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelSettings
+      elementType: 1
+      target: {fileID: 7697542163698576846}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: -102.9, y: -172.43}
+        sizeDelta: {x: -269.8061, y: 0}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelSettings_layout
+      elementType: 2
+      target: {fileID: 8626453723440011271}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 0, y: 0}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 0, y: 0}
+        pivot: {x: 0, y: 0}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 1
+        childControlHeight: 0
+        childForceExpandWidth: 1
+        childForceExpandHeight: 1
+    - name: panel_player_color
+      elementType: 1
+      target: {fileID: 3134634277977677120}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 0, y: 0}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 0, y: 36.2119}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: panel_player_color/panel_player_color_label
+      elementType: 1
+      target: {fileID: 7133186141351452482}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0.5}
+        anchorMax: {x: 0, y: 0.5}
+        anchoredPosition: {x: 75, y: 0}
+        sizeDelta: {x: 150, y: 30}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: panel_player_color/dropdown_player_color
+      elementType: 1
+      target: {fileID: 8672075470524740556}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0.5}
+        anchorMax: {x: 0, y: 0.5}
+        anchoredPosition: {x: 209, y: -0.44705}
+        sizeDelta: {x: 190.3114, y: 37.106}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: panel_handicap
+      elementType: 1
+      target: {fileID: 3886568290592553873}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 0, y: 0}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 0, y: 39.1151}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: panel_handicap/panel_handicap_label
+      elementType: 1
+      target: {fileID: 1200329070745211161}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0.5}
+        anchorMax: {x: 0, y: 0.5}
+        anchoredPosition: {x: 75, y: 0}
+        sizeDelta: {x: 150, y: 30}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: panel_handicap/dropdown_handicap
+      elementType: 1
+      target: {fileID: 2078503097506263932}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0.5}
+        anchorMax: {x: 0, y: 0.5}
+        anchoredPosition: {x: 208.41394, y: 2.5576}
+        sizeDelta: {x: 190.7718, y: 34}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelHoldTime
+      elementType: 1
+      target: {fileID: 3721023362977342047}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 0, y: 0}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 0, y: 36.9542}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelHoldTime/time_settings_label_hold
+      elementType: 1
+      target: {fileID: 8735239664760524932}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0.5}
+        anchorMax: {x: 0, y: 0.5}
+        anchoredPosition: {x: 59, y: 0}
+        sizeDelta: {x: 118, y: 30}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelHoldTime/Panel (1)
+      elementType: 1
+      target: {fileID: 6288442374951100356}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: 52.8, y: 0}
+        sizeDelta: {x: 0, y: 0}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelCountTime1
+      elementType: 1
+      target: {fileID: 7340611542550528948}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 0, y: 0}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 0, y: 37.9385}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelCountTime1/time_settings_label_count
+      elementType: 1
+      target: {fileID: 2595961441530629633}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0.5}
+        anchorMax: {x: 0, y: 0.5}
+        anchoredPosition: {x: 59, y: 0.00000047683716}
+        sizeDelta: {x: 118, y: 30}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelCountTime1/Panel (2)
+      elementType: 1
+      target: {fileID: 477886635394500265}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 0, y: 30}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelCountTime2
+      elementType: 1
+      target: {fileID: 1797613890799206105}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 0, y: 0}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 0, y: 42.93}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelCountTime2/time_settings_label_period
+      elementType: 1
+      target: {fileID: 634062427919519272}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0.5}
+        anchorMax: {x: 0, y: 0.5}
+        anchoredPosition: {x: 59, y: 0}
+        sizeDelta: {x: 118, y: 30}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelCountTime2/Panel (2)
+      elementType: 1
+      target: {fileID: 4241096834698786884}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 0, y: 30}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: panel_ai_difficulty
+      elementType: 1
+      target: {fileID: 5370299905606602467}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 0, y: 0}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 0, y: 46}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: panel_ai_difficulty/time_settings_label_ai
+      elementType: 1
+      target: {fileID: 873663544258903787}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: -205, y: 0}
+        sizeDelta: {x: 150, y: 30}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: panel_ai_difficulty/dropdown_ai_difficulty
+      elementType: 1
+      target: {fileID: 2651480206382737307}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: -0.000015259, y: 0}
+        sizeDelta: {x: 235.7111, y: 38}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+  - name: Portrait
+    elements:
+    - name: mask
+      elementType: 1
+      target: {fileID: 8872438426279859327}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 0, y: 0}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: panel_main
+      elementType: 1
+      target: {fileID: 4718226608104790927}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 0, y: 0}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: bg
+      elementType: 1
+      target: {fileID: 8166305803191851994}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 0, y: 0}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_close
+      elementType: 1
+      target: {fileID: 6952786260472810772}
+      property:
+        boolValue: 1
+        anchorMin: {x: 1, y: 1}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: -40, y: -40}
+        sizeDelta: {x: 52, y: 52}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_start
+      elementType: 1
+      target: {fileID: 6272090847233235184}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0}
+        anchorMax: {x: 0.5, y: 0}
+        anchoredPosition: {x: 0, y: 137}
+        sizeDelta: {x: 240, y: 56}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: img_header
+      elementType: 1
+      target: {fileID: 8946008805685622202}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 1}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: 0, y: -218}
+        sizeDelta: {x: 520, y: 86}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: txt_title
+      elementType: 1
+      target: {fileID: 7403158018478046096}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 0, y: 6}
+        sizeDelta: {x: 400, y: 48}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: txt_subtitle
+      elementType: 1
+      target: {fileID: 5753412497252060392}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 1}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: 0, y: -304}
+        sizeDelta: {x: 520, y: 34}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: txt_footer_hint
+      elementType: 1
+      target: {fileID: 4279237044896378453}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0}
+        anchorMax: {x: 0.5, y: 0}
+        anchoredPosition: {x: 0, y: 18}
+        sizeDelta: {x: 520, y: 28}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: section_board_text_plate
+      elementType: 1
+      target: {fileID: 2645961725252310318}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 1}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: 0, y: -250}
+        sizeDelta: {x: 640, y: 230}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: time_settings_label_board
+      elementType: 1
+      target: {fileID: 3317966113910389213}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 1}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: 0, y: -345}
+        sizeDelta: {x: 180, y: 30}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_9x9
+      elementType: 1
+      target: {fileID: 8144129499253185923}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 1}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: -190, y: -440}
+        sizeDelta: {x: 150, y: 160}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_9x9/txt_desc
+      elementType: 1
+      target: {fileID: 3586541754374352596}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0}
+        anchorMax: {x: 0.5, y: 0}
+        anchoredPosition: {x: 0, y: 28}
+        sizeDelta: {x: 128, y: 32}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_13x13
+      elementType: 1
+      target: {fileID: 9018654513968125934}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 1}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: 0, y: -440}
+        sizeDelta: {x: 150, y: 160}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_13x13/txt_desc
+      elementType: 1
+      target: {fileID: 1412811777338938343}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0}
+        anchorMax: {x: 0.5, y: 0}
+        anchoredPosition: {x: 0, y: 28}
+        sizeDelta: {x: 128, y: 32}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_19x19
+      elementType: 1
+      target: {fileID: 6367659145532072779}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 1}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: 190, y: -440}
+        sizeDelta: {x: 150, y: 160}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_19x19/txt_desc
+      elementType: 1
+      target: {fileID: 706679512261102083}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0}
+        anchorMax: {x: 0.5, y: 0}
+        anchoredPosition: {x: 0, y: 28}
+        sizeDelta: {x: 128, y: 32}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_9x9/preview_board_9
+      elementType: 1
+      target: {fileID: 6884554702720452190}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 0, y: 24}
+        sizeDelta: {x: 64, y: 64}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_13x13/preview_board_13
+      elementType: 1
+      target: {fileID: 2656173438255421694}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 0, y: 24}
+        sizeDelta: {x: 64, y: 64}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: btn_19x19/preview_board_19
+      elementType: 1
+      target: {fileID: 7386892947781975158}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 0, y: 24}
+        sizeDelta: {x: 64, y: 64}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelSettings
+      elementType: 1
+      target: {fileID: 7697542163698576846}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 0, y: -170}
+        sizeDelta: {x: 560, y: 434}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelSettings_layout
+      elementType: 2
+      target: {fileID: 8626453723440011271}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 0, y: 0}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 0, y: 0}
+        pivot: {x: 0, y: 0}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 1
+        spacing: 4
+        childControlWidth: 1
+        childControlHeight: 0
+        childForceExpandWidth: 1
+        childForceExpandHeight: 1
+    - name: panel_player_color
+      elementType: 1
+      target: {fileID: 3134634277977677120}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 1}
+        anchorMax: {x: 0, y: 1}
+        anchoredPosition: {x: 280, y: -34}
+        sizeDelta: {x: 560, y: 68}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: panel_player_color/panel_player_color_label
+      elementType: 1
+      target: {fileID: 7133186141351452482}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 1}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: 0, y: -15}
+        sizeDelta: {x: 220, y: 28}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: panel_player_color/dropdown_player_color
+      elementType: 1
+      target: {fileID: 8672075470524740556}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 1}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: 0, y: -48}
+        sizeDelta: {x: 250, y: 34}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: panel_handicap
+      elementType: 1
+      target: {fileID: 3886568290592553873}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 1}
+        anchorMax: {x: 0, y: 1}
+        anchoredPosition: {x: 280, y: -106}
+        sizeDelta: {x: 560, y: 68}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: panel_handicap/panel_handicap_label
+      elementType: 1
+      target: {fileID: 1200329070745211161}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 1}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: 0, y: -15}
+        sizeDelta: {x: 220, y: 28}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: panel_handicap/dropdown_handicap
+      elementType: 1
+      target: {fileID: 2078503097506263932}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 1}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: 0, y: -48}
+        sizeDelta: {x: 250, y: 34}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelHoldTime
+      elementType: 1
+      target: {fileID: 3721023362977342047}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 1}
+        anchorMax: {x: 0, y: 1}
+        anchoredPosition: {x: 280, y: -179}
+        sizeDelta: {x: 560, y: 70}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelHoldTime/time_settings_label_hold
+      elementType: 1
+      target: {fileID: 8735239664760524932}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 1}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: 0, y: -15}
+        sizeDelta: {x: 220, y: 28}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelHoldTime/Panel (1)
+      elementType: 1
+      target: {fileID: 6288442374951100356}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 1}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: 0, y: -48}
+        sizeDelta: {x: 464, y: 34}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelCountTime1
+      elementType: 1
+      target: {fileID: 7340611542550528948}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 1}
+        anchorMax: {x: 0, y: 1}
+        anchoredPosition: {x: 280, y: -253}
+        sizeDelta: {x: 560, y: 70}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelCountTime1/time_settings_label_count
+      elementType: 1
+      target: {fileID: 2595961441530629633}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 1}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: 0, y: -15}
+        sizeDelta: {x: 220, y: 28}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelCountTime1/Panel (2)
+      elementType: 1
+      target: {fileID: 477886635394500265}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 1}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: 0, y: -48}
+        sizeDelta: {x: 352, y: 34}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelCountTime2
+      elementType: 1
+      target: {fileID: 1797613890799206105}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 1}
+        anchorMax: {x: 0, y: 1}
+        anchoredPosition: {x: 280, y: -327}
+        sizeDelta: {x: 560, y: 70}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelCountTime2/time_settings_label_period
+      elementType: 1
+      target: {fileID: 634062427919519272}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 1}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: 0, y: -15}
+        sizeDelta: {x: 220, y: 28}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: PanelCountTime2/Panel (2)
+      elementType: 1
+      target: {fileID: 4241096834698786884}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 1}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: 0, y: -48}
+        sizeDelta: {x: 352, y: 34}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: panel_ai_difficulty
+      elementType: 1
+      target: {fileID: 5370299905606602467}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 1}
+        anchorMax: {x: 0, y: 1}
+        anchoredPosition: {x: 280, y: -400}
+        sizeDelta: {x: 560, y: 68}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: panel_ai_difficulty/time_settings_label_ai
+      elementType: 1
+      target: {fileID: 873663544258903787}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 1}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: 0, y: -15}
+        sizeDelta: {x: 220, y: 28}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: panel_ai_difficulty/dropdown_ai_difficulty
+      elementType: 1
+      target: {fileID: 2651480206382737307}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 1}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: 0, y: -48}
+        sizeDelta: {x: 250, y: 34}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+  currentStateIndex: 1
 --- !u!1 &4940430870661848218
 GameObject:
   m_ObjectHideFlags: 0
@@ -10413,10 +12231,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 8144129499253185923}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: -76}
-  m_SizeDelta: {x: 138, y: 24}
+  m_AnchorMin: {x: 0.5, y: 0}
+  m_AnchorMax: {x: 0.5, y: 0}
+  m_AnchoredPosition: {x: 0, y: 28}
+  m_SizeDelta: {x: 128, y: 32}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &7556092284130949541
 CanvasRenderer:
@@ -10963,8 +12781,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 34}
-  m_SizeDelta: {x: 78, y: 78}
+  m_AnchoredPosition: {x: 0, y: 24}
+  m_SizeDelta: {x: 64, y: 64}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &8189740477026784838
 CanvasRenderer:
@@ -11176,8 +12994,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 34}
-  m_SizeDelta: {x: 78, y: 78}
+  m_AnchoredPosition: {x: 0, y: 24}
+  m_SizeDelta: {x: 64, y: 64}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &2464724680670089525
 CanvasRenderer:
@@ -11268,7 +13086,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 36.9542}
+  m_SizeDelta: {x: 0, y: 70}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &6168467635522245318
 CanvasRenderer:
@@ -12076,10 +13894,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 4718226608104790927}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -390, y: 62}
-  m_SizeDelta: {x: 86, y: 30}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: 0, y: -345}
+  m_SizeDelta: {x: 180, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &4985750645552566184
 CanvasRenderer:
@@ -12455,10 +14273,10 @@ RectTransform:
   - {fileID: 3354500923396415392}
   m_Father: {fileID: 1797613890799206105}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 30}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: 0, y: -48}
+  m_SizeDelta: {x: 0, y: 34}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &7847227009496291075
 CanvasRenderer:
@@ -12615,10 +14433,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 4718226608104790927}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 62}
-  m_SizeDelta: {x: 850, y: 196}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: 0, y: -250}
+  m_SizeDelta: {x: 640, y: 230}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &1706838214541240183
 CanvasRenderer:
@@ -13567,10 +15385,10 @@ RectTransform:
   - {fileID: 7249687220815355483}
   m_Father: {fileID: 4718226608104790927}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -230, y: 62}
-  m_SizeDelta: {x: 164, y: 170}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: -190, y: -440}
+  m_SizeDelta: {x: 150, y: 160}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &7322218148144379987
 CanvasRenderer:
@@ -13916,10 +15734,10 @@ RectTransform:
   - {fileID: 514068736017014259}
   m_Father: {fileID: 3721023362977342047}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 52.8, y: 0}
-  m_SizeDelta: {x: 0, y: 0}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: 0, y: -48}
+  m_SizeDelta: {x: 0, y: 34}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &2162337829164377857
 CanvasRenderer:
@@ -14189,8 +16007,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 34}
-  m_SizeDelta: {x: 78, y: 78}
+  m_AnchoredPosition: {x: 0, y: 24}
+  m_SizeDelta: {x: 64, y: 64}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &3413584144659704073
 CanvasRenderer:
@@ -14278,10 +16096,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 3134634277977677120}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0.5}
-  m_AnchorMax: {x: 0, y: 0.5}
-  m_AnchoredPosition: {x: 75, y: 0}
-  m_SizeDelta: {x: 150, y: 30}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: 0, y: -15}
+  m_SizeDelta: {x: 220, y: 28}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &166243287646119641
 CanvasRenderer:
@@ -14431,7 +16249,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 42.93}
+  m_SizeDelta: {x: 0, y: 70}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &4721802272536222396
 CanvasRenderer:
@@ -14551,7 +16369,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 46}
+  m_SizeDelta: {x: 0, y: 68}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &7257891074765167592
 GameObject:
@@ -15242,10 +17060,10 @@ RectTransform:
   - {fileID: 5370299905606602467}
   m_Father: {fileID: 4718226608104790927}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -102.9, y: -172.43}
-  m_SizeDelta: {x: -269.8061, y: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: -170}
+  m_SizeDelta: {x: 560, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &611775247448189790
 CanvasRenderer:
@@ -15272,8 +17090,8 @@ MonoBehaviour:
     m_Right: 0
     m_Top: 0
     m_Bottom: 0
-  m_ChildAlignment: 0
-  m_Spacing: 0
+  m_ChildAlignment: 1
+  m_Spacing: 4
   m_ChildForceExpandWidth: 1
   m_ChildForceExpandHeight: 1
   m_ChildControlWidth: 1
@@ -15331,10 +17149,10 @@ RectTransform:
   - {fileID: 6167657206768461443}
   m_Father: {fileID: 3886568290592553873}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0.5}
-  m_AnchorMax: {x: 0, y: 0.5}
-  m_AnchoredPosition: {x: 208.41394, y: 2.5576}
-  m_SizeDelta: {x: 190.7718, y: 34}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: 0, y: -48}
+  m_SizeDelta: {x: 250, y: 34}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &1026602260372716246
 CanvasRenderer:
@@ -15502,7 +17320,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 37.9385}
+  m_SizeDelta: {x: 0, y: 70}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &7520985170180004650
 CanvasRenderer:
@@ -15545,10 +17363,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 1797613890799206105}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0.5}
-  m_AnchorMax: {x: 0, y: 0.5}
-  m_AnchoredPosition: {x: 59, y: 0}
-  m_SizeDelta: {x: 118, y: 30}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: 0, y: -15}
+  m_SizeDelta: {x: 220, y: 28}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &796143031426202688
 CanvasRenderer:
@@ -15770,10 +17588,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 7340611542550528948}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0.5}
-  m_AnchorMax: {x: 0, y: 0.5}
-  m_AnchoredPosition: {x: 59, y: 0.00000047683716}
-  m_SizeDelta: {x: 118, y: 30}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: 0, y: -15}
+  m_SizeDelta: {x: 220, y: 28}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &3754220829085243136
 CanvasRenderer:
@@ -16145,10 +17963,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 9018654513968125934}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: -76}
-  m_SizeDelta: {x: 138, y: 24}
+  m_AnchorMin: {x: 0.5, y: 0}
+  m_AnchorMax: {x: 0.5, y: 0}
+  m_AnchoredPosition: {x: 0, y: 28}
+  m_SizeDelta: {x: 128, y: 32}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &7903826150763798771
 CanvasRenderer:
@@ -17541,10 +19359,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 3721023362977342047}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0.5}
-  m_AnchorMax: {x: 0, y: 0.5}
-  m_AnchoredPosition: {x: 59, y: 0}
-  m_SizeDelta: {x: 118, y: 30}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: 0, y: -15}
+  m_SizeDelta: {x: 220, y: 28}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &6588165504145793811
 CanvasRenderer:
@@ -18805,10 +20623,10 @@ RectTransform:
   - {fileID: 3347373094372945023}
   m_Father: {fileID: 4718226608104790927}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 310, y: -255}
-  m_SizeDelta: {x: 166, y: 48}
+  m_AnchorMin: {x: 0.5, y: 0}
+  m_AnchorMax: {x: 0.5, y: 0}
+  m_AnchoredPosition: {x: 0, y: 137}
+  m_SizeDelta: {x: 240, y: 56}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &7710381268023613619
 CanvasRenderer:
@@ -19077,7 +20895,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 36.2119}
+  m_SizeDelta: {x: 0, y: 68}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &8958600682913166423
 GameObject:

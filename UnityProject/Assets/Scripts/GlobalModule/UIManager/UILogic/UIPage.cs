@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 using XNLogger = XNClient.Logger.XNLogger;
 
 public abstract class UIPage : UILogicBase
@@ -77,6 +78,8 @@ public abstract class UIPage : UILogicBase
         if (uiCamera != null) {
             canvas.worldCamera = uiCamera;
         }
+
+        UICanvasResolutionProfile.ApplyRuntimeResolution(gameObject.GetComponent<CanvasScaler>());
     }
 
     protected override void OnOpen()

@@ -16,6 +16,9 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     private static bool pendingOpenAiDuel;
     private static Action<DuelSceneCreateParamas> pendingConfirmHandler;
 
+    private bool hasAppliedLayoutState;
+    private bool lastPortraitLayout;
+
     private string selectedBoardCfgId = "9x9";
     private string selectedHoldTimeCfgId = InfiniteHoldTimeCfgId;
     private string selectedByoyomiCountCfgId = ByoyomiOffCfgId;
@@ -47,6 +50,8 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     {
         base.OnLoaded();
 
+        ApplyCurrentLayoutState(true);
+
         AddButtonListener(binder.btn_9x9, () => SelectBoard("9x9"));
         AddButtonListener(binder.btn_13x13, () => SelectBoard("13x13"));
         AddButtonListener(binder.btn_19x19, () => SelectBoard("19x19"));
@@ -62,6 +67,8 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     {
         base.OnOpen();
 
+        ApplyCurrentLayoutState(false);
+
         isAiDuel = pendingOpenAiDuel;
         confirmHandler = pendingConfirmHandler;
         pendingConfirmHandler = null;
@@ -70,6 +77,13 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         RefreshHandicapDropdown();
         RefreshAiDifficultyDropdown();
         RefreshSelectionState();
+    }
+
+    protected override void OnUpdate()
+    {
+        base.OnUpdate();
+
+        ApplyCurrentLayoutState(false);
     }
 
     public void OnClickBtn9x9()
@@ -146,6 +160,29 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         AddButtonListener(binder.btn_byoyomi_time_20s, () => SelectByoyomiTime("20s"));
         AddButtonListener(binder.btn_byoyomi_time_30s, () => SelectByoyomiTime("30s"));
         AddButtonListener(binder.btn_byoyomi_time_60s, () => SelectByoyomiTime("60s"));
+    }
+
+    private void ApplyCurrentLayoutState(bool force)
+    {
+        if (binder.sr_platform == null) {
+            return;
+        }
+
+        bool isPortrait = UIUtils.IsPortrait(rectTransform);
+        if (!force && hasAppliedLayoutState && isPortrait == lastPortraitLayout) {
+            return;
+        }
+
+        binder.SetSrPlatformState(ResolveLayoutState(), force);
+        hasAppliedLayoutState = true;
+        lastPortraitLayout = isPortrait;
+    }
+
+    private DuelSetupPopupUI.SrPlatformState ResolveLayoutState()
+    {
+        return UIUtils.IsPortrait(rectTransform)
+            ? DuelSetupPopupUI.SrPlatformState.Portrait
+            : DuelSetupPopupUI.SrPlatformState.Landscape;
     }
 
     private void BindAiDifficultyDropdown()
