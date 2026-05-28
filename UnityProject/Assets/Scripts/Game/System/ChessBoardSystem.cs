@@ -16,6 +16,8 @@ public class ChessBoardSystem : SystemBase
     private const float DuelPerspectiveFov = 30f;
     private const float DuelPerspectiveTiltFactor = 0.16f;
     private const float DuelPerspectiveFramePaddingFactor = 1.08f;
+    private const float ReplayCameraHorizontalOffsetFactor = 0.93f;
+    private const float ReplayCameraHorizontalSpareUseFactor = 0.85f;
 
     public ChessBoardSystem(SceneBase scene) : base(scene)
     {
@@ -561,7 +563,24 @@ public class ChessBoardSystem : SystemBase
         float halfVerticalFovRad = lens.FieldOfView * 0.5f * Mathf.Deg2Rad;
         float boardDistance = halfHeightByBoard / Mathf.Tan(halfVerticalFovRad);
         float cameraDistance = boardDistance * DuelPerspectiveFramePaddingFactor + Mathf.Max(extraYOffset, 0f);
-        duelVCamTransform.position = gridBound.center - viewDir * cameraDistance;
+        Vector3 cameraPosition = gridBound.center - viewDir * cameraDistance;
+        if (scene is ReplayScene) {
+            cameraPosition += Vector3.right * GetReplayCameraHorizontalOffset(gridBound, cameraDistance, halfVerticalFovRad, aspect);
+        }
+
+        duelVCamTransform.position = cameraPosition;
+    }
+
+    private float GetReplayCameraHorizontalOffset(Bounds gridBound, float cameraDistance, float halfVerticalFovRad, float aspect)
+    {
+        if (aspect <= 0f) {
+            return 0f;
+        }
+
+        float horizontalHalfFrame = Mathf.Tan(halfVerticalFovRad) * cameraDistance * aspect;
+        float horizontalSpare = Mathf.Max(horizontalHalfFrame - gridBound.extents.x, 0f);
+        float desiredOffset = gridBound.extents.x * ReplayCameraHorizontalOffsetFactor;
+        return Mathf.Min(desiredOffset, horizontalSpare * ReplayCameraHorizontalSpareUseFactor);
     }
 
     public bool TryRestoreBoardFromKataGoRecord(SceneComponentChessBoard compChessBoard, string recordFilePath)
