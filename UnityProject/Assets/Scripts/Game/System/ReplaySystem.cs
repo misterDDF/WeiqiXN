@@ -85,24 +85,27 @@ public class ReplaySystem : SystemBase
 
     public void GoPrev()
     {
-        ClearAiRecommendationMarkers();
-        if (IsTryMode) {
-            ApplyTryCursor(compReplay.tryCursorMoveIndex - 1);
-            return;
-        }
-
-        ApplyReplayCursor(compReplay.replayCursorMoveIndex - 1);
+        GoRelative(-1);
     }
 
     public void GoNext()
     {
-        ClearAiRecommendationMarkers();
-        if (IsTryMode) {
-            ApplyTryCursor(compReplay.tryCursorMoveIndex + 1);
+        GoRelative(1);
+    }
+
+    public void GoRelative(int cursorDelta)
+    {
+        if (!IsReplayLoaded || compReplay == null || cursorDelta == 0) {
             return;
         }
 
-        ApplyReplayCursor(compReplay.replayCursorMoveIndex + 1);
+        ClearAiRecommendationMarkers();
+        if (IsTryMode) {
+            ApplyTryCursor(compReplay.tryCursorMoveIndex + cursorDelta);
+            return;
+        }
+
+        ApplyReplayCursor(compReplay.replayCursorMoveIndex + cursorDelta);
     }
 
     public void GoLast()
@@ -510,25 +513,38 @@ public class ReplaySystem : SystemBase
         return "复盘场景已切换到棋盘级渲染，当前页面只保留控制层。";
     }
 
+    public string BuildChartProgressText()
+    {
+        if (!IsReplayLoaded || compReplay == null) {
+            return string.Empty;
+        }
+
+        if (compReplay.isChartLoading || compReplay.isChartBackgroundBuilding) {
+            return string.IsNullOrEmpty(compReplay.chartStatus) ? "图表生成中" : compReplay.chartStatus;
+        }
+
+        if (!compReplay.isChartReady && !string.IsNullOrEmpty(compReplay.chartStatus)) {
+            return compReplay.chartStatus;
+        }
+
+        return string.Empty;
+    }
+
     public string BuildChartSummaryText()
     {
         if (!IsReplayLoaded) {
             return "图表未加载";
         }
 
-        if (compReplay.isChartLoading) {
-            return "图表生成中";
-        }
-
-        if (compReplay.isChartBackgroundBuilding) {
-            return compReplay.chartStatus;
-        }
-
-        if (!compReplay.isChartReady || compReplay.chartPoints.Count == 0) {
-            return string.IsNullOrEmpty(compReplay.chartStatus) ? "暂无图表数据" : compReplay.chartStatus;
-        }
-
         ReplayChartPoint point = GetChartPoint(compReplay.replayCursorMoveIndex);
+        if (point == null && (!compReplay.isChartReady || compReplay.isChartBackgroundBuilding || compReplay.isChartLoading)) {
+            return "当前手图表待生成";
+        }
+
+        if (point == null && compReplay.chartPoints.Count == 0) {
+            return "暂无图表数据";
+        }
+
         string winrateText = point != null && point.hasWinrate
             ? $"黑胜率 {Mathf.RoundToInt(Mathf.Clamp01(point.blackWinrate) * 100f)}%"
             : "黑胜率 --";
