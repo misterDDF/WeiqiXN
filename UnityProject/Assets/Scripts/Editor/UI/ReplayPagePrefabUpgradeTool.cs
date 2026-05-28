@@ -107,6 +107,54 @@ public static class ReplayPagePrefabUpgradeTool
         }
     }
 
+    [MenuItem("WeiqiXN/UI/Ensure Replay Chart Legend")]
+    public static void EnsureReplayChartLegend()
+    {
+        GameObject prefabRoot = PrefabUtility.LoadPrefabContents(PrefabPath);
+        try {
+            PreservePageRootTransform(prefabRoot);
+
+            Transform chartArea = FindChildRecursive(prefabRoot.transform, "rect_chart_area");
+            if (chartArea == null) {
+                Debug.LogError("ReplayPage chart legend upgrade failed: rect_chart_area not found.");
+                return;
+            }
+
+            TextMeshProUGUI winrateLegend = EnsureChildText(chartArea, "txt_chart_legend_winrate");
+            ConfigureLegendLabel(
+                winrateLegend,
+                "胜率",
+                new Color(0.25f, 0.72f, 1f, 0.95f),
+                new Vector2(12f, -4f),
+                TextAlignmentOptions.Left);
+
+            TextMeshProUGUI scoreLegend = EnsureChildText(chartArea, "txt_chart_legend_score");
+            ConfigureLegendLabel(
+                scoreLegend,
+                "目差",
+                new Color(1f, 0.76f, 0.28f, 0.95f),
+                new Vector2(70f, -4f),
+                TextAlignmentOptions.Left);
+
+            PrefabUtility.SaveAsPrefabAsset(prefabRoot, PrefabPath);
+            Debug.Log("ReplayPage chart legend upgrade finished.");
+        }
+        finally {
+            PrefabUtility.UnloadPrefabContents(prefabRoot);
+        }
+    }
+
+    private static void PreservePageRootTransform(GameObject prefabRoot)
+    {
+        RectTransform rootRect = prefabRoot.GetComponent<RectTransform>();
+        if (rootRect == null) {
+            return;
+        }
+
+        rootRect.localScale = Vector3.zero;
+        rootRect.pivot = Vector2.zero;
+    }
+
     private static RectTransform EnsureRect(Transform parent, string name)
     {
         Transform found = parent.Find(name);
@@ -136,6 +184,26 @@ public static class ReplayPagePrefabUpgradeTool
     {
         TextMeshProUGUI text = EnsureChildComponent<TextMeshProUGUI>(parent, name);
         return text;
+    }
+
+    private static void ConfigureLegendLabel(
+        TextMeshProUGUI label,
+        string text,
+        Color textColor,
+        Vector2 anchoredPosition,
+        TextAlignmentOptions alignment)
+    {
+        RectTransform rect = label.rectTransform;
+        rect.anchorMin = new Vector2(0f, 1f);
+        rect.anchorMax = new Vector2(0f, 1f);
+        rect.pivot = new Vector2(0f, 1f);
+        rect.anchoredPosition = anchoredPosition;
+        rect.sizeDelta = new Vector2(54f, 18f);
+        label.fontSize = 12f;
+        label.alignment = alignment;
+        label.color = textColor;
+        label.text = text;
+        label.raycastTarget = false;
     }
 
     private static Transform FindChildRecursive(Transform root, string name)

@@ -105,8 +105,15 @@ public static class UIPagePrefabPreviewPlatformMenu
         int height = Mathf.RoundToInt(referenceResolution.y);
         string sizeText = $"{width}x{height}";
         try {
-            int sizeIndex = FindOrAddFixedGameViewSize(width, height, sizeText);
-            SetGameViewSize(sizeIndex);
+            Type gameViewType = GetGameViewType();
+            EditorWindow gameView = GetGameViewWindow(gameViewType);
+            if (gameView == null) {
+                return;
+            }
+
+            int sizeIndex = FindOrAddFixedGameViewSize(gameView, width, height, sizeText);
+            SetGameViewSize(gameView, sizeIndex);
+            Debug.Log($"Switch GameView resolution: {sizeText}, sizeIndex={sizeIndex}, activeBuildTarget={EditorUserBuildSettings.activeBuildTarget}");
         } catch (Exception e) {
             Debug.LogWarning($"Switch GameView resolution failed: {sizeText}\n{e.Message}");
         }
@@ -130,10 +137,10 @@ public static class UIPagePrefabPreviewPlatformMenu
         EditorSceneManager.MarkSceneDirty(prefabStage.scene);
     }
 
-    private static int FindOrAddFixedGameViewSize(int width, int height, string label)
+    private static int FindOrAddFixedGameViewSize(EditorWindow gameView, int width, int height, string label)
     {
         object gameViewSizes = GetGameViewSizesInstance();
-        object group = GetCurrentGameViewSizeGroup(gameViewSizes);
+        object group = GetCurrentGameViewSizeGroup(gameViewSizes, gameView);
         MethodInfo getBuiltinCount = group.GetType().GetMethod("GetBuiltinCount");
         MethodInfo getCustomCount = group.GetType().GetMethod("GetCustomCount");
         MethodInfo getGameViewSize = group.GetType().GetMethod("GetGameViewSize");
@@ -143,18 +150,24 @@ public static class UIPagePrefabPreviewPlatformMenu
 
         for (int i = 0; i < totalCount; i++) {
             object size = getGameViewSize.Invoke(group, new object[] { i });
-            int sizeWidth = (int)size.GetType().GetProperty("width").GetValue(size);
-            int sizeHeight = (int)size.GetType().GetProperty("height").GetValue(size);
-            if (sizeWidth == width && sizeHeight == height) {
+            if (IsMatchingGameViewSize(size, width, height, label)) {
                 return i;
             }
         }
 
         Type gameViewSizeType = typeof(Editor).Assembly.GetType("UnityEditor.GameViewSize");
         Type gameViewSizeTypeType = typeof(Editor).Assembly.GetType("UnityEditor.GameViewSizeType");
+        if (gameViewSizeType == null || gameViewSizeTypeType == null) {
+            throw new InvalidOperationException("UnityEditor.GameViewSize reflection type not found.");
+        }
+
         object fixedResolutionType = Enum.Parse(gameViewSizeTypeType, "FixedResolution");
         object newSize = Activator.CreateInstance(gameViewSizeType, fixedResolutionType, width, height, label);
         MethodInfo addCustomSize = group.GetType().GetMethod("AddCustomSize");
+        if (addCustomSize == null) {
+            throw new InvalidOperationException("GameViewSizeGroup.AddCustomSize reflection method not found.");
+        }
+
         addCustomSize.Invoke(group, new[] { newSize });
         return totalCount;
     }
@@ -162,35 +175,163 @@ public static class UIPagePrefabPreviewPlatformMenu
     private static object GetGameViewSizesInstance()
     {
         Type sizesType = typeof(Editor).Assembly.GetType("UnityEditor.GameViewSizes");
+        if (sizesType == null) {
+            throw new InvalidOperationException("UnityEditor.GameViewSizes reflection type not found.");
+        }
+
         Type singletonType = typeof(ScriptableSingleton<>).MakeGenericType(sizesType);
         PropertyInfo instanceProperty = singletonType.GetProperty("instance", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+        if (instanceProperty == null) {
+            throw new InvalidOperationException("GameViewSizes singleton instance reflection property not found.");
+        }
+
         return instanceProperty.GetValue(null);
     }
 
     private static object GetCurrentGameViewSizeGroup(object gameViewSizes)
     {
         Type gameViewSizeGroupType = typeof(Editor).Assembly.GetType("UnityEditor.GameViewSizeGroupType");
-        object standaloneType = Enum.Parse(gameViewSizeGroupType, "Standalone");
-        MethodInfo getGroup = gameViewSizes.GetType().GetMethod("GetGroup");
-        return getGroup.Invoke(gameViewSizes, new[] { standaloneType });
-    }
-
-    private static void SetGameViewSize(int sizeIndex)
-    {
-        Type gameViewType = typeof(Editor).Assembly.GetType("UnityEditor.GameView");
-        UnityEngine.Object[] gameViews = Resources.FindObjectsOfTypeAll(gameViewType);
-        if (gameViews.Length == 0) {
-            return;
+        if (gameViewSizeGroupType == null) {
+            throw new InvalidOperationException("UnityEditor.GameViewSizeGroupType reflection type not found.");
         }
 
-        EditorWindow gameView = gameViews[0] as EditorWindow;
+        object groupType = ResolveGameViewSizeGroupType(gameViewSizeGroupType);
+        MethodInfo getGroup = gameViewSizes.GetType().GetMethod("GetGroup");
+        if (getGroup == null) {
+            throw new InvalidOperationException("GameViewSizes.GetGroup reflection method not found.");
+        }
+
+        return getGroup.Invoke(gameViewSizes, new[] { groupType });
+    }
+
+    private static object GetCurrentGameViewSizeGroup(object gameViewSizes, EditorWindow gameView)
+    {
+        object currentSizeGroupType = GetCurrentGameViewSizeGroupType(gameView);
+        if (currentSizeGroupType == null) {
+            return GetCurrentGameViewSizeGroup(gameViewSizes);
+        }
+
+        MethodInfo getGroup = gameViewSizes.GetType().GetMethod("GetGroup");
+        if (getGroup == null) {
+            throw new InvalidOperationException("GameViewSizes.GetGroup reflection method not found.");
+        }
+
+        return getGroup.Invoke(gameViewSizes, new[] { currentSizeGroupType });
+    }
+
+    private static object GetCurrentGameViewSizeGroupType(EditorWindow gameView)
+    {
+        if (gameView == null) {
+            return null;
+        }
+
+        Type gameViewType = gameView.GetType();
+        PropertyInfo currentSizeGroupType = gameViewType.GetProperty("currentSizeGroupType", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (currentSizeGroupType != null) {
+            return currentSizeGroupType.GetValue(gameView);
+        }
+
+        FieldInfo currentSizeGroupTypeField = gameViewType.GetField("m_CurrentSizeGroupType", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        return currentSizeGroupTypeField != null ? currentSizeGroupTypeField.GetValue(gameView) : null;
+    }
+
+    private static object ResolveGameViewSizeGroupType(Type gameViewSizeGroupType)
+    {
+        string groupName;
+        switch (EditorUserBuildSettings.activeBuildTarget) {
+            case BuildTarget.Android:
+                groupName = "Android";
+                break;
+            case BuildTarget.iOS:
+                groupName = "iOS";
+                break;
+            case BuildTarget.WebGL:
+                groupName = "WebGL";
+                break;
+            default:
+                groupName = "Standalone";
+                break;
+        }
+
+        return Enum.IsDefined(gameViewSizeGroupType, groupName)
+            ? Enum.Parse(gameViewSizeGroupType, groupName)
+            : Enum.Parse(gameViewSizeGroupType, "Standalone");
+    }
+
+    private static bool IsMatchingGameViewSize(object size, int width, int height, string label)
+    {
+        if (size == null) {
+            return false;
+        }
+
+        Type sizeType = size.GetType();
+        int sizeWidth = GetIntProperty(size, sizeType, "width");
+        int sizeHeight = GetIntProperty(size, sizeType, "height");
+        if (sizeWidth == width && sizeHeight == height) {
+            return true;
+        }
+
+        string sizeText = GetStringProperty(size, sizeType, "displayText");
+        return !string.IsNullOrEmpty(sizeText) && sizeText.IndexOf(label, StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static int GetIntProperty(object instance, Type instanceType, string propertyName)
+    {
+        PropertyInfo property = instanceType.GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (property == null) {
+            return 0;
+        }
+
+        object value = property.GetValue(instance);
+        if (value is int intValue) {
+            return intValue;
+        }
+
+        return value is float floatValue ? Mathf.RoundToInt(floatValue) : 0;
+    }
+
+    private static string GetStringProperty(object instance, Type instanceType, string propertyName)
+    {
+        PropertyInfo property = instanceType.GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        return property != null ? property.GetValue(instance) as string : null;
+    }
+
+    private static void SetGameViewSize(EditorWindow gameView, int sizeIndex)
+    {
         if (gameView == null) {
             return;
         }
 
+        Type gameViewType = gameView.GetType();
+        MethodInfo sizeSelectionCallback = gameViewType.GetMethod("SizeSelectionCallback", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (sizeSelectionCallback != null) {
+            sizeSelectionCallback.Invoke(gameView, new object[] { sizeIndex, null });
+            RefreshPreviewViews(gameView);
+            return;
+        }
+
         PropertyInfo selectedSizeIndex = gameViewType.GetProperty("selectedSizeIndex", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (selectedSizeIndex == null) {
+            throw new InvalidOperationException("GameView size selection reflection entry not found.");
+        }
+
         selectedSizeIndex.SetValue(gameView, sizeIndex);
         RefreshPreviewViews(gameView);
+    }
+
+    private static Type GetGameViewType()
+    {
+        return typeof(Editor).Assembly.GetType("UnityEditor.GameView");
+    }
+
+    private static EditorWindow GetGameViewWindow(Type gameViewType)
+    {
+        if (gameViewType == null) {
+            return null;
+        }
+
+        EditorWindow gameView = FindOpenWindow(gameViewType);
+        return gameView != null ? gameView : EditorWindow.GetWindow(gameViewType);
     }
 
     private static void RefreshPreviewViews(EditorWindow gameView)

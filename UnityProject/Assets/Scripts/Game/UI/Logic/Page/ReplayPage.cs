@@ -7,6 +7,8 @@ using XNClient.ChessBoard;
 
 public class ReplayPage : UIPageWithBinder<ReplayPageUI>
 {
+    private const int LargeStepMoveCount = 5;
+
     private DuelPageBoardInputController boardInput;
     private bool isScrubbing;
     private int scrubTargetMoveIndex;
@@ -80,29 +82,38 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         ReplayScene replayScene = Global.Instance.sceneManager.mainScene as ReplayScene;
         bool canBrowse = replaySystem != null && replaySystem.IsReplayLoaded &&
             (replaySystem.IsTryMode ? replaySystem.TryMoveCount > 0 : replaySystem.ReplayMoveCount > 0);
-        bool canTryMode = replaySystem != null && replaySystem.IsReplayLoaded;
+        bool isTryMode = replaySystem != null && replaySystem.IsReplayLoaded && replaySystem.IsTryMode;
         bool canAiAnalysis = replaySystem != null && replaySystem.IsReplayLoaded && !replaySystem.IsAiAnalyzing &&
             (replaySystem.IsAiAnalysisEnabled || replaySystem.HasAiAnalysisRender);
+        bool hasAiAnalysisRender = replaySystem != null && replaySystem.HasAiAnalysisRender;
 
         binder.txt_title.text = replayScene != null ? replayScene.configData.id : "Replay";
         binder.txt_summary.text = replaySystem != null ? replaySystem.BuildSummaryText() : "未加载复盘场景";
         binder.txt_status.text = replaySystem != null ? replaySystem.ReplayStatus : string.Empty;
         binder.txt_move_cursor.text = replaySystem != null ? replaySystem.BuildCursorText() : "0 / 0";
         binder.txt_move_detail.text = replaySystem != null ? replaySystem.BuildMoveDetailText() : "未加载复盘";
-        binder.txt_analysis_placeholder.text = replaySystem != null ? replaySystem.BuildActionHint() : "试下、图表和 AI 推荐将在后续复盘控制层接入。";
+        RefreshChartProgress(replaySystem);
         RefreshScrubPreview(replaySystem);
         RefreshChart(replaySystem);
         binder.btn_first.interactable = canBrowse;
         binder.btn_prev.interactable = canBrowse;
         binder.btn_next.interactable = canBrowse;
         binder.btn_last.interactable = canBrowse;
-        binder.btn_try_mode.interactable = canTryMode;
+        if (binder.panel_try_mode != null) {
+            binder.panel_try_mode.SetActive(isTryMode);
+        } else if (binder.btn_try_mode != null) {
+            binder.btn_try_mode.gameObject.SetActive(isTryMode);
+        }
+        if (binder.btn_try_mode != null) {
+            binder.btn_try_mode.interactable = isTryMode;
+        }
         if (binder.btn_ai_analysis != null) {
             binder.btn_ai_analysis.interactable = canAiAnalysis;
         }
         SetButtonText(binder.btn_close, "退出");
-        SetTryModeButtonText(replaySystem != null && replaySystem.IsTryMode ? "退出试下" : "试下");
+        SetTryModeButtonText("取消试下");
         SetButtonText(binder.btn_ai_analysis, GetAiAnalysisButtonText(replaySystem));
+        RefreshAiAnalysisButtonSelection(hasAiAnalysisRender);
     }
 
     private void RefreshTryModeInput()
@@ -124,7 +135,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
 
     private void OnClickFirst()
     {
-        GetReplaySystem()?.GoFirst();
+        GetReplaySystem()?.GoRelative(-LargeStepMoveCount);
     }
 
     private void OnClickPrev()
@@ -139,12 +150,12 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
 
     private void OnClickLast()
     {
-        GetReplaySystem()?.GoLast();
+        GetReplaySystem()?.GoRelative(LargeStepMoveCount);
     }
 
     private void OnClickTryMode()
     {
-        GetReplaySystem()?.ToggleTryMode();
+        GetReplaySystem()?.ExitTryMode();
     }
 
     private void OnClickAiAnalysis()
@@ -156,6 +167,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
 
         if (replaySystem.HasAiAnalysisRender) {
             replaySystem.ClearAiAnalysisRender();
+            RefreshAiAnalysisButtonSelection(false);
             return;
         }
 
@@ -270,6 +282,17 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         binder.txt_scrub_preview.text = previewText;
     }
 
+    private void RefreshChartProgress(ReplaySystem replaySystem)
+    {
+        if (binder.txt_analysis_placeholder == null) {
+            return;
+        }
+
+        string progressText = replaySystem != null ? replaySystem.BuildChartProgressText() : string.Empty;
+        binder.txt_analysis_placeholder.text = progressText;
+        binder.txt_analysis_placeholder.gameObject.SetActive(!string.IsNullOrEmpty(progressText));
+    }
+
     private void RefreshChart(ReplaySystem replaySystem)
     {
         if (binder.chart_analysis != null) {
@@ -346,6 +369,25 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         TextMeshProUGUI buttonText = button.GetComponentInChildren<TextMeshProUGUI>();
         if (buttonText != null) {
             buttonText.text = text;
+        }
+    }
+
+    private void RefreshAiAnalysisButtonSelection(bool selected)
+    {
+        if (binder.btn_ai_analysis == null || EventSystem.current == null) {
+            return;
+        }
+
+        GameObject buttonGameObject = binder.btn_ai_analysis.gameObject;
+        if (selected) {
+            if (EventSystem.current.currentSelectedGameObject != buttonGameObject) {
+                binder.btn_ai_analysis.Select();
+            }
+            return;
+        }
+
+        if (EventSystem.current.currentSelectedGameObject == buttonGameObject) {
+            EventSystem.current.SetSelectedGameObject(null);
         }
     }
 }

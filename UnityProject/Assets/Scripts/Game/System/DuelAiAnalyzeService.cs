@@ -1,16 +1,21 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using XNClient.Logger;
 
 public static class DuelAiAnalyzeService
 {
-    public static async Task<DuelAiAnalyzeResult> AnalyzeAiMoveAsync(DuelScene duelScene, DuelAiDifficultyDataType difficultyData, DuelAiRuntimeParams runtimeParams)
+    public static async Task<DuelAiAnalyzeResult> AnalyzeAiMoveAsync(
+        DuelScene duelScene,
+        DuelAiDifficultyDataType difficultyData,
+        DuelAiRuntimeParams runtimeParams,
+        CancellationToken cancellationToken)
     {
         int fullMaxVisits = runtimeParams.requestMaxVisits;
         if (!runtimeParams.dynamicBudgetEnabled || runtimeParams.probeMaxVisits >= fullMaxVisits) {
             string reason = runtimeParams.dynamicBudgetEnabled ? "probe_budget_not_lower" : "dynamic_disabled";
-            JObject fullResult = await RequestAiAnalyzeAsync(duelScene, difficultyData, runtimeParams, fullMaxVisits, "full", reason);
+            JObject fullResult = await RequestAiAnalyzeAsync(duelScene, difficultyData, runtimeParams, fullMaxVisits, "full", reason, cancellationToken);
             return new DuelAiAnalyzeResult
             {
                 result = fullResult,
@@ -20,7 +25,7 @@ public static class DuelAiAnalyzeService
             };
         }
 
-        JObject probeResult = await RequestAiAnalyzeAsync(duelScene, difficultyData, runtimeParams, runtimeParams.probeMaxVisits, "probe", "dynamic_probe");
+        JObject probeResult = await RequestAiAnalyzeAsync(duelScene, difficultyData, runtimeParams, runtimeParams.probeMaxVisits, "probe", "dynamic_probe", cancellationToken);
         DuelAiBudgetDecision decision = DuelAiBudgetService.DecideBudgetAfterProbe(probeResult, runtimeParams);
         DuelAiBudgetService.LogBudgetDecision(decision, runtimeParams);
 
@@ -34,7 +39,7 @@ public static class DuelAiAnalyzeService
             };
         }
 
-        JObject fullResultAfterProbe = await RequestAiAnalyzeAsync(duelScene, difficultyData, runtimeParams, fullMaxVisits, "full", decision.reason);
+        JObject fullResultAfterProbe = await RequestAiAnalyzeAsync(duelScene, difficultyData, runtimeParams, fullMaxVisits, "full", decision.reason, cancellationToken);
         return new DuelAiAnalyzeResult
         {
             result = fullResultAfterProbe,
@@ -44,7 +49,14 @@ public static class DuelAiAnalyzeService
         };
     }
 
-    private static async Task<JObject> RequestAiAnalyzeAsync(DuelScene duelScene, DuelAiDifficultyDataType difficultyData, DuelAiRuntimeParams runtimeParams, int maxVisits, string budgetMode, string reason)
+    private static async Task<JObject> RequestAiAnalyzeAsync(
+        DuelScene duelScene,
+        DuelAiDifficultyDataType difficultyData,
+        DuelAiRuntimeParams runtimeParams,
+        int maxVisits,
+        string budgetMode,
+        string reason,
+        CancellationToken cancellationToken)
     {
         string requestId = $"duel-ai-{budgetMode}-{DateTime.UtcNow.Ticks}";
         JObject query = KataGoPositionJsonBuilder.BuildAiMoveAnalysisJson(duelScene, requestId, difficultyData, maxVisits);
@@ -72,7 +84,10 @@ public static class DuelAiAnalyzeService
                 ("humanProfileSent", (query["overrideSettings"]?["humanSLProfile"] != null).ToString()));
         }
 
-        JObject result = await KataGoBootstrap.AnalyzeAsync(query);
+        JObject result = await KataGoBootstrap.AnalyzeAsync(
+            query,
+            KataGoBootstrap.CreateRetryUntilCanceledAnalyzeOptions($"duel-ai-{budgetMode}"),
+            cancellationToken);
         if (budgetMode == "probe") {
             DuelAiBudgetService.LogProbeResult(result, runtimeParams);
         }

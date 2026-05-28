@@ -31,6 +31,12 @@ public static class KataGoBootstrap
     private const int CpuWarmupEstimatedMs = 10000;
     private const int SmokeTestMaxVisits = 1;
     private const int AnalyzeTimeoutMs = 45000;
+    private const int DefaultAnalyzeRetryCount = 1;
+    private const int DefaultAnalyzeRetryDelayMs = 500;
+#if UNITY_ANDROID && !UNITY_EDITOR
+    private const int AndroidAnalyzePollMs = 250;
+    private const int DefaultAndroidAnalyzeBackgroundGraceMs = 300000;
+#endif
     private const bool HumanSlProfileEnabled = false;
     private static readonly int[] SmokeTestBoardSizes = { 9, 13, 19 };
     private static readonly float[] SmokeTestBoardProgressWeights = { 0.90f, 0.05f, 0.05f };
@@ -141,43 +147,104 @@ public static class KataGoBootstrap
 
     public static async Task<JObject> AnalyzeAsync(JObject query)
     {
+        return await AnalyzeAsync(query, CreateDefaultAnalyzeOptions("default"), CancellationToken.None);
+    }
+
+    public static async Task<JObject> AnalyzeAsync(JObject query, KataGoAnalyzeOptions options, CancellationToken cancellationToken)
+    {
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN || UNITY_ANDROID
         if (query == null) {
             XNLogger.LogError("KataGo analyze failed, query is null.");
             return null;
         }
 
-        await analysisSemaphore.WaitAsync();
+        KataGoAnalyzeOptions safeOptions = NormalizeAnalyzeOptions(options);
         try {
             if (activeBackendIsNative) {
-                if (!await EnsureNativeReadyAsync()) {
-                    XNLogger.LogError("KataGo analyze failed, native engine is not running.");
-                    return null;
-                }
-
-                return await Task.Run(() => AnalyzeNative(query, AnalyzeTimeoutMs));
+                return await AnalyzeNativeWithRetryAsync(query, safeOptions, cancellationToken);
             }
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
             else {
-                if (!await EnsureProcessReadyAsync()) {
-                    XNLogger.LogError("KataGo analyze failed, process is not running.");
-                    return null;
-                }
-
-                return await Task.Run(() => Analyze(query, AnalyzeTimeoutMs));
+                return await AnalyzeProcessWithRetryAsync(query, safeOptions, cancellationToken);
             }
 #else
             XNLogger.LogError("KataGo analyze failed, non-native backend is unsupported on Android.");
             return null;
 #endif
         }
-        finally {
-            analysisSemaphore.Release();
+        catch (OperationCanceledException) {
+            XNLogger.LogWarn(
+                "KataGo analyze canceled.",
+                ("id", query["id"]?.ToString() ?? string.Empty),
+                ("kind", safeOptions.requestKind ?? string.Empty));
+            if (cancellationToken.IsCancellationRequested) {
+                throw;
+            }
+
+            return null;
         }
 #else
         await Task.CompletedTask;
         XNLogger.LogWarn("KataGo analyze skipped.", ("reason", "Local process analyze is not compiled for this platform."));
         return null;
+#endif
+    }
+
+    public static KataGoAnalyzeOptions CreateDefaultAnalyzeOptions(string requestKind)
+    {
+        return new KataGoAnalyzeOptions
+        {
+            timeoutMs = AnalyzeTimeoutMs,
+            retryCount = DefaultAnalyzeRetryCount,
+            retryDelayMs = DefaultAnalyzeRetryDelayMs,
+            retryUntilCanceled = false,
+            restartEngineBeforeRetry = true,
+            waitForegroundOnAndroid = true,
+            androidBackgroundGraceMs = GetDefaultAndroidAnalyzeBackgroundGraceMs(),
+            requestKind = requestKind ?? string.Empty,
+        };
+    }
+
+    public static KataGoAnalyzeOptions CreateRetryUntilCanceledAnalyzeOptions(string requestKind)
+    {
+        KataGoAnalyzeOptions options = CreateDefaultAnalyzeOptions(requestKind);
+        options.retryUntilCanceled = true;
+        return options;
+    }
+
+    public static KataGoAnalyzeOptions CreateSingleAttemptAnalyzeOptions(string requestKind)
+    {
+        KataGoAnalyzeOptions options = CreateDefaultAnalyzeOptions(requestKind);
+        options.retryCount = 0;
+        options.retryUntilCanceled = false;
+        return options;
+    }
+
+    private static KataGoAnalyzeOptions NormalizeAnalyzeOptions(KataGoAnalyzeOptions options)
+    {
+        if (options.timeoutMs <= 0) {
+            options.timeoutMs = AnalyzeTimeoutMs;
+        }
+
+        options.retryCount = Math.Max(0, options.retryCount);
+        options.retryDelayMs = Math.Max(0, options.retryDelayMs);
+        if (options.androidBackgroundGraceMs < 0) {
+            options.androidBackgroundGraceMs = 0;
+        }
+
+        if (string.IsNullOrEmpty(options.requestKind)) {
+            options.requestKind = "default";
+        }
+
+        return options;
+    }
+
+    private static int GetDefaultAndroidAnalyzeBackgroundGraceMs()
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        return DefaultAndroidAnalyzeBackgroundGraceMs;
+#else
+        return 0;
 #endif
     }
 
@@ -502,6 +569,11 @@ public static class KataGoBootstrap
         return IsNativeEngineRunning();
     }
 
+    private static void MarkNativeEngineForRestart()
+    {
+        StopNativeEngine();
+    }
+
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
     private static async Task<bool> EnsureProcessReadyAsync()
     {
@@ -532,6 +604,11 @@ public static class KataGoBootstrap
         return IsProcessRunning();
     }
 
+    private static void MarkProcessForRestart()
+    {
+        StopProcess();
+    }
+
     private static bool IsProcessRunning()
     {
         try {
@@ -542,6 +619,136 @@ public static class KataGoBootstrap
         }
     }
 #endif
+
+    private static async Task<JObject> AnalyzeNativeWithRetryAsync(JObject query, KataGoAnalyzeOptions options, CancellationToken cancellationToken)
+    {
+        string requestId = query["id"]?.ToString() ?? string.Empty;
+        int attempt = 0;
+        while (true) {
+            cancellationToken.ThrowIfCancellationRequested();
+            JObject result = await AnalyzeNativeOnceAsync(query, options, cancellationToken);
+            if (result != null) {
+                if (attempt > 0) {
+                    XNLogger.LogInfo(
+                        "KataGo native analyze retry succeeded.",
+                        ("id", requestId),
+                        ("attempt", (attempt + 1).ToString()),
+                        ("kind", options.requestKind ?? string.Empty));
+                }
+                return result;
+            }
+
+            if (!ShouldRetryAnalyze(options, attempt)) {
+                break;
+            }
+
+            XNLogger.LogWarn(
+                "KataGo native analyze failed, restarting engine and retrying.",
+                ("id", requestId),
+                ("attempt", (attempt + 1).ToString()),
+                ("kind", options.requestKind ?? string.Empty),
+                ("engine", hasActivePaths ? activePaths.engineName : "unknown"));
+            if (options.restartEngineBeforeRetry) {
+                MarkNativeEngineForRestart();
+            }
+            await DelayBeforeAnalyzeRetry(options, cancellationToken);
+            attempt += 1;
+        }
+
+        return null;
+    }
+
+    private static async Task<JObject> AnalyzeNativeOnceAsync(JObject query, KataGoAnalyzeOptions options, CancellationToken cancellationToken)
+    {
+        await analysisSemaphore.WaitAsync(cancellationToken);
+        try {
+            if (!await EnsureNativeReadyAsync()) {
+                XNLogger.LogError("KataGo analyze failed, native engine is not running.", ("id", query["id"]?.ToString() ?? string.Empty));
+                return null;
+            }
+
+            JObject result = await Task.Run(() => AnalyzeNative(query, ResolveAnalyzeTimeoutMs(options)), cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            return result;
+        }
+        finally {
+            analysisSemaphore.Release();
+        }
+    }
+
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+    private static async Task<JObject> AnalyzeProcessWithRetryAsync(JObject query, KataGoAnalyzeOptions options, CancellationToken cancellationToken)
+    {
+        string requestId = query["id"]?.ToString() ?? string.Empty;
+        int attempt = 0;
+        while (true) {
+            cancellationToken.ThrowIfCancellationRequested();
+            JObject result = await AnalyzeProcessOnceAsync(query, options, cancellationToken);
+            if (result != null) {
+                if (attempt > 0) {
+                    XNLogger.LogInfo(
+                        "KataGo analyze retry succeeded.",
+                        ("id", requestId),
+                        ("attempt", (attempt + 1).ToString()),
+                        ("kind", options.requestKind ?? string.Empty));
+                }
+                return result;
+            }
+
+            if (!ShouldRetryAnalyze(options, attempt)) {
+                break;
+            }
+
+            XNLogger.LogWarn(
+                "KataGo analyze failed, restarting process and retrying.",
+                ("id", requestId),
+                ("attempt", (attempt + 1).ToString()),
+                ("kind", options.requestKind ?? string.Empty),
+                ("engine", hasActivePaths ? activePaths.engineName : "unknown"));
+            if (options.restartEngineBeforeRetry) {
+                MarkProcessForRestart();
+            }
+            await DelayBeforeAnalyzeRetry(options, cancellationToken);
+            attempt += 1;
+        }
+
+        return null;
+    }
+
+    private static async Task<JObject> AnalyzeProcessOnceAsync(JObject query, KataGoAnalyzeOptions options, CancellationToken cancellationToken)
+    {
+        await analysisSemaphore.WaitAsync(cancellationToken);
+        try {
+            if (!await EnsureProcessReadyAsync()) {
+                XNLogger.LogError("KataGo analyze failed, process is not running.", ("id", query["id"]?.ToString() ?? string.Empty));
+                return null;
+            }
+
+            JObject result = await Task.Run(() => Analyze(query, ResolveAnalyzeTimeoutMs(options)), cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            return result;
+        }
+        finally {
+            analysisSemaphore.Release();
+        }
+    }
+#endif
+
+    private static bool ShouldRetryAnalyze(KataGoAnalyzeOptions options, int completedRetryCount)
+    {
+        return options.retryUntilCanceled || completedRetryCount < options.retryCount;
+    }
+
+    private static async Task DelayBeforeAnalyzeRetry(KataGoAnalyzeOptions options, CancellationToken cancellationToken)
+    {
+        if (options.retryDelayMs <= 0) {
+            await Task.Yield();
+            cancellationToken.ThrowIfCancellationRequested();
+            return;
+        }
+
+        await Task.Delay(options.retryDelayMs, cancellationToken);
+    }
 
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
     private static void ShowGameRootWriteWarning(PlatformConfig platformConfig)
@@ -830,6 +1037,63 @@ public static class KataGoBootstrap
 
         return currentEngine.Analyze(query, timeoutMs);
     }
+
+    private static int ResolveAnalyzeTimeoutMs(KataGoAnalyzeOptions options)
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        return ResolveAndroidAnalyzeTimeoutMs(options);
+#else
+        return options.timeoutMs;
+#endif
+    }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+    private static int ResolveAndroidAnalyzeTimeoutMs(KataGoAnalyzeOptions options)
+    {
+        if (options.waitForegroundOnAndroid && Global.IsApplicationInBackground) {
+            WaitForAndroidForeground(options.androidBackgroundGraceMs);
+        }
+
+        return AddAndroidBackgroundGrace(options.timeoutMs, options.androidBackgroundGraceMs);
+    }
+
+    private static int AddAndroidBackgroundGrace(int foregroundTimeoutMs, int backgroundGraceMs)
+    {
+        if (backgroundGraceMs <= 0) {
+            return foregroundTimeoutMs;
+        }
+
+        if (foregroundTimeoutMs >= int.MaxValue - backgroundGraceMs) {
+            return int.MaxValue;
+        }
+
+        return foregroundTimeoutMs + backgroundGraceMs;
+    }
+
+    private static void WaitForAndroidForeground(int maxWaitMs)
+    {
+        if (maxWaitMs <= 0) {
+            return;
+        }
+
+        DateTime deadline = DateTime.UtcNow.AddMilliseconds(maxWaitMs);
+        bool loggedBackgroundWait = false;
+        while (Global.IsApplicationInBackground && DateTime.UtcNow < deadline) {
+            if (!loggedBackgroundWait) {
+                loggedBackgroundWait = true;
+                XNLogger.LogWarn(
+                    "KataGo analyze is waiting for Android foreground before starting timeout.",
+                    ("maxWaitMs", maxWaitMs.ToString()));
+            }
+
+            Thread.Sleep(AndroidAnalyzePollMs);
+        }
+
+        if (Global.IsApplicationInBackground) {
+            XNLogger.LogWarn("KataGo analyze background wait reached grace limit.");
+        }
+    }
+#endif
 
     private static void StartNativeEngine(KataGoPaths paths)
     {
@@ -1741,4 +2005,16 @@ public static class KataGoBootstrap
         public string androidNativeOpenClLibraryName;
         public string androidNativeCpuLibraryName;
     }
+}
+
+public struct KataGoAnalyzeOptions
+{
+    public int timeoutMs;
+    public int retryCount;
+    public int retryDelayMs;
+    public bool retryUntilCanceled;
+    public bool restartEngineBeforeRetry;
+    public bool waitForegroundOnAndroid;
+    public int androidBackgroundGraceMs;
+    public string requestKind;
 }

@@ -73,6 +73,12 @@ public class SceneBase : SavableObj, ITimerAttacher, IEventReceiver, IResourceLo
 
     public virtual void OnSceneExit()
     {
+        for (int i = systemList.Count - 1; i >= 0; i--) {
+            systemList[i].OnDestroy();
+        }
+        systemList.Clear();
+        systemNames.Clear();
+
         foreach (var entity in entityDict.Values.ToList()) {
             entity.Destroy();
         }

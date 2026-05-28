@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
@@ -30,6 +32,12 @@ public class ReplaySystem : SystemBase
     private SceneComponentChessBoard compChessBoard;
     private SceneComponentDuel compDuel;
     private string recordFilePath = string.Empty;
+    private CancellationTokenSource sceneCancellationTokenSource = new CancellationTokenSource();
+    private CancellationTokenSource aiAnalysisCancellationTokenSource;
+    private CancellationTokenSource cursorChartCancellationTokenSource;
+    private bool chartBackgroundStoppedByFailure;
+    private int chartCursorRequestVersion;
+    private int activeCursorChartMoveIndex = -1;
 
     public ReplaySystem(SceneBase scene) : base(scene)
     {
@@ -43,6 +51,16 @@ public class ReplaySystem : SystemBase
         compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
         compDuel = scene.GetComponent<SceneComponentDuel>();
         LoadReplayRecord();
+    }
+
+    public override void OnDestroy()
+    {
+        CancelAiAnalysisRequest();
+        CancelCursorChartRequest();
+        sceneCancellationTokenSource.Cancel();
+        sceneCancellationTokenSource.Dispose();
+        sceneCancellationTokenSource = null;
+        base.OnDestroy();
     }
 
     public bool IsReplayLoaded => compReplay != null && compReplay.isReplayLoaded;
@@ -77,32 +95,39 @@ public class ReplaySystem : SystemBase
         ClearAiRecommendationMarkers();
         if (IsTryMode) {
             ApplyTryCursor(0);
+            TryRequestCurrentCursorChartPoint();
             return;
         }
 
         ApplyReplayCursor(0);
+        TryRequestCurrentCursorChartPoint();
     }
 
     public void GoPrev()
     {
-        ClearAiRecommendationMarkers();
-        if (IsTryMode) {
-            ApplyTryCursor(compReplay.tryCursorMoveIndex - 1);
-            return;
-        }
-
-        ApplyReplayCursor(compReplay.replayCursorMoveIndex - 1);
+        GoRelative(-1);
     }
 
     public void GoNext()
     {
-        ClearAiRecommendationMarkers();
-        if (IsTryMode) {
-            ApplyTryCursor(compReplay.tryCursorMoveIndex + 1);
+        GoRelative(1);
+    }
+
+    public void GoRelative(int cursorDelta)
+    {
+        if (!IsReplayLoaded || compReplay == null || cursorDelta == 0) {
             return;
         }
 
-        ApplyReplayCursor(compReplay.replayCursorMoveIndex + 1);
+        ClearAiRecommendationMarkers();
+        if (IsTryMode) {
+            ApplyTryCursor(compReplay.tryCursorMoveIndex + cursorDelta);
+            TryRequestCurrentCursorChartPoint();
+            return;
+        }
+
+        ApplyReplayCursor(compReplay.replayCursorMoveIndex + cursorDelta);
+        TryRequestCurrentCursorChartPoint();
     }
 
     public void GoLast()
@@ -110,10 +135,12 @@ public class ReplaySystem : SystemBase
         ClearAiRecommendationMarkers();
         if (IsTryMode) {
             ApplyTryCursor(compReplay.tryMoves.Count);
+            TryRequestCurrentCursorChartPoint();
             return;
         }
 
         ApplyReplayCursor(compReplay.replayMoves.Count);
+        TryRequestCurrentCursorChartPoint();
     }
 
     public void GoToReplayMove(int targetCursorMoveIndex)
@@ -128,6 +155,7 @@ public class ReplaySystem : SystemBase
         }
 
         ApplyReplayCursor(targetCursorMoveIndex);
+        TryRequestCurrentCursorChartPoint();
     }
 
     public string BuildScrubPreviewText(int targetCursorMoveIndex)
@@ -155,6 +183,7 @@ public class ReplaySystem : SystemBase
         }
 
         compReplay.chartPoints.Clear();
+        chartBackgroundStoppedByFailure = false;
         compReplay.isChartReady = false;
         compReplay.isChartLoading = true;
         compReplay.isChartBackgroundBuilding = false;
@@ -192,7 +221,12 @@ public class ReplaySystem : SystemBase
                     $"分析采样 {i + 1}/{sampleMoveIndexes.Count}（第 {moveIndex} 手）",
                     (float)(i + 1) / Mathf.Max(sampleMoveIndexes.Count, 1));
 
-                await AnalyzeAndUpsertChartPoint(moveIndex);
+                if (!await AnalyzeAndUpsertChartPoint(moveIndex, KataGoBootstrap.CreateSingleAttemptAnalyzeOptions("replay-chart-loading"), sceneCancellationTokenSource.Token)) {
+                    chartBackgroundStoppedByFailure = true;
+                    compReplay.chartStatus = $"图表采样第 {moveIndex} 手生成失败";
+                    break;
+                }
+
                 if (!scene.isMainScene) {
                     return;
                 }
@@ -244,12 +278,20 @@ public class ReplaySystem : SystemBase
                 }
 
                 compReplay.chartStatus = $"图表后台生成 {moveIndex}/{moveCount}";
-                await AnalyzeAndUpsertChartPoint(moveIndex);
+                if (!await AnalyzeAndUpsertChartPoint(moveIndex, KataGoBootstrap.CreateSingleAttemptAnalyzeOptions("replay-chart-background"), sceneCancellationTokenSource.Token)) {
+                    chartBackgroundStoppedByFailure = true;
+                    compReplay.chartStatus = $"图表后台生成暂停，第 {moveIndex} 手待重试";
+                    XNLogger.LogWarn("Replay chart background analysis stopped after failure.", ("moveIndex", moveIndex.ToString()));
+                    break;
+                }
+
                 await Task.Delay(1);
             }
 
-            compReplay.isChartReady = true;
-            compReplay.chartStatus = $"图表已生成 {compReplay.chartPoints.Count} 点";
+            compReplay.isChartReady = !chartBackgroundStoppedByFailure && compReplay.chartPoints.Count > 0;
+            if (!chartBackgroundStoppedByFailure) {
+                compReplay.chartStatus = $"图表已生成 {compReplay.chartPoints.Count} 点";
+            }
         }
         catch (System.Exception ex) {
             compReplay.chartStatus = "图表后台生成失败";
@@ -257,6 +299,7 @@ public class ReplaySystem : SystemBase
         }
         finally {
             compReplay.isChartBackgroundBuilding = false;
+            TryRequestCurrentCursorChartPoint();
         }
     }
 
@@ -299,6 +342,7 @@ public class ReplaySystem : SystemBase
         compReplay.tryMoves.Clear();
         compReplay.tryCursorMoveIndex = 0;
         ApplyReplayCursor(compReplay.tryBaseCursorMoveIndex);
+        TryRequestCurrentCursorChartPoint();
         compReplay.replayStatus = string.Empty;
         return true;
     }
@@ -379,6 +423,8 @@ public class ReplaySystem : SystemBase
         }
 
         ClearAiRecommendationMarkers();
+        CancellationTokenSource requestCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(sceneCancellationTokenSource.Token);
+        aiAnalysisCancellationTokenSource = requestCancellationTokenSource;
         compReplay.isAiAnalyzing = true;
         compReplay.aiAnalysisStatus = "AI分析中";
         compReplay.lastAiAnalysisRequestTime = Time.realtimeSinceStartup;
@@ -399,7 +445,10 @@ public class ReplaySystem : SystemBase
                 true,
                 GetReplayConfigBool(ConfigAiIncludePolicy, false));
 
-            JObject result = await KataGoBootstrap.AnalyzeAsync(query);
+            JObject result = await KataGoBootstrap.AnalyzeAsync(
+                query,
+                KataGoBootstrap.CreateRetryUntilCanceledAnalyzeOptions("replay-ai"),
+                requestCancellationTokenSource.Token);
             if (compReplay == null || requestVersion != compReplay.aiAnalysisVersion) {
                 return;
             }
@@ -418,6 +467,11 @@ public class ReplaySystem : SystemBase
             compReplay.hasAiAnalysisRender = hasOwnershipRender || hasRecommendationRender;
             compReplay.aiAnalysisStatus = $"AI推荐 {markers.Count} 点";
         }
+        catch (OperationCanceledException) {
+            if (compReplay != null && requestVersion == compReplay.aiAnalysisVersion) {
+                compReplay.aiAnalysisStatus = string.Empty;
+            }
+        }
         catch (System.Exception ex) {
             if (compReplay != null && requestVersion == compReplay.aiAnalysisVersion) {
                 compReplay.aiAnalysisStatus = "AI分析失败";
@@ -429,6 +483,11 @@ public class ReplaySystem : SystemBase
             if (compReplay != null && requestVersion == compReplay.aiAnalysisVersion) {
                 compReplay.isAiAnalyzing = false;
             }
+
+            if (aiAnalysisCancellationTokenSource == requestCancellationTokenSource) {
+                aiAnalysisCancellationTokenSource = null;
+            }
+            requestCancellationTokenSource.Dispose();
         }
     }
 
@@ -510,25 +569,38 @@ public class ReplaySystem : SystemBase
         return "复盘场景已切换到棋盘级渲染，当前页面只保留控制层。";
     }
 
+    public string BuildChartProgressText()
+    {
+        if (!IsReplayLoaded || compReplay == null) {
+            return string.Empty;
+        }
+
+        if (compReplay.isChartLoading || compReplay.isChartBackgroundBuilding) {
+            return string.IsNullOrEmpty(compReplay.chartStatus) ? "图表生成中" : compReplay.chartStatus;
+        }
+
+        if (!compReplay.isChartReady && !string.IsNullOrEmpty(compReplay.chartStatus)) {
+            return compReplay.chartStatus;
+        }
+
+        return string.Empty;
+    }
+
     public string BuildChartSummaryText()
     {
         if (!IsReplayLoaded) {
             return "图表未加载";
         }
 
-        if (compReplay.isChartLoading) {
-            return "图表生成中";
-        }
-
-        if (compReplay.isChartBackgroundBuilding) {
-            return compReplay.chartStatus;
-        }
-
-        if (!compReplay.isChartReady || compReplay.chartPoints.Count == 0) {
-            return string.IsNullOrEmpty(compReplay.chartStatus) ? "暂无图表数据" : compReplay.chartStatus;
-        }
-
         ReplayChartPoint point = GetChartPoint(compReplay.replayCursorMoveIndex);
+        if (point == null && (!compReplay.isChartReady || compReplay.isChartBackgroundBuilding || compReplay.isChartLoading)) {
+            return "当前手图表待生成";
+        }
+
+        if (point == null && compReplay.chartPoints.Count == 0) {
+            return "暂无图表数据";
+        }
+
         string winrateText = point != null && point.hasWinrate
             ? $"黑胜率 {Mathf.RoundToInt(Mathf.Clamp01(point.blackWinrate) * 100f)}%"
             : "黑胜率 --";
@@ -803,11 +875,17 @@ public class ReplaySystem : SystemBase
         return query;
     }
 
-    private async Task AnalyzeAndUpsertChartPoint(int moveIndex)
+    private async Task<bool> AnalyzeAndUpsertChartPoint(int moveIndex, KataGoAnalyzeOptions options, CancellationToken cancellationToken)
     {
         JObject query = BuildChartAnalysisJson(moveIndex);
-        JObject result = await KataGoBootstrap.AnalyzeAsync(query);
-        UpsertChartPoint(ParseChartPoint(moveIndex, result));
+        JObject result = await KataGoBootstrap.AnalyzeAsync(query, options, cancellationToken);
+        ReplayChartPoint point = ParseChartPoint(moveIndex, result);
+        if (point == null || (!point.hasWinrate && !point.hasScoreLead)) {
+            return false;
+        }
+
+        UpsertChartPoint(point);
+        return true;
     }
 
     private void UpsertChartPoint(ReplayChartPoint point)
@@ -937,6 +1015,83 @@ public class ReplaySystem : SystemBase
         return null;
     }
 
+    private void TryRequestCurrentCursorChartPoint()
+    {
+        if (!scene.isMainScene || !IsReplayLoaded || compReplay == null || IsTryMode) {
+            CancelCursorChartRequest();
+            return;
+        }
+
+        if (!GetReplayConfigBool(ConfigChartAnalysisEnabled, true)) {
+            return;
+        }
+
+        if (compReplay.isAiAnalyzing || compReplay.isChartLoading) {
+            return;
+        }
+
+        int moveIndex = Mathf.Clamp(compReplay.replayCursorMoveIndex, 0, compReplay.replayMoves.Count);
+        if (GetChartPoint(moveIndex) != null) {
+            if (activeCursorChartMoveIndex == moveIndex) {
+                CancelCursorChartRequest();
+            }
+            return;
+        }
+
+        if (!chartBackgroundStoppedByFailure && compReplay.isChartBackgroundBuilding) {
+            return;
+        }
+
+        if (activeCursorChartMoveIndex == moveIndex && cursorChartCancellationTokenSource != null) {
+            return;
+        }
+
+        CancelCursorChartRequest();
+        chartCursorRequestVersion += 1;
+        activeCursorChartMoveIndex = moveIndex;
+        CancellationTokenSource requestCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(sceneCancellationTokenSource.Token);
+        cursorChartCancellationTokenSource = requestCancellationTokenSource;
+        _ = AnalyzeCurrentCursorChartPointAsync(moveIndex, chartCursorRequestVersion, requestCancellationTokenSource);
+    }
+
+    private async Task AnalyzeCurrentCursorChartPointAsync(int moveIndex, int requestVersion, CancellationTokenSource requestCancellationTokenSource)
+    {
+        CancellationToken cancellationToken = requestCancellationTokenSource.Token;
+        try {
+            while (scene.isMainScene &&
+                compReplay != null &&
+                requestVersion == chartCursorRequestVersion &&
+                compReplay.replayCursorMoveIndex == moveIndex &&
+                !cancellationToken.IsCancellationRequested) {
+                compReplay.chartStatus = $"正在补算第 {moveIndex} 手图表";
+                bool success = await AnalyzeAndUpsertChartPoint(
+                    moveIndex,
+                    KataGoBootstrap.CreateRetryUntilCanceledAnalyzeOptions("replay-chart-current"),
+                    cancellationToken);
+                if (success) {
+                    chartBackgroundStoppedByFailure = false;
+                    compReplay.chartStatus = $"当前手图表已生成";
+                    return;
+                }
+
+                await Task.Delay(500, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) {
+        }
+        catch (System.Exception ex) {
+            XNLogger.LogError("Replay current cursor chart analysis failed.", ("moveIndex", moveIndex.ToString()), ("error", ex.Message));
+        }
+        finally {
+            if (cursorChartCancellationTokenSource == requestCancellationTokenSource) {
+                cursorChartCancellationTokenSource = null;
+                activeCursorChartMoveIndex = -1;
+            }
+
+            requestCancellationTokenSource.Dispose();
+        }
+    }
+
     private string FormatScoreLead(float scoreLead)
     {
         if (Mathf.Abs(scoreLead) < 0.05f) {
@@ -982,6 +1137,7 @@ public class ReplaySystem : SystemBase
     private void ClearAiRecommendationMarkers()
     {
         if (compReplay != null) {
+            CancelAiAnalysisRequest();
             compReplay.aiAnalysisVersion += 1;
             compReplay.isAiAnalyzing = false;
             compReplay.hasAiAnalysisRender = false;
@@ -991,6 +1147,28 @@ public class ReplaySystem : SystemBase
 
         compChessBoard?.chessBoardGrid?.ClearAiRecommendationMarkers();
         compChessBoard?.chessBoardGrid?.ClearOwnership();
+    }
+
+    private void CancelAiAnalysisRequest()
+    {
+        if (aiAnalysisCancellationTokenSource == null) {
+            return;
+        }
+
+        aiAnalysisCancellationTokenSource.Cancel();
+        aiAnalysisCancellationTokenSource = null;
+    }
+
+    private void CancelCursorChartRequest()
+    {
+        if (cursorChartCancellationTokenSource == null) {
+            return;
+        }
+
+        cursorChartCancellationTokenSource.Cancel();
+        cursorChartCancellationTokenSource = null;
+        activeCursorChartMoveIndex = -1;
+        chartCursorRequestVersion += 1;
     }
 
     private bool TryLoadReplayRecord(JObject recordJson)
