@@ -34,6 +34,7 @@ public class ReplaySystem : SystemBase
     private string recordFilePath = string.Empty;
     private CancellationTokenSource sceneCancellationTokenSource = new CancellationTokenSource();
     private CancellationTokenSource aiAnalysisCancellationTokenSource;
+    private CancellationTokenSource chartBackgroundCancellationTokenSource;
     private CancellationTokenSource cursorChartCancellationTokenSource;
     private bool chartBackgroundStoppedByFailure;
     private int chartCursorRequestVersion;
@@ -56,6 +57,7 @@ public class ReplaySystem : SystemBase
     public override void OnDestroy()
     {
         CancelAiAnalysisRequest();
+        CancelChartBackgroundRequest();
         CancelCursorChartRequest();
         sceneCancellationTokenSource.Cancel();
         sceneCancellationTokenSource.Dispose();
@@ -267,9 +269,12 @@ public class ReplaySystem : SystemBase
         }
 
         compReplay.isChartBackgroundBuilding = true;
+        CancellationTokenSource requestCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(sceneCancellationTokenSource.Token);
+        chartBackgroundCancellationTokenSource = requestCancellationTokenSource;
+        CancellationToken cancellationToken = requestCancellationTokenSource.Token;
         try {
             for (int moveIndex = 0; moveIndex <= moveCount; moveIndex++) {
-                if (!scene.isMainScene) {
+                if (!scene.isMainScene || cancellationToken.IsCancellationRequested || compReplay.isAiAnalyzing) {
                     return;
                 }
 
@@ -278,14 +283,14 @@ public class ReplaySystem : SystemBase
                 }
 
                 compReplay.chartStatus = $"图表后台生成 {moveIndex}/{moveCount}";
-                if (!await AnalyzeAndUpsertChartPoint(moveIndex, KataGoBootstrap.CreateSingleAttemptAnalyzeOptions("replay-chart-background"), sceneCancellationTokenSource.Token)) {
+                if (!await AnalyzeAndUpsertChartPoint(moveIndex, KataGoBootstrap.CreateSingleAttemptAnalyzeOptions("replay-chart-background"), cancellationToken)) {
                     chartBackgroundStoppedByFailure = true;
                     compReplay.chartStatus = $"图表后台生成暂停，第 {moveIndex} 手待重试";
                     XNLogger.LogWarn("Replay chart background analysis stopped after failure.", ("moveIndex", moveIndex.ToString()));
                     break;
                 }
 
-                await Task.Delay(1);
+                await Task.Delay(1, cancellationToken);
             }
 
             compReplay.isChartReady = !chartBackgroundStoppedByFailure && compReplay.chartPoints.Count > 0;
@@ -293,13 +298,22 @@ public class ReplaySystem : SystemBase
                 compReplay.chartStatus = $"图表已生成 {compReplay.chartPoints.Count} 点";
             }
         }
+        catch (OperationCanceledException) {
+        }
         catch (System.Exception ex) {
             compReplay.chartStatus = "图表后台生成失败";
             XNLogger.LogError("Replay chart background analysis failed.", ("error", ex.Message));
         }
         finally {
+            if (chartBackgroundCancellationTokenSource == requestCancellationTokenSource) {
+                chartBackgroundCancellationTokenSource = null;
+            }
+
             compReplay.isChartBackgroundBuilding = false;
-            TryRequestCurrentCursorChartPoint();
+            requestCancellationTokenSource.Dispose();
+            if (compReplay != null && !compReplay.isAiAnalyzing) {
+                TryRequestCurrentCursorChartPoint();
+            }
         }
     }
 
@@ -429,6 +443,7 @@ public class ReplaySystem : SystemBase
         compReplay.aiAnalysisStatus = "AI分析中";
         compReplay.lastAiAnalysisRequestTime = Time.realtimeSinceStartup;
         int requestVersion = ++compReplay.aiAnalysisVersion;
+        PrepareChartAnalysisForAiRequest();
 
         try {
             ReplayScene replayScene = scene as ReplayScene;
@@ -488,6 +503,7 @@ public class ReplaySystem : SystemBase
                 aiAnalysisCancellationTokenSource = null;
             }
             requestCancellationTokenSource.Dispose();
+            ResumeChartAnalysisAfterAiRequest();
         }
     }
 
@@ -1157,6 +1173,40 @@ public class ReplaySystem : SystemBase
 
         aiAnalysisCancellationTokenSource.Cancel();
         aiAnalysisCancellationTokenSource = null;
+    }
+
+    private void PrepareChartAnalysisForAiRequest()
+    {
+        CancelCursorChartRequest();
+        CancelChartBackgroundRequest();
+    }
+
+    private void ResumeChartAnalysisAfterAiRequest()
+    {
+        if (!scene.isMainScene || compReplay == null || compReplay.isAiAnalyzing || compReplay.isChartLoading || IsTryMode) {
+            return;
+        }
+
+        if (compReplay.isChartReady || !GetReplayConfigBool(ConfigChartAnalysisEnabled, true)) {
+            return;
+        }
+
+        if (chartBackgroundStoppedByFailure) {
+            TryRequestCurrentCursorChartPoint();
+            return;
+        }
+
+        StartChartBackgroundBuild();
+    }
+
+    private void CancelChartBackgroundRequest()
+    {
+        if (chartBackgroundCancellationTokenSource == null) {
+            return;
+        }
+
+        chartBackgroundCancellationTokenSource.Cancel();
+        chartBackgroundCancellationTokenSource = null;
     }
 
     private void CancelCursorChartRequest()
