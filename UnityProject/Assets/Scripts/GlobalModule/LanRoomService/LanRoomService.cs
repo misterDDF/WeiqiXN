@@ -639,7 +639,7 @@ public partial class LanRoomService : ModuleBase
 
     public void BroadcastScoreConfirmRequest(LanDuelScoreRequestMessage request)
     {
-        if (request.requesterFlag == PlayerFlag.Player1) {
+        if (ShouldSendConfirmRequestToPeer(request.requesterFlag)) {
             SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.ScoreConfirmRequest)}|{request.actionId}|{request.boardVersion}|{(int)request.requesterFlag}");
             return;
         }
@@ -672,7 +672,7 @@ public partial class LanRoomService : ModuleBase
 
     public void BroadcastTakeBackConfirmRequest(LanDuelTakeBackRequestMessage request)
     {
-        if (request.requesterFlag == PlayerFlag.Player1) {
+        if (ShouldSendConfirmRequestToPeer(request.requesterFlag)) {
             SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.TakeBackConfirmRequest)}|{request.actionId}|{request.boardVersion}|{(int)request.requesterFlag}|{request.removeCount}");
             return;
         }
@@ -2168,6 +2168,15 @@ public partial class LanRoomService : ModuleBase
         }
 
         return fallbackPlayerFlag == PlayerFlag.Player2 ? "white" : "black";
+    }
+
+    private bool ShouldSendConfirmRequestToPeer(PlayerFlag requesterFlag)
+    {
+        lock (sessionLock) {
+            return currentRole == LanRoomRole.Host
+                && requesterFlag != 0
+                && requesterFlag == lanHostPlayerFlag;
+        }
     }
 
     private bool ConnectWithTimeout(TcpClient client, string hostAddress, int tcpPort)

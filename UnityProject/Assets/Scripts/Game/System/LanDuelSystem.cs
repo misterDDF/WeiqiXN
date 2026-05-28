@@ -119,6 +119,10 @@ public class LanDuelSystem : SystemBase
         }
 
         while (Global.Instance.lanRoomService.TryDequeueScoreConfirmRequest(out LanDuelScoreRequestMessage request)) {
+            if (request.requesterFlag == ResolveLocalPlayerFlag(compDuel)) {
+                continue;
+            }
+
             scene.EmitSystemEvent(new OnLanDuelScoreConfirmRequest(request));
         }
 
@@ -153,6 +157,10 @@ public class LanDuelSystem : SystemBase
         }
 
         while (Global.Instance.lanRoomService.TryDequeueTakeBackConfirmRequest(out LanDuelTakeBackRequestMessage request)) {
+            if (request.requesterFlag == ResolveLocalPlayerFlag(compDuel)) {
+                continue;
+            }
+
             scene.EmitSystemEvent(new OnLanDuelTakeBackConfirmRequest(request));
         }
 
