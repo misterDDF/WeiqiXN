@@ -10,18 +10,6 @@ public class UIManager : ModuleBase
     public GameObject uiEventSystemGO;
     public Camera uiCamera;
     private Dictionary<UIContextType, UIContext> contextDict = new Dictionary<UIContextType, UIContext>();
-    private class CachePageInfo
-    {
-        public float cacheDuration;
-        public UIPage cachePage;
-
-        public CachePageInfo(UIPage cachePage)
-        {
-            cacheDuration = 0;
-            this.cachePage = cachePage;
-        }
-    }
-    private Dictionary<string, CachePageInfo> cachePages = new Dictionary<string, CachePageInfo>();
 
     public override void Init()
     {
@@ -61,18 +49,6 @@ public class UIManager : ModuleBase
     {
         base.Update();
 
-        List<string> pendingDeleteCachePage = new List<string>();
-        foreach (var cachePageInfoKV in cachePages) {
-            cachePageInfoKV.Value.cacheDuration += Time.deltaTime;
-            if (cachePageInfoKV.Value.cacheDuration >= UIConfig.PAGE_GAMEOBJECT_CACHE_TIME) {
-                GameObject.Destroy(cachePageInfoKV.Value.cachePage.gameObject);
-                pendingDeleteCachePage.Add(cachePageInfoKV.Key);
-            }
-        }
-        foreach (string pageName in pendingDeleteCachePage) {
-            cachePages.Remove(pageName);
-        }
-
         foreach (UIContext context in contextDict.Values) {
             context.Update();
         }
@@ -90,13 +66,8 @@ public class UIManager : ModuleBase
 
         if (uiConfig.isPopup) {
             if (contextDict.TryGetValue(contextType, out var uiContext)) {
-                if (cachePages.TryGetValue(pageName, out var cachePageInfo)) {
-                    uiContext.ShowPopupPage(cachePageInfo.cachePage, true);
-                    cachePages.Remove(pageName);
-                } else {
-                    TPage page = UIPage.CreatePageInstance<TPage>(uiContext);
-                    uiContext.ShowPopupPage(page, false);
-                }
+                TPage page = UIPage.CreatePageInstance<TPage>(uiContext);
+                uiContext.ShowPopupPage(page, false);
             } else {
                 XNLogger.LogWarn("Invalid context type for show popup page", ("contextType", contextType.ToString()));
             }
@@ -104,7 +75,6 @@ public class UIManager : ModuleBase
             if (contextDict.TryGetValue(contextType, out var uiContext)) {
                 TPage page = UIPage.CreatePageInstance<TPage>(uiContext);
                 uiContext.ShowMainPage(page, false);
-                cachePages.Remove(pageName);
             } else {
                 XNLogger.LogWarn("Invalid context type for show main page", ("contextType", contextType.ToString()));
             }
@@ -175,25 +145,7 @@ public class UIManager : ModuleBase
             return;
         }
 
-        if (cachePages.TryGetValue(page.pageName, out var pageInfo)) {
-            pageInfo.cacheDuration = 0;
-            GameObject.Destroy(page.gameObject);
-        } else {
-            page.gameObject.SetActive(false);
-            cachePages[page.pageName] = new CachePageInfo(page);
-        }
-    }
-
-    public bool TryGetCachePage(string pageName, out UIPage cachePage)
-    {
-        cachePage = null;
-        if (cachePages.TryGetValue(pageName, out var pageInfo)) {
-            cachePage = pageInfo.cachePage;
-            cachePages.Remove(pageName);
-            return true;
-        } else {
-            return false;
-        }
+        GameObject.Destroy(page.gameObject);
     }
 
     public void UpdateUICamera()
