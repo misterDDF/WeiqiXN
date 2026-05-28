@@ -3,48 +3,56 @@
     "id": "LoadingPage",
     "contextType": "Loading",
     "isPopup": false,
-    "isLoadAsync": false
+    "isLoadAsync": false,
+    "closeOnSceneExit": false
   },
   "MainMenuPage": {
     "id": "MainMenuPage",
     "contextType": "General",
     "isPopup": false,
-    "isLoadAsync": true
+    "isLoadAsync": true,
+    "closeOnSceneExit": true
   },
   "UserInfoPopup": {
     "id": "UserInfoPopup",
     "contextType": "General",
     "isPopup": true,
-    "isLoadAsync": true
+    "isLoadAsync": true,
+    "closeOnSceneExit": true
   },
   "ReplayPage": {
     "id": "ReplayPage",
     "contextType": "Header",
     "isPopup": false,
-    "isLoadAsync": true
+    "isLoadAsync": true,
+    "closeOnSceneExit": true
   },
   "DuelSetupPopup": {
     "id": "DuelSetupPopup",
     "contextType": "General",
     "isPopup": true,
-    "isLoadAsync": true
+    "isLoadAsync": true,
+    "closeOnSceneExit": true
   },
   "LanRoomPopup": {
     "id": "LanRoomPopup",
     "contextType": "General",
     "isPopup": true,
-    "isLoadAsync": true
+    "isLoadAsync": true,
+    "closeOnSceneExit": true
   },
   "DuelPage": {
     "id": "DuelPage",
     "contextType": "Header",
     "isPopup": false,
-    "isLoadAsync": true
+    "isLoadAsync": true,
+    "closeOnSceneExit": true
   },
   "ConfirmPopup": {
     "id": "ConfirmPopup",
     "contextType": "TopMost",
     "isPopup": true,
-    "isLoadAsync": false
+    "isLoadAsync": false,
+    "closeOnSceneExit": true
   }
 }

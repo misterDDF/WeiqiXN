@@ -153,6 +153,21 @@ public class UIContext
         XNLogger.LogInfo("UIContext close all popup pages.", ("contextType", contextType.ToString()));
     }
 
+    public void CloseSceneExitPages()
+    {
+        foreach (var page in popupList.ToList()) {
+            if (page.pageConfig.closeOnSceneExit) {
+                page.ClosePage();
+            }
+        }
+
+        foreach (var page in mainPageStack.ToList()) {
+            if (page.pageConfig.closeOnSceneExit) {
+                page.ClosePage();
+            }
+        }
+    }
+
     public void UpdateUICamera(Camera uiCamera)
     {
         foreach (var mainPage in mainPageStack) {
