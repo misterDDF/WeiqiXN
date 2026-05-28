@@ -26,6 +26,11 @@ public abstract class SystemBase
 
     }
 
+    public virtual void OnDestroy()
+    {
+
+    }
+
     #region Timer
     public void SetSecondTimeout(float targetSeconds, Action timerCB)
     {

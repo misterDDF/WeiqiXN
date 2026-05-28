@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using XNClient.Logger;
 
@@ -9,6 +10,7 @@ public class DuelAiSystem : SystemBase
     private int requestVersion;
     private bool isThinking;
     private bool hasCheckedInitialTurn;
+    private CancellationTokenSource sceneCancellationTokenSource = new CancellationTokenSource();
 
     public DuelAiSystem(DuelScene scene) : base(scene)
     {
@@ -21,6 +23,14 @@ public class DuelAiSystem : SystemBase
         scene.RegisterSystemEvent<OnAfterAddChessToBoard>(OnAfterAddChessToBoard);
         scene.RegisterSystemEvent<OnRequestDuelPass>(OnRequestDuelPass);
         XNLogger.LogInfo("Duel AI system initialized.");
+    }
+
+    public override void OnDestroy()
+    {
+        sceneCancellationTokenSource.Cancel();
+        sceneCancellationTokenSource.Dispose();
+        sceneCancellationTokenSource = null;
+        base.OnDestroy();
     }
 
     public override void OnUpdate()
@@ -135,7 +145,8 @@ public class DuelAiSystem : SystemBase
                 return;
             }
 
-            DuelAiAnalyzeResult analyzeResult = await DuelAiAnalyzeService.AnalyzeAiMoveAsync((DuelScene)scene, difficultyData, runtimeParams);
+            CancellationToken cancellationToken = sceneCancellationTokenSource.Token;
+            DuelAiAnalyzeResult analyzeResult = await DuelAiAnalyzeService.AnalyzeAiMoveAsync((DuelScene)scene, difficultyData, runtimeParams, cancellationToken);
             if (currentRequestVersion != requestVersion || !IsAiTurn(out skipReason)) {
                 XNLogger.LogWarn(
                     "Duel AI move canceled after analyze.",
@@ -143,6 +154,14 @@ public class DuelAiSystem : SystemBase
                     ("startVersion", currentRequestVersion.ToString()),
                     ("currentVersion", requestVersion.ToString()),
                     ("turnInfo", BuildTurnInfoLog()));
+                return;
+            }
+
+            if (analyzeResult.result == null) {
+                XNLogger.LogWarn(
+                    "Duel AI move skipped, analyze result is empty.",
+                    ("budgetMode", analyzeResult.budgetMode ?? string.Empty),
+                    ("budgetDecision", analyzeResult.decisionReason ?? string.Empty));
                 return;
             }
 
@@ -186,6 +205,9 @@ public class DuelAiSystem : SystemBase
                 "Duel AI move skipped, no playable decision found.",
                 ("requestId", analyzeResult.requestId ?? string.Empty),
                 ("reason", decision.reason ?? string.Empty));
+        }
+        catch (OperationCanceledException) {
+            XNLogger.LogWarn("Duel AI move canceled because scene is exiting.", ("requestVersion", requestVersion.ToString()));
         }
         catch (Exception ex) {
             XNLogger.LogError("Duel AI move failed.", ("err", ex.Message), ("stack", ex.StackTrace ?? string.Empty));

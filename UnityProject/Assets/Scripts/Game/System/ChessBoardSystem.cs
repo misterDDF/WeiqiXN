@@ -16,7 +16,7 @@ public class ChessBoardSystem : SystemBase
     private const float DuelPerspectiveFov = 30f;
     private const float DuelPerspectiveTiltFactor = 0.16f;
     private const float DuelPerspectiveFramePaddingFactor = 1.08f;
-    private const float ReplayCameraHorizontalOffsetFactor = 0.93f;
+    private const float ReplayCameraHorizontalOffsetFactor = 0.6f;
     private const float ReplayCameraHorizontalSpareUseFactor = 0.85f;
 
     public ChessBoardSystem(SceneBase scene) : base(scene)

@@ -11,7 +11,9 @@ public class Global
     private const float AndroidStartupSceneLoadProgressStart = 0.98f;
     private static readonly HashSet<KeepAwakeReason> androidKeepAwakeReasons = new HashSet<KeepAwakeReason>();
     private static int androidPreviousSleepTimeout = SleepTimeout.SystemSetting;
+    private static bool androidPreviousRunInBackground;
     private static bool androidKeepAwakeApplied;
+    private static bool androidRunInBackgroundApplied;
     private static bool androidApplicationHasFocus = true;
     private static bool androidApplicationIsPaused;
 #endif
@@ -20,6 +22,18 @@ public class Global
     {
         Startup,
         Duel,
+    }
+
+    public static bool IsApplicationInBackground
+    {
+        get
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            return !androidApplicationHasFocus || androidApplicationIsPaused;
+#else
+            return false;
+#endif
+        }
     }
 
     private enum StartupState
@@ -322,6 +336,9 @@ public class Global
     private static void ApplyAndroidKeepAwakeState()
     {
         bool shouldKeepAwake = androidApplicationHasFocus && !androidApplicationIsPaused && androidKeepAwakeReasons.Count > 0;
+        bool shouldRunInBackground = androidKeepAwakeReasons.Count > 0;
+        ApplyAndroidRunInBackgroundState(shouldRunInBackground);
+
         if (shouldKeepAwake) {
             if (!androidKeepAwakeApplied) {
                 androidPreviousSleepTimeout = Screen.sleepTimeout;
@@ -350,6 +367,35 @@ public class Global
             ("reasonCount", androidKeepAwakeReasons.Count.ToString()),
             ("hasFocus", androidApplicationHasFocus.ToString()),
             ("isPaused", androidApplicationIsPaused.ToString()));
+    }
+
+    private static void ApplyAndroidRunInBackgroundState(bool shouldRunInBackground)
+    {
+        if (shouldRunInBackground) {
+            if (!androidRunInBackgroundApplied) {
+                androidPreviousRunInBackground = Application.runInBackground;
+                androidRunInBackgroundApplied = true;
+            }
+
+            if (!Application.runInBackground) {
+                Application.runInBackground = true;
+                XNLogger.LogInfo(
+                    "Android run-in-background enabled.",
+                    ("reasonCount", androidKeepAwakeReasons.Count.ToString()),
+                    ("previousRunInBackground", androidPreviousRunInBackground.ToString()));
+            }
+            return;
+        }
+
+        if (!androidRunInBackgroundApplied) {
+            return;
+        }
+
+        Application.runInBackground = androidPreviousRunInBackground;
+        androidRunInBackgroundApplied = false;
+        XNLogger.LogInfo(
+            "Android run-in-background restored.",
+            ("restoredRunInBackground", androidPreviousRunInBackground.ToString()));
     }
 #endif
 
