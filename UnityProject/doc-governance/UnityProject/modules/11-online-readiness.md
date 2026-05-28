@@ -2,7 +2,7 @@
 
 ## 当前状态
 
-联机功能已开始进入最小房间和最小对局命令阶段。当前已有 `LanRoomService` 作为局域网房间服务入口，支持 host 侧 TCP 监听、UDP 房间广播、client 侧 UDP 搜索、TCP 加入握手、最小准备状态交换、玩家资料同步、host 开局配置、主动 `LeaveRoom` 离开、进入带 LAN 标记的 `DuelScene`，以及 `SubmitMove` / `MoveAccepted` / `MoveRejected` / `BoardSnapshot` 的最小命令搬运；开局配置包含棋盘、时间、让子、host 座位和双方已知玩家资料。正常落子、虚手、数子、悔棋和认输已通过 `DuelAuthoritySystem` 收敛为统一提交入口。页面预览、点击提交和动作按钮权限通过 `DuelInputAuthority` 读取，LAN 下该权限来自 host 广播的 `InputAuthority`。host 侧 `LanDuelSystem` 通过现有规则入口进行权威落子校验，并在合法落子后广播权威棋盘快照；当前 `BoardSnapshot` 携带棋盘尺寸、下一手玩家、最后一步、棋子列表和 host 权威 KataGo 标准手顺，client 应用快照时同步棋盘与 `kataGoMoves` 并清除旧形势缓存。`PlayerProfile` 使用 base64 JSON 同步 host/client 玩家资料，当前只包含 `name` 字段，但以对象结构保留后续扩展空间；资料到达后会映射到黑白座位并刷新对局显示名。虚手通过 `SubmitPass` / `PassAccepted` 同步；认输通过 `SubmitResign` / `ResignAccepted` 同步；数子和悔棋通过确认请求/确认回复协议让对端弹窗确认。LAN 数子在对端同意请求后只广播候选 `ScoreResult`，双方都通过 `ScoreResultConfirmResponse` 接受后，host 才广播 `ScoreResultAccepted` 进入终局；拒绝请求、拒绝结果、请求失效或计算失败都会通过带原因的 `ScoreFailed` 恢复对局。悔棋确认阶段由 host 按 `actionId` 暂存原始请求，确认回复使用原始 `boardVersion` / `removeCount`；拒绝消息带请求方座位，避免非发起方误报失败，悔棋接受后会补发权威快照。host 也负责广播当前行棋方 `TimeState` 并在超时后广播 `PlayerTimeout`，client 只使用 host 计时状态刷新显示。任一端退出 LAN 房间或对局时会通过 `LanRoomService` 释放 TCP/UDP socket、清空 LAN 会话队列；对端收到 `LeaveRoom` 后提示并回主菜单。尚未实现正式传输抽象、匹配系统、完整同步系统或断线恢复系统。架构方向已收敛为 host 权威、单一 server core、客户端只发命令；第一版 server core 允许嵌在 host 进程中运行，后续再决定是否拆成独立进程。
+联机功能已开始进入最小房间和最小对局命令阶段。当前已有 `LanRoomService` 作为局域网房间服务入口，支持 host 侧 TCP 监听、UDP 房间广播、UDP 发现请求监听与单播回复、client 侧 UDP 搜索和主动探测、TCP 加入握手、最小准备状态交换、玩家资料同步、host 开局配置、主动 `LeaveRoom` 离开、进入带 LAN 标记的 `DuelScene`，以及 `SubmitMove` / `MoveAccepted` / `MoveRejected` / `BoardSnapshot` 的最小命令搬运；开局配置包含棋盘、时间、让子、host 座位和双方已知玩家资料。正常落子、虚手、数子、悔棋和认输已通过 `DuelAuthoritySystem` 收敛为统一提交入口。页面预览、点击提交和动作按钮权限通过 `DuelInputAuthority` 读取，LAN 下该权限来自 host 广播的 `InputAuthority`。host 侧 `LanDuelSystem` 通过现有规则入口进行权威落子校验，并在合法落子后广播权威棋盘快照；当前 `BoardSnapshot` 携带棋盘尺寸、下一手玩家、最后一步、棋子列表和 host 权威 KataGo 标准手顺，client 应用快照时同步棋盘与 `kataGoMoves` 并清除旧形势缓存。`PlayerProfile` 使用 base64 JSON 同步 host/client 玩家资料，当前只包含 `name` 字段，但以对象结构保留后续扩展空间；资料到达后会映射到黑白座位并刷新对局显示名。虚手通过 `SubmitPass` / `PassAccepted` 同步；认输通过 `SubmitResign` / `ResignAccepted` 同步；数子和悔棋通过确认请求/确认回复协议让对端弹窗确认。LAN 数子在对端同意请求后只广播候选 `ScoreResult`，双方都通过 `ScoreResultConfirmResponse` 接受后，host 才广播 `ScoreResultAccepted` 进入终局；拒绝请求、拒绝结果、请求失效或计算失败都会通过带原因的 `ScoreFailed` 恢复对局。悔棋确认阶段由 host 按 `actionId` 暂存原始请求，确认回复使用原始 `boardVersion` / `removeCount`；拒绝消息带请求方座位，避免非发起方误报失败，悔棋接受后会补发权威快照。host 也负责广播当前行棋方 `TimeState` 并在超时后广播 `PlayerTimeout`，client 只使用 host 计时状态刷新显示。任一端退出 LAN 房间或对局时会通过 `LanRoomService` 释放 TCP/UDP socket、清空 LAN 会话队列；对端收到 `LeaveRoom` 后提示并回主菜单。尚未实现正式传输抽象、匹配系统、完整同步系统或断线恢复系统。架构方向已收敛为 host 权威、单一 server core、客户端只发命令；第一版 server core 允许嵌在 host 进程中运行，后续再决定是否拆成独立进程。
 
 ## 已具备的基础
 
@@ -12,7 +12,7 @@
 - 事件系统可以作为 UI、本地逻辑和未来网络层之间的内部通信机制。
 - 存档系统可为快照、重连缓存或本地复盘提供参考。
 - UI 框架和配置系统可以继续扩展房间、匹配、邀请、断线提示等页面。
-- `LanRoomService` 已提供最小局域网房间发现、连接、准备状态、玩家资料同步、开局配置、主动离开和落子命令搬运骨架；UDP 房间广播会携带房主玩家名、棋盘、时间、读秒、让子、实际 host 座位和可见 host 座位选择项，搜索列表展示这些创建房间时选定的信息，默认座位选项显示为“猜先”而不是随机后的实际座位；`LanRoomPopup` 创建房间前会复用 `DuelSetupPopup` 设置棋盘、时间、让子和 host 座位，并在开局状态到达后进入带 LAN 标记的 `DuelScene`，UI 不直接持有 socket。
+- `LanRoomService` 已提供最小局域网房间发现、连接、准备状态、玩家资料同步、开局配置、主动离开和落子命令搬运骨架；UDP 房间广播和单播发现回复会携带房主玩家名、棋盘、时间、读秒、让子、实际 host 座位和可见 host 座位选择项，搜索端会监听广播/单播回复并主动发送 `WEIQIXN_DISCOVER` 探测请求，搜索列表展示这些创建房间时选定的信息，默认座位选项显示为“猜先”而不是随机后的实际座位；`LanRoomPopup` 创建房间前会复用 `DuelSetupPopup` 设置棋盘、时间、让子和 host 座位，并在开局状态到达后进入带 LAN 标记的 `DuelScene`，UI 不直接持有 socket。
 - LAN 房间创建、加入和搜索状态保持互斥：已有 LAN 会话时 `LanRoomService` 不再启动搜索，房间发现列表会过滤本机正在广播的 `roomId`；`LanRoomPopup` 在未进入 LAN 对局前关闭时统一释放搜索、房间广播、TCP listener/client 和会话队列。
 - `PlayerProfile` 已作为局域网玩家资料同步协议接入；当前资料对象只含 `name`，通过 base64 JSON 搬运，避免分隔符冲突并允许后续扩展头像、等级、战绩等字段。
 - 正常落子提交已收敛到 `DuelAuthoritySystem`：本地/电脑对局直接请求本进程权威落子，LAN 对局按本端座位提交到 `LanRoomService`，host 本地玩家也不绕过命令队列直接改盘。
@@ -24,7 +24,7 @@
 - 合法落子会递增 `SceneComponentDuel.lanBoardVersion`，host 随后广播包含棋盘尺寸、下一手玩家、最后一步、棋子列表和 host 权威 KataGo 标准手顺的 `BoardSnapshot`，client 用快照纠正本地棋盘与 `kataGoMoves`。
 - LAN 计时已按 host 权威收敛：host 广播 `TimeState`，client 不自行扣时或裁定超时；host 广播 `PlayerTimeout` 后 client 进入同样的超时终局。
 - `lan_room_config` 已承载局域网房间端口、连接超时、人数上限、广播间隔和缓冲区大小；协议消息名由 `LanRoomProtocol` 枚举按命名约定生成，并通过 `OnXxx` 接收函数注册到协议回调表。
-- LAN 房间搜索端解析 UDP 广播时，加入连接地址以 UDP `remoteEndPoint.Address` 为准；房主广播 payload 中的 host address 只作为 UDP 来源地址为空时的兜底，避免 Android 房主自报地址不可靠导致房间可发现但无法加入。
+- LAN 房间搜索端解析 UDP 广播或单播发现回复时，加入连接地址以 UDP `remoteEndPoint.Address` 为准；房主 payload 中的 host address 只作为 UDP 来源地址为空时的兜底，避免 Android 房主自报地址不可靠导致房间可发现但无法加入。搜索端主动探测目标包含全局广播、系统网卡推导出的子网广播和常见 Android 热点广播地址，用于提高 Android 热点主机创建房间时的发现率。
 - `LeaveRoom` 已作为当前 LAN 会话生命周期协议接入；退出房间弹窗或 LAN 对局会主动通知对端、释放 TCP client/TCP listener/UDP broadcast/UDP discovery 并清空 LAN 消息队列，对端收到后提示联机结束并回主菜单。
 
 ## 主要缺口

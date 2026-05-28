@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -19,12 +20,15 @@ public partial class LanRoomService : ModuleBase
     private int hostedTcpPort;
     private TcpListener hostListener;
     private UdpClient broadcastClient;
+    private UdpClient hostDiscoveryClient;
     private Thread broadcastThread;
+    private Thread hostDiscoveryThread;
     private Thread acceptThread;
     private volatile bool isHosting;
 
     private UdpClient discoveryClient;
     private Thread discoveryThread;
+    private Thread discoveryProbeThread;
     private volatile bool isSearching;
 
     private readonly object sessionLock = new object();
@@ -181,6 +185,14 @@ public partial class LanRoomService : ModuleBase
             };
             broadcastThread.Start();
 
+            hostDiscoveryClient = CreateBoundUdpClient(LanRoomConfig.UdpBroadcastPort);
+            hostDiscoveryThread = new Thread(ReceiveDiscoveryRequestLoop)
+            {
+                IsBackground = true,
+                Name = "LanRoomHostDiscovery"
+            };
+            hostDiscoveryThread.Start();
+
             lastStatus = MessageText.Format("lan_room_created_waiting", hostedRoomName);
             XNLogger.LogInfo("LAN room created.", ("roomId", hostedRoomId), ("tcpPort", hostedTcpPort.ToString()));
             return true;
@@ -218,12 +230,16 @@ public partial class LanRoomService : ModuleBase
         hostListener = null;
 
         CloseUdpClient(broadcastClient);
+        CloseUdpClient(hostDiscoveryClient);
         broadcastClient = null;
+        hostDiscoveryClient = null;
         JoinThread(acceptThread);
         JoinThread(broadcastThread);
+        JoinThread(hostDiscoveryThread);
         JoinThread(sessionReadThread);
         acceptThread = null;
         broadcastThread = null;
+        hostDiscoveryThread = null;
         sessionReadThread = null;
         hostedRoomId = null;
         hostedRoomName = null;
@@ -254,9 +270,7 @@ public partial class LanRoomService : ModuleBase
         }
 
         try {
-            discoveryClient = new UdpClient(AddressFamily.InterNetwork);
-            discoveryClient.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-            discoveryClient.Client.Bind(new IPEndPoint(IPAddress.Any, LanRoomConfig.UdpBroadcastPort));
+            discoveryClient = CreateBoundUdpClient(LanRoomConfig.UdpBroadcastPort);
             isSearching = true;
             discoveryThread = new Thread(ReceiveDiscoveryLoop)
             {
@@ -264,6 +278,13 @@ public partial class LanRoomService : ModuleBase
                 Name = "LanRoomDiscovery"
             };
             discoveryThread.Start();
+
+            discoveryProbeThread = new Thread(SendDiscoveryProbeLoop)
+            {
+                IsBackground = true,
+                Name = "LanRoomDiscoveryProbe"
+            };
+            discoveryProbeThread.Start();
 
             lastStatus = MessageText.Get("lan_room_searching");
             return true;
@@ -282,7 +303,9 @@ public partial class LanRoomService : ModuleBase
         CloseUdpClient(discoveryClient);
         discoveryClient = null;
         JoinThread(discoveryThread);
+        JoinThread(discoveryProbeThread);
         discoveryThread = null;
+        discoveryProbeThread = null;
     }
 
     public List<LanRoomInfo> GetDiscoveredRooms()
@@ -1026,13 +1049,15 @@ public partial class LanRoomService : ModuleBase
 
     private void BroadcastRoomLoop()
     {
-        IPEndPoint broadcastEndPoint = new IPEndPoint(IPAddress.Broadcast, LanRoomConfig.UdpBroadcastPort);
+        IPEndPoint[] broadcastEndPoints = BuildDiscoveryBroadcastEndPoints();
         while (isHosting) {
             try {
                 string localAddress = GetLocalAddress();
                 string payload = BuildDiscoveryPayload(localAddress);
                 byte[] data = Encoding.UTF8.GetBytes(payload);
-                broadcastClient?.Send(data, data.Length, broadcastEndPoint);
+                foreach (IPEndPoint endPoint in broadcastEndPoints) {
+                    broadcastClient?.Send(data, data.Length, endPoint);
+                }
             }
             catch (ObjectDisposedException) {
                 return;
@@ -1045,6 +1070,55 @@ public partial class LanRoomService : ModuleBase
         }
     }
 
+    private void ReceiveDiscoveryRequestLoop()
+    {
+        IPEndPoint remoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
+        while (isHosting) {
+            try {
+                byte[] data = hostDiscoveryClient.Receive(ref remoteEndPoint);
+                string payload = Encoding.UTF8.GetString(data).Trim();
+                if (!string.Equals(payload, LanRoomProtocolName.DiscoveryRequest, StringComparison.Ordinal)) {
+                    continue;
+                }
+
+                SendDiscoveryResponse(remoteEndPoint);
+            }
+            catch (ObjectDisposedException) {
+                return;
+            }
+            catch (SocketException e) {
+                if (isHosting) {
+                    XNLogger.LogWarn("Receive LAN room discovery request failed.", ("error", e.Message));
+                }
+            }
+            catch (Exception e) {
+                XNLogger.LogWarn("Receive LAN room discovery request failed.", ("error", e.Message));
+            }
+        }
+    }
+
+    private void SendDiscoveryResponse(IPEndPoint remoteEndPoint)
+    {
+        if (remoteEndPoint == null || remoteEndPoint.Address == null || IPAddress.Any.Equals(remoteEndPoint.Address)) {
+            return;
+        }
+
+        try {
+            string localAddress = GetLocalAddress();
+            string payload = BuildDiscoveryPayload(localAddress);
+            byte[] data = Encoding.UTF8.GetBytes(payload);
+            hostDiscoveryClient?.Send(data, data.Length, remoteEndPoint);
+        }
+        catch (ObjectDisposedException) {
+        }
+        catch (Exception e) {
+            XNLogger.LogWarn(
+                "Send LAN room discovery response failed.",
+                ("remote", remoteEndPoint.ToString()),
+                ("error", e.Message));
+        }
+    }
+
     private void ReceiveDiscoveryLoop()
     {
         IPEndPoint remoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
@@ -1052,12 +1126,7 @@ public partial class LanRoomService : ModuleBase
             try {
                 byte[] data = discoveryClient.Receive(ref remoteEndPoint);
                 string payload = Encoding.UTF8.GetString(data);
-                if (TryParseRoom(payload, remoteEndPoint.Address.ToString(), out LanRoomInfo room) &&
-                    !IsHostedRoom(room)) {
-                    lock (roomLock) {
-                        discoveredRooms[room.roomId] = room;
-                    }
-                }
+                AddDiscoveredRoom(payload, remoteEndPoint.Address.ToString());
             }
             catch (ObjectDisposedException) {
                 return;
@@ -1120,6 +1189,37 @@ public partial class LanRoomService : ModuleBase
             }
             catch (Exception e) {
                 XNLogger.LogWarn("Accept LAN room client failed.", ("error", e.Message));
+            }
+        }
+    }
+
+    private void SendDiscoveryProbeLoop()
+    {
+        IPEndPoint[] probeEndPoints = BuildDiscoveryBroadcastEndPoints();
+        byte[] data = Encoding.UTF8.GetBytes(LanRoomProtocolName.DiscoveryRequest);
+        while (isSearching) {
+            try {
+                foreach (IPEndPoint endPoint in probeEndPoints) {
+                    discoveryClient?.Send(data, data.Length, endPoint);
+                }
+            }
+            catch (ObjectDisposedException) {
+                return;
+            }
+            catch (Exception e) {
+                XNLogger.LogWarn("Send LAN room discovery probe failed.", ("error", e.Message));
+            }
+
+            Thread.Sleep(LanRoomConfig.BroadcastIntervalMilliseconds);
+        }
+    }
+
+    private void AddDiscoveredRoom(string payload, string remoteAddress)
+    {
+        if (TryParseRoom(payload, remoteAddress, out LanRoomInfo room) &&
+            !IsHostedRoom(room)) {
+            lock (roomLock) {
+                discoveredRooms[room.roomId] = room;
             }
         }
     }
@@ -1192,18 +1292,128 @@ public partial class LanRoomService : ModuleBase
         return connectedClient != null ? 2 : 1;
     }
 
-    private string GetLocalAddress()
+    private UdpClient CreateBoundUdpClient(int port)
+    {
+        UdpClient client = new UdpClient(AddressFamily.InterNetwork);
+        client.EnableBroadcast = true;
+        client.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+        client.Client.Bind(new IPEndPoint(IPAddress.Any, port));
+        return client;
+    }
+
+    private IPEndPoint[] BuildDiscoveryBroadcastEndPoints()
+    {
+        HashSet<string> addresses = new HashSet<string>();
+        List<IPEndPoint> endPoints = new List<IPEndPoint>();
+
+        AddDiscoveryEndPoint(IPAddress.Broadcast, addresses, endPoints);
+        AddNetworkInterfaceBroadcastEndPoints(addresses, endPoints);
+        foreach (IPAddress address in GetLocalIPv4Addresses()) {
+            if (TryGetClassCBroadcastAddress(address, out IPAddress broadcastAddress)) {
+                AddDiscoveryEndPoint(broadcastAddress, addresses, endPoints);
+            }
+        }
+
+        AddDiscoveryEndPoint(IPAddress.Parse("192.168.43.255"), addresses, endPoints);
+        AddDiscoveryEndPoint(IPAddress.Parse("192.168.49.255"), addresses, endPoints);
+        AddDiscoveryEndPoint(IPAddress.Parse("192.168.1.255"), addresses, endPoints);
+        return endPoints.ToArray();
+    }
+
+    private void AddDiscoveryEndPoint(IPAddress address, HashSet<string> addresses, List<IPEndPoint> endPoints)
+    {
+        string text = address.ToString();
+        if (!addresses.Add(text)) {
+            return;
+        }
+
+        endPoints.Add(new IPEndPoint(address, LanRoomConfig.UdpBroadcastPort));
+    }
+
+    private void AddNetworkInterfaceBroadcastEndPoints(HashSet<string> addresses, List<IPEndPoint> endPoints)
     {
         try {
-            IPHostEntry hostEntry = Dns.GetHostEntry(Dns.GetHostName());
-            foreach (IPAddress address in hostEntry.AddressList) {
-                if (address.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(address)) {
-                    return address.ToString();
+            foreach (NetworkInterface networkInterface in NetworkInterface.GetAllNetworkInterfaces()) {
+                if (networkInterface.OperationalStatus != OperationalStatus.Up) {
+                    continue;
+                }
+
+                IPInterfaceProperties properties = networkInterface.GetIPProperties();
+                foreach (UnicastIPAddressInformation unicastAddress in properties.UnicastAddresses) {
+                    IPAddress address = unicastAddress.Address;
+                    IPAddress mask = unicastAddress.IPv4Mask;
+                    if (address == null ||
+                        mask == null ||
+                        address.AddressFamily != AddressFamily.InterNetwork ||
+                        IPAddress.IsLoopback(address)) {
+                        continue;
+                    }
+
+                    if (TryGetBroadcastAddress(address, mask, out IPAddress broadcastAddress)) {
+                        AddDiscoveryEndPoint(broadcastAddress, addresses, endPoints);
+                    }
                 }
             }
         }
         catch (Exception e) {
-            XNLogger.LogWarn("Get local LAN address failed.", ("error", e.Message));
+            XNLogger.LogWarn("Get LAN broadcast addresses from interfaces failed.", ("error", e.Message));
+        }
+    }
+
+    private List<IPAddress> GetLocalIPv4Addresses()
+    {
+        List<IPAddress> addresses = new List<IPAddress>();
+        try {
+            IPHostEntry hostEntry = Dns.GetHostEntry(Dns.GetHostName());
+            foreach (IPAddress address in hostEntry.AddressList) {
+                if (address.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(address)) {
+                    addresses.Add(address);
+                }
+            }
+        }
+        catch (Exception e) {
+            XNLogger.LogWarn("Get local IPv4 addresses failed.", ("error", e.Message));
+        }
+
+        return addresses;
+    }
+
+    private bool TryGetBroadcastAddress(IPAddress address, IPAddress subnetMask, out IPAddress broadcastAddress)
+    {
+        byte[] addressBytes = address.GetAddressBytes();
+        byte[] maskBytes = subnetMask.GetAddressBytes();
+        if (addressBytes.Length != 4 || maskBytes.Length != 4) {
+            broadcastAddress = null;
+            return false;
+        }
+
+        byte[] broadcastBytes = new byte[4];
+        for (int i = 0; i < broadcastBytes.Length; i++) {
+            broadcastBytes[i] = (byte)(addressBytes[i] | ~maskBytes[i]);
+        }
+
+        broadcastAddress = new IPAddress(broadcastBytes);
+        return true;
+    }
+
+    private bool TryGetClassCBroadcastAddress(IPAddress address, out IPAddress broadcastAddress)
+    {
+        byte[] bytes = address.GetAddressBytes();
+        if (bytes.Length != 4) {
+            broadcastAddress = null;
+            return false;
+        }
+
+        bytes[3] = 255;
+        broadcastAddress = new IPAddress(bytes);
+        return true;
+    }
+
+    private string GetLocalAddress()
+    {
+        List<IPAddress> addresses = GetLocalIPv4Addresses();
+        if (addresses.Count > 0) {
+            return addresses[0].ToString();
         }
 
         return IPAddress.Loopback.ToString();
