@@ -478,7 +478,7 @@ public class DuelSystem : SystemBase
     private void OnConfirmDuelResign(OnConfirmDuelResign evt)
     {
         var compDuel = scene.GetComponent<SceneComponentDuel>();
-        if (compDuel == null || compDuel.duelFSM == null || !compDuel.duelFSM.isActivated) {
+        if (compDuel == null || evt == null || compDuel.duelFSM == null || !compDuel.duelFSM.isActivated) {
             return;
         }
 
@@ -486,7 +486,11 @@ public class DuelSystem : SystemBase
             return;
         }
 
-        string loserGuid = compDuel.curTurnPlayerGuid.value;
+        if (DuelMoveHistory.Count(compDuel.kataGoMoves) != evt.moveCount || compDuel.curTurnPlayerGuid.value != evt.loserGuid) {
+            return;
+        }
+
+        string loserGuid = evt.loserGuid;
         if (string.IsNullOrEmpty(loserGuid)) {
             return;
         }
@@ -509,7 +513,12 @@ public class DuelSystem : SystemBase
         }
 
         int moveCount = DuelMoveHistory.Count(compDuel.kataGoMoves);
-        int removeCount = GetTakeBackMoveCount(compDuel);
+        if (evt == null || evt.moveCount != moveCount || compDuel.curTurnPlayerGuid.value != evt.turnPlayerGuid) {
+            EmitTakeBackResult(false, MessageText.Get("duel_take_back_unavailable"));
+            return;
+        }
+
+        int removeCount = evt.removeCount;
         if (removeCount <= 0 || moveCount < removeCount) {
             EmitTakeBackResult(false, MessageText.Get("duel_take_back_no_moves"));
             return;
@@ -785,7 +794,7 @@ public class DuelSystem : SystemBase
         return scoreResult;
     }
 
-    private int GetTakeBackMoveCount(SceneComponentDuel compDuel)
+    public static int GetTakeBackMoveCountForState(SceneComponentDuel compDuel)
     {
         if (compDuel == null) {
             return 0;

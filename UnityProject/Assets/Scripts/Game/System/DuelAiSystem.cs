@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using XNClient.ChessBoard;
 using XNClient.Logger;
 
 public class DuelAiSystem : SystemBase
@@ -155,7 +156,7 @@ public class DuelAiSystem : SystemBase
                     ("requestId", analyzeResult.requestId ?? string.Empty),
                     ("budgetMode", analyzeResult.budgetMode ?? string.Empty),
                     ("budgetDecision", analyzeResult.decisionReason ?? string.Empty));
-                scene.EmitSystemEvent(new OnSubmitDuelMove(decision.coords));
+                scene.EmitSystemEvent(new OnSubmitDuelMove(decision.coords, ResolveAiPlayerFlag(compDuel)));
                 return;
             }
 
@@ -271,6 +272,22 @@ public class DuelAiSystem : SystemBase
         }
 
         return compChessBoard.chessInfoDict.Count >= compChessBoard.GetGridMaxSize();
+    }
+
+    private PlayerFlag ResolveAiPlayerFlag(SceneComponentDuel compDuel)
+    {
+        if (compDuel == null || string.IsNullOrEmpty(compDuel.aiPlayerGuid.value)) {
+            return 0;
+        }
+
+        if (compDuel.aiPlayerGuid.value == compDuel.player1Guid.value) {
+            return PlayerFlag.Player1;
+        }
+        if (compDuel.aiPlayerGuid.value == compDuel.player2Guid.value) {
+            return PlayerFlag.Player2;
+        }
+
+        return 0;
     }
 
     private string BuildTurnInfoLog()

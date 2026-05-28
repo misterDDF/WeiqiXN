@@ -1,4 +1,6 @@
 ﻿using System;
+using UnityEngine;
+using UnityEngine.EventSystems;
 using XNClient.Logger;
 
 public static class UIUtils
@@ -37,6 +39,21 @@ public static class UIUtils
     public static bool IsPortrait(UnityEngine.RectTransform rectTransform)
     {
         return rectTransform != null && IsPortrait(rectTransform.rect);
+    }
+    public static bool IsPointerOverUI()
+    {
+        EventSystem eventSystem = EventSystem.current;
+        if (eventSystem == null) {
+            return false;
+        }
+
+        for (int i = 0; i < Input.touchCount; i++) {
+            if (eventSystem.IsPointerOverGameObject(Input.GetTouch(i).fingerId)) {
+                return true;
+            }
+        }
+
+        return eventSystem.IsPointerOverGameObject();
     }
 }
 

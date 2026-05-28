@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using XNClient.ChessBoard;
 
@@ -11,6 +10,9 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     private DuelPageHudView hudView;
     private int pendingScorePopupRequestId;
     private int pendingTakeBackPopupRequestId;
+    private int pendingTakeBackMoveCount;
+    private int pendingTakeBackRemoveCount;
+    private string pendingTakeBackTurnPlayerGuid;
 
     protected override void OnLoaded()
     {
@@ -237,7 +239,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
         DuelInputAuthorityState inputState = DuelInputAuthority.GetLocalState(mainScene, compDuel);
         if (boardInput.TryGetMoveCoords(inputState, out RectCoordinates coords)) {
-            EmitSystemEvent(new OnSubmitDuelMove(coords));
+            EmitSystemEvent(new OnSubmitDuelMove(coords, inputState.localInputPlayerFlag));
         }
     }
 
@@ -320,6 +322,17 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             return;
         }
 
+        int removeCount = DuelSystem.GetTakeBackMoveCountForState(compDuel);
+        int moveCount = DuelMoveHistory.Count(compDuel.kataGoMoves);
+        if (removeCount <= 0 || moveCount < removeCount) {
+            hudView.CloseSettingsPanel();
+            hudView.ShowActionNotice(MessageText.Get("duel_take_back_no_moves"));
+            return;
+        }
+
+        pendingTakeBackMoveCount = moveCount;
+        pendingTakeBackRemoveCount = removeCount;
+        pendingTakeBackTurnPlayerGuid = compDuel.curTurnPlayerGuid.value;
         hudView.CloseSettingsPanel();
         ConfirmPopup.Show(
             MessageText.Get("duel_take_back_title"),
@@ -347,11 +360,13 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         Player curPlayer = mainScene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
         string playerText = hudView.GetPlayerDisplayName(curPlayer, compDuel, compDuel.curTurnPlayerGuid.value);
+        string loserGuid = compDuel.curTurnPlayerGuid.value;
+        int moveCount = DuelMoveHistory.Count(compDuel.kataGoMoves);
 
         ConfirmPopup.Show(
             MessageText.Get("duel_resign_title"),
             MessageText.Format("duel_resign_content", playerText),
-            () => EmitSystemEvent(new OnSubmitDuelResign()),
+            () => EmitSystemEvent(new OnSubmitDuelResign(loserGuid, moveCount)),
             null,
             MessageText.Get("duel_resign_confirm"),
             MessageText.Get("duel_continue_game")
@@ -392,17 +407,30 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             );
         }
 
-        EmitSystemEvent(new OnSubmitDuelTakeBack());
+        EmitSystemEvent(new OnSubmitDuelTakeBack(
+            pendingTakeBackRemoveCount,
+            pendingTakeBackMoveCount,
+            pendingTakeBackTurnPlayerGuid));
+        ClearPendingTakeBackRequest();
     }
 
     private void ClosePendingTakeBackPopup()
     {
         if (pendingTakeBackPopupRequestId <= 0) {
+            ClearPendingTakeBackRequest();
             return;
         }
 
         ConfirmPopup.CloseIfOpen(pendingTakeBackPopupRequestId);
         pendingTakeBackPopupRequestId = 0;
+        ClearPendingTakeBackRequest();
+    }
+
+    private void ClearPendingTakeBackRequest()
+    {
+        pendingTakeBackMoveCount = 0;
+        pendingTakeBackRemoveCount = 0;
+        pendingTakeBackTurnPlayerGuid = null;
     }
 
     private void ClosePendingScorePopup()
@@ -430,6 +458,6 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
     private bool IsPointerOverUI()
     {
-        return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+        return UIUtils.IsPointerOverUI();
     }
 }

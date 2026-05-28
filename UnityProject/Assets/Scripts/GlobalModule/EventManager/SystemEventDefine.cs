@@ -96,11 +96,29 @@ public class OnConfirmDuelScore : SystemEventBase
 public class OnConfirmDuelResign : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnConfirmDuelResign>();
+
+    public string loserGuid;
+    public int moveCount;
+
+    public OnConfirmDuelResign(string loserGuid, int moveCount)
+    {
+        this.loserGuid = loserGuid;
+        this.moveCount = moveCount;
+    }
 }
 
 public class OnSubmitDuelResign : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnSubmitDuelResign>();
+
+    public string loserGuid;
+    public int moveCount;
+
+    public OnSubmitDuelResign(string loserGuid, int moveCount)
+    {
+        this.loserGuid = loserGuid;
+        this.moveCount = moveCount;
+    }
 }
 
 public class OnSubmitDuelPass : SystemEventBase
@@ -144,6 +162,17 @@ public class OnSubmitLanDuelScoreResultConfirm : SystemEventBase
 public class OnSubmitDuelTakeBack : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnSubmitDuelTakeBack>();
+
+    public int removeCount;
+    public int moveCount;
+    public string turnPlayerGuid;
+
+    public OnSubmitDuelTakeBack(int removeCount, int moveCount, string turnPlayerGuid)
+    {
+        this.removeCount = removeCount;
+        this.moveCount = moveCount;
+        this.turnPlayerGuid = turnPlayerGuid;
+    }
 }
 
 public class OnSubmitLanDuelTakeBackConfirm : SystemEventBase
@@ -168,6 +197,17 @@ public class OnRequestDuelPass : SystemEventBase
 public class OnRequestDuelTakeBack : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnRequestDuelTakeBack>();
+
+    public int removeCount;
+    public int moveCount;
+    public string turnPlayerGuid;
+
+    public OnRequestDuelTakeBack(int removeCount, int moveCount, string turnPlayerGuid)
+    {
+        this.removeCount = removeCount;
+        this.moveCount = moveCount;
+        this.turnPlayerGuid = turnPlayerGuid;
+    }
 }
 
 public class OnDuelTakeBackResult : SystemEventBase
@@ -277,9 +317,12 @@ public class OnSubmitDuelMove : SystemEventBase
     public override string GetEventType() => GetEventType<OnSubmitDuelMove>();
 
     public RectCoordinates coords;
-    public OnSubmitDuelMove(RectCoordinates coords)
+    public PlayerFlag playerFlag;
+
+    public OnSubmitDuelMove(RectCoordinates coords, PlayerFlag playerFlag)
     {
         this.coords = coords;
+        this.playerFlag = playerFlag;
     }
 }
 

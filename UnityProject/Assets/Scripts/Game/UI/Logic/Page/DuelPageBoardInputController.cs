@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.EventSystems;
 using XNClient.ChessBoard;
 
 public class DuelPageBoardInputController
@@ -133,6 +132,6 @@ public class DuelPageBoardInputController
 
     private bool IsPointerOverUI()
     {
-        return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+        return UIUtils.IsPointerOverUI();
     }
 }

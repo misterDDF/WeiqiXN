@@ -28,32 +28,47 @@ public class DuelAuthoritySystem : SystemBase
             return;
         }
 
-        SubmitMove(compDuel, evt.coords);
+        SubmitMove(compDuel, evt.coords, evt.playerFlag);
     }
 
-    private bool SubmitMove(SceneComponentDuel compDuel, RectCoordinates coords)
+    private bool SubmitMove(SceneComponentDuel compDuel, RectCoordinates coords, PlayerFlag playerFlag)
     {
-        if (compDuel == null || coords == null) {
+        if (compDuel == null || coords == null || playerFlag == 0) {
             return false;
         }
 
         if (compDuel.isLanDuel.value) {
-            return SubmitLanMove(compDuel, coords);
+            return SubmitLanMove(compDuel, coords, playerFlag);
         }
 
-        return SubmitLocalHostMove(coords);
+        return SubmitLocalHostMove(coords, playerFlag);
     }
 
-    private bool SubmitLocalHostMove(RectCoordinates coords)
+    private bool SubmitLocalHostMove(RectCoordinates coords, PlayerFlag playerFlag)
     {
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
+        if (compDuel == null ||
+            compDuel.isScoring ||
+            compDuel.duelFSM == null ||
+            !compDuel.duelFSM.isActivated ||
+            compDuel.duelFSM.curState == null ||
+            compDuel.duelFSM.curState.stateName != DuelStateDefine.STATE_TURN_INPUT) {
+            return false;
+        }
+
+        Player curPlayer = scene.GetEntity<Player>(compDuel?.curTurnPlayerGuid.value);
+        if (curPlayer == null || playerFlag != (PlayerFlag)curPlayer.playerFlag.value) {
+            return false;
+        }
+
         ChessBoardSystem chessBoardSystem = scene.GetSystem<ChessBoardSystem>();
         return chessBoardSystem != null && chessBoardSystem.TryApplyLocalDuelMove(coords, out _);
     }
 
-    private bool SubmitLanMove(SceneComponentDuel compDuel, RectCoordinates coords)
+    private bool SubmitLanMove(SceneComponentDuel compDuel, RectCoordinates coords, PlayerFlag playerFlag)
     {
         DuelInputAuthorityState inputState = DuelInputAuthority.GetLocalState(scene, compDuel);
-        if (!inputState.CanSubmitMove || Global.Instance.lanRoomService == null) {
+        if (!inputState.CanSubmitMove || inputState.localInputPlayerFlag != playerFlag || Global.Instance.lanRoomService == null) {
             return false;
         }
 
@@ -75,7 +90,7 @@ public class DuelAuthoritySystem : SystemBase
             return;
         }
 
-        scene.EmitSystemEvent(new OnConfirmDuelResign());
+        scene.EmitSystemEvent(new OnConfirmDuelResign(evt.loserGuid, evt.moveCount));
     }
 
     private bool SubmitLanResign(SceneComponentDuel compDuel)
@@ -202,7 +217,7 @@ public class DuelAuthoritySystem : SystemBase
             return;
         }
 
-        scene.EmitSystemEvent(new OnRequestDuelTakeBack());
+        scene.EmitSystemEvent(new OnRequestDuelTakeBack(evt.removeCount, evt.moveCount, evt.turnPlayerGuid));
     }
 
     private bool SubmitLanTakeBack(SceneComponentDuel compDuel)
