@@ -85,6 +85,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         bool isTryMode = replaySystem != null && replaySystem.IsReplayLoaded && replaySystem.IsTryMode;
         bool canAiAnalysis = replaySystem != null && replaySystem.IsReplayLoaded && !replaySystem.IsAiAnalyzing &&
             (replaySystem.IsAiAnalysisEnabled || replaySystem.HasAiAnalysisRender);
+        bool hasAiAnalysisRender = replaySystem != null && replaySystem.HasAiAnalysisRender;
 
         binder.txt_title.text = replayScene != null ? replayScene.configData.id : "Replay";
         binder.txt_summary.text = replaySystem != null ? replaySystem.BuildSummaryText() : "未加载复盘场景";
@@ -98,8 +99,12 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         binder.btn_prev.interactable = canBrowse;
         binder.btn_next.interactable = canBrowse;
         binder.btn_last.interactable = canBrowse;
-        if (binder.btn_try_mode != null) {
+        if (binder.panel_try_mode != null) {
+            binder.panel_try_mode.SetActive(isTryMode);
+        } else if (binder.btn_try_mode != null) {
             binder.btn_try_mode.gameObject.SetActive(isTryMode);
+        }
+        if (binder.btn_try_mode != null) {
             binder.btn_try_mode.interactable = isTryMode;
         }
         if (binder.btn_ai_analysis != null) {
@@ -108,6 +113,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         SetButtonText(binder.btn_close, "退出");
         SetTryModeButtonText("取消试下");
         SetButtonText(binder.btn_ai_analysis, GetAiAnalysisButtonText(replaySystem));
+        RefreshAiAnalysisButtonSelection(hasAiAnalysisRender);
     }
 
     private void RefreshTryModeInput()
@@ -161,6 +167,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
 
         if (replaySystem.HasAiAnalysisRender) {
             replaySystem.ClearAiAnalysisRender();
+            RefreshAiAnalysisButtonSelection(false);
             return;
         }
 
@@ -362,6 +369,25 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         TextMeshProUGUI buttonText = button.GetComponentInChildren<TextMeshProUGUI>();
         if (buttonText != null) {
             buttonText.text = text;
+        }
+    }
+
+    private void RefreshAiAnalysisButtonSelection(bool selected)
+    {
+        if (binder.btn_ai_analysis == null || EventSystem.current == null) {
+            return;
+        }
+
+        GameObject buttonGameObject = binder.btn_ai_analysis.gameObject;
+        if (selected) {
+            if (EventSystem.current.currentSelectedGameObject != buttonGameObject) {
+                binder.btn_ai_analysis.Select();
+            }
+            return;
+        }
+
+        if (EventSystem.current.currentSelectedGameObject == buttonGameObject) {
+            EventSystem.current.SetSelectedGameObject(null);
         }
     }
 }
