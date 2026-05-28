@@ -27,6 +27,7 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     private string selectedHandicapCfgId = DuelHandicapPlacement.GetDefaultCfgId("9x9");
     private bool isAiDuel;
     private Action<DuelSceneCreateParamas> confirmHandler;
+    private DuelSetupPreferenceMode setupPreferenceMode;
     private string selectedAiDifficultyCfgId = DefaultAiDifficultyCfgId;
     private readonly List<string> aiDifficultyCfgIds = new List<string>();
     private readonly List<string> playerSideCfgIds = new List<string> { PlayerSideGuess, PlayerSideBlack, PlayerSideWhite };
@@ -72,6 +73,8 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         isAiDuel = pendingOpenAiDuel;
         confirmHandler = pendingConfirmHandler;
         pendingConfirmHandler = null;
+        setupPreferenceMode = ResolvePreferenceMode();
+        LoadPreference();
         NormalizeSetupSelection();
         RefreshPlayerColorDropdown();
         RefreshHandicapDropdown();
@@ -84,6 +87,13 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         base.OnUpdate();
 
         ApplyCurrentLayoutState(false);
+    }
+
+    protected override void OnClose()
+    {
+        NormalizeSetupSelection();
+        SavePreference();
+        base.OnClose();
     }
 
     public void OnClickBtn9x9()
@@ -103,8 +113,7 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
 
     public void OnClickBtnStart()
     {
-        NormalizeTimeControlSelection();
-        NormalizeHandicapSelection();
+        NormalizeSetupSelection();
         PlayerFlag localPlayerFlag = ResolveLocalPlayerFlag();
         PlayerFlag lanHostPlayerFlag = IsLanRoomSetup() ? ResolveLocalPlayerFlag() : PlayerFlag.Player1;
 
@@ -257,8 +266,21 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
 
     private void NormalizeSetupSelection()
     {
+        NormalizeBoardSelection();
+        NormalizeAiDifficultySelection();
+        NormalizePlayerSideSelection();
+        NormalizeHoldTimeSelection();
+        NormalizeByoyomiCountSelection();
         NormalizeTimeControlSelection();
+        NormalizeByoyomiTimeSelection();
         NormalizeHandicapSelection();
+    }
+
+    private void NormalizeBoardSelection()
+    {
+        if (ChessBoardDataType.GetConfigData(selectedBoardCfgId) == null) {
+            selectedBoardCfgId = "9x9";
+        }
     }
 
     private void NormalizeHandicapSelection()
@@ -269,6 +291,42 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         }
 
         selectedHandicapCfgId = DuelHandicapPlacement.GetValidCfgId(selectedHandicapCfgId, selectedBoardCfgId);
+    }
+
+    private void NormalizeAiDifficultySelection()
+    {
+        EnsureAiDifficultyOptions();
+        if (!aiDifficultyCfgIds.Contains(selectedAiDifficultyCfgId)) {
+            selectedAiDifficultyCfgId = aiDifficultyCfgIds.Count > 0 ? aiDifficultyCfgIds[0] : DefaultAiDifficultyCfgId;
+        }
+    }
+
+    private void NormalizePlayerSideSelection()
+    {
+        if (!playerSideCfgIds.Contains(selectedPlayerSideCfgId)) {
+            selectedPlayerSideCfgId = PlayerSideGuess;
+        }
+    }
+
+    private void NormalizeHoldTimeSelection()
+    {
+        if (DuelHoldTimeDataType.GetConfigData(selectedHoldTimeCfgId) == null) {
+            selectedHoldTimeCfgId = InfiniteHoldTimeCfgId;
+        }
+    }
+
+    private void NormalizeByoyomiCountSelection()
+    {
+        if (DuelByoyomiCountDataType.GetConfigData(selectedByoyomiCountCfgId) == null) {
+            selectedByoyomiCountCfgId = ByoyomiOffCfgId;
+        }
+    }
+
+    private void NormalizeByoyomiTimeSelection()
+    {
+        if (DuelByoyomiTimeDataType.GetConfigData(selectedByoyomiTimeCfgId) == null) {
+            selectedByoyomiTimeCfgId = "30s";
+        }
     }
 
     private bool IsInfiniteHoldTimeSelected()
@@ -478,6 +536,49 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     private bool IsLanRoomSetup()
     {
         return confirmHandler != null;
+    }
+
+    private DuelSetupPreferenceMode ResolvePreferenceMode()
+    {
+        if (IsLanRoomSetup()) {
+            return DuelSetupPreferenceMode.Lan;
+        }
+
+        return isAiDuel ? DuelSetupPreferenceMode.Ai : DuelSetupPreferenceMode.Local;
+    }
+
+    private void LoadPreference()
+    {
+        DuelSetupModePreference preference = User.Instance.compDuelSetupPreference?.GetPreference(setupPreferenceMode);
+        if (preference == null) {
+            return;
+        }
+
+        selectedBoardCfgId = preference.boardCfgId.value;
+        selectedHoldTimeCfgId = preference.holdTimeCfgId.value;
+        selectedByoyomiCountCfgId = preference.byoyomiCountCfgId.value;
+        selectedByoyomiTimeCfgId = preference.byoyomiTimeCfgId.value;
+        selectedPlayerSideCfgId = preference.playerSideCfgId.value;
+        selectedHandicapCfgId = preference.handicapCfgId.value;
+        selectedAiDifficultyCfgId = preference.aiDifficultyCfgId.value;
+    }
+
+    private void SavePreference()
+    {
+        DuelSetupModePreference preference = User.Instance.compDuelSetupPreference?.GetPreference(setupPreferenceMode);
+        if (preference == null) {
+            return;
+        }
+
+        preference.Set(
+            selectedBoardCfgId,
+            selectedHoldTimeCfgId,
+            selectedByoyomiCountCfgId,
+            selectedByoyomiTimeCfgId,
+            selectedPlayerSideCfgId,
+            selectedHandicapCfgId,
+            selectedAiDifficultyCfgId);
+        User.Instance.Save();
     }
 
     private PlayerFlag ResolveLocalPlayerFlag()

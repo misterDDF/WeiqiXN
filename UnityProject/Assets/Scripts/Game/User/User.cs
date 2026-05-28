@@ -18,10 +18,12 @@ public class User : SavableObj
     public List<UserComponentBase> compList = new List<UserComponentBase>();
 
     public UserComponentUserInfo compUserInfo;
+    public UserComponentDuelSetupPreference compDuelSetupPreference;
 
     public void Init()
     {
         compUserInfo = new UserComponentUserInfo(this);
+        compDuelSetupPreference = new UserComponentDuelSetupPreference(this);
 
         string saveFilePath = GameSaveConfig.UserSaveFilePath;
         if (File.Exists(saveFilePath)) {
