@@ -38,7 +38,7 @@ public class AssetBundleGenerator
         string kataGoSourceRoot = ResolveKataGoSourceRoot();
         ValidateWindowsKataGoRuntimeSource(kataGoSourceRoot, kataGoConfig);
 
-        PrepareBuildRootDirectory(BuildConfig.BUILD_PATH_ROOT);
+        PrepareBuildOutputDirectory(Path.GetDirectoryName(BuildConfig.BUILD_PATH_WINDOWS));
         PlayerSettings.SetScriptingBackend(BuildTargetGroup.Standalone, ScriptingImplementation.IL2CPP);
         PlayerSettings.SetIl2CppCompilerConfiguration(BuildTargetGroup.Standalone, Il2CppCompilerConfiguration.Master);
         PlayerSettings.SetStackTraceLogType(LogType.Log, StackTraceLogType.ScriptOnly);
@@ -66,7 +66,7 @@ public class AssetBundleGenerator
         ValidateAndroidKataGoRuntimeSource(kataGoSourceRoot, kataGoConfig);
         CopyAndroidKataGoRuntimeToStreamingAssets(kataGoSourceRoot, kataGoConfig);
 
-        PrepareBuildRootDirectory(Path.GetDirectoryName(BuildConfig.BUILD_PATH_ANDROID));
+        PrepareBuildOutputDirectory(Path.GetDirectoryName(BuildConfig.BUILD_PATH_ANDROID));
         PlayerSettings.SetScriptingBackend(BuildTargetGroup.Android, ScriptingImplementation.IL2CPP);
         PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
         PlayerSettings.SetIl2CppCompilerConfiguration(BuildTargetGroup.Android, Il2CppCompilerConfiguration.Master);
@@ -95,7 +95,7 @@ public class AssetBundleGenerator
         BuildAssetBundlesForTarget(BuildTarget.WebGL);
 
         string buildOutputPath = Path.GetFullPath(BuildConfig.BUILD_PATH_WEBGL);
-        PrepareBuildRootDirectory(BuildConfig.BUILD_PATH_WEBGL);
+        PrepareBuildOutputDirectory(BuildConfig.BUILD_PATH_WEBGL);
 
         PlayerSettings.SetScriptingBackend(BuildTargetGroup.WebGL, ScriptingImplementation.IL2CPP);
         PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
@@ -464,14 +464,14 @@ public class AssetBundleGenerator
         return "Assets" + normalizedPath.Substring(dataPath.Length);
     }
 
-    private static void PrepareBuildRootDirectory(string buildRootPath)
+    private static void PrepareBuildOutputDirectory(string buildOutputDirectory)
     {
-        string fullBuildRootPath = Path.GetFullPath(buildRootPath);
-        if (Directory.Exists(fullBuildRootPath)) {
-            Directory.Delete(fullBuildRootPath, true);
+        string fullBuildOutputDirectory = Path.GetFullPath(buildOutputDirectory);
+        if (Directory.Exists(fullBuildOutputDirectory)) {
+            Directory.Delete(fullBuildOutputDirectory, true);
         }
 
-        Directory.CreateDirectory(fullBuildRootPath);
+        Directory.CreateDirectory(fullBuildOutputDirectory);
     }
 
     private static string ResolveKataGoSourceRoot()
