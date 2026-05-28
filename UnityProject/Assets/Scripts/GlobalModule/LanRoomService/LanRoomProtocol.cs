@@ -35,6 +35,7 @@ public enum LanRoomProtocol
 public static class LanRoomProtocolName
 {
     public const string DiscoveryPrefix = "WEIQIXN_LAN_ROOM";
+    public const string DiscoveryRequest = "WEIQIXN_DISCOVER";
     public const string ClientHello = "WEIQIXN_JOIN";
     public const string HostAccept = "WEIQIXN_ACCEPT";
     public const string HostFull = "WEIQIXN_FULL";
