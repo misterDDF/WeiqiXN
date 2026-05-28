@@ -32,6 +32,17 @@ public class AssetBundleGenerator
     [MenuItem(CustomEditorMenuPaths.Build + "/打PC包")]
     public static void BuildWindows()
     {
+        BuildWindows(true);
+    }
+
+    [MenuItem(CustomEditorMenuPaths.Build + "/打PC包(非Development)")]
+    public static void BuildWindowsNonDevelopment()
+    {
+        BuildWindows(false);
+    }
+
+    private static void BuildWindows(bool development)
+    {
         GameConfig.Reload();
         GameConfig.KataGoConfig kataGoConfig = GameConfig.Current.kataGo;
         BuildAssetBundlesForTarget(BuildTarget.StandaloneWindows64);
@@ -44,7 +55,7 @@ public class AssetBundleGenerator
         PlayerSettings.SetStackTraceLogType(LogType.Log, StackTraceLogType.ScriptOnly);
 
         string buildOutputPath = Path.GetFullPath(BuildConfig.BUILD_PATH_WINDOWS);
-        var buildOptions = BuildOptions.CompressWithLz4HC | BuildOptions.Development;
+        BuildOptions buildOptions = BuildPlayerOptions(development);
         BuildReport report = BuildPipeline.BuildPlayer(PlayerScenes, buildOutputPath, BuildTarget.StandaloneWindows64, buildOptions);
         if (report.summary.result != BuildResult.Succeeded) {
             throw new Exception($"Build windows player failed, outputPath: {buildOutputPath}, result: {report.summary.result}.");
@@ -52,11 +63,22 @@ public class AssetBundleGenerator
 
         CopyKataGoRuntimeToWindowsBuild(kataGoSourceRoot, kataGoConfig);
         CopyGameConfigToWindowsBuild();
-        Debug.Log($"Windows Player打包完成！输出路径：{buildOutputPath}");
+        Debug.Log($"Windows Player打包完成！development: {development}, 输出路径：{buildOutputPath}");
     }
 
     [MenuItem(CustomEditorMenuPaths.Build + "/Build Android APK")]
     public static void BuildAndroid()
+    {
+        BuildAndroid(true);
+    }
+
+    [MenuItem(CustomEditorMenuPaths.Build + "/Build Android APK (Non-Development)")]
+    public static void BuildAndroidNonDevelopment()
+    {
+        BuildAndroid(false);
+    }
+
+    private static void BuildAndroid(bool development)
     {
         AndroidBuildToolchainConfigurator.ConfigureForUnityEmbeddedTools();
         GameConfig.Reload();
@@ -80,13 +102,13 @@ public class AssetBundleGenerator
         EditorUserBuildSettings.buildAppBundle = false;
 
         string buildOutputPath = Path.GetFullPath(BuildConfig.BUILD_PATH_ANDROID);
-        var buildOptions = BuildOptions.CompressWithLz4HC | BuildOptions.Development;
+        BuildOptions buildOptions = BuildPlayerOptions(development);
         BuildReport report = BuildPipeline.BuildPlayer(PlayerScenes, buildOutputPath, BuildTarget.Android, buildOptions);
         if (report.summary.result != BuildResult.Succeeded) {
             throw new Exception($"Build Android player failed, outputPath: {buildOutputPath}, result: {report.summary.result}.");
         }
 
-        Debug.Log($"Android Player build complete. outputPath: {buildOutputPath}");
+        Debug.Log($"Android Player build complete. development: {development}, outputPath: {buildOutputPath}");
     }
 
     [MenuItem(CustomEditorMenuPaths.Build + "/打WebGL包")]
@@ -109,6 +131,16 @@ public class AssetBundleGenerator
         }
 
         Debug.Log($"WebGL Player打包完成！输出路径：{buildOutputPath}");
+    }
+
+    private static BuildOptions BuildPlayerOptions(bool development)
+    {
+        BuildOptions options = BuildOptions.CompressWithLz4HC;
+        if (development) {
+            options |= BuildOptions.Development;
+        }
+
+        return options;
     }
 
     private static void BuildAssetBundlesForTarget(BuildTarget target)
