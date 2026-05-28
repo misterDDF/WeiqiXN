@@ -61,6 +61,7 @@ UI 工具链已经承担了重复代码生成工作，这对后续快速增加�
 - `AssetBundleGenerator` includes `PackRuntimeAssetTable` in the shared AssetBundle build path used by both PC and WebGL build menu entries.
 - `PackRuntimeAssetTable` reads `Assets/Config/DataJson/runtime_asset/runtime_asset.json`, validates each declared asset path and type, and applies the configured AssetBundle label before `BuildAssetBundles`.
 - The source table is `ConfigExporter/xlsx/runtime_asset.xlsx`; generated JSON and data type files should not be hand-edited.
+- Player build cleanup is scoped to the current platform output directory: Windows clears `../Build/PC`, Android clears `../Build/Android`, and WebGL clears `../WebGL`; Windows builds do not delete the shared `../Build` root or existing Android APK output.
 
 - 在 UI 模块补一份“新增页面流程”。
 - 明确 `*UI.cs` Binder 文件为生成文件，业务逻辑写在 `Logic/Page` 或 `Logic/Widget`。
