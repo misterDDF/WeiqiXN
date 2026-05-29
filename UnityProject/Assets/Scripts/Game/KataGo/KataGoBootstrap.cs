@@ -49,7 +49,8 @@ public static class KataGoBootstrap
 #if UNITY_ANDROID && !UNITY_EDITOR
     private static AndroidNativeKataGoEngine androidNativeEngine;
 #endif
-    private static readonly SemaphoreSlim analysisSemaphore = new SemaphoreSlim(1, 1);
+    private static SemaphoreSlim analysisSemaphore = new SemaphoreSlim(1, 1);
+    private static int analysisSemaphoreLimit = 1;
     private static KataGoPaths[] engineCandidates;
     private static KataGoPaths activePaths;
     private static int activeCandidateIndex = -1;
@@ -57,6 +58,7 @@ public static class KataGoBootstrap
     private static bool isStarted;
     private static bool activeBackendIsNative;
     private static bool gameRootWriteWarningShown;
+    private static int requestedNativeAnalysisConcurrency = 1;
 #endif
     private static CancellationTokenSource cancellationTokenSource;
     private static Task startupTask;
@@ -83,6 +85,8 @@ public static class KataGoBootstrap
 
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN || UNITY_ANDROID
         KataGoBackendMode backendMode = GameConfig.Current.kataGo.ResolveCurrentBackend();
+        requestedNativeAnalysisConcurrency = backendMode == KataGoBackendMode.Native ? GameConfig.Current.kataGo.maxConcurrentNativeRequests : 1;
+        ConfigureAnalysisConcurrency(1);
         if (backendMode == KataGoBackendMode.Disabled) {
             SetStartupStatus(MessageText.Get("katago_unavailable_status"), "KataGo backend is disabled by game-config.json.", 1f, true, false, true, null);
             XNLogger.LogWarn("KataGo startup skipped.", ("reason", "Backend disabled by game-config.json."));
@@ -237,6 +241,18 @@ public static class KataGoBootstrap
         }
 
         return options;
+    }
+
+    private static void ConfigureAnalysisConcurrency(int maxConcurrentRequests)
+    {
+        int safeMaxConcurrentRequests = Math.Max(1, maxConcurrentRequests);
+        if (analysisSemaphoreLimit == safeMaxConcurrentRequests) {
+            return;
+        }
+
+        analysisSemaphore = new SemaphoreSlim(safeMaxConcurrentRequests, safeMaxConcurrentRequests);
+        analysisSemaphoreLimit = safeMaxConcurrentRequests;
+        XNLogger.LogInfo("KataGo analysis concurrency configured.", ("maxConcurrentRequests", safeMaxConcurrentRequests.ToString()));
     }
 
     private static int GetDefaultAndroidAnalyzeBackgroundGraceMs()
@@ -1024,6 +1040,30 @@ public static class KataGoBootstrap
         return string.IsNullOrEmpty(backend) ? "null" : backend;
     }
 
+    private static bool NativeBridgeSupportsConcurrentAnalyze()
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        return androidNativeEngine != null && androidNativeEngine.SupportsConcurrentAnalyze;
+#else
+        return windowsNativeEngine != null && windowsNativeEngine.SupportsConcurrentAnalyze;
+#endif
+    }
+
+    private static void ConfigureNativeAnalysisConcurrencyForActiveBridge()
+    {
+        bool supportsConcurrentAnalyze = NativeBridgeSupportsConcurrentAnalyze();
+        int targetConcurrency = supportsConcurrentAnalyze ? requestedNativeAnalysisConcurrency : 1;
+        ConfigureAnalysisConcurrency(targetConcurrency);
+
+        if (requestedNativeAnalysisConcurrency > 1 && !supportsConcurrentAnalyze) {
+            XNLogger.LogWarn(
+                "KataGo native bridge does not support concurrent analyze, request concurrency capped to 1.",
+                ("requestedMaxConcurrentRequests", requestedNativeAnalysisConcurrency.ToString()),
+                ("engine", hasActivePaths ? activePaths.engineName : "unknown"),
+                ("bridgeBackend", GetNativeBridgeBackendForLog()));
+        }
+    }
+
     private static JObject AnalyzeWithNativeEngine(JObject query, int timeoutMs)
     {
 #if UNITY_ANDROID && !UNITY_EDITOR
@@ -1164,11 +1204,13 @@ public static class KataGoBootstrap
                 cancellationToken,
                 GetEstimatedBoardWarmupMs(paths, boardIndex));
             ValidateNativeBridgeBackend(paths, GetNativeBridgeBackend());
+            ConfigureNativeAnalysisConcurrencyForActiveBridge();
             XNLogger.LogInfo(
                 "KataGo native engine started.",
                 ("engine", paths.engineName),
                 ("libraryPath", paths.nativeLibraryPath),
                 ("bridgeBackend", GetNativeBridgeBackend()),
+                ("maxConcurrentRequests", analysisSemaphoreLimit.ToString()),
                 ("configPath", paths.configPath),
                 ("noWriteMode", paths.noWriteMode.ToString()),
                 ("modelPath", paths.modelPath));

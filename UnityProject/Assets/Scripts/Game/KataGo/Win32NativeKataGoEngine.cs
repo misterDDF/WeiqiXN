@@ -17,10 +17,12 @@ internal sealed class Win32NativeKataGoEngine : IDisposable
     private KgFreeString kgFreeString;
     private KgDestroyEngine kgDestroyEngine;
     private KgGetBridgeBackend kgGetBridgeBackend;
+    private KgSupportsConcurrentAnalyze kgSupportsConcurrentAnalyze;
     private bool disposed;
 
     public bool IsRunning => engine != IntPtr.Zero;
     public string BridgeBackend { get; private set; } = string.Empty;
+    public bool SupportsConcurrentAnalyze { get; private set; }
 
     public void Start(string libraryPath, string configPath, string modelPath, string workingDirectory)
     {
@@ -29,6 +31,7 @@ internal sealed class Win32NativeKataGoEngine : IDisposable
 
         LoadBridgeLibrary(libraryPath);
         BridgeBackend = ReadBridgeBackend();
+        SupportsConcurrentAnalyze = kgSupportsConcurrentAnalyze != null && kgSupportsConcurrentAnalyze() != 0;
 
         StringBuilder error = new StringBuilder(ErrorBufferSize);
         int result = kgCreateEngine(configPath, modelPath, workingDirectory, out engine, error, error.Capacity);
@@ -108,6 +111,7 @@ internal sealed class Win32NativeKataGoEngine : IDisposable
         kgFreeString = LoadFunction<KgFreeString>("kg_free_string");
         kgDestroyEngine = LoadFunction<KgDestroyEngine>("kg_destroy_engine");
         kgGetBridgeBackend = LoadFunction<KgGetBridgeBackend>("kg_get_bridge_backend");
+        kgSupportsConcurrentAnalyze = LoadFunction<KgSupportsConcurrentAnalyze>("kg_supports_concurrent_analyze", false);
     }
 
     private T LoadFunction<T>(string functionName, bool isRequired = true) where T : Delegate
@@ -147,7 +151,9 @@ internal sealed class Win32NativeKataGoEngine : IDisposable
         kgFreeString = null;
         kgDestroyEngine = null;
         kgGetBridgeBackend = null;
+        kgSupportsConcurrentAnalyze = null;
         BridgeBackend = string.Empty;
+        SupportsConcurrentAnalyze = false;
 
         if (library == IntPtr.Zero) {
             return;
@@ -195,6 +201,9 @@ internal sealed class Win32NativeKataGoEngine : IDisposable
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate IntPtr KgGetBridgeBackend();
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int KgSupportsConcurrentAnalyze();
 
     [DllImport("kernel32", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern IntPtr LoadLibraryEx(string lpFileName, IntPtr hFile, int dwFlags);

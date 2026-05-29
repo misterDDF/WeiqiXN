@@ -55,7 +55,7 @@ KataGo/engines/win-x64/native-eigen/katago_bridge.dll
 KataGo/engines/win-x64/native-opencl/katago_bridge.dll
 ```
 
-The current bridge wraps KataGo's analysis command in-process and redirects standard input/output internally. Treat it as one engine instance per process. The Windows Unity native backend tries `native-opencl` first when configured, then falls back to `native-eigen` when CPU fallback is enabled. After the Windows DLL path is validated in Unity, the same CMake entry should be extended for Android `arm64-v8a` `.so` output.
+The current bridge wraps KataGo's analysis command in-process and redirects standard input/output internally. Treat it as one engine instance per process. That single engine instance supports multiple simultaneous `kg_analyze` calls when the bridge exports `kg_supports_concurrent_analyze`; the bridge writes all requests into one analysis input stream and dispatches final JSON output by request id. Do not create multiple bridge engine instances inside the same Unity process because standard stream redirection is process-wide. The Windows Unity native backend tries `native-opencl` first when configured, then falls back to `native-eigen` when CPU fallback is enabled. After the Windows DLL path is validated in Unity, the same CMake entry should be extended for Android `arm64-v8a` `.so` output.
 
 Build the Android `arm64-v8a` eigen `.so` and copy it into Unity's Android plugin path:
 

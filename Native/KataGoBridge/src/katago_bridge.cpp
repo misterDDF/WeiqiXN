@@ -16,6 +16,7 @@
 #include <string>
 #include <system_error>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 #include <ghc/filesystem.hpp>
 
@@ -342,6 +343,14 @@ class LineOutputStreamBuf final : public std::streambuf {
 };
 
 class KataGoBridgeEngine final {
+  struct PendingAnalysis {
+    std::condition_variable completedCv;
+    std::string responseJson;
+    std::string error;
+    bool completed = false;
+    bool failed = false;
+  };
+
  public:
   ~KataGoBridgeEngine() {
     stop();
@@ -424,49 +433,71 @@ class KataGoBridgeEngine final {
 
     const int safeTimeoutMs = timeoutMs <= 0 ? 45000 : timeoutMs;
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(safeTimeoutMs);
+
+    auto pending = std::make_shared<PendingAnalysis>();
+    {
+      std::lock_guard<std::mutex> lock(pendingMutex);
+      if (pendingAnalyses.find(requestId) != pendingAnalyses.end()) {
+        error = "Request id is already pending: " + requestId;
+        return false;
+      }
+
+      pendingAnalyses[requestId] = pending;
+    }
+
     input->pushLine(requestJson);
 
     while (std::chrono::steady_clock::now() < deadline) {
-      int waitMs = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()).count());
+      {
+        std::unique_lock<std::mutex> lock(pendingMutex);
+        if (pending->failed) {
+          error = pending->error;
+          pendingAnalyses.erase(requestId);
+          return false;
+        }
+        if (pending->completed) {
+          responseJson = pending->responseJson;
+          pendingAnalyses.erase(requestId);
+          return true;
+        }
+      }
+
+      int waitMs = millisecondsUntil(deadline);
       waitMs = waitMs <= 0 ? 1 : (waitMs > 100 ? 100 : waitMs);
 
-      std::string line;
-      if (!output->waitPopLine(line, waitMs)) {
+      if (!tryDrainOutputLine(waitMs, error)) {
         if (stopped.load()) {
-          error = "KataGo bridge engine stopped before returning a result.";
+          if (error.empty()) {
+            error = "KataGo bridge engine stopped before returning a result.";
+          }
           std::string diagnostics = buildDiagnosticsText();
           if (!diagnostics.empty()) {
             error += " Recent KataGo output: " + diagnostics;
           }
+          removePendingAnalysis(requestId);
           return false;
         }
-        continue;
       }
 
-      if (line.empty() || line[0] != '{') {
-        rememberDiagnosticLine(line);
-        continue;
-      }
-
-      try {
-        json response = json::parse(line);
-        if (!response.contains("id") || !response["id"].is_string() || response["id"].get<std::string>() != requestId) {
-          continue;
+      {
+        std::unique_lock<std::mutex> lock(pendingMutex);
+        if (!pending->completed) {
+          pending->completedCv.wait_for(lock, std::chrono::milliseconds(1));
         }
-
-        if (response.contains("isDuringSearch") && response["isDuringSearch"].is_boolean() && response["isDuringSearch"].get<bool>()) {
-          continue;
+        if (pending->failed) {
+          error = pending->error;
+          pendingAnalyses.erase(requestId);
+          return false;
         }
-
-        responseJson = line;
-        return true;
-      }
-      catch (const std::exception&) {
-        rememberDiagnosticLine(line);
-        continue;
+        if (pending->completed) {
+          responseJson = pending->responseJson;
+          pendingAnalyses.erase(requestId);
+          return true;
+        }
       }
     }
 
+    removePendingAnalysis(requestId);
     error = "KataGo bridge analyze timed out.";
     return false;
   }
@@ -491,6 +522,18 @@ class KataGoBridgeEngine final {
       output->stop();
     }
 
+    {
+      std::lock_guard<std::mutex> lock(pendingMutex);
+      for (auto& item : pendingAnalyses) {
+        if (item.second) {
+          item.second->failed = true;
+          item.second->error = "KataGo bridge engine stopped before returning a result.";
+          item.second->completedCv.notify_all();
+        }
+      }
+      pendingAnalyses.clear();
+    }
+
     std::lock_guard<std::mutex> lock(stateMutex);
     started = false;
     input.reset();
@@ -498,6 +541,71 @@ class KataGoBridgeEngine final {
   }
 
  private:
+  static int millisecondsUntil(const std::chrono::steady_clock::time_point& deadline) {
+    return static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()).count());
+  }
+
+  bool tryDrainOutputLine(int waitMs, std::string& error) {
+    std::unique_lock<std::mutex> drainLock(outputDrainMutex, std::try_to_lock);
+    if (!drainLock.owns_lock()) {
+      return true;
+    }
+
+    std::string line;
+    if (!output->waitPopLine(line, waitMs)) {
+      if (stopped.load()) {
+        error = "KataGo bridge engine stopped before returning a result.";
+        return false;
+      }
+
+      return true;
+    }
+
+    dispatchOutputLine(line, error);
+    return true;
+  }
+
+  void dispatchOutputLine(const std::string& line, std::string& error) {
+    if (line.empty() || line[0] != '{') {
+      rememberDiagnosticLine(line);
+      return;
+    }
+
+    try {
+      json response = json::parse(line);
+      if (!response.contains("id") || !response["id"].is_string()) {
+        rememberDiagnosticLine(line);
+        return;
+      }
+
+      if (response.contains("isDuringSearch") && response["isDuringSearch"].is_boolean() && response["isDuringSearch"].get<bool>()) {
+        return;
+      }
+
+      std::string responseId = response["id"].get<std::string>();
+      std::lock_guard<std::mutex> lock(pendingMutex);
+      auto pending = pendingAnalyses.find(responseId);
+      if (pending == pendingAnalyses.end() || !pending->second) {
+        return;
+      }
+
+      pending->second->responseJson = line;
+      pending->second->completed = true;
+      pending->second->completedCv.notify_all();
+    }
+    catch (const std::exception& ex) {
+      if (error.empty()) {
+        error = std::string("Could not parse KataGo output line: ") + ex.what();
+      }
+      rememberDiagnosticLine(line);
+    }
+  }
+
+  void removePendingAnalysis(const std::string& requestId) {
+    std::lock_guard<std::mutex> lock(pendingMutex);
+    pendingAnalyses.erase(requestId);
+  }
+
   void runAnalysisThread() {
     std::streambuf* oldCin = nullptr;
     std::streambuf* oldCout = nullptr;
@@ -539,6 +647,15 @@ class KataGoBridgeEngine final {
     if (output) {
       output->stop();
     }
+
+    std::lock_guard<std::mutex> lock(pendingMutex);
+    for (auto& item : pendingAnalyses) {
+      if (item.second) {
+        item.second->failed = true;
+        item.second->error = "KataGo bridge engine stopped before returning a result.";
+        item.second->completedCv.notify_all();
+      }
+    }
   }
 
   void rememberDiagnosticLine(const std::string& line) {
@@ -569,6 +686,7 @@ class KataGoBridgeEngine final {
       }
       result += line;
     }
+
     return result;
   }
 
@@ -576,8 +694,11 @@ class KataGoBridgeEngine final {
 
   std::mutex stateMutex;
   std::mutex diagnosticMutex;
+  std::mutex pendingMutex;
+  std::mutex outputDrainMutex;
   std::unique_ptr<BlockingInputStreamBuf> input;
   std::unique_ptr<LineOutputStreamBuf> output;
+  std::unordered_map<std::string, std::shared_ptr<PendingAnalysis>> pendingAnalyses;
   std::deque<std::string> recentDiagnostics;
   std::thread worker;
   std::vector<std::string> args;
@@ -689,3 +810,7 @@ KG_EXPORT const char* kg_get_bridge_backend() {
   return "dummy";
 }
 #endif
+
+KG_EXPORT int kg_supports_concurrent_analyze() {
+  return 1;
+}

@@ -88,6 +88,8 @@ public sealed class GameConfig
         private const string DefaultModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
         private const string DefaultAndroidNativeOpenClLibraryName = "katago_bridge_opencl";
         private const string DefaultAndroidNativeCpuLibraryName = "katago_bridge_eigen";
+        private const int DefaultMaxConcurrentNativeRequests = 1;
+        private const int MaxConcurrentNativeRequestsLimit = 4;
 
         public static readonly KataGoConfig Default = new KataGoConfig(
             "native",
@@ -103,7 +105,8 @@ public sealed class GameConfig
             true,
             true,
             DefaultAndroidNativeOpenClLibraryName,
-            DefaultAndroidNativeCpuLibraryName);
+            DefaultAndroidNativeCpuLibraryName,
+            DefaultMaxConcurrentNativeRequests);
 
         public readonly string windowsEditorBackend;
         public readonly string windowsPlayerBackend;
@@ -119,6 +122,7 @@ public sealed class GameConfig
         public readonly bool androidAllowCpuFallback;
         public readonly string androidNativeOpenClLibraryName;
         public readonly string androidNativeCpuLibraryName;
+        public readonly int maxConcurrentNativeRequests;
 
         private KataGoConfig(
             string windowsEditorBackend,
@@ -134,7 +138,8 @@ public sealed class GameConfig
             bool androidPreferOpenCl,
             bool androidAllowCpuFallback,
             string androidNativeOpenClLibraryName,
-            string androidNativeCpuLibraryName)
+            string androidNativeCpuLibraryName,
+            int maxConcurrentNativeRequests)
         {
             this.windowsEditorBackend = NormalizeBackend(windowsEditorBackend, "native");
             this.windowsPlayerBackend = NormalizeBackend(windowsPlayerBackend, "native");
@@ -150,6 +155,7 @@ public sealed class GameConfig
             this.androidAllowCpuFallback = androidAllowCpuFallback;
             this.androidNativeOpenClLibraryName = string.IsNullOrWhiteSpace(androidNativeOpenClLibraryName) ? DefaultAndroidNativeOpenClLibraryName : androidNativeOpenClLibraryName;
             this.androidNativeCpuLibraryName = string.IsNullOrWhiteSpace(androidNativeCpuLibraryName) ? DefaultAndroidNativeCpuLibraryName : androidNativeCpuLibraryName;
+            this.maxConcurrentNativeRequests = ClampNativeRequestConcurrency(maxConcurrentNativeRequests);
         }
 
         public static KataGoConfig Parse(JObject katagoRoot)
@@ -160,6 +166,7 @@ public sealed class GameConfig
 
             JObject backend = katagoRoot["backend"] as JObject;
             JObject model = katagoRoot["model"] as JObject;
+            JObject analysis = katagoRoot["analysis"] as JObject;
             JObject windows = katagoRoot["windows"] as JObject;
             JObject android = katagoRoot["android"] as JObject;
             string legacyNativeEngineName = windows?.Value<string>("nativeEngineName");
@@ -178,7 +185,13 @@ public sealed class GameConfig
                 android?.Value<bool?>("preferOpenCl") ?? Default.androidPreferOpenCl,
                 android?.Value<bool?>("allowCpuFallback") ?? Default.androidAllowCpuFallback,
                 android?.Value<string>("nativeOpenClLibraryName") ?? Default.androidNativeOpenClLibraryName,
-                android?.Value<string>("nativeCpuLibraryName") ?? android?.Value<string>("nativeLibraryName") ?? Default.androidNativeCpuLibraryName);
+                android?.Value<string>("nativeCpuLibraryName") ?? android?.Value<string>("nativeLibraryName") ?? Default.androidNativeCpuLibraryName,
+                analysis?.Value<int?>("maxConcurrentNativeRequests") ?? Default.maxConcurrentNativeRequests);
+        }
+
+        private static int ClampNativeRequestConcurrency(int value)
+        {
+            return Math.Max(1, Math.Min(MaxConcurrentNativeRequestsLimit, value));
         }
 
         public KataGoBackendMode ResolveCurrentBackend()

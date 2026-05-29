@@ -14,6 +14,7 @@ internal sealed class AndroidNativeKataGoEngine : IDisposable
 
     public bool IsRunning => engine != IntPtr.Zero;
     public string BridgeBackend { get; private set; } = string.Empty;
+    public bool SupportsConcurrentAnalyze { get; private set; }
 
     public AndroidNativeKataGoEngine(string nativeLibraryName)
     {
@@ -26,6 +27,7 @@ internal sealed class AndroidNativeKataGoEngine : IDisposable
         Stop();
 
         BridgeBackend = ReadBridgeBackend(bridgeApi);
+        SupportsConcurrentAnalyze = bridgeApi.supportsConcurrentAnalyze() != 0;
 
         StringBuilder error = new StringBuilder(ErrorBufferSize);
         int result = bridgeApi.createEngine(configPath, modelPath, workingDirectory, out engine, error, error.Capacity);
@@ -69,6 +71,7 @@ internal sealed class AndroidNativeKataGoEngine : IDisposable
         }
 
         BridgeBackend = string.Empty;
+        SupportsConcurrentAnalyze = false;
     }
 
     public void Dispose()
@@ -137,6 +140,8 @@ internal sealed class AndroidNativeKataGoEngine : IDisposable
 
     private delegate IntPtr GetBridgeBackendDelegate();
 
+    private delegate int SupportsConcurrentAnalyzeDelegate();
+
     private sealed class BridgeApi
     {
         public readonly CreateEngineDelegate createEngine;
@@ -144,19 +149,22 @@ internal sealed class AndroidNativeKataGoEngine : IDisposable
         public readonly FreeStringDelegate freeString;
         public readonly DestroyEngineDelegate destroyEngine;
         public readonly GetBridgeBackendDelegate getBridgeBackend;
+        public readonly SupportsConcurrentAnalyzeDelegate supportsConcurrentAnalyze;
 
         private BridgeApi(
             CreateEngineDelegate createEngine,
             AnalyzeDelegate analyze,
             FreeStringDelegate freeString,
             DestroyEngineDelegate destroyEngine,
-            GetBridgeBackendDelegate getBridgeBackend)
+            GetBridgeBackendDelegate getBridgeBackend,
+            SupportsConcurrentAnalyzeDelegate supportsConcurrentAnalyze)
         {
             this.createEngine = createEngine;
             this.analyze = analyze;
             this.freeString = freeString;
             this.destroyEngine = destroyEngine;
             this.getBridgeBackend = getBridgeBackend;
+            this.supportsConcurrentAnalyze = supportsConcurrentAnalyze;
         }
 
         public static BridgeApi Create(string nativeLibraryName)
@@ -167,7 +175,8 @@ internal sealed class AndroidNativeKataGoEngine : IDisposable
                     OpenClNative.kg_analyze,
                     OpenClNative.kg_free_string,
                     OpenClNative.kg_destroy_engine,
-                    OpenClNative.kg_get_bridge_backend);
+                    OpenClNative.kg_get_bridge_backend,
+                    OpenClNative.TrySupportsConcurrentAnalyze);
             }
 
             if (string.Equals(nativeLibraryName, "katago_bridge_eigen", StringComparison.OrdinalIgnoreCase)) {
@@ -176,7 +185,8 @@ internal sealed class AndroidNativeKataGoEngine : IDisposable
                     EigenNative.kg_analyze,
                     EigenNative.kg_free_string,
                     EigenNative.kg_destroy_engine,
-                    EigenNative.kg_get_bridge_backend);
+                    EigenNative.kg_get_bridge_backend,
+                    EigenNative.TrySupportsConcurrentAnalyze);
             }
 
             throw new ArgumentException($"Unsupported Android KataGo native library: {nativeLibraryName}", nameof(nativeLibraryName));
@@ -211,6 +221,19 @@ internal sealed class AndroidNativeKataGoEngine : IDisposable
 
         [DllImport("katago_bridge_opencl", CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr kg_get_bridge_backend();
+
+        public static int TrySupportsConcurrentAnalyze()
+        {
+            try {
+                return kg_supports_concurrent_analyze();
+            }
+            catch (EntryPointNotFoundException) {
+                return 0;
+            }
+        }
+
+        [DllImport("katago_bridge_opencl", CallingConvention = CallingConvention.Cdecl)]
+        private static extern int kg_supports_concurrent_analyze();
     }
 
     private static class EigenNative
@@ -241,6 +264,19 @@ internal sealed class AndroidNativeKataGoEngine : IDisposable
 
         [DllImport("katago_bridge_eigen", CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr kg_get_bridge_backend();
+
+        public static int TrySupportsConcurrentAnalyze()
+        {
+            try {
+                return kg_supports_concurrent_analyze();
+            }
+            catch (EntryPointNotFoundException) {
+                return 0;
+            }
+        }
+
+        [DllImport("katago_bridge_eigen", CallingConvention = CallingConvention.Cdecl)]
+        private static extern int kg_supports_concurrent_analyze();
     }
 }
 #endif

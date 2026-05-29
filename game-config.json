@@ -9,6 +9,9 @@
     "model": {
       "fileName": "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz"
     },
+    "analysis": {
+      "maxConcurrentNativeRequests": 2
+    },
     "windows": {
       "preferOpenCl": true,
       "allowCpuFallback": true,

@@ -1178,7 +1178,6 @@ public class ReplaySystem : SystemBase
     private void PrepareChartAnalysisForAiRequest()
     {
         CancelCursorChartRequest();
-        CancelChartBackgroundRequest();
     }
 
     private void ResumeChartAnalysisAfterAiRequest()
