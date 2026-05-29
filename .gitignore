@@ -14,9 +14,6 @@ $RECYCLE.BIN/
 # Build
 /Build/
 /save/
-UnityProject/ProjectSettings/PackageManagerSettings.asset
-UnityProject/ProjectSettings/ProjectVersion.txt
-UnityProject/Assets/UI/Font/SourceHanSansSC-Regular SDF.asset
 UnityProject/Assets/StreamingAssets/KataGo/
 UnityProject/Assets/StreamingAssets/KataGo.meta
 UnityProject/Assets/StreamingAssets/KataGo/**/analysis_logs/
