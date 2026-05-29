@@ -32,6 +32,7 @@ public class DuelAiRecommendationSystem : SystemBase
         base.Init();
         scene.RegisterSystemEvent<OnAfterAddChessToBoard>(OnAfterAddChessToBoard);
         scene.RegisterSystemEvent<OnRequestDuelPass>(OnRequestDuelPass);
+        scene.RegisterSystemEvent<OnDuelTakeBackResult>(OnDuelTakeBackResult);
         scene.RegisterSystemEvent<OnDuelStateChanged>(OnDuelStateChanged);
     }
 
@@ -152,6 +153,15 @@ public class DuelAiRecommendationSystem : SystemBase
 
     private void OnRequestDuelPass(OnRequestDuelPass evt)
     {
+        ClearAiAnalysisRender();
+    }
+
+    private void OnDuelTakeBackResult(OnDuelTakeBackResult evt)
+    {
+        if (evt == null || !evt.success) {
+            return;
+        }
+
         ClearAiAnalysisRender();
     }
 
