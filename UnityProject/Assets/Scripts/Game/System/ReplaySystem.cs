@@ -31,6 +31,7 @@ public class ReplaySystem : SystemBase
     private SceneComponentReplay compReplay;
     private SceneComponentChessBoard compChessBoard;
     private SceneComponentDuel compDuel;
+    private readonly string kataGoRequestOwnerKey = $"ReplaySystem:{Guid.NewGuid():N}";
     private string recordFilePath = string.Empty;
     private CancellationTokenSource sceneCancellationTokenSource = new CancellationTokenSource();
     private CancellationTokenSource aiAnalysisCancellationTokenSource;
@@ -39,6 +40,18 @@ public class ReplaySystem : SystemBase
     private bool chartBackgroundStoppedByFailure;
     private int chartCursorRequestVersion;
     private int activeCursorChartMoveIndex = -1;
+
+    private struct ChartAnalysisBatchResult
+    {
+        public readonly int moveIndex;
+        public readonly ReplayChartPoint point;
+
+        public ChartAnalysisBatchResult(int moveIndex, ReplayChartPoint point)
+        {
+            this.moveIndex = moveIndex;
+            this.point = point;
+        }
+    }
 
     public ReplaySystem(SceneBase scene) : base(scene)
     {
@@ -59,6 +72,7 @@ public class ReplaySystem : SystemBase
         CancelAiAnalysisRequest();
         CancelChartBackgroundRequest();
         CancelCursorChartRequest();
+        KataGoBootstrap.CancelQueuedAnalyzeRequests(kataGoRequestOwnerKey);
         sceneCancellationTokenSource.Cancel();
         sceneCancellationTokenSource.Dispose();
         sceneCancellationTokenSource = null;
@@ -216,17 +230,28 @@ public class ReplaySystem : SystemBase
 
         List<int> sampleMoveIndexes = BuildChartLoadingSampleMoveIndexes(moveCount, sampleLimit);
         try {
-            for (int i = 0; i < sampleMoveIndexes.Count; i++) {
-                int moveIndex = sampleMoveIndexes[i];
+            List<Task<ChartAnalysisBatchResult>> sampleTasks = CreateChartAnalysisTasks(
+                sampleMoveIndexes,
+                CreateReplaySingleAttemptAnalyzeOptions("replay-chart-loading"),
+                sceneCancellationTokenSource.Token);
+            int completedSampleCount = 0;
+            bool sampleFailed = false;
+            while (sampleTasks.Count > 0) {
+                Task<ChartAnalysisBatchResult> completedTask = await Task.WhenAny(sampleTasks);
+                sampleTasks.Remove(completedTask);
+                ChartAnalysisBatchResult result = await completedTask;
+                completedSampleCount += 1;
                 LoadingPage.SetProgress(
                     "生成复盘图表",
-                    $"分析采样 {i + 1}/{sampleMoveIndexes.Count}（第 {moveIndex} 手）",
-                    (float)(i + 1) / Mathf.Max(sampleMoveIndexes.Count, 1));
+                    $"分析采样 {completedSampleCount}/{sampleMoveIndexes.Count}（第 {result.moveIndex} 手）",
+                    (float)completedSampleCount / Mathf.Max(sampleMoveIndexes.Count, 1));
 
-                if (!await AnalyzeAndUpsertChartPoint(moveIndex, KataGoBootstrap.CreateSingleAttemptAnalyzeOptions("replay-chart-loading"), sceneCancellationTokenSource.Token)) {
+                if (!IsValidChartPoint(result.point)) {
                     chartBackgroundStoppedByFailure = true;
-                    compReplay.chartStatus = $"图表采样第 {moveIndex} 手生成失败";
-                    break;
+                    compReplay.chartStatus = $"图表采样第 {result.moveIndex} 手生成失败";
+                    sampleFailed = true;
+                } else {
+                    UpsertChartPoint(result.point);
                 }
 
                 if (!scene.isMainScene) {
@@ -234,7 +259,9 @@ public class ReplaySystem : SystemBase
                 }
             }
 
-            compReplay.chartStatus = $"图表已生成采样 {compReplay.chartPoints.Count} 点";
+            if (!sampleFailed) {
+                compReplay.chartStatus = $"图表已生成采样 {compReplay.chartPoints.Count} 点";
+            }
         }
         catch (System.Exception ex) {
             compReplay.chartStatus = "图表生成失败";
@@ -273,23 +300,39 @@ public class ReplaySystem : SystemBase
         chartBackgroundCancellationTokenSource = requestCancellationTokenSource;
         CancellationToken cancellationToken = requestCancellationTokenSource.Token;
         try {
+            List<int> backgroundMoveIndexes = new List<int>();
             for (int moveIndex = 0; moveIndex <= moveCount; moveIndex++) {
-                if (!scene.isMainScene || cancellationToken.IsCancellationRequested || compReplay.isAiAnalyzing) {
+                if (GetChartPoint(moveIndex) == null) {
+                    backgroundMoveIndexes.Add(moveIndex);
+                }
+            }
+
+            List<Task<ChartAnalysisBatchResult>> backgroundTasks = CreateChartAnalysisTasks(
+                backgroundMoveIndexes,
+                CreateReplaySingleAttemptAnalyzeOptions("replay-chart-background"),
+                cancellationToken);
+            int completedBackgroundCount = 0;
+            compReplay.chartStatus = $"图表后台生成中（{backgroundTasks.Count} 点排队）";
+            while (backgroundTasks.Count > 0) {
+                if (!scene.isMainScene || cancellationToken.IsCancellationRequested) {
                     return;
                 }
 
-                if (GetChartPoint(moveIndex) != null) {
-                    continue;
-                }
-
-                compReplay.chartStatus = $"图表后台生成 {moveIndex}/{moveCount}";
-                if (!await AnalyzeAndUpsertChartPoint(moveIndex, KataGoBootstrap.CreateSingleAttemptAnalyzeOptions("replay-chart-background"), cancellationToken)) {
+                Task<ChartAnalysisBatchResult> completedTask = await Task.WhenAny(backgroundTasks);
+                backgroundTasks.Remove(completedTask);
+                ChartAnalysisBatchResult result = await completedTask;
+                if (!IsValidChartPoint(result.point)) {
                     chartBackgroundStoppedByFailure = true;
-                    compReplay.chartStatus = $"图表后台生成暂停，第 {moveIndex} 手待重试";
-                    XNLogger.LogWarn("Replay chart background analysis stopped after failure.", ("moveIndex", moveIndex.ToString()));
+                    compReplay.chartStatus = $"图表后台生成暂停，第 {result.moveIndex} 手待重试";
+                    XNLogger.LogWarn("Replay chart background analysis stopped after failure.", ("moveIndex", result.moveIndex.ToString()));
+                    requestCancellationTokenSource.Cancel();
+                    await DrainChartAnalysisTasksAsync(backgroundTasks);
                     break;
                 }
 
+                UpsertChartPoint(result.point);
+                completedBackgroundCount += 1;
+                compReplay.chartStatus = $"图表后台生成 {completedBackgroundCount}/{backgroundMoveIndexes.Count}（第 {result.moveIndex} 手）";
                 await Task.Delay(1, cancellationToken);
             }
 
@@ -462,7 +505,7 @@ public class ReplaySystem : SystemBase
 
             JObject result = await KataGoBootstrap.AnalyzeAsync(
                 query,
-                KataGoBootstrap.CreateRetryUntilCanceledAnalyzeOptions("replay-ai"),
+                CreateReplayRetryUntilCanceledAnalyzeOptions("replay-ai"),
                 requestCancellationTokenSource.Token);
             if (compReplay == null || requestVersion != compReplay.aiAnalysisVersion) {
                 return;
@@ -872,6 +915,20 @@ public class ReplaySystem : SystemBase
         return float.TryParse(token?.ToString(), out value);
     }
 
+    private KataGoAnalyzeOptions CreateReplaySingleAttemptAnalyzeOptions(string requestKind)
+    {
+        KataGoAnalyzeOptions options = KataGoBootstrap.CreateSingleAttemptAnalyzeOptions(requestKind);
+        options.ownerKey = kataGoRequestOwnerKey;
+        return options;
+    }
+
+    private KataGoAnalyzeOptions CreateReplayRetryUntilCanceledAnalyzeOptions(string requestKind)
+    {
+        KataGoAnalyzeOptions options = KataGoBootstrap.CreateRetryUntilCanceledAnalyzeOptions(requestKind);
+        options.ownerKey = kataGoRequestOwnerKey;
+        return options;
+    }
+
     private JObject BuildChartAnalysisJson(int moveIndex)
     {
         JObject query = new JObject
@@ -893,15 +950,57 @@ public class ReplaySystem : SystemBase
 
     private async Task<bool> AnalyzeAndUpsertChartPoint(int moveIndex, KataGoAnalyzeOptions options, CancellationToken cancellationToken)
     {
-        JObject query = BuildChartAnalysisJson(moveIndex);
-        JObject result = await KataGoBootstrap.AnalyzeAsync(query, options, cancellationToken);
-        ReplayChartPoint point = ParseChartPoint(moveIndex, result);
+        ReplayChartPoint point = await AnalyzeChartPoint(moveIndex, options, cancellationToken);
         if (point == null || (!point.hasWinrate && !point.hasScoreLead)) {
             return false;
         }
 
         UpsertChartPoint(point);
         return true;
+    }
+
+    private async Task<ReplayChartPoint> AnalyzeChartPoint(int moveIndex, KataGoAnalyzeOptions options, CancellationToken cancellationToken)
+    {
+        JObject query = BuildChartAnalysisJson(moveIndex);
+        JObject result = await KataGoBootstrap.AnalyzeAsync(query, options, cancellationToken);
+        return ParseChartPoint(moveIndex, result);
+    }
+
+    private async Task<ChartAnalysisBatchResult> AnalyzeChartPointForBatch(int moveIndex, KataGoAnalyzeOptions options, CancellationToken cancellationToken)
+    {
+        return new ChartAnalysisBatchResult(moveIndex, await AnalyzeChartPoint(moveIndex, options, cancellationToken));
+    }
+
+    private List<Task<ChartAnalysisBatchResult>> CreateChartAnalysisTasks(List<int> moveIndexes, KataGoAnalyzeOptions options, CancellationToken cancellationToken)
+    {
+        if (moveIndexes == null || moveIndexes.Count == 0) {
+            return new List<Task<ChartAnalysisBatchResult>>();
+        }
+
+        List<Task<ChartAnalysisBatchResult>> tasks = new List<Task<ChartAnalysisBatchResult>>(moveIndexes.Count);
+        foreach (int moveIndex in moveIndexes) {
+            tasks.Add(AnalyzeChartPointForBatch(moveIndex, options, cancellationToken));
+        }
+
+        return tasks;
+    }
+
+    private bool IsValidChartPoint(ReplayChartPoint point)
+    {
+        return point != null && (point.hasWinrate || point.hasScoreLead);
+    }
+
+    private async Task DrainChartAnalysisTasksAsync(List<Task<ChartAnalysisBatchResult>> tasks)
+    {
+        if (tasks == null || tasks.Count == 0) {
+            return;
+        }
+
+        try {
+            await Task.WhenAll(tasks);
+        }
+        catch (OperationCanceledException) {
+        }
     }
 
     private void UpsertChartPoint(ReplayChartPoint point)
@@ -1082,7 +1181,7 @@ public class ReplaySystem : SystemBase
                 compReplay.chartStatus = $"正在补算第 {moveIndex} 手图表";
                 bool success = await AnalyzeAndUpsertChartPoint(
                     moveIndex,
-                    KataGoBootstrap.CreateRetryUntilCanceledAnalyzeOptions("replay-chart-current"),
+                    CreateReplayRetryUntilCanceledAnalyzeOptions("replay-chart-current"),
                     cancellationToken);
                 if (success) {
                     chartBackgroundStoppedByFailure = false;

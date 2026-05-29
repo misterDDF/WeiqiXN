@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -33,6 +34,11 @@ public static class KataGoBootstrap
     private const int AnalyzeTimeoutMs = 45000;
     private const int DefaultAnalyzeRetryCount = 1;
     private const int DefaultAnalyzeRetryDelayMs = 500;
+    private const int AnalyzePriorityBackground = 10;
+    private const int AnalyzePriorityDefault = 50;
+    private const int AnalyzePriorityLoading = 60;
+    private const int AnalyzePriorityCurrent = 70;
+    private const int AnalyzePriorityAi = 100;
 #if UNITY_ANDROID && !UNITY_EDITOR
     private const int AndroidAnalyzePollMs = 250;
     private const int DefaultAndroidAnalyzeBackgroundGraceMs = 300000;
@@ -49,8 +55,11 @@ public static class KataGoBootstrap
 #if UNITY_ANDROID && !UNITY_EDITOR
     private static AndroidNativeKataGoEngine androidNativeEngine;
 #endif
-    private static SemaphoreSlim analysisSemaphore = new SemaphoreSlim(1, 1);
-    private static int analysisSemaphoreLimit = 1;
+    private static readonly object analysisQueueLock = new object();
+    private static readonly List<PendingAnalyzeRequest> pendingAnalyzeRequests = new List<PendingAnalyzeRequest>();
+    private static int analysisConcurrencyLimit = 1;
+    private static int activeAnalyzeRequestCount;
+    private static long nextAnalyzeRequestSequence;
     private static KataGoPaths[] engineCandidates;
     private static KataGoPaths activePaths;
     private static int activeCandidateIndex = -1;
@@ -196,6 +205,7 @@ public static class KataGoBootstrap
 
     public static KataGoAnalyzeOptions CreateDefaultAnalyzeOptions(string requestKind)
     {
+        string safeRequestKind = requestKind ?? string.Empty;
         return new KataGoAnalyzeOptions
         {
             timeoutMs = AnalyzeTimeoutMs,
@@ -205,7 +215,8 @@ public static class KataGoBootstrap
             restartEngineBeforeRetry = true,
             waitForegroundOnAndroid = true,
             androidBackgroundGraceMs = GetDefaultAndroidAnalyzeBackgroundGraceMs(),
-            requestKind = requestKind ?? string.Empty,
+            requestKind = safeRequestKind,
+            priority = ResolveDefaultAnalyzePriority(safeRequestKind),
         };
     }
 
@@ -224,6 +235,37 @@ public static class KataGoBootstrap
         return options;
     }
 
+    public static int CancelQueuedAnalyzeRequests(string ownerKey)
+    {
+        if (string.IsNullOrEmpty(ownerKey)) {
+            return 0;
+        }
+
+        List<PendingAnalyzeRequest> canceledRequests = new List<PendingAnalyzeRequest>();
+        lock (analysisQueueLock) {
+            for (int i = pendingAnalyzeRequests.Count - 1; i >= 0; i--) {
+                PendingAnalyzeRequest request = pendingAnalyzeRequests[i];
+                if (string.Equals(request.ownerKey, ownerKey, StringComparison.Ordinal)) {
+                    pendingAnalyzeRequests.RemoveAt(i);
+                    canceledRequests.Add(request);
+                }
+            }
+        }
+
+        foreach (PendingAnalyzeRequest request in canceledRequests) {
+            request.taskCompletionSource.TrySetCanceled(request.cancellationToken);
+        }
+
+        if (canceledRequests.Count > 0) {
+            XNLogger.LogInfo(
+                "KataGo queued analyze requests canceled by owner.",
+                ("ownerKey", ownerKey),
+                ("count", canceledRequests.Count.ToString()));
+        }
+
+        return canceledRequests.Count;
+    }
+
     private static KataGoAnalyzeOptions NormalizeAnalyzeOptions(KataGoAnalyzeOptions options)
     {
         if (options.timeoutMs <= 0) {
@@ -240,19 +282,134 @@ public static class KataGoBootstrap
             options.requestKind = "default";
         }
 
+        if (options.priority <= 0) {
+            options.priority = ResolveDefaultAnalyzePriority(options.requestKind);
+        }
+
+        if (options.ownerKey == null) {
+            options.ownerKey = string.Empty;
+        }
+
         return options;
+    }
+
+    private static int ResolveDefaultAnalyzePriority(string requestKind)
+    {
+        if (string.IsNullOrEmpty(requestKind)) {
+            return AnalyzePriorityDefault;
+        }
+
+        if (requestKind.StartsWith("replay-ai", StringComparison.OrdinalIgnoreCase)) {
+            return AnalyzePriorityAi;
+        }
+
+        if (requestKind.StartsWith("replay-chart-current", StringComparison.OrdinalIgnoreCase)) {
+            return AnalyzePriorityCurrent;
+        }
+
+        if (requestKind.StartsWith("replay-chart-loading", StringComparison.OrdinalIgnoreCase)) {
+            return AnalyzePriorityLoading;
+        }
+
+        if (requestKind.StartsWith("replay-chart-background", StringComparison.OrdinalIgnoreCase)) {
+            return AnalyzePriorityBackground;
+        }
+
+        return AnalyzePriorityDefault;
     }
 
     private static void ConfigureAnalysisConcurrency(int maxConcurrentRequests)
     {
         int safeMaxConcurrentRequests = Math.Max(1, maxConcurrentRequests);
-        if (analysisSemaphoreLimit == safeMaxConcurrentRequests) {
+        if (analysisConcurrencyLimit == safeMaxConcurrentRequests) {
             return;
         }
 
-        analysisSemaphore = new SemaphoreSlim(safeMaxConcurrentRequests, safeMaxConcurrentRequests);
-        analysisSemaphoreLimit = safeMaxConcurrentRequests;
+        lock (analysisQueueLock) {
+            analysisConcurrencyLimit = safeMaxConcurrentRequests;
+            DispatchQueuedAnalyzeRequestsLocked();
+        }
+
         XNLogger.LogInfo("KataGo analysis concurrency configured.", ("maxConcurrentRequests", safeMaxConcurrentRequests.ToString()));
+    }
+
+    private static Task<AnalyzeRequestLease> WaitForAnalyzeRequestSlotAsync(KataGoAnalyzeOptions options, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (analysisQueueLock) {
+            if (activeAnalyzeRequestCount < analysisConcurrencyLimit && pendingAnalyzeRequests.Count == 0) {
+                activeAnalyzeRequestCount += 1;
+                return Task.FromResult(new AnalyzeRequestLease());
+            }
+
+            PendingAnalyzeRequest request = new PendingAnalyzeRequest(
+                options.priority,
+                nextAnalyzeRequestSequence++,
+                options.ownerKey,
+                cancellationToken);
+            request.cancellationRegistration = cancellationToken.Register(CancelQueuedAnalyzeRequest, request);
+            pendingAnalyzeRequests.Add(request);
+            DispatchQueuedAnalyzeRequestsLocked();
+            return request.taskCompletionSource.Task;
+        }
+    }
+
+    private static void CancelQueuedAnalyzeRequest(object state)
+    {
+        PendingAnalyzeRequest request = state as PendingAnalyzeRequest;
+        if (request == null) {
+            return;
+        }
+
+        bool removed;
+        lock (analysisQueueLock) {
+            removed = pendingAnalyzeRequests.Remove(request);
+        }
+
+        if (removed) {
+            request.taskCompletionSource.TrySetCanceled(request.cancellationToken);
+        }
+    }
+
+    private static void ReleaseAnalyzeRequestSlot()
+    {
+        lock (analysisQueueLock) {
+            activeAnalyzeRequestCount = Math.Max(0, activeAnalyzeRequestCount - 1);
+            DispatchQueuedAnalyzeRequestsLocked();
+        }
+    }
+
+    private static void DispatchQueuedAnalyzeRequestsLocked()
+    {
+        while (activeAnalyzeRequestCount < analysisConcurrencyLimit && pendingAnalyzeRequests.Count > 0) {
+            int nextIndex = FindNextQueuedAnalyzeRequestIndexLocked();
+            PendingAnalyzeRequest request = pendingAnalyzeRequests[nextIndex];
+            pendingAnalyzeRequests.RemoveAt(nextIndex);
+
+            if (request.cancellationToken.IsCancellationRequested) {
+                request.taskCompletionSource.TrySetCanceled(request.cancellationToken);
+                continue;
+            }
+
+            activeAnalyzeRequestCount += 1;
+            request.taskCompletionSource.TrySetResult(new AnalyzeRequestLease());
+        }
+    }
+
+    private static int FindNextQueuedAnalyzeRequestIndexLocked()
+    {
+        int bestIndex = 0;
+        PendingAnalyzeRequest bestRequest = pendingAnalyzeRequests[0];
+        for (int i = 1; i < pendingAnalyzeRequests.Count; i++) {
+            PendingAnalyzeRequest candidate = pendingAnalyzeRequests[i];
+            if (candidate.priority > bestRequest.priority ||
+                (candidate.priority == bestRequest.priority && candidate.sequence < bestRequest.sequence)) {
+                bestIndex = i;
+                bestRequest = candidate;
+            }
+        }
+
+        return bestIndex;
     }
 
     private static int GetDefaultAndroidAnalyzeBackgroundGraceMs()
@@ -676,8 +833,7 @@ public static class KataGoBootstrap
 
     private static async Task<JObject> AnalyzeNativeOnceAsync(JObject query, KataGoAnalyzeOptions options, CancellationToken cancellationToken)
     {
-        await analysisSemaphore.WaitAsync(cancellationToken);
-        try {
+        using (await WaitForAnalyzeRequestSlotAsync(options, cancellationToken)) {
             if (!await EnsureNativeReadyAsync()) {
                 XNLogger.LogError("KataGo analyze failed, native engine is not running.", ("id", query["id"]?.ToString() ?? string.Empty));
                 return null;
@@ -686,9 +842,6 @@ public static class KataGoBootstrap
             JObject result = await Task.Run(() => AnalyzeNative(query, ResolveAnalyzeTimeoutMs(options)), cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             return result;
-        }
-        finally {
-            analysisSemaphore.Release();
         }
     }
 
@@ -733,8 +886,7 @@ public static class KataGoBootstrap
 
     private static async Task<JObject> AnalyzeProcessOnceAsync(JObject query, KataGoAnalyzeOptions options, CancellationToken cancellationToken)
     {
-        await analysisSemaphore.WaitAsync(cancellationToken);
-        try {
+        using (await WaitForAnalyzeRequestSlotAsync(options, cancellationToken)) {
             if (!await EnsureProcessReadyAsync()) {
                 XNLogger.LogError("KataGo analyze failed, process is not running.", ("id", query["id"]?.ToString() ?? string.Empty));
                 return null;
@@ -743,9 +895,6 @@ public static class KataGoBootstrap
             JObject result = await Task.Run(() => Analyze(query, ResolveAnalyzeTimeoutMs(options)), cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             return result;
-        }
-        finally {
-            analysisSemaphore.Release();
         }
     }
 #endif
@@ -1210,7 +1359,7 @@ public static class KataGoBootstrap
                 ("engine", paths.engineName),
                 ("libraryPath", paths.nativeLibraryPath),
                 ("bridgeBackend", GetNativeBridgeBackend()),
-                ("maxConcurrentRequests", analysisSemaphoreLimit.ToString()),
+                ("maxConcurrentRequests", analysisConcurrencyLimit.ToString()),
                 ("configPath", paths.configPath),
                 ("noWriteMode", paths.noWriteMode.ToString()),
                 ("modelPath", paths.modelPath));
@@ -2027,6 +2176,40 @@ public static class KataGoBootstrap
         }
     }
 
+    private sealed class PendingAnalyzeRequest
+    {
+        public readonly int priority;
+        public readonly long sequence;
+        public readonly string ownerKey;
+        public readonly CancellationToken cancellationToken;
+        public readonly TaskCompletionSource<AnalyzeRequestLease> taskCompletionSource;
+        public CancellationTokenRegistration cancellationRegistration;
+
+        public PendingAnalyzeRequest(int priority, long sequence, string ownerKey, CancellationToken cancellationToken)
+        {
+            this.priority = priority;
+            this.sequence = sequence;
+            this.ownerKey = ownerKey ?? string.Empty;
+            this.cancellationToken = cancellationToken;
+            taskCompletionSource = new TaskCompletionSource<AnalyzeRequestLease>(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+    }
+
+    private sealed class AnalyzeRequestLease : IDisposable
+    {
+        private bool disposed;
+
+        public void Dispose()
+        {
+            if (disposed) {
+                return;
+            }
+
+            disposed = true;
+            ReleaseAnalyzeRequestSlot();
+        }
+    }
+
     private struct PlatformConfig
     {
         public bool isSupported;
@@ -2059,4 +2242,6 @@ public struct KataGoAnalyzeOptions
     public bool waitForegroundOnAndroid;
     public int androidBackgroundGraceMs;
     public string requestKind;
+    public int priority;
+    public string ownerKey;
 }
