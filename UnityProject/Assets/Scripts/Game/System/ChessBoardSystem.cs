@@ -564,11 +564,21 @@ public class ChessBoardSystem : SystemBase
         float boardDistance = halfHeightByBoard / Mathf.Tan(halfVerticalFovRad);
         float cameraDistance = boardDistance * DuelPerspectiveFramePaddingFactor + Mathf.Max(extraYOffset, 0f);
         Vector3 cameraPosition = gridBound.center - viewDir * cameraDistance;
-        if (scene is ReplayScene) {
+        if (ShouldApplyReplayCameraHorizontalOffset(aspect)) {
             cameraPosition += Vector3.right * GetReplayCameraHorizontalOffset(gridBound, cameraDistance, halfVerticalFovRad, aspect);
         }
 
         duelVCamTransform.position = cameraPosition;
+    }
+
+    private bool ShouldApplyReplayCameraHorizontalOffset(float aspect)
+    {
+        return scene is ReplayScene && !IsPortraitAspect(aspect);
+    }
+
+    private bool IsPortraitAspect(float aspect)
+    {
+        return aspect > 0f && UIUtils.IsPortrait(new Rect(0f, 0f, aspect, 1f));
     }
 
     private float GetReplayCameraHorizontalOffset(Bounds gridBound, float cameraDistance, float halfVerticalFovRad, float aspect)
