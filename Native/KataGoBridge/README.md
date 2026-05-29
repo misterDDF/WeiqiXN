@@ -55,7 +55,7 @@ KataGo/engines/win-x64/native-eigen/katago_bridge.dll
 KataGo/engines/win-x64/native-opencl/katago_bridge.dll
 ```
 
-The current bridge wraps KataGo's analysis command in-process and redirects standard input/output internally. Treat it as one engine instance per process. That single engine instance supports multiple simultaneous `kg_analyze` calls when the bridge exports `kg_supports_concurrent_analyze`; the bridge writes all requests into one analysis input stream and dispatches final JSON output by request id. The bridge also exports `kg_analyze_many` / `kg_supports_analyze_many` for one request containing multiple `analyzeTurns`; it returns a JSON array of final responses collected for that request id. Do not create multiple bridge engine instances inside the same Unity process because standard stream redirection is process-wide. The Windows Unity native backend tries `native-opencl` first when configured, then falls back to `native-eigen` when CPU fallback is enabled. After the Windows DLL path is validated in Unity, the same CMake entry should be extended for Android `arm64-v8a` `.so` output.
+The current bridge wraps KataGo's analysis command in-process and redirects standard input/output internally. Treat it as one engine instance per process. That single engine instance supports multiple simultaneous `kg_analyze` calls when the bridge exports `kg_supports_concurrent_analyze`; the bridge writes all requests into one analysis input stream and dispatches final JSON output by request id. The bridge also exports `kg_analyze_many` / `kg_supports_analyze_many` for one request containing multiple `analyzeTurns`; it returns a JSON array of final responses collected for that request id. `kg_create_engine` starts analysis with only the normal model, while `kg_create_engine_with_human_model` additionally appends KataGo's `-human-model` argument for the Human SL companion model so analysis queries can request `humanPolicy`. Do not create multiple bridge engine instances inside the same Unity process because standard stream redirection is process-wide. The Windows Unity native backend tries `native-opencl` first when configured, then falls back to `native-eigen` when CPU fallback is enabled. The same bridge source is built for Windows DLLs and Android `arm64-v8a` `.so` plugins.
 
 Build the Android `arm64-v8a` eigen `.so` and copy it into Unity's Android plugin path:
 
@@ -109,3 +109,5 @@ Smoke test the runtime copy:
 python Native/KataGoBridge/tools/smoke_windows_bridge.py
 python Native/KataGoBridge/tools/smoke_windows_bridge.py native-opencl 300000
 ```
+
+The smoke script requires both `KataGo/models/kata1-b18c384nbt-s9996604416-d4316597426.bin.gz` and `KataGo/models/b18c384nbt-humanv0.bin.gz`, creates the engine through `kg_create_engine_with_human_model`, and checks that a 9x9 Human SL query returns `humanPolicy`.

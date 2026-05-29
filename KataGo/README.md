@@ -29,6 +29,7 @@ KataGo/
         analysis_nowrite.cfg
   models/
     kata1-b18c384nbt-s9996604416-d4316597426.bin.gz
+    b18c384nbt-humanv0.bin.gz
   configs/
     analysis.cfg
 ```
@@ -37,12 +38,14 @@ When the game root is writable, the Unity adapter tries OpenCL first and falls b
 
 When the selected backend is `native`, Unity loads `katago_bridge.dll` through P/Invoke from the selected native candidate directory. The bridge uses the same analysis JSON request and response contract as `katago.exe analysis`. A single bridge engine instance can accept multiple in-flight `kg_analyze` calls when the DLL exports `kg_supports_concurrent_analyze`; the bridge dispatches final output by request id. Do not create multiple native bridge engine instances in one Unity process because the bridge still redirects KataGo analysis through process-wide standard streams.
 
-For Windows player builds, the `native` backend copies the configured native candidate directories, the configured model, and `game-config.json`; it does not copy the OpenCL/Eigen `katago.exe` engine folders. If CPU fallback is enabled, `native-eigen` is required and `native-opencl` is optional at build time. The `exe` backend keeps the full KataGo runtime copy behavior.
+Human SL is configured as a companion model. `game-config.json` sets the normal analysis model with `katago.model.fileName` and the Human SL model with `katago.model.humanSlFileName`. The exe backend starts KataGo with both `-model` and `-human-model` when the Human SL file exists. The native backend uses `kg_create_engine_with_human_model`, so runtime DLLs/SOs must be rebuilt after bridge source changes.
+
+For Windows player builds, the `native` backend copies the configured native candidate directories, both configured models, and `game-config.json`; it does not copy the OpenCL/Eigen `katago.exe` engine folders. If CPU fallback is enabled, `native-eigen` is required and `native-opencl` is optional at build time. The `exe` backend keeps the full KataGo runtime copy behavior.
 
 For the first smoke test, start KataGo with:
 
 ```text
-katago.exe analysis -config analysis_example.cfg -model ../../../models/kata1-b18c384nbt-s9996604416-d4316597426.bin.gz
+katago.exe analysis -config analysis_example.cfg -model ../../../models/kata1-b18c384nbt-s9996604416-d4316597426.bin.gz -human-model ../../../models/b18c384nbt-humanv0.bin.gz
 ```
 
 KataGo may create `analysis_logs` under the selected engine directory at runtime. These logs are generated diagnostics and should not be committed.

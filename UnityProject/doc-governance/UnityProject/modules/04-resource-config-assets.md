@@ -22,7 +22,7 @@
 - `ResourceManager` 支持同步 prefab 加载、异步 prefab 加载、异步资源请求、加载绑定者取消。
 - `game_prefab.json` 已配置 EventSystem、IngameDebugConsole、落子 VFX、黑白棋子预制体。
 - `chess_board.json` 已配置 `9x9`、`13x13`、`19x19`。
-- `duel_ai_difficulty.json` 已配置电脑对局难度选项、KataGo human policy profile、基础访问次数、基础候选点数量、失误率、采样温度、基础最大亏损目数、访问权重、提前虚手开关、思考延迟，以及 9 路、13 路、19 路分别使用的实时访问上限、候选点数量、最大亏损目数覆盖值和动态预算阈值。
+- `duel_ai_difficulty.json` 已配置电脑对局难度选项、KataGo Human SL profile、是否启用 `humanPolicy`、`humanPolicy` 使用概率、基础访问次数、基础候选点数量、失误率、采样温度、基础最大亏损目数、访问权重、提前虚手开关、思考延迟，以及 9 路、13 路、19 路分别使用的实时访问上限、候选点数量、最大亏损目数覆盖值和动态预算阈值。
 - `scene.json` 已配置 MainMenu 和 Duel。
 - `ui_page.json` 已配置 LoadingPage、MainMenuPage、UserInfoPopup、ReplayPage、DuelSetupPopup、LanRoomPopup、DuelPage、ConfirmPopup。
 - `message.json` 已配置运行时 UI 展示文案，包括通用弹窗按钮、Loading 状态、局域网房间状态、对局 HUD 和操作反馈文案；代码侧通过 `MessageText` 消费。
@@ -48,7 +48,7 @@
 - Runtime JSON lives under `Assets/Config/DataJson/duel_hold_time/`, `duel_byoyomi_count/`, and `duel_byoyomi_time/`.
 - Generated data types live under `Assets/Config/DataType/duel_hold_time/`, `duel_byoyomi_count/`, and `duel_byoyomi_time/`.
 - Computer-duel difficulty configs are exported from `ConfigExporter/xlsx/duel_ai_difficulty.xlsx`.
-- Runtime AI difficulty JSON lives under `Assets/Config/DataJson/duel_ai_difficulty/`; its generated data type lives under `Assets/Config/DataType/duel_ai_difficulty/`.
+- Runtime AI difficulty JSON lives under `Assets/Config/DataJson/duel_ai_difficulty/`; its generated data type lives under `Assets/Config/DataType/duel_ai_difficulty/`. `humanSLProfile` is sent to KataGo only when Human SL is available, and `useHumanPolicy` plus `humanPolicyWeight` controls how often AI move selection samples the returned `humanPolicy` before falling back to normal analysis candidates.
 - Board-size-specific AI parameters are exported as `realtimeMaxVisits9/13/19`, `candidateLimit9/13/19`, and `maxScoreLoss9/13/19`. `maxVisits` remains the theoretical upper bound for the difficulty, while the realtime visit budget is resolved per board size at runtime.
 - Dynamic-budget AI parameters are exported as `dynamicBudgetEnabled`, `probeMaxVisits9/13/19`, `openingProbeMoveLimit9/13/19`, `closeScoreLeadThreshold9/13/19`, `closeWinrateThreshold9/13/19`, `simpleCandidateGapThreshold9/13/19`, `confidentBestMoveGapThreshold9/13/19`, `forceFullBudgetMoveLimit9/13/19`, and `probeMinMoveInfoCount`. Disabled difficulties keep the single-request behavior.
 - Runtime config JSON is UTF-8. When validating config JSON that contains Chinese text in Windows PowerShell, use `Get-Content -Raw -Encoding UTF8 ... | ConvertFrom-Json`; omitting `-Encoding UTF8` can corrupt Chinese text during PowerShell reads and surface as a misleading JSON parse error. Unity-side config loading is not affected when the file itself is valid UTF-8 JSON.

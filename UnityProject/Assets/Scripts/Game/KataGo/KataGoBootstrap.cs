@@ -21,6 +21,7 @@ public static class KataGoBootstrap
     private const string AndroidNativeOpenClEngineName = "android-opencl";
     private const string AndroidNativeCpuEngineName = "android-eigen";
     private const string ModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
+    private const string HumanSlModelFileName = "b18c384nbt-humanv0.bin.gz";
     private const string AnalysisConfigFileName = "analysis_example.cfg";
     private const string NoWriteAnalysisConfigFileName = "analysis_nowrite.cfg";
     private const int OpenClSmokeTestTimeoutMs = 300000;
@@ -43,7 +44,6 @@ public static class KataGoBootstrap
     private const int AndroidAnalyzePollMs = 250;
     private const int DefaultAndroidAnalyzeBackgroundGraceMs = 300000;
 #endif
-    private const bool HumanSlProfileEnabled = false;
     private static readonly int[] SmokeTestBoardSizes = { 9, 13, 19 };
     private static readonly float[] SmokeTestBoardProgressWeights = { 0.90f, 0.05f, 0.05f };
     private static readonly float[] AndroidOpenClSmokeTestProgressWeights = { 1f, 0f, 0f };
@@ -473,8 +473,8 @@ public static class KataGoBootstrap
 
     public static bool CanUseHumanSlProfile()
     {
-#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
-        return HumanSlProfileEnabled;
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN || UNITY_ANDROID
+        return hasActivePaths && activePaths.HasHumanSlModel;
 #else
         return false;
 #endif
@@ -517,6 +517,7 @@ public static class KataGoBootstrap
             canWriteGameRoot = runtimeInfo.canWriteGameRoot,
             writeFailureReason = runtimeInfo.writeFailureReason,
             modelFileName = string.IsNullOrWhiteSpace(kataGoConfig.modelFileName) ? ModelFileName : kataGoConfig.modelFileName,
+            humanSlModelFileName = string.IsNullOrWhiteSpace(kataGoConfig.humanSlModelFileName) ? HumanSlModelFileName : kataGoConfig.humanSlModelFileName,
             windowsPreferOpenCl = kataGoConfig.windowsPreferOpenCl,
             windowsAllowCpuFallback = kataGoConfig.windowsAllowCpuFallback,
             windowsNativeOpenClEngineName = kataGoConfig.windowsNativeOpenClEngineName,
@@ -535,6 +536,7 @@ public static class KataGoBootstrap
             canWriteGameRoot = true,
             writeFailureReason = null,
             modelFileName = runtimePaths.modelFileName,
+            humanSlModelFileName = runtimePaths.humanSlModelFileName,
             androidAbi = runtimePaths.abi,
             androidPreferOpenCl = kataGoConfig.androidPreferOpenCl,
             androidAllowCpuFallback = kataGoConfig.androidAllowCpuFallback,
@@ -596,6 +598,7 @@ public static class KataGoBootstrap
             exePath = Path.Combine(engineRoot, "katago.exe"),
             configPath = Path.Combine(engineRoot, configFileName),
             modelPath = Path.Combine(platformConfig.kataGoRoot, "models", platformConfig.modelFileName),
+            humanSlModelPath = BuildHumanSlModelPath(platformConfig),
             workingDirectory = engineRoot,
             engineName = engineName,
             smokeTestTimeoutMs = smokeTestTimeoutMs,
@@ -655,6 +658,7 @@ public static class KataGoBootstrap
             nativeLibraryPath = Path.Combine(engineRoot, NativeBridgeDllName),
             configPath = Path.Combine(engineRoot, configFileName),
             modelPath = Path.Combine(platformConfig.kataGoRoot, "models", platformConfig.modelFileName),
+            humanSlModelPath = BuildHumanSlModelPath(platformConfig),
             workingDirectory = engineRoot,
             engineName = engineName,
             smokeTestTimeoutMs = smokeTestTimeoutMs,
@@ -703,6 +707,7 @@ public static class KataGoBootstrap
             nativeLibraryPath = nativeLibraryName,
             configPath = Path.Combine(platformConfig.engineRoot, configFileName),
             modelPath = Path.Combine(platformConfig.kataGoRoot, "models", platformConfig.modelFileName),
+            humanSlModelPath = BuildHumanSlModelPath(platformConfig),
             workingDirectory = platformConfig.engineRoot,
             engineName = engineName,
             smokeTestTimeoutMs = smokeTestTimeoutMs,
@@ -711,7 +716,17 @@ public static class KataGoBootstrap
             skipNativeLibraryFileCheck = true,
         };
     }
+
 #endif
+
+    private static string BuildHumanSlModelPath(PlatformConfig platformConfig)
+    {
+        if (string.IsNullOrWhiteSpace(platformConfig.humanSlModelFileName)) {
+            return string.Empty;
+        }
+
+        return Path.Combine(platformConfig.kataGoRoot, "models", platformConfig.humanSlModelFileName);
+    }
 
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
     private static void StartProcessTask(KataGoPaths[] candidates)
@@ -1170,7 +1185,8 @@ public static class KataGoBootstrap
                     ("exePath", paths.exePath),
                     ("configPath", paths.configPath),
                     ("noWriteMode", paths.noWriteMode.ToString()),
-                    ("modelPath", paths.modelPath));
+                    ("modelPath", paths.modelPath),
+                    ("humanSlModelPath", paths.HumanSlModelArgument));
                 return;
             }
 
@@ -1263,7 +1279,8 @@ public static class KataGoBootstrap
                     ("bridgeBackend", GetNativeBridgeBackendForLog()),
                     ("configPath", paths.configPath),
                     ("noWriteMode", paths.noWriteMode.ToString()),
-                    ("modelPath", paths.modelPath));
+                    ("modelPath", paths.modelPath),
+                    ("humanSlModelPath", paths.HumanSlModelArgument));
                 return;
             }
 
@@ -1321,6 +1338,7 @@ public static class KataGoBootstrap
                 ("libraryExists", File.Exists(paths.nativeLibraryPath).ToString()),
                 ("configExists", File.Exists(paths.configPath).ToString()),
                 ("modelExists", File.Exists(paths.modelPath).ToString()),
+                ("humanSlModelExists", paths.HasHumanSlModel.ToString()),
                 ("noWriteMode", paths.noWriteMode.ToString()),
                 ("workingDirectory", paths.workingDirectory),
                 ("workingDirectoryExists", Directory.Exists(paths.workingDirectory).ToString()));
@@ -1477,6 +1495,7 @@ public static class KataGoBootstrap
         androidNativeEngine.Start(
             paths.configPath,
             paths.modelPath,
+            paths.HumanSlModelArgument,
             paths.workingDirectory);
 #else
         windowsNativeEngine = new Win32NativeKataGoEngine();
@@ -1484,6 +1503,7 @@ public static class KataGoBootstrap
             paths.nativeLibraryPath,
             paths.configPath,
             paths.modelPath,
+            paths.HumanSlModelArgument,
             paths.workingDirectory);
 #endif
     }
@@ -1548,7 +1568,8 @@ public static class KataGoBootstrap
                 ("maxConcurrentRequests", analysisConcurrencyLimit.ToString()),
                 ("configPath", paths.configPath),
                 ("noWriteMode", paths.noWriteMode.ToString()),
-                ("modelPath", paths.modelPath));
+                ("modelPath", paths.modelPath),
+                ("humanSlModelPath", paths.HumanSlModelArgument));
         }
         else {
             result = RunStartupOperationWithProgress(
@@ -1607,7 +1628,8 @@ public static class KataGoBootstrap
                 ("exePath", paths.exePath),
                 ("configPath", paths.configPath),
                 ("noWriteMode", paths.noWriteMode.ToString()),
-                ("modelPath", paths.modelPath));
+                ("modelPath", paths.modelPath),
+                ("humanSlModelPath", paths.HumanSlModelArgument));
 
             RunSmokeTest(paths, progressStart, progressEnd, cancellationToken);
             return true;
@@ -1635,6 +1657,7 @@ public static class KataGoBootstrap
                 ("exeExists", File.Exists(paths.exePath).ToString()),
                 ("configExists", File.Exists(paths.configPath).ToString()),
                 ("modelExists", File.Exists(paths.modelPath).ToString()),
+                ("humanSlModelExists", paths.HasHumanSlModel.ToString()),
                 ("workingDirectory", paths.workingDirectory),
                 ("workingDirectoryExists", Directory.Exists(paths.workingDirectory).ToString()));
             StopProcess();
@@ -1647,9 +1670,10 @@ public static class KataGoBootstrap
         StopProcess();
 
         process = new Win32KataGoProcess();
+        string humanModelArg = paths.HasHumanSlModel ? $" -human-model \"{paths.humanSlModelPath}\"" : string.Empty;
         process.Start(
             paths.exePath,
-            $"analysis -config \"{paths.configPath}\" -model \"{paths.modelPath}\"",
+            $"analysis -config \"{paths.configPath}\" -model \"{paths.modelPath}\"{humanModelArg}",
             paths.workingDirectory);
     }
 
@@ -2385,7 +2409,8 @@ public static class KataGoBootstrap
             && (result["moveInfos"] != null
             || result["ownership"] != null
             || result["rootInfo"] != null
-            || result["policy"] != null);
+            || result["policy"] != null
+            || result["humanPolicy"] != null);
     }
 
     private static void LogKataGoResultDiagnostics(JObject result, string requestId)
@@ -2515,12 +2540,16 @@ public static class KataGoBootstrap
         public string nativeLibraryPath;
         public string configPath;
         public string modelPath;
+        public string humanSlModelPath;
         public string workingDirectory;
         public string engineName;
         public int smokeTestTimeoutMs;
         public bool noWriteMode;
         public bool isNative;
         public bool skipNativeLibraryFileCheck;
+
+        public bool HasHumanSlModel => !string.IsNullOrWhiteSpace(humanSlModelPath) && File.Exists(humanSlModelPath);
+        public string HumanSlModelArgument => HasHumanSlModel ? humanSlModelPath : string.Empty;
 
         public bool IsValid(out string reason)
         {
@@ -2648,6 +2677,7 @@ public static class KataGoBootstrap
         public bool canWriteGameRoot;
         public string writeFailureReason;
         public string modelFileName;
+        public string humanSlModelFileName;
         public bool windowsPreferOpenCl;
         public bool windowsAllowCpuFallback;
         public string windowsNativeOpenClEngineName;

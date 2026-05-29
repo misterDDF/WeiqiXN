@@ -13,6 +13,7 @@ public class DuelAiDifficultyDataType
     public string rankMax;  // 段位上限
     public string humanSLProfile;  // KataGo人类风格Profile
     public bool useHumanPolicy;  // 使用HumanPolicy
+    public float humanPolicyWeight;  // HumanPolicy使用概率
     public bool includePolicy;  // 包含Policy输出
     public int maxVisits;  // 最大访问次数
     public int candidateLimit;  // 候选点数量

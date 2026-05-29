@@ -13,6 +13,7 @@ internal sealed class Win32NativeKataGoEngine : IDisposable
     private IntPtr engine;
     private IntPtr library;
     private KgCreateEngine kgCreateEngine;
+    private KgCreateEngineWithHumanModel kgCreateEngineWithHumanModel;
     private KgAnalyze kgAnalyze;
     private KgAnalyzeMany kgAnalyzeMany;
     private KgFreeString kgFreeString;
@@ -27,7 +28,7 @@ internal sealed class Win32NativeKataGoEngine : IDisposable
     public bool SupportsConcurrentAnalyze { get; private set; }
     public bool SupportsAnalyzeMany { get; private set; }
 
-    public void Start(string libraryPath, string configPath, string modelPath, string workingDirectory)
+    public void Start(string libraryPath, string configPath, string modelPath, string humanSlModelPath, string workingDirectory)
     {
         ThrowIfDisposed();
         Stop();
@@ -38,7 +39,17 @@ internal sealed class Win32NativeKataGoEngine : IDisposable
         SupportsAnalyzeMany = kgSupportsAnalyzeMany() != 0;
 
         StringBuilder error = new StringBuilder(ErrorBufferSize);
-        int result = kgCreateEngine(configPath, modelPath, workingDirectory, out engine, error, error.Capacity);
+        int result;
+        if (!string.IsNullOrWhiteSpace(humanSlModelPath)) {
+            if (kgCreateEngineWithHumanModel == null) {
+                throw new InvalidOperationException("KataGo native bridge does not export kg_create_engine_with_human_model.");
+            }
+
+            result = kgCreateEngineWithHumanModel(configPath, modelPath, humanSlModelPath, workingDirectory, out engine, error, error.Capacity);
+        } else {
+            result = kgCreateEngine(configPath, modelPath, workingDirectory, out engine, error, error.Capacity);
+        }
+
         if (result == 0 || engine == IntPtr.Zero) {
             string message = error.ToString();
             throw new InvalidOperationException(string.IsNullOrWhiteSpace(message) ? "kg_create_engine failed." : message);
@@ -141,6 +152,7 @@ internal sealed class Win32NativeKataGoEngine : IDisposable
         }
 
         kgCreateEngine = LoadFunction<KgCreateEngine>("kg_create_engine");
+        kgCreateEngineWithHumanModel = LoadFunction<KgCreateEngineWithHumanModel>("kg_create_engine_with_human_model", false);
         kgAnalyze = LoadFunction<KgAnalyze>("kg_analyze");
         kgAnalyzeMany = LoadFunction<KgAnalyzeMany>("kg_analyze_many");
         kgFreeString = LoadFunction<KgFreeString>("kg_free_string");
@@ -183,6 +195,7 @@ internal sealed class Win32NativeKataGoEngine : IDisposable
     private void UnloadBridgeLibrary()
     {
         kgCreateEngine = null;
+        kgCreateEngineWithHumanModel = null;
         kgAnalyze = null;
         kgAnalyzeMany = null;
         kgFreeString = null;
@@ -218,6 +231,16 @@ internal sealed class Win32NativeKataGoEngine : IDisposable
     private delegate int KgCreateEngine(
         string configPath,
         string modelPath,
+        string workingDirectory,
+        out IntPtr outEngine,
+        StringBuilder errorBuffer,
+        int errorBufferSize);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+    private delegate int KgCreateEngineWithHumanModel(
+        string configPath,
+        string modelPath,
+        string humanSlModelPath,
         string workingDirectory,
         out IntPtr outEngine,
         StringBuilder errorBuffer,

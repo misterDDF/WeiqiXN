@@ -357,7 +357,7 @@ class KataGoBridgeEngine final {
     stop();
   }
 
-  bool start(const char* configPath, const char* modelPath, const char* workingDirectory, std::string& error) {
+  bool start(const char* configPath, const char* modelPath, const char* humanSlModelPath, const char* workingDirectory, std::string& error) {
     std::lock_guard<std::mutex> lock(stateMutex);
     if (started) {
       error = "KataGo bridge engine is already started.";
@@ -392,6 +392,10 @@ class KataGoBridgeEngine final {
     args.push_back(runtimeOverrideConfigPath.empty() ? std::string(configPath) : runtimeOverrideConfigPath);
     args.push_back("-model");
     args.push_back(modelPath);
+    if (humanSlModelPath != nullptr && humanSlModelPath[0] != '\0') {
+      args.push_back("-human-model");
+      args.push_back(humanSlModelPath);
+    }
     args.push_back("-quit-without-waiting");
 
     input = std::make_unique<BlockingInputStreamBuf>();
@@ -808,7 +812,32 @@ KG_EXPORT int kg_create_engine(
 
   auto engine = std::make_unique<KataGoBridgeEngine>();
   std::string error;
-  if (!engine->start(configPath, modelPath, workingDirectory, error)) {
+  if (!engine->start(configPath, modelPath, nullptr, workingDirectory, error)) {
+    writeError(errorBuffer, errorBufferSize, error);
+    return 0;
+  }
+
+  *outEngine = engine.release();
+  writeError(errorBuffer, errorBufferSize, "");
+  return 1;
+}
+
+KG_EXPORT int kg_create_engine_with_human_model(
+    const char* configPath,
+    const char* modelPath,
+    const char* humanSlModelPath,
+    const char* workingDirectory,
+    void** outEngine,
+    char* errorBuffer,
+    int errorBufferSize) {
+  if (outEngine == nullptr) {
+    writeError(errorBuffer, errorBufferSize, "outEngine is null.");
+    return 0;
+  }
+
+  auto engine = std::make_unique<KataGoBridgeEngine>();
+  std::string error;
+  if (!engine->start(configPath, modelPath, humanSlModelPath, workingDirectory, error)) {
     writeError(errorBuffer, errorBufferSize, error);
     return 0;
   }

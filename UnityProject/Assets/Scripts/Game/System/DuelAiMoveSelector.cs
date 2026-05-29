@@ -21,8 +21,40 @@ public static class DuelAiMoveSelector
         }
 
         JArray moveInfos = result["moveInfos"] as JArray;
+        string topMove = GetTopMove(moveInfos);
+        if (IsPassMove(topMove)) {
+            if (LoggerConfig.ENABLE_DUEL_AI_DETAIL_LOG) {
+                XNLogger.LogInfo(
+                    "Duel AI top move is pass.",
+                    ("moveInfoCount", (moveInfos?.Count ?? 0).ToString()),
+                    ("boardSize", runtimeParams.boardSize.ToString()));
+            }
+            return BuildPassDecision("moveinfos_top_pass");
+        }
+
+        if (ShouldTryHumanPolicy(difficultyData)) {
+            DuelAiTurnDecision humanPolicyDecision = SelectTurnDecisionFromPolicy(
+                scene,
+                result,
+                difficultyData,
+                runtimeParams,
+                "humanPolicy",
+                "human_policy_candidate",
+                false);
+            if (humanPolicyDecision.type != DuelAiTurnDecisionType.Failed) {
+                return humanPolicyDecision;
+            }
+        }
+
         if (moveInfos == null || moveInfos.Count == 0) {
-            DuelAiTurnDecision policyDecision = SelectTurnDecisionFromPolicy(scene, result, difficultyData, runtimeParams);
+            DuelAiTurnDecision policyDecision = SelectTurnDecisionFromPolicy(
+                scene,
+                result,
+                difficultyData,
+                runtimeParams,
+                "policy",
+                "policy_candidate",
+                true);
             if (policyDecision.type != DuelAiTurnDecisionType.Failed) {
                 return policyDecision;
             }
@@ -33,22 +65,12 @@ public static class DuelAiMoveSelector
                 ("moveInfoTokenType", result["moveInfos"]?.Type.ToString() ?? "null"),
                 ("moveInfoCount", moveInfos?.Count.ToString() ?? "null"),
                 ("policyCount", ((result["policy"] as JArray)?.Count ?? 0).ToString()),
+                ("humanPolicyCount", ((result["humanPolicy"] as JArray)?.Count ?? 0).ToString()),
                 ("hasOwnership", (result["ownership"] != null).ToString()),
                 ("hasRootInfo", (result["rootInfo"] != null).ToString()),
                 ("warning", result["warning"]?.ToString() ?? string.Empty),
                 ("error", result["error"]?.ToString() ?? string.Empty));
             return BuildFailedDecision("moveinfos_missing_policy_unusable");
-        }
-
-        string topMove = GetTopMove(moveInfos);
-        if (IsPassMove(topMove)) {
-            if (LoggerConfig.ENABLE_DUEL_AI_DETAIL_LOG) {
-                XNLogger.LogInfo(
-                    "Duel AI top move is pass.",
-                    ("moveInfoCount", moveInfos.Count.ToString()),
-                    ("boardSize", runtimeParams.boardSize.ToString()));
-            }
-            return BuildPassDecision("moveinfos_top_pass");
         }
 
         int boardSize = compChessBoard.chessBoardGrid.gridSize;
@@ -124,12 +146,19 @@ public static class DuelAiMoveSelector
         return BuildMoveDecision(pickedCandidate.coords, "moveinfos_candidate");
     }
 
-    private static DuelAiTurnDecision SelectTurnDecisionFromPolicy(SceneBase scene, JObject result, DuelAiDifficultyDataType difficultyData, DuelAiRuntimeParams runtimeParams)
+    private static DuelAiTurnDecision SelectTurnDecisionFromPolicy(
+        SceneBase scene,
+        JObject result,
+        DuelAiDifficultyDataType difficultyData,
+        DuelAiRuntimeParams runtimeParams,
+        string policyKey,
+        string decisionReason,
+        bool allowPassSelection)
     {
         SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
-        JArray policy = result?["policy"] as JArray;
+        JArray policy = result?[policyKey] as JArray;
         if (compChessBoard?.chessBoardGrid == null || policy == null || policy.Count == 0) {
-            return BuildFailedDecision("policy_missing");
+            return BuildFailedDecision($"{policyKey}_missing");
         }
 
         int boardSize = compChessBoard.chessBoardGrid.gridSize;
@@ -137,9 +166,10 @@ public static class DuelAiMoveSelector
         if (policy.Count < pointCount) {
             XNLogger.LogWarn(
                 "Duel AI policy fallback skipped, policy length invalid.",
+                ("policyKey", policyKey),
                 ("policyCount", policy.Count.ToString()),
                 ("pointCount", pointCount.ToString()));
-            return BuildFailedDecision("policy_length_invalid");
+            return BuildFailedDecision($"{policyKey}_length_invalid");
         }
 
         bool hasPassPolicy = policy.Count > pointCount;
@@ -186,10 +216,11 @@ public static class DuelAiMoveSelector
             });
         }
 
-        if (hasPassPolicy && passPolicy > 0f && passPolicy > bestLegalPointPolicy) {
+        if (allowPassSelection && hasPassPolicy && passPolicy > 0f && passPolicy > bestLegalPointPolicy) {
             if (LoggerConfig.ENABLE_DUEL_AI_DETAIL_LOG) {
                 XNLogger.LogInfo(
                     "Duel AI policy fallback selected pass.",
+                    ("policyKey", policyKey),
                     ("policyCount", policy.Count.ToString()),
                     ("boardSize", runtimeParams.boardSize.ToString()),
                     ("candidateLimit", candidateLimit.ToString()),
@@ -197,32 +228,35 @@ public static class DuelAiMoveSelector
                     ("bestLegalPointPolicy", bestLegalPointPolicy.ToString()),
                     ("legalCount", candidates.Count.ToString()));
             }
-            return BuildPassDecision("policy_pass_best");
+            return BuildPassDecision($"{decisionReason}_pass_best");
         }
 
         if (candidates.Count == 0) {
             XNLogger.LogWarn(
                 "Duel AI policy fallback found no legal candidates.",
+                ("policyKey", policyKey),
                 ("policyCount", policy.Count.ToString()),
                 ("candidateLimit", candidateLimit.ToString()),
                 ("hasPassPolicy", hasPassPolicy.ToString()),
                 ("passPolicy", passPolicy.ToString()),
                 ("illegalCount", illegalCount.ToString()),
                 ("zeroProbabilityCount", zeroProbabilityCount.ToString()));
-            if (hasPassPolicy && passPolicy > 0f) {
-                return BuildPassDecision("policy_pass_no_legal_candidate");
+            if (allowPassSelection && hasPassPolicy && passPolicy > 0f) {
+                return BuildPassDecision($"{decisionReason}_pass_no_legal_candidate");
             }
 
-            return BuildFailedDecision("policy_no_legal_candidate");
+            return BuildFailedDecision($"{policyKey}_no_legal_candidate");
         }
 
         DuelAiMoveCandidate pickedCandidate = PickCandidate(candidates, difficultyData);
         if (LoggerConfig.ENABLE_DUEL_AI_DETAIL_LOG) {
             XNLogger.LogInfo(
                 "Duel AI policy fallback selected move.",
+                ("policyKey", policyKey),
                 ("policyCount", policy.Count.ToString()),
                 ("boardSize", runtimeParams.boardSize.ToString()),
                 ("candidateLimit", candidateLimit.ToString()),
+                ("allowPassSelection", allowPassSelection.ToString()),
                 ("hasPassPolicy", hasPassPolicy.ToString()),
                 ("passPolicy", passPolicy.ToString()),
                 ("bestLegalPointPolicy", bestLegalPointPolicy.ToString()),
@@ -230,7 +264,17 @@ public static class DuelAiMoveSelector
                 ("pickedCoords", pickedCandidate.coords?.ToString() ?? "null"),
                 ("pickedWeight", pickedCandidate.visits.ToString()));
         }
-        return BuildMoveDecision(pickedCandidate.coords, "policy_candidate");
+        return BuildMoveDecision(pickedCandidate.coords, decisionReason);
+    }
+
+    private static bool ShouldTryHumanPolicy(DuelAiDifficultyDataType difficultyData)
+    {
+        if (!difficultyData.useHumanPolicy || !KataGoBootstrap.CanUseHumanSlProfile()) {
+            return false;
+        }
+
+        float humanPolicyWeight = Mathf.Clamp01(difficultyData.humanPolicyWeight);
+        return humanPolicyWeight > 0f && UnityEngine.Random.value < humanPolicyWeight;
     }
 
     private static List<DuelAiMoveCandidate> BuildFilteredCandidates(List<DuelAiMoveCandidate> candidates, DuelAiRuntimeParams runtimeParams)

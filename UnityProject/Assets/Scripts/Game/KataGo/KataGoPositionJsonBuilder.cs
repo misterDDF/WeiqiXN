@@ -32,13 +32,15 @@ public static class KataGoPositionJsonBuilder
         query["includeOwnership"] = false;
 
         if (difficultyData != null) {
-            query["includePolicy"] = difficultyData.includePolicy;
-            if (difficultyData.useHumanPolicy
+            bool useHumanSlProfile = difficultyData.useHumanPolicy
                 && !string.IsNullOrEmpty(difficultyData.humanSLProfile)
-                && KataGoBootstrap.CanUseHumanSlProfile()) {
+                && KataGoBootstrap.CanUseHumanSlProfile();
+            query["includePolicy"] = difficultyData.includePolicy || useHumanSlProfile;
+            if (useHumanSlProfile) {
                 query["overrideSettings"] = new JObject
                 {
                     ["humanSLProfile"] = difficultyData.humanSLProfile,
+                    ["ignorePreRootHistory"] = false,
                 };
             }
         }

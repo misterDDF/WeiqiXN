@@ -25,6 +25,7 @@ public class AssetBundleGenerator
     private const string KataGoAndroidOpenClBridgeSoName = "libkatago_bridge_opencl.so";
     private const string KataGoAndroidCpuBridgeSoName = "libkatago_bridge_eigen.so";
     private const string KataGoModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
+    private const string KataGoHumanSlModelFileName = "b18c384nbt-humanv0.bin.gz";
     private const string KataGoAnalysisConfigFileName = "analysis_example.cfg";
     private const string KataGoNoWriteAnalysisConfigFileName = "analysis_nowrite.cfg";
     private const string KataGoAndroidPackagedModelSuffix = ".bytes";
@@ -530,6 +531,7 @@ public class AssetBundleGenerator
         string cpuConfigPath = Path.Combine(cpuEngineRoot, KataGoAnalysisConfigFileName);
         string cpuNoWriteConfigPath = Path.Combine(cpuEngineRoot, KataGoNoWriteAnalysisConfigFileName);
         string modelPath = Path.Combine(kataGoRoot, "models", ResolveKataGoModelFileName(kataGoConfig));
+        string humanSlModelPath = Path.Combine(kataGoRoot, "models", ResolveKataGoHumanSlModelFileName(kataGoConfig));
 
         List<string> missingPaths = new List<string>();
         foreach (string directoryPath in RequiredKataGoDirectories) {
@@ -553,6 +555,10 @@ public class AssetBundleGenerator
 
         if (!File.Exists(modelPath)) {
             missingPaths.Add(modelPath);
+        }
+
+        if (!File.Exists(humanSlModelPath)) {
+            missingPaths.Add(humanSlModelPath);
         }
 
         if (Directory.Exists(openClEngineRoot) && Directory.GetFiles(openClEngineRoot).Length > 0) {
@@ -580,6 +586,7 @@ public class AssetBundleGenerator
     private static void ValidateWindowsNativeKataGoRuntimeSource(string kataGoRoot, GameConfig.KataGoConfig kataGoConfig)
     {
         string modelPath = Path.Combine(kataGoRoot, "models", ResolveKataGoModelFileName(kataGoConfig));
+        string humanSlModelPath = Path.Combine(kataGoRoot, "models", ResolveKataGoHumanSlModelFileName(kataGoConfig));
         NativeRuntimeCandidate[] candidates = ResolveWindowsNativeRuntimeCandidates(kataGoConfig);
 
         List<string> missingPaths = new List<string>();
@@ -613,6 +620,10 @@ public class AssetBundleGenerator
             missingPaths.Add(modelPath);
         }
 
+        if (!File.Exists(humanSlModelPath)) {
+            missingPaths.Add(humanSlModelPath);
+        }
+
         if (missingPaths.Count > 0) {
             throw new FileNotFoundException(
                 "Windows native KataGo build requires every configured native candidate bridge/config and model under the repository KataGo directory. Missing paths: "
@@ -640,6 +651,7 @@ public class AssetBundleGenerator
         string configPath = Path.Combine(kataGoRoot, "engines", "win-x64", KataGoNativeCpuEngineName, KataGoNoWriteAnalysisConfigFileName);
         string openClConfigPath = Path.Combine(kataGoRoot, "engines", "win-x64", KataGoNativeOpenClEngineName, KataGoAnalysisConfigFileName);
         string modelPath = Path.Combine(kataGoRoot, "models", ResolveKataGoModelFileName(kataGoConfig));
+        string humanSlModelPath = Path.Combine(kataGoRoot, "models", ResolveKataGoHumanSlModelFileName(kataGoConfig));
 
         List<string> missingPaths = new List<string>();
         if (!File.Exists(cpuPluginPath)) {
@@ -676,6 +688,10 @@ public class AssetBundleGenerator
             missingPaths.Add(modelPath);
         }
 
+        if (!File.Exists(humanSlModelPath)) {
+            missingPaths.Add(humanSlModelPath);
+        }
+
         if (missingPaths.Count > 0) {
             throw new FileNotFoundException(
                 "Android native KataGo build requires the arm64 bridge plugin, analysis config, and model. Missing paths: "
@@ -694,9 +710,11 @@ public class AssetBundleGenerator
         }
 
         string modelFileName = ResolveKataGoModelFileName(kataGoConfig);
+        string humanSlModelFileName = ResolveKataGoHumanSlModelFileName(kataGoConfig);
         string sourceConfigPath = Path.Combine(kataGoSourceRoot, "engines", "win-x64", KataGoNativeCpuEngineName, KataGoNoWriteAnalysisConfigFileName);
         string sourceOpenClConfigPath = Path.Combine(kataGoSourceRoot, "engines", "win-x64", KataGoNativeOpenClEngineName, KataGoAnalysisConfigFileName);
         string sourceModelPath = Path.Combine(kataGoSourceRoot, "models", modelFileName);
+        string sourceHumanSlModelPath = Path.Combine(kataGoSourceRoot, "models", humanSlModelFileName);
         string targetRoot = Path.Combine(Application.streamingAssetsPath, KataGoRuntimeEnvironment.DirectoryName);
         string targetEngineRoot = Path.Combine(targetRoot, "engines", "android", kataGoConfig.androidAbi);
         string targetModelRoot = Path.Combine(targetRoot, "models");
@@ -714,6 +732,7 @@ public class AssetBundleGenerator
 
         // Avoid Android aapt unpacking *.gz assets and changing the APK entry name.
         File.Copy(sourceModelPath, Path.Combine(targetModelRoot, modelFileName + KataGoAndroidPackagedModelSuffix), true);
+        File.Copy(sourceHumanSlModelPath, Path.Combine(targetModelRoot, humanSlModelFileName + KataGoAndroidPackagedModelSuffix), true);
         AssetDatabase.Refresh();
         Debug.Log($"Android KataGo runtime copied to StreamingAssets. root: {targetRoot}");
     }
@@ -753,6 +772,13 @@ public class AssetBundleGenerator
         return string.IsNullOrWhiteSpace(kataGoConfig.modelFileName)
             ? KataGoModelFileName
             : kataGoConfig.modelFileName;
+    }
+
+    private static string ResolveKataGoHumanSlModelFileName(GameConfig.KataGoConfig kataGoConfig)
+    {
+        return string.IsNullOrWhiteSpace(kataGoConfig.humanSlModelFileName)
+            ? KataGoHumanSlModelFileName
+            : kataGoConfig.humanSlModelFileName;
     }
 
     private static void CopyKataGoRuntimeToWindowsBuild(string kataGoSourceRoot, GameConfig.KataGoConfig kataGoConfig)
@@ -830,9 +856,13 @@ public class AssetBundleGenerator
         Directory.CreateDirectory(targetModelsRoot);
 
         string modelFileName = ResolveKataGoModelFileName(kataGoConfig);
+        string humanSlModelFileName = ResolveKataGoHumanSlModelFileName(kataGoConfig);
         string sourceModelPath = Path.Combine(sourceModelsRoot, modelFileName);
         string targetModelPath = Path.Combine(targetModelsRoot, modelFileName);
+        string sourceHumanSlModelPath = Path.Combine(sourceModelsRoot, humanSlModelFileName);
+        string targetHumanSlModelPath = Path.Combine(targetModelsRoot, humanSlModelFileName);
         File.Copy(sourceModelPath, targetModelPath, true);
+        File.Copy(sourceHumanSlModelPath, targetHumanSlModelPath, true);
 
         Debug.Log($"KataGo native runtime copied to Windows build root: {kataGoTargetRoot}");
     }

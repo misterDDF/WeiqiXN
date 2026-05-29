@@ -22,8 +22,9 @@ def main() -> int:
     dll_path = engine_dir / "katago_bridge.dll"
     config_path = engine_dir / config_name
     model_path = repo_root / "KataGo" / "models" / "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz"
+    human_model_path = repo_root / "KataGo" / "models" / "b18c384nbt-humanv0.bin.gz"
 
-    for required_path in (dll_path, config_path, model_path):
+    for required_path in (dll_path, config_path, model_path, human_model_path):
         if not required_path.exists():
             print(f"missing: {required_path}", file=sys.stderr)
             return 1
@@ -38,6 +39,16 @@ def main() -> int:
         ctypes.c_int,
     ]
     bridge.kg_create_engine.restype = ctypes.c_int
+    bridge.kg_create_engine_with_human_model.argtypes = [
+        ctypes.c_char_p,
+        ctypes.c_char_p,
+        ctypes.c_char_p,
+        ctypes.c_char_p,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.c_char_p,
+        ctypes.c_int,
+    ]
+    bridge.kg_create_engine_with_human_model.restype = ctypes.c_int
     bridge.kg_analyze.argtypes = [
         ctypes.c_void_p,
         ctypes.c_char_p,
@@ -74,9 +85,10 @@ def main() -> int:
 
     engine = ctypes.c_void_p()
     error_buffer = ctypes.create_string_buffer(ERROR_BUFFER_SIZE)
-    created = bridge.kg_create_engine(
+    created = bridge.kg_create_engine_with_human_model(
         encode_path(config_path),
         encode_path(model_path),
+        encode_path(human_model_path),
         encode_path(engine_dir),
         ctypes.byref(engine),
         error_buffer,
@@ -97,7 +109,8 @@ def main() -> int:
             "boardYSize": 9,
             "maxVisits": 1,
             "includeOwnership": True,
-            "includePolicy": False,
+            "includePolicy": True,
+            "overrideSettings": {"humanSLProfile": "rank_12k"},
         }
         response_ptr = ctypes.c_void_p()
         error_buffer = ctypes.create_string_buffer(ERROR_BUFFER_SIZE)
@@ -120,7 +133,8 @@ def main() -> int:
             bridge.kg_free_string(response_ptr)
 
         ownership = response.get("ownership")
-        if response.get("id") != query["id"] or not isinstance(ownership, list):
+        human_policy = response.get("humanPolicy")
+        if response.get("id") != query["id"] or not isinstance(ownership, list) or not isinstance(human_policy, list):
             print(response_json, file=sys.stderr)
             return 1
 
@@ -162,7 +176,10 @@ def main() -> int:
             print(many_response_json, file=sys.stderr)
             return 1
 
-        print(f"id={response['id']} ownershipLength={len(ownership)} analyzeManyTurns={turn_numbers}")
+        print(
+            f"id={response['id']} ownershipLength={len(ownership)} "
+            f"humanPolicyLength={len(human_policy)} analyzeManyTurns={turn_numbers}"
+        )
         return 0
     finally:
         bridge.kg_destroy_engine(engine)

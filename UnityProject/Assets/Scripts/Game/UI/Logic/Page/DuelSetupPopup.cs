@@ -8,7 +8,7 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     public override string pageName => UIPage.GetPageName<DuelSetupPopup>();
     private const string InfiniteHoldTimeCfgId = "infinite";
     private const string ByoyomiOffCfgId = "off";
-    private const string DefaultAiDifficultyCfgId = "k20_k15";
+    private const string DefaultAiDifficultyCfgId = "k20_k18";
     private const string PlayerSideGuess = "guess";
     private const string PlayerSideBlack = "black";
     private const string PlayerSideWhite = "white";
@@ -476,19 +476,18 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     private int GetAiDifficultyOrder(string cfgId)
     {
         switch (cfgId) {
-            case "k20_k15": return 0;
-            case "k14_k10": return 1;
-            case "k9_k7": return 2;
-            case "k6_k4": return 3;
-            case "k3_k1": return 4;
-            case "d1_d3": return 5;
-            case "d4_d5": return 6;
-            case "d6": return 7;
-            case "pro_1p_2p": return 8;
-            case "pro_3p_4p": return 9;
-            case "pro_5p_6p": return 10;
-            case "pro_7p_8p": return 11;
-            case "pro_9p": return 12;
+            case "k20_k18": return 0;
+            case "k17_k15": return 1;
+            case "k14_k12": return 2;
+            case "k11_k9": return 3;
+            case "k8_k6": return 4;
+            case "k5_k3": return 5;
+            case "k2_k1": return 6;
+            case "d1_d2": return 7;
+            case "d3_d4": return 8;
+            case "d5_d6": return 9;
+            case "d7_d9": return 10;
+            case "modern_pro": return 11;
             default: return 1000;
         }
     }

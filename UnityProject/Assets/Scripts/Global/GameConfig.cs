@@ -86,6 +86,7 @@ public sealed class GameConfig
         private const string DefaultWindowsNativeOpenClEngineName = "native-opencl";
         private const string DefaultWindowsNativeCpuEngineName = "native-eigen";
         private const string DefaultModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
+        private const string DefaultHumanSlModelFileName = "b18c384nbt-humanv0.bin.gz";
         private const string DefaultAndroidNativeOpenClLibraryName = "katago_bridge_opencl";
         private const string DefaultAndroidNativeCpuLibraryName = "katago_bridge_eigen";
         private const int DefaultMaxConcurrentNativeRequests = 1;
@@ -97,6 +98,7 @@ public sealed class GameConfig
             "native",
             "native",
             DefaultModelFileName,
+            DefaultHumanSlModelFileName,
             true,
             true,
             DefaultWindowsNativeOpenClEngineName,
@@ -113,6 +115,7 @@ public sealed class GameConfig
         public readonly string androidPlayerBackend;
         public readonly string iosPlayerBackend;
         public readonly string modelFileName;
+        public readonly string humanSlModelFileName;
         public readonly bool windowsPreferOpenCl;
         public readonly bool windowsAllowCpuFallback;
         public readonly string windowsNativeOpenClEngineName;
@@ -130,6 +133,7 @@ public sealed class GameConfig
             string androidPlayerBackend,
             string iosPlayerBackend,
             string modelFileName,
+            string humanSlModelFileName,
             bool windowsPreferOpenCl,
             bool windowsAllowCpuFallback,
             string windowsNativeOpenClEngineName,
@@ -146,6 +150,7 @@ public sealed class GameConfig
             this.androidPlayerBackend = NormalizeBackend(androidPlayerBackend, "native");
             this.iosPlayerBackend = NormalizeBackend(iosPlayerBackend, "native");
             this.modelFileName = string.IsNullOrWhiteSpace(modelFileName) ? DefaultModelFileName : modelFileName;
+            this.humanSlModelFileName = string.IsNullOrWhiteSpace(humanSlModelFileName) ? DefaultHumanSlModelFileName : humanSlModelFileName;
             this.windowsPreferOpenCl = windowsPreferOpenCl;
             this.windowsAllowCpuFallback = windowsAllowCpuFallback;
             this.windowsNativeOpenClEngineName = string.IsNullOrWhiteSpace(windowsNativeOpenClEngineName) ? DefaultWindowsNativeOpenClEngineName : windowsNativeOpenClEngineName;
@@ -177,6 +182,7 @@ public sealed class GameConfig
                 backend?.Value<string>("androidPlayer") ?? Default.androidPlayerBackend,
                 backend?.Value<string>("iosPlayer") ?? Default.iosPlayerBackend,
                 model?.Value<string>("fileName") ?? Default.modelFileName,
+                model?.Value<string>("humanSlFileName") ?? model?.Value<string>("humanFileName") ?? Default.humanSlModelFileName,
                 windows?.Value<bool?>("preferOpenCl") ?? Default.windowsPreferOpenCl,
                 windows?.Value<bool?>("allowCpuFallback") ?? Default.windowsAllowCpuFallback,
                 windows?.Value<string>("nativeOpenClEngineName") ?? Default.windowsNativeOpenClEngineName,

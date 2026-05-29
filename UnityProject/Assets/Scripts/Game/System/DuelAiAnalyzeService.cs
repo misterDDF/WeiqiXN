@@ -79,6 +79,7 @@ public static class DuelAiAnalyzeService
                 ("requestMaxScoreLoss", runtimeParams.requestMaxScoreLoss.ToString()),
                 ("includePolicy", query["includePolicy"]?.ToString() ?? "null"),
                 ("humanProfileRequested", difficultyData.useHumanPolicy.ToString()),
+                ("humanPolicyWeight", difficultyData.humanPolicyWeight.ToString()),
                 ("humanProfileEnabled", KataGoBootstrap.CanUseHumanSlProfile().ToString()),
                 ("humanSLProfile", difficultyData.humanSLProfile ?? "none"),
                 ("humanProfileSent", (query["overrideSettings"]?["humanSLProfile"] != null).ToString()));

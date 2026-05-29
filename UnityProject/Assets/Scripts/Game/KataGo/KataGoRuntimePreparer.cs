@@ -9,6 +9,7 @@ public sealed class KataGoRuntimePreparer
     private const string AnalysisConfigFileName = "analysis_example.cfg";
     private const string NoWriteAnalysisConfigFileName = "analysis_nowrite.cfg";
     private const string DefaultModelFileName = "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz";
+    private const string DefaultHumanSlModelFileName = "b18c384nbt-humanv0.bin.gz";
     private const string AndroidPackagedModelSuffix = ".bytes";
     private const float CachedCheckEstimatedSeconds = 1.5f;
 
@@ -25,8 +26,12 @@ public sealed class KataGoRuntimePreparer
     private PrepareState state = PrepareState.None;
     private IStreamingAssetsFileCopyRequest copyRequest;
     private string[] configFileNamesToCopy = Array.Empty<string>();
+    private string[] modelFileNamesToCopy = Array.Empty<string>();
     private int configCopyIndex;
+    private int modelCopyIndex;
     private string currentConfigDestinationPath = string.Empty;
+    private string currentModelDestinationPath = string.Empty;
+    private string currentModelFileName = string.Empty;
     private float cachedCheckStartTime;
     private RuntimePaths runtimePaths;
     private string statusText = string.Empty;
@@ -82,6 +87,9 @@ public sealed class KataGoRuntimePreparer
         string modelFileName = string.IsNullOrWhiteSpace(kataGoConfig.modelFileName)
             ? DefaultModelFileName
             : kataGoConfig.modelFileName;
+        string humanSlModelFileName = string.IsNullOrWhiteSpace(kataGoConfig.humanSlModelFileName)
+            ? DefaultHumanSlModelFileName
+            : kataGoConfig.humanSlModelFileName;
         string abi = string.IsNullOrWhiteSpace(kataGoConfig.androidAbi)
             ? AndroidAbi
             : kataGoConfig.androidAbi;
@@ -92,6 +100,7 @@ public sealed class KataGoRuntimePreparer
         string configPath = Path.Combine(engineRoot, NoWriteAnalysisConfigFileName);
         string openClConfigPath = Path.Combine(engineRoot, AnalysisConfigFileName);
         string modelPath = Path.Combine(modelRoot, modelFileName);
+        string humanSlModelPath = Path.Combine(modelRoot, humanSlModelFileName);
 
         return new RuntimePaths(
             root,
@@ -100,13 +109,15 @@ public sealed class KataGoRuntimePreparer
             configPath,
             openClConfigPath,
             modelPath,
+            humanSlModelPath,
             modelFileName,
+            humanSlModelFileName,
             abi);
     }
 
     private static bool IsRuntimePrepared(RuntimePaths paths)
     {
-        if (!File.Exists(paths.configPath) || !File.Exists(paths.modelPath)) {
+        if (!File.Exists(paths.configPath) || !File.Exists(paths.modelPath) || !File.Exists(paths.humanSlModelPath)) {
             return false;
         }
 
@@ -122,7 +133,8 @@ public sealed class KataGoRuntimePreparer
         }
 
         FileInfo modelInfo = new FileInfo(paths.modelPath);
-        return modelInfo.Length > 0;
+        FileInfo humanSlModelInfo = new FileInfo(paths.humanSlModelPath);
+        return modelInfo.Length > 0 && humanSlModelInfo.Length > 0;
     }
 
     private void StartCopyConfig()
@@ -195,15 +207,25 @@ public sealed class KataGoRuntimePreparer
 
     private void StartCopyModel()
     {
-        string relativePath = $"KataGo/models/{runtimePaths.modelFileName}{AndroidPackagedModelSuffix}";
-        copyRequest = StreamingAssetsReader.Default.CopyToFile(relativePath, runtimePaths.modelPath);
+        modelFileNamesToCopy = new[] { runtimePaths.modelFileName, runtimePaths.humanSlModelFileName };
+        modelCopyIndex = 0;
+        StartCurrentModelCopy();
         state = PrepareState.CopyingModel;
         progress = 0.12f;
+    }
+
+    private void StartCurrentModelCopy()
+    {
+        currentModelFileName = modelFileNamesToCopy[modelCopyIndex];
+        currentModelDestinationPath = Path.Combine(runtimePaths.modelRoot, currentModelFileName);
+        string relativePath = $"KataGo/models/{currentModelFileName}{AndroidPackagedModelSuffix}";
+        copyRequest = StreamingAssetsReader.Default.CopyToFile(relativePath, currentModelDestinationPath);
         detailText = MessageText.Get("katago_runtime_prepare_model_first");
         XNLogger.LogInfo(
             "Start copying Android KataGo model.",
             ("source", copyRequest.SourcePathOrUrl),
-            ("destination", copyRequest.DestinationPath));
+            ("destination", copyRequest.DestinationPath),
+            ("modelFileName", currentModelFileName));
     }
 
     private void UpdateCopyModel()
@@ -213,7 +235,8 @@ public sealed class KataGoRuntimePreparer
             return;
         }
 
-        progress = Mathf.Lerp(0.12f, 0.95f, copyRequest.Progress);
+        float modelProgressStep = (modelCopyIndex + copyRequest.Progress) / Mathf.Max(1f, modelFileNamesToCopy.Length);
+        progress = Mathf.Lerp(0.12f, 0.95f, modelProgressStep);
         detailText = MessageText.Format("katago_runtime_prepare_model_progress", FormatBytes(copyRequest.BytesCopied));
         if (!copyRequest.IsDone) {
             return;
@@ -226,6 +249,12 @@ public sealed class KataGoRuntimePreparer
 
         copyRequest.Dispose();
         copyRequest = null;
+        modelCopyIndex++;
+        if (modelCopyIndex < modelFileNamesToCopy.Length) {
+            StartCurrentModelCopy();
+            return;
+        }
+
         WriteReadyMarker(runtimePaths);
         Complete();
     }
@@ -254,6 +283,7 @@ public sealed class KataGoRuntimePreparer
             ("configPath", runtimePaths.configPath),
             ("openClConfigPath", runtimePaths.openClConfigPath),
             ("modelPath", runtimePaths.modelPath),
+            ("humanSlModelPath", runtimePaths.humanSlModelPath),
             ("cached", modelWasCached.ToString()));
     }
 
@@ -277,7 +307,8 @@ public sealed class KataGoRuntimePreparer
         }
 
         FileInfo modelInfo = new FileInfo(paths.modelPath);
-        File.WriteAllText(markerPath, modelInfo.Length.ToString());
+        FileInfo humanSlModelInfo = new FileInfo(paths.humanSlModelPath);
+        File.WriteAllText(markerPath, $"{modelInfo.Length}:{humanSlModelInfo.Length}");
     }
 
     private static string BuildReadyMarkerPath(RuntimePaths paths)
@@ -308,7 +339,9 @@ public sealed class KataGoRuntimePreparer
         public readonly string configPath;
         public readonly string openClConfigPath;
         public readonly string modelPath;
+        public readonly string humanSlModelPath;
         public readonly string modelFileName;
+        public readonly string humanSlModelFileName;
         public readonly string abi;
 
         public RuntimePaths(
@@ -318,7 +351,9 @@ public sealed class KataGoRuntimePreparer
             string configPath,
             string openClConfigPath,
             string modelPath,
+            string humanSlModelPath,
             string modelFileName,
+            string humanSlModelFileName,
             string abi)
         {
             this.root = root ?? string.Empty;
@@ -327,7 +362,9 @@ public sealed class KataGoRuntimePreparer
             this.configPath = configPath ?? string.Empty;
             this.openClConfigPath = openClConfigPath ?? string.Empty;
             this.modelPath = modelPath ?? string.Empty;
+            this.humanSlModelPath = humanSlModelPath ?? string.Empty;
             this.modelFileName = modelFileName ?? string.Empty;
+            this.humanSlModelFileName = humanSlModelFileName ?? string.Empty;
             this.abi = abi ?? string.Empty;
         }
     }

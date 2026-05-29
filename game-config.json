@@ -7,7 +7,8 @@
       "iosPlayer": "native"
     },
     "model": {
-      "fileName": "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz"
+      "fileName": "kata1-b18c384nbt-s9996604416-d4316597426.bin.gz",
+      "humanSlFileName": "b18c384nbt-humanv0.bin.gz"
     },
     "analysis": {
       "maxConcurrentNativeRequests": 2

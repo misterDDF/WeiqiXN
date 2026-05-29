@@ -22,7 +22,7 @@ internal sealed class AndroidNativeKataGoEngine : IDisposable
         bridgeApi = BridgeApi.Create(nativeLibraryName);
     }
 
-    public void Start(string configPath, string modelPath, string workingDirectory)
+    public void Start(string configPath, string modelPath, string humanSlModelPath, string workingDirectory)
     {
         ThrowIfDisposed();
         Stop();
@@ -32,7 +32,9 @@ internal sealed class AndroidNativeKataGoEngine : IDisposable
         SupportsAnalyzeMany = bridgeApi.supportsAnalyzeMany() != 0;
 
         StringBuilder error = new StringBuilder(ErrorBufferSize);
-        int result = bridgeApi.createEngine(configPath, modelPath, workingDirectory, out engine, error, error.Capacity);
+        int result = string.IsNullOrWhiteSpace(humanSlModelPath)
+            ? bridgeApi.createEngine(configPath, modelPath, workingDirectory, out engine, error, error.Capacity)
+            : bridgeApi.createEngineWithHumanModel(configPath, modelPath, humanSlModelPath, workingDirectory, out engine, error, error.Capacity);
         if (result == 0 || engine == IntPtr.Zero) {
             string message = error.ToString();
             throw new InvalidOperationException(string.IsNullOrWhiteSpace(message) ? "kg_create_engine failed." : message);
@@ -159,6 +161,15 @@ internal sealed class AndroidNativeKataGoEngine : IDisposable
         StringBuilder errorBuffer,
         int errorBufferSize);
 
+    private delegate int CreateEngineWithHumanModelDelegate(
+        string configPath,
+        string modelPath,
+        string humanSlModelPath,
+        string workingDirectory,
+        out IntPtr outEngine,
+        StringBuilder errorBuffer,
+        int errorBufferSize);
+
     private delegate int AnalyzeDelegate(
         IntPtr engine,
         string requestJson,
@@ -188,6 +199,7 @@ internal sealed class AndroidNativeKataGoEngine : IDisposable
     private sealed class BridgeApi
     {
         public readonly CreateEngineDelegate createEngine;
+        public readonly CreateEngineWithHumanModelDelegate createEngineWithHumanModel;
         public readonly AnalyzeDelegate analyze;
         public readonly AnalyzeManyDelegate analyzeMany;
         public readonly FreeStringDelegate freeString;
@@ -198,6 +210,7 @@ internal sealed class AndroidNativeKataGoEngine : IDisposable
 
         private BridgeApi(
             CreateEngineDelegate createEngine,
+            CreateEngineWithHumanModelDelegate createEngineWithHumanModel,
             AnalyzeDelegate analyze,
             AnalyzeManyDelegate analyzeMany,
             FreeStringDelegate freeString,
@@ -207,6 +220,7 @@ internal sealed class AndroidNativeKataGoEngine : IDisposable
             SupportsAnalyzeManyDelegate supportsAnalyzeMany)
         {
             this.createEngine = createEngine;
+            this.createEngineWithHumanModel = createEngineWithHumanModel;
             this.analyze = analyze;
             this.analyzeMany = analyzeMany;
             this.freeString = freeString;
@@ -221,6 +235,7 @@ internal sealed class AndroidNativeKataGoEngine : IDisposable
             if (string.Equals(nativeLibraryName, "katago_bridge_opencl", StringComparison.OrdinalIgnoreCase)) {
                 return new BridgeApi(
                     OpenClNative.kg_create_engine,
+                    OpenClNative.TryCreateEngineWithHumanModel,
                     OpenClNative.kg_analyze,
                     OpenClNative.kg_analyze_many,
                     OpenClNative.kg_free_string,
@@ -233,6 +248,7 @@ internal sealed class AndroidNativeKataGoEngine : IDisposable
             if (string.Equals(nativeLibraryName, "katago_bridge_eigen", StringComparison.OrdinalIgnoreCase)) {
                 return new BridgeApi(
                     EigenNative.kg_create_engine,
+                    EigenNative.TryCreateEngineWithHumanModel,
                     EigenNative.kg_analyze,
                     EigenNative.kg_analyze_many,
                     EigenNative.kg_free_string,
@@ -252,6 +268,34 @@ internal sealed class AndroidNativeKataGoEngine : IDisposable
         public static extern int kg_create_engine(
             string configPath,
             string modelPath,
+            string workingDirectory,
+            out IntPtr outEngine,
+            StringBuilder errorBuffer,
+            int errorBufferSize);
+
+        public static int TryCreateEngineWithHumanModel(
+            string configPath,
+            string modelPath,
+            string humanSlModelPath,
+            string workingDirectory,
+            out IntPtr outEngine,
+            StringBuilder errorBuffer,
+            int errorBufferSize)
+        {
+            try {
+                return kg_create_engine_with_human_model(configPath, modelPath, humanSlModelPath, workingDirectory, out outEngine, errorBuffer, errorBufferSize);
+            }
+            catch (EntryPointNotFoundException ex) {
+                outEngine = IntPtr.Zero;
+                throw new InvalidOperationException("KataGo native bridge does not export kg_create_engine_with_human_model.", ex);
+            }
+        }
+
+        [DllImport("katago_bridge_opencl", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        private static extern int kg_create_engine_with_human_model(
+            string configPath,
+            string modelPath,
+            string humanSlModelPath,
             string workingDirectory,
             out IntPtr outEngine,
             StringBuilder errorBuffer,
@@ -307,6 +351,34 @@ internal sealed class AndroidNativeKataGoEngine : IDisposable
         public static extern int kg_create_engine(
             string configPath,
             string modelPath,
+            string workingDirectory,
+            out IntPtr outEngine,
+            StringBuilder errorBuffer,
+            int errorBufferSize);
+
+        public static int TryCreateEngineWithHumanModel(
+            string configPath,
+            string modelPath,
+            string humanSlModelPath,
+            string workingDirectory,
+            out IntPtr outEngine,
+            StringBuilder errorBuffer,
+            int errorBufferSize)
+        {
+            try {
+                return kg_create_engine_with_human_model(configPath, modelPath, humanSlModelPath, workingDirectory, out outEngine, errorBuffer, errorBufferSize);
+            }
+            catch (EntryPointNotFoundException ex) {
+                outEngine = IntPtr.Zero;
+                throw new InvalidOperationException("KataGo native bridge does not export kg_create_engine_with_human_model.", ex);
+            }
+        }
+
+        [DllImport("katago_bridge_eigen", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        private static extern int kg_create_engine_with_human_model(
+            string configPath,
+            string modelPath,
+            string humanSlModelPath,
             string workingDirectory,
             out IntPtr outEngine,
             StringBuilder errorBuffer,
