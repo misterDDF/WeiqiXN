@@ -32,6 +32,7 @@ public class DuelScene : SceneBase
         AddSystem(new DuelOwnershipSystem(this));
         AddSystem(new DuelAuthoritySystem(this));
         AddSystem(new DuelInputAuthoritySystem(this));
+        AddSystem(new DuelAiRecommendationSystem(this));
         AddSystem(new DuelAiSystem(this));
         AddSystem(new DuelSystem(this));
         AddSystem(new LanDuelSystem(this));

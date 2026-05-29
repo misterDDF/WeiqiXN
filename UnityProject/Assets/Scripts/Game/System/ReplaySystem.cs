@@ -11,26 +11,6 @@ public class ReplaySystem : SystemBase
 {
     public override string systemName => GetSystemName<ReplaySystem>();
 
-    private const string ConfigAiAnalysisEnabled = "aiAnalysisEnabled";
-    private const string ConfigAiTier1MaxVisits9 = "aiTier1MaxVisits9";
-    private const string ConfigAiTier1MaxVisits13 = "aiTier1MaxVisits13";
-    private const string ConfigAiTier1MaxVisits19 = "aiTier1MaxVisits19";
-    private const string ConfigAiTier2MaxVisits9 = "aiTier2MaxVisits9";
-    private const string ConfigAiTier2MaxVisits13 = "aiTier2MaxVisits13";
-    private const string ConfigAiTier2MaxVisits19 = "aiTier2MaxVisits19";
-    private const string ConfigAiTier3MaxVisits9 = "aiTier3MaxVisits9";
-    private const string ConfigAiTier3MaxVisits13 = "aiTier3MaxVisits13";
-    private const string ConfigAiTier3MaxVisits19 = "aiTier3MaxVisits19";
-    private const string ConfigAiTier1IncludeOwnership = "aiTier1IncludeOwnership";
-    private const string ConfigAiTier2IncludeOwnership = "aiTier2IncludeOwnership";
-    private const string ConfigAiTier3IncludeOwnership = "aiTier3IncludeOwnership";
-    private const string ConfigAiDisplayCandidateLimit = "aiDisplayCandidateLimit";
-    private const string ConfigAiRequestCandidateLimit = "aiRequestCandidateLimit";
-    private const string ConfigAiIncludePolicy = "aiIncludePolicy";
-    private const string ConfigAiShowCurrentPlayerWinrate = "aiShowCurrentPlayerWinrate";
-    private const string ConfigAiWinrateMinDisplay = "aiWinrateMinDisplay";
-    private const string ConfigAiWinrateMaxDisplay = "aiWinrateMaxDisplay";
-    private const string ConfigAiAnalysisCooldownMs = "aiAnalysisCooldownMs";
     private const string ConfigChartAnalysisEnabled = "chartAnalysisEnabled";
     private const string ConfigChartLoadingSampleRatio = "chartLoadingSampleRatio";
     private const string ConfigChartLoadingSampleMin = "chartLoadingSampleMin";
@@ -50,9 +30,7 @@ public class ReplaySystem : SystemBase
     private const string ChartSourceAi = "ai";
     private const int ReplayChartCurrentPriority = 75;
     private const int ReplayChartLoadingLowPriority = 65;
-    private const int ReplayAiTier1Priority = 100;
-    private const int ReplayAiTier2Priority = 60;
-    private const int ReplayAiTier3Priority = 40;
+    private const int ReplayOwnershipPriority = 85;
     private const int ReplayChartBackgroundLowPriority = 30;
     private const int ReplayChartBackgroundHighPriority = 20;
 
@@ -63,12 +41,14 @@ public class ReplaySystem : SystemBase
     private string recordFilePath = string.Empty;
     private CancellationTokenSource sceneCancellationTokenSource = new CancellationTokenSource();
     private CancellationTokenSource aiAnalysisCancellationTokenSource;
+    private CancellationTokenSource ownershipCancellationTokenSource;
     private CancellationTokenSource chartLoadingCancellationTokenSource;
     private CancellationTokenSource chartBackgroundCancellationTokenSource;
     private CancellationTokenSource cursorChartCancellationTokenSource;
     private bool chartBackgroundStoppedByFailure;
     private int chartCursorRequestVersion;
     private int activeCursorChartMoveIndex = -1;
+    private bool hasOwnershipRender;
 
     private struct ChartAnalysisBatchResult
     {
@@ -79,22 +59,6 @@ public class ReplaySystem : SystemBase
         {
             this.moveIndex = moveIndex;
             this.point = point;
-        }
-    }
-
-    private struct ReplayAiAnalysisTier
-    {
-        public readonly int tier;
-        public readonly int maxVisits;
-        public readonly bool includeOwnership;
-        public readonly int priority;
-
-        public ReplayAiAnalysisTier(int tier, int maxVisits, bool includeOwnership, int priority)
-        {
-            this.tier = tier;
-            this.maxVisits = maxVisits;
-            this.includeOwnership = includeOwnership;
-            this.priority = priority;
         }
     }
 
@@ -115,6 +79,7 @@ public class ReplaySystem : SystemBase
     public override void OnDestroy()
     {
         CancelAiAnalysisRequest();
+        CancelOwnershipRequest();
         CancelChartLoadingRequest();
         CancelChartBackgroundRequest();
         CancelCursorChartRequest();
@@ -135,7 +100,9 @@ public class ReplaySystem : SystemBase
     public PlayerFlag CurrentTryPlayerFlag => compReplay != null ? ResolveNextTryPlayerFlag() : 0;
     public bool IsAiAnalyzing => compReplay != null && compReplay.isAiAnalyzing;
     public bool HasAiAnalysisRender => compReplay != null && compReplay.hasAiAnalysisRender;
-    public bool IsAiAnalysisEnabled => GetReplayConfigBool(ConfigAiAnalysisEnabled, true);
+    public bool IsOwnershipAnalyzing => ownershipCancellationTokenSource != null;
+    public bool HasOwnershipRender => hasOwnershipRender;
+    public bool IsAiAnalysisEnabled => KataGoAiAnalysisConfigService.IsAiAnalysisEnabled;
     public bool IsChartReady => compReplay != null && compReplay.isChartReady;
     public IReadOnlyList<ReplayChartPoint> ChartPoints => compReplay != null ? compReplay.chartPoints : null;
     public string ReplayStatus => BuildReplayStatusText();
@@ -550,6 +517,57 @@ public class ReplaySystem : SystemBase
         ClearAiRecommendationMarkers();
     }
 
+    public async void RequestOwnershipAnalysis()
+    {
+        await RequestOwnershipAnalysisAsync();
+    }
+
+    public void ClearOwnershipRender()
+    {
+        CancelOwnershipRequest();
+        hasOwnershipRender = false;
+        compChessBoard?.chessBoardGrid?.ClearOwnership();
+    }
+
+    private async Task RequestOwnershipAnalysisAsync()
+    {
+        if (!IsReplayLoaded || compChessBoard?.chessBoardGrid == null) {
+            return;
+        }
+
+        if (ownershipCancellationTokenSource != null) {
+            return;
+        }
+
+        ClearOwnershipRender();
+        CancellationTokenSource requestCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(sceneCancellationTokenSource.Token);
+        ownershipCancellationTokenSource = requestCancellationTokenSource;
+        try {
+            string requestId = $"replay-ownership-{DateTime.UtcNow.Ticks}";
+            JObject query = KataGoPositionJsonBuilder.BuildOwnershipAnalysisJson(scene, requestId);
+            KataGoAnalyzeOptions options = CreateReplayRetryUntilCanceledAnalyzeOptions("replay-ownership");
+            options.priority = ReplayOwnershipPriority;
+            JObject result = await KataGoBootstrap.AnalyzeAsync(query, options, requestCancellationTokenSource.Token);
+            if (requestCancellationTokenSource.IsCancellationRequested) {
+                return;
+            }
+
+            hasOwnershipRender = KataGoAiAnalysisRenderService.DrawOwnership(compChessBoard, result);
+        }
+        catch (OperationCanceledException) {
+        }
+        catch (Exception ex) {
+            XNLogger.LogError("Replay ownership analysis failed.", ("error", ex.Message));
+        }
+        finally {
+            if (ownershipCancellationTokenSource == requestCancellationTokenSource) {
+                ownershipCancellationTokenSource = null;
+            }
+
+            requestCancellationTokenSource.Dispose();
+        }
+    }
+
     public async Task RequestAiAnalysisAsync()
     {
         if (!IsReplayLoaded || compReplay == null || compChessBoard?.chessBoardGrid == null || compDuel == null) {
@@ -565,7 +583,7 @@ public class ReplaySystem : SystemBase
             return;
         }
 
-        int cooldownMs = Mathf.Max(GetReplayConfigInt(ConfigAiAnalysisCooldownMs, 500), 0);
+        int cooldownMs = KataGoAiAnalysisConfigService.AnalysisCooldownMs;
         if (cooldownMs > 0 && Time.realtimeSinceStartup - compReplay.lastAiAnalysisRequestTime < cooldownMs / 1000f) {
             return;
         }
@@ -587,12 +605,12 @@ public class ReplaySystem : SystemBase
             }
 
             bool renderedAnyResult = false;
-            List<ReplayAiAnalysisTier> tiers = BuildAiAnalysisTiers(compReplay.replayBoardSize);
+            List<KataGoAiAnalysisTier> tiers = KataGoAiAnalysisConfigService.BuildAiAnalysisTiers(compReplay.replayBoardSize);
             int requestMoveIndex = IsTryMode
                 ? Mathf.Clamp(compReplay.tryBaseCursorMoveIndex + compReplay.tryCursorMoveIndex, 0, compReplay.replayMoves.Count)
                 : Mathf.Clamp(compReplay.replayCursorMoveIndex, 0, compReplay.replayMoves.Count);
             for (int i = 0; i < tiers.Count; i++) {
-                ReplayAiAnalysisTier tier = tiers[i];
+                KataGoAiAnalysisTier tier = tiers[i];
                 compReplay.aiAnalysisStatus = $"AI分析中 {tier.tier}/{tiers.Count}";
                 string requestId = $"replay-ai-tier{tier.tier}-{System.DateTime.UtcNow.Ticks}";
                 JObject query = KataGoPositionJsonBuilder.BuildReplayAiAnalysisJson(
@@ -600,7 +618,7 @@ public class ReplaySystem : SystemBase
                     requestId,
                     tier.maxVisits,
                     tier.includeOwnership,
-                    GetReplayConfigBool(ConfigAiIncludePolicy, false));
+                    KataGoAiAnalysisConfigService.IncludePolicy);
 
                 KataGoAnalyzeOptions options = CreateReplayRetryUntilCanceledAnalyzeOptions($"replay-ai-tier{tier.tier}");
                 options.priority = tier.priority;
@@ -809,98 +827,11 @@ public class ReplaySystem : SystemBase
 
     private List<RectGridAiRecommendationMarker> BuildAiRecommendationMarkers(JObject result)
     {
-        List<RectGridAiRecommendationMarker> markers = new List<RectGridAiRecommendationMarker>();
-        JArray moveInfos = result?["moveInfos"] as JArray;
-        if (moveInfos == null || moveInfos.Count == 0 || compChessBoard?.chessBoardGrid == null) {
-            return markers;
-        }
-
-        int boardSize = compChessBoard.chessBoardGrid.gridSize;
-        int displayLimit = Mathf.Clamp(GetReplayConfigInt(ConfigAiDisplayCandidateLimit, 5), 1, 20);
-        int requestLimit = Mathf.Max(GetReplayConfigInt(ConfigAiRequestCandidateLimit, 12), displayLimit);
-        bool showCurrentPlayerWinrate = GetReplayConfigBool(ConfigAiShowCurrentPlayerWinrate, true);
-        int winrateMinDisplay = Mathf.Clamp(GetReplayConfigInt(ConfigAiWinrateMinDisplay, 1), 1, 100);
-        int winrateMaxDisplay = Mathf.Clamp(GetReplayConfigInt(ConfigAiWinrateMaxDisplay, 100), winrateMinDisplay, 100);
-        PlayerFlag currentPlayerFlag = ResolveNextTryPlayerFlag();
-        List<JToken> sortedMoveInfos = BuildSortedMoveInfos(moveInfos);
-        int parsedCount = 0;
-
-        foreach (JToken token in sortedMoveInfos) {
-            if (markers.Count >= displayLimit || parsedCount >= requestLimit) {
-                break;
-            }
-
-            parsedCount += 1;
-            string move = token?["move"]?.ToString();
-            if (string.Equals(move, KataGoPositionJsonBuilder.PassPoint, System.StringComparison.OrdinalIgnoreCase)) {
-                continue;
-            }
-
-            if (!KataGoPositionJsonBuilder.TryParseKataGoPoint(move, boardSize, out RectCoordinates coords) ||
-                !TryParseFloat(token?["winrate"], out float winrate)) {
-                continue;
-            }
-
-            if (!IsLegalAiRecommendation(coords, currentPlayerFlag)) {
-                continue;
-            }
-
-            if (showCurrentPlayerWinrate && currentPlayerFlag == PlayerFlag.Player2) {
-                winrate = 1f - winrate;
-            }
-
-            int winratePercent = Mathf.RoundToInt(Mathf.Clamp01(winrate) * 100f);
-            winratePercent = Mathf.Clamp(winratePercent, winrateMinDisplay, winrateMaxDisplay);
-            markers.Add(new RectGridAiRecommendationMarker(coords.x, coords.z, winratePercent, markers.Count + 1));
-
-            int posIndex = compChessBoard.GetPosIndexByCoords(coords);
-            List<ReplayAiVariationMove> variation = BuildAiRecommendationVariation(token, coords, currentPlayerFlag, boardSize);
-            if (posIndex >= 0 && variation.Count > 0) {
-                compReplay.aiRecommendationVariations[posIndex] = variation;
-            }
-        }
-
-        return markers;
-    }
-
-    private List<ReplayAiVariationMove> BuildAiRecommendationVariation(JToken moveInfo, RectCoordinates recommendationCoords, PlayerFlag firstPlayerFlag, int boardSize)
-    {
-        List<ReplayAiVariationMove> variation = new List<ReplayAiVariationMove>();
-        JArray pv = moveInfo?["pv"] as JArray;
-        if (pv == null || pv.Count <= 1 || recommendationCoords == null || firstPlayerFlag == 0) {
-            return variation;
-        }
-
-        PlayerFlag playerFlag = firstPlayerFlag;
-        for (int i = 0; i < pv.Count; i++) {
-            string point = pv[i]?.ToString();
-            if (string.Equals(point, KataGoPositionJsonBuilder.PassPoint, System.StringComparison.OrdinalIgnoreCase)) {
-                break;
-            }
-
-            if (!KataGoPositionJsonBuilder.TryParseKataGoPoint(point, boardSize, out RectCoordinates coords)) {
-                break;
-            }
-
-            if (i == 0) {
-                if (!IsSameCoords(coords, recommendationCoords)) {
-                    variation.Clear();
-                    return variation;
-                }
-
-                playerFlag = playerFlag.GetOpponentPlayerFlag();
-                continue;
-            }
-
-            variation.Add(new ReplayAiVariationMove
-            {
-                playerFlag = playerFlag,
-                coords = coords.Clone(),
-            });
-            playerFlag = playerFlag.GetOpponentPlayerFlag();
-        }
-
-        return variation;
+        return KataGoAiAnalysisRenderService.BuildRecommendationMarkers(
+            scene,
+            result,
+            ResolveNextTryPlayerFlag(),
+            compReplay?.aiRecommendationVariations);
     }
 
     private List<ReplayAiVariationMove> GetAiRecommendationVariation(RectCoordinates coords)
@@ -941,71 +872,6 @@ public class ReplaySystem : SystemBase
         }
 
         return appliedCount;
-    }
-
-    private bool IsSameCoords(RectCoordinates left, RectCoordinates right)
-    {
-        return left != null && right != null && left.x == right.x && left.z == right.z;
-    }
-
-    private List<JToken> BuildSortedMoveInfos(JArray moveInfos)
-    {
-        List<JToken> sorted = new List<JToken>();
-        foreach (JToken token in moveInfos) {
-            sorted.Add(token);
-        }
-
-        sorted.Sort((left, right) => GetMoveInfoOrder(left).CompareTo(GetMoveInfoOrder(right)));
-        return sorted;
-    }
-
-    private int GetMoveInfoOrder(JToken token)
-    {
-        return int.TryParse(token?["order"]?.ToString(), out int order) ? order : int.MaxValue;
-    }
-
-    private bool IsLegalAiRecommendation(RectCoordinates coords, PlayerFlag playerFlag)
-    {
-        if (coords == null || playerFlag == 0 || compChessBoard == null) {
-            return false;
-        }
-
-        int posIndex = compChessBoard.GetPosIndexByCoords(coords);
-        if (posIndex < 0 || compChessBoard.chessInfoDict.ContainsKey(posIndex.ToString())) {
-            return false;
-        }
-
-        return DuelMoveRule.CheckMoveLegal(compChessBoard, playerFlag, coords);
-    }
-
-    private List<ReplayAiAnalysisTier> BuildAiAnalysisTiers(int boardSize)
-    {
-        return new List<ReplayAiAnalysisTier>
-        {
-            new ReplayAiAnalysisTier(1, ResolveAiTierMaxVisits(boardSize, ConfigAiTier1MaxVisits9, ConfigAiTier1MaxVisits13, ConfigAiTier1MaxVisits19, 64, 40, 25), GetReplayConfigBool(ConfigAiTier1IncludeOwnership, false), ReplayAiTier1Priority),
-            new ReplayAiAnalysisTier(2, ResolveAiTierMaxVisits(boardSize, ConfigAiTier2MaxVisits9, ConfigAiTier2MaxVisits13, ConfigAiTier2MaxVisits19, 128, 80, 50), GetReplayConfigBool(ConfigAiTier2IncludeOwnership, true), ReplayAiTier2Priority),
-            new ReplayAiAnalysisTier(3, ResolveAiTierMaxVisits(boardSize, ConfigAiTier3MaxVisits9, ConfigAiTier3MaxVisits13, ConfigAiTier3MaxVisits19, 1000, 768, 500), GetReplayConfigBool(ConfigAiTier3IncludeOwnership, true), ReplayAiTier3Priority),
-        };
-    }
-
-    private int ResolveAiTierMaxVisits(
-        int boardSize,
-        string config9,
-        string config13,
-        string config19,
-        int default9,
-        int default13,
-        int default19)
-    {
-        if (boardSize <= 9) {
-            return Mathf.Max(GetReplayConfigInt(config9, default9), 1);
-        }
-
-        if (boardSize <= 13) {
-            return Mathf.Max(GetReplayConfigInt(config13, default13), 1);
-        }
-
-        return Mathf.Max(GetReplayConfigInt(config19, default19), 1);
     }
 
     private int ResolveChartLowMaxVisits(int boardSize)
@@ -1505,37 +1371,12 @@ public class ReplaySystem : SystemBase
 
     private bool DrawAiAnalysisOwnership(JObject result)
     {
-        JArray ownership = result?["ownership"] as JArray;
-        if (ownership == null || compChessBoard?.chessBoardGrid == null) {
-            return false;
-        }
-
-        if (!HasVisibleOwnership(ownership, compChessBoard.chessBoardGrid.gridSize, DuelOwnershipQueryService.OwnershipThreshold)) {
-            return false;
-        }
-
-        compChessBoard.chessBoardGrid.DrawOwnership(ownership, DuelOwnershipQueryService.OwnershipThreshold);
-        return true;
+        bool rendered = KataGoAiAnalysisRenderService.DrawOwnership(compChessBoard, result);
+        hasOwnershipRender = hasOwnershipRender || rendered;
+        return rendered;
     }
 
-    private bool HasVisibleOwnership(JArray ownership, int boardSize, float ownershipThreshold)
-    {
-        int expectedCount = boardSize * boardSize;
-        if (ownership == null || ownership.Count < expectedCount) {
-            return false;
-        }
-
-        for (int i = 0; i < expectedCount; i++) {
-            if (float.TryParse(ownership[i]?.ToString(), out float ownershipValue) &&
-                Mathf.Abs(ownershipValue) > ownershipThreshold) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private void TryUpsertChartPointFromAiResult(int moveIndex, JObject result, ReplayAiAnalysisTier tier, int requestVersion)
+    private void TryUpsertChartPointFromAiResult(int moveIndex, JObject result, KataGoAiAnalysisTier tier, int requestVersion)
     {
         if (IsTryMode || compReplay == null || requestVersion != compReplay.aiAnalysisVersion || result == null) {
             return;
@@ -1558,6 +1399,7 @@ public class ReplaySystem : SystemBase
     {
         if (compReplay != null) {
             CancelAiAnalysisRequest();
+            CancelOwnershipRequest();
             compReplay.aiAnalysisVersion += 1;
             compReplay.isAiAnalyzing = false;
             compReplay.hasAiAnalysisRender = false;
@@ -1565,6 +1407,7 @@ public class ReplaySystem : SystemBase
             compReplay.aiRecommendationVariations.Clear();
         }
 
+        hasOwnershipRender = false;
         compChessBoard?.chessBoardGrid?.ClearAiRecommendationMarkers();
         compChessBoard?.chessBoardGrid?.ClearOwnership();
     }
@@ -1577,6 +1420,16 @@ public class ReplaySystem : SystemBase
 
         aiAnalysisCancellationTokenSource.Cancel();
         aiAnalysisCancellationTokenSource = null;
+    }
+
+    private void CancelOwnershipRequest()
+    {
+        if (ownershipCancellationTokenSource == null) {
+            return;
+        }
+
+        ownershipCancellationTokenSource.Cancel();
+        ownershipCancellationTokenSource = null;
     }
 
     private void PrepareChartAnalysisForAiRequest()

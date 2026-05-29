@@ -20,9 +20,9 @@ public static class KataGoPositionJsonBuilder
         return query;
     }
 
-    public static JObject BuildOwnershipAnalysisJson(DuelScene duelScene, string requestId, int maxVisits = DefaultMaxVisits)
+    public static JObject BuildOwnershipAnalysisJson(SceneBase scene, string requestId, int maxVisits = DefaultMaxVisits)
     {
-        return BuildAnalysisJsonWithCurrentBoard(duelScene, requestId, maxVisits);
+        return BuildAnalysisJsonWithCurrentBoard(scene, requestId, maxVisits);
     }
 
     public static JObject BuildAiMoveAnalysisJson(DuelScene duelScene, string requestId, DuelAiDifficultyDataType difficultyData, int maxVisits)
@@ -67,10 +67,24 @@ public static class KataGoPositionJsonBuilder
         return query;
     }
 
-    public static JObject BuildAnalysisJsonWithCurrentBoard(DuelScene duelScene, string requestId, int maxVisits = DefaultMaxVisits)
+    public static JObject BuildDuelAiAnalysisJson(
+        DuelScene duelScene,
+        string requestId,
+        int maxVisits,
+        bool includeOwnership,
+        bool includePolicy)
     {
-        JObject query = BuildBaseAnalysisJson(duelScene, requestId, maxVisits);
-        query["initialStones"] = BuildInitialStonesArray(duelScene);
+        JObject query = BuildAnalysisJsonWithMoveHistory(duelScene, requestId, Math.Max(maxVisits, 1));
+        query["analyzeTurns"] = new JArray((query["moves"] as JArray)?.Count ?? 0);
+        query["includeOwnership"] = includeOwnership;
+        query["includePolicy"] = includePolicy;
+        return query;
+    }
+
+    public static JObject BuildAnalysisJsonWithCurrentBoard(SceneBase scene, string requestId, int maxVisits = DefaultMaxVisits)
+    {
+        JObject query = BuildBaseAnalysisJson(scene, requestId, maxVisits);
+        query["initialStones"] = BuildInitialStonesArray(scene);
         query["moves"] = new JArray();
         return query;
     }
@@ -197,15 +211,15 @@ public static class KataGoPositionJsonBuilder
         return initialStones;
     }
 
-    private static JArray BuildInitialStonesArray(DuelScene duelScene)
+    private static JArray BuildInitialStonesArray(SceneBase scene)
     {
         JArray initialStones = new JArray();
-        SceneComponentChessBoard compChessBoard = duelScene.GetComponent<SceneComponentChessBoard>();
+        SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
         if (compChessBoard == null) {
             return initialStones;
         }
 
-        int boardSize = GetBoardSize(duelScene);
+        int boardSize = GetBoardSize(scene);
         List<int> sortedPosIndexes = new List<int>();
         foreach (string posKey in compChessBoard.chessInfoDict.Keys) {
             if (int.TryParse(posKey, out int posIndex)) {

@@ -280,6 +280,15 @@ public class DuelPageHudView
         bool isGameEnd = compDuel?.duelFSM?.curState != null && compDuel.duelFSM.curState.stateName == DuelStateDefine.STATE_GAME_END;
         bool canRequestScore = compDuel != null && !compDuel.isScoring && !isGameEnd && canSubmitMove;
         bool canTakeBack = DuelPageInteractionState.CanTakeBack(mainScene, compDuel);
+        DuelAiRecommendationSystem aiRecommendationSystem = mainScene?.GetSystem<DuelAiRecommendationSystem>();
+        bool showAiAnalysis = !isLanDuel;
+        bool canAiAnalysis = showAiAnalysis && aiRecommendationSystem != null &&
+            !aiRecommendationSystem.IsAiAnalyzing &&
+            (aiRecommendationSystem.IsAiAnalysisEnabled || aiRecommendationSystem.HasAiAnalysisRender);
+        if (binder.btn_duel_ai_analysis != null) {
+            binder.btn_duel_ai_analysis.gameObject.SetActive(showAiAnalysis);
+        }
+        SetButtonInteractable(binder.btn_duel_ai_analysis, canAiAnalysis);
         SetButtonInteractable(binder.btn_duel_pass, canSubmitMove);
         SetButtonInteractable(binder.btn_settings_request_score, canRequestScore);
         SetButtonInteractable(binder.btn_settings_take_back, canTakeBack);

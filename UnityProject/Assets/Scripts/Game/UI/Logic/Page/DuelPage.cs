@@ -296,6 +296,11 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             return;
         }
 
+        DuelAiRecommendationSystem aiRecommendationSystem = Global.Instance.sceneManager.mainScene?.GetSystem<DuelAiRecommendationSystem>();
+        if (aiRecommendationSystem != null && (aiRecommendationSystem.IsAiAnalyzing || aiRecommendationSystem.HasAiAnalysisRender)) {
+            aiRecommendationSystem.ClearAiAnalysisRender();
+        }
+
         hudView.BeginOwnershipRequest();
         EmitSystemEvent(new OnRequestDuelOwnership());
     }
@@ -404,6 +409,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     {
         AddButtonListener(binder.btn_duel_settings, hudView.OpenSettingsPanel);
         AddButtonListener(binder.btn_duel_ownership, OnClickBtnOwnership);
+        AddButtonListener(binder.btn_duel_ai_analysis, OnClickBtnAiAnalysis);
         AddButtonListener(binder.btn_duel_pass, OnClickBtnPass);
         AddButtonListener(binder.btn_settings_request_score, OnClickBtnRequestScore);
         AddButtonListener(binder.btn_settings_take_back, OnClickBtnTakeBack);
@@ -417,6 +423,31 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         if (button != null) {
             button.onClick.AddListener(action);
         }
+    }
+
+    private void OnClickBtnAiAnalysis()
+    {
+        SceneBase mainScene = Global.Instance.sceneManager.mainScene;
+        SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
+        if (compDuel == null || compDuel.isLanDuel.value) {
+            return;
+        }
+
+        DuelAiRecommendationSystem aiRecommendationSystem = mainScene.GetSystem<DuelAiRecommendationSystem>();
+        if (aiRecommendationSystem == null) {
+            return;
+        }
+
+        if (aiRecommendationSystem.HasAiAnalysisRender) {
+            aiRecommendationSystem.ClearAiAnalysisRender();
+            return;
+        }
+
+        if (hudView.IsOwnershipVisible) {
+            EmitSystemEvent(new OnRequestClearDuelOwnership());
+        }
+
+        aiRecommendationSystem.RequestAiAnalysis();
     }
 
     private void SubmitConfirmedTakeBack()

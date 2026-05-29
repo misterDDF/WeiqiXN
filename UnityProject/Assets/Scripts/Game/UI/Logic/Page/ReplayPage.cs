@@ -11,6 +11,8 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
 
     private DuelPageBoardInputController boardInput;
     private bool isScrubbing;
+    private bool hasAppliedLayoutState;
+    private bool lastPortraitLayout;
     private int scrubTargetMoveIndex;
 
     public override string pageName => UIPage.GetPageName<ReplayPage>();
@@ -20,6 +22,8 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         base.OnLoaded();
 
         boardInput = new DuelPageBoardInputController();
+        ApplyCurrentLayoutState(true);
+
         binder.btn_close.onClick.AddListener(OnClickClose);
         binder.btn_first.onClick.AddListener(OnClickFirst);
         binder.btn_prev.onClick.AddListener(OnClickPrev);
@@ -28,6 +32,9 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         binder.btn_try_mode.onClick.AddListener(OnClickTryMode);
         if (binder.btn_ai_analysis != null) {
             binder.btn_ai_analysis.onClick.AddListener(OnClickAiAnalysis);
+        }
+        if (binder.btn_ownership != null) {
+            binder.btn_ownership.onClick.AddListener(OnClickOwnership);
         }
         BindScrubberEvents();
     }
@@ -44,6 +51,9 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
             if (binder.btn_ai_analysis != null) {
                 binder.btn_ai_analysis.onClick.RemoveListener(OnClickAiAnalysis);
             }
+            if (binder.btn_ownership != null) {
+                binder.btn_ownership.onClick.RemoveListener(OnClickOwnership);
+            }
             UnbindScrubberEvents();
         }
 
@@ -59,12 +69,14 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
             boardInput = new DuelPageBoardInputController();
         }
 
+        ApplyCurrentLayoutState(false);
         RefreshControls();
     }
 
     protected override void OnUpdate()
     {
         base.OnUpdate();
+        ApplyCurrentLayoutState(false);
         RefreshControls();
         RefreshTryModeInput();
 
@@ -86,6 +98,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         bool canAiAnalysis = replaySystem != null && replaySystem.IsReplayLoaded && !replaySystem.IsAiAnalyzing &&
             (replaySystem.IsAiAnalysisEnabled || replaySystem.HasAiAnalysisRender);
         bool hasAiAnalysisRender = replaySystem != null && replaySystem.HasAiAnalysisRender;
+        bool canOwnership = replaySystem != null && replaySystem.IsReplayLoaded && !replaySystem.IsOwnershipAnalyzing;
 
         binder.txt_title.text = replayScene != null ? replayScene.configData.id : "Replay";
         binder.txt_summary.text = replaySystem != null ? replaySystem.BuildSummaryText() : "未加载复盘场景";
@@ -110,10 +123,30 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         if (binder.btn_ai_analysis != null) {
             binder.btn_ai_analysis.interactable = canAiAnalysis;
         }
+        if (binder.btn_ownership != null) {
+            binder.btn_ownership.interactable = canOwnership;
+        }
         SetButtonText(binder.btn_close, "退出");
         SetTryModeButtonText("取消试下");
         SetButtonText(binder.btn_ai_analysis, GetAiAnalysisButtonText(replaySystem));
+        SetButtonText(binder.btn_ownership, GetOwnershipButtonText(replaySystem));
         RefreshAiAnalysisButtonSelection(hasAiAnalysisRender);
+    }
+
+    private void ApplyCurrentLayoutState(bool force)
+    {
+        if (binder.sr_platform == null) {
+            return;
+        }
+
+        bool isPortrait = UIUtils.IsPortrait(rectTransform);
+        if (!force && hasAppliedLayoutState && isPortrait == lastPortraitLayout) {
+            return;
+        }
+
+        binder.SetSrPlatformState(isPortrait ? ReplayPageUI.SrPlatformState.Portrait : ReplayPageUI.SrPlatformState.Landscape, force);
+        hasAppliedLayoutState = true;
+        lastPortraitLayout = isPortrait;
     }
 
     private void RefreshTryModeInput()
@@ -171,7 +204,31 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
             return;
         }
 
+        if (replaySystem.IsOwnershipAnalyzing || replaySystem.HasOwnershipRender) {
+            replaySystem.ClearOwnershipRender();
+        }
+
         replaySystem.RequestAiAnalysis();
+    }
+
+    private void OnClickOwnership()
+    {
+        ReplaySystem replaySystem = GetReplaySystem();
+        if (replaySystem == null) {
+            return;
+        }
+
+        if (replaySystem.HasOwnershipRender) {
+            replaySystem.ClearOwnershipRender();
+            return;
+        }
+
+        if (replaySystem.IsAiAnalyzing || replaySystem.HasAiAnalysisRender) {
+            replaySystem.ClearAiAnalysisRender();
+            RefreshAiAnalysisButtonSelection(false);
+        }
+
+        replaySystem.RequestOwnershipAnalysis();
     }
 
     private void BindScrubberEvents()
@@ -358,6 +415,19 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         }
 
         return "AI分析";
+    }
+
+    private string GetOwnershipButtonText(ReplaySystem replaySystem)
+    {
+        if (replaySystem != null && replaySystem.IsOwnershipAnalyzing) {
+            return "计算中";
+        }
+
+        if (replaySystem != null && replaySystem.HasOwnershipRender) {
+            return MessageText.Get("common_close");
+        }
+
+        return MessageText.Get("duel_ownership_button");
     }
 
     private void SetButtonText(Button button, string text)

@@ -6,6 +6,7 @@ using UnityEngine.UI;
 
 public class ReplayPageUI : UIBinderBase
 {
+	public StateRoot sr_platform;
 	public TextMeshProUGUI txt_title;
 	public TextMeshProUGUI txt_summary;
 	public TextMeshProUGUI txt_status;
@@ -21,9 +22,24 @@ public class ReplayPageUI : UIBinderBase
 	public Button btn_last;
 	public Button btn_try_mode;
 	public Button btn_ai_analysis;
+	public Button btn_ownership;
+	public TextMeshProUGUI txt_ownership_button;
 	public TextMeshProUGUI txt_scrub_preview;
 	public RectTransform rect_chart_area;
 	public Image img_move_scrubber_hit;
 	public Image img_chart_cursor;
 	public ReplayAnalysisChartGraphic chart_analysis;
+
+	public enum SrPlatformState
+	{
+		Landscape = 0,
+		Portrait = 1,
+	}
+
+	public void SetSrPlatformState(SrPlatformState state, bool force = false)
+	{
+		if (sr_platform != null) {
+			sr_platform.SetState((int)state, force);
+		}
+	}
 }
