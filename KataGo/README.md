@@ -50,3 +50,4 @@ katago.exe analysis -config analysis_example.cfg -model ../../../models/kata1-b1
 
 KataGo may create `analysis_logs` under the selected engine directory at runtime. These logs are generated diagnostics and should not be committed.
 The OpenCL engine may create `KataGoData/opencltuning`; these tuning cache files are also generated local state and should not be committed.
+Windows player packaging excludes runtime-generated or non-Windows directories and files from the copied KataGo runtime: `analysis_logs`, `KataGoData`, `android-opencl-tuning`, `Library`, `Temp`, `weiqixn_bridge_resolved_config.cfg`, and Unity `.meta` files.

@@ -16,6 +16,14 @@ public class AssetBundleGenerator
         "engines/win-x64/eigenavx2",
         "models",
     };
+    private static readonly string[] SkippedKataGoRuntimeDirectoryNames =
+    {
+        "analysis_logs",
+        "KataGoData",
+        "android-opencl-tuning",
+        "Library",
+        "Temp",
+    };
 
     private const string KataGoOpenClEngineName = "opencl";
     private const string KataGoCpuEngineName = "eigenavx2";
@@ -29,6 +37,7 @@ public class AssetBundleGenerator
     private const string KataGoAnalysisConfigFileName = "analysis_example.cfg";
     private const string KataGoNoWriteAnalysisConfigFileName = "analysis_nowrite.cfg";
     private const string KataGoAndroidPackagedModelSuffix = ".bytes";
+    private const string KataGoResolvedBridgeConfigFileName = "weiqixn_bridge_resolved_config.cfg";
 
     [MenuItem(CustomEditorMenuPaths.Build + "/打PC包")]
     public static void BuildWindows()
@@ -908,15 +917,14 @@ public class AssetBundleGenerator
     private static bool ShouldSkipKataGoRuntimeCopy(string path)
     {
         string name = Path.GetFileName(path);
-        if (string.Equals(name, "analysis_logs", StringComparison.OrdinalIgnoreCase)) {
-            return true;
+        foreach (string skippedDirectoryName in SkippedKataGoRuntimeDirectoryNames) {
+            if (string.Equals(name, skippedDirectoryName, StringComparison.OrdinalIgnoreCase)) {
+                return true;
+            }
         }
 
-        if (string.Equals(name, "KataGoData", StringComparison.OrdinalIgnoreCase)) {
-            return true;
-        }
-
-        return string.Equals(Path.GetExtension(path), ".meta", StringComparison.OrdinalIgnoreCase);
+        return string.Equals(name, KataGoResolvedBridgeConfigFileName, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(Path.GetExtension(path), ".meta", StringComparison.OrdinalIgnoreCase);
     }
 
     private readonly struct NativeRuntimeCandidate
