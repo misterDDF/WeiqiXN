@@ -117,6 +117,14 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         return false;
     }
 
+    public static void CloseSceneExitRequests()
+    {
+        if (pendingRequest != null) {
+            pendingRequest = null;
+        }
+        pendingUpdateRequest = null;
+    }
+
     public static void UpdateOpenContent(string title, string content, Action onConfirm, bool canConfirm = true)
     {
         int requestId = openedPopup?.currentRequest?.requestId ?? pendingRequest?.requestId ?? 0;

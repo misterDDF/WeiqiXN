@@ -11,6 +11,7 @@ public class UiPageDataType
     public string contextType;  // 所在context层级
     public bool isPopup;  // 是否为弹窗
     public bool isLoadAsync;  // 是否异步加载
+    public bool closeOnSceneExit;  // 场景退出时关闭
 
     public static Dictionary<string, UiPageDataType> UiPageDict;
 

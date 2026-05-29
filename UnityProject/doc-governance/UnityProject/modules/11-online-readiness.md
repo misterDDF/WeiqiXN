@@ -2,7 +2,7 @@
 
 ## 当前状态
 
-联机功能已开始进入最小房间和最小对局命令阶段。当前已有 `LanRoomService` 作为局域网房间服务入口，支持 host 侧 TCP 监听、UDP 房间广播、UDP 发现请求监听与单播回复、client 侧 UDP 搜索和主动探测、TCP 加入握手、最小准备状态交换、玩家资料同步、host 开局配置、主动 `LeaveRoom` 离开、进入带 LAN 标记的 `DuelScene`，以及 `SubmitMove` / `MoveAccepted` / `MoveRejected` / `BoardSnapshot` 的最小命令搬运；开局配置包含棋盘、时间、让子、host 座位和双方已知玩家资料。正常落子、虚手、数子、悔棋和认输已通过 `DuelAuthoritySystem` 收敛为统一提交入口。页面预览、点击提交和动作按钮权限通过 `DuelInputAuthority` 读取，LAN 下该权限来自 host 广播的 `InputAuthority`。host 侧 `LanDuelSystem` 通过现有规则入口进行权威落子校验，并在合法落子后广播权威棋盘快照；当前 `BoardSnapshot` 携带棋盘尺寸、下一手玩家、最后一步、棋子列表和 host 权威 KataGo 标准手顺，client 应用快照时同步棋盘与 `kataGoMoves` 并清除旧形势缓存。`PlayerProfile` 使用 base64 JSON 同步 host/client 玩家资料，当前只包含 `name` 字段，但以对象结构保留后续扩展空间；资料到达后会映射到黑白座位并刷新对局显示名。虚手通过 `SubmitPass` / `PassAccepted` 同步；认输通过 `SubmitResign` / `ResignAccepted` 同步；数子和悔棋通过确认请求/确认回复协议让对端弹窗确认。LAN 数子在对端同意请求后只广播候选 `ScoreResult`，双方都通过 `ScoreResultConfirmResponse` 接受后，host 才广播 `ScoreResultAccepted` 进入终局；拒绝请求、拒绝结果、请求失效或计算失败都会通过带原因的 `ScoreFailed` 恢复对局。悔棋确认阶段由 host 按 `actionId` 暂存原始请求，确认回复使用原始 `boardVersion` / `removeCount`；拒绝消息带请求方座位，避免非发起方误报失败，悔棋接受后会补发权威快照。host 也负责广播当前行棋方 `TimeState` 并在超时后广播 `PlayerTimeout`，client 只使用 host 计时状态刷新显示。任一端退出 LAN 房间或对局时会通过 `LanRoomService` 释放 TCP/UDP socket、清空 LAN 会话队列；对端收到 `LeaveRoom` 后提示并回主菜单。尚未实现正式传输抽象、匹配系统、完整同步系统或断线恢复系统。架构方向已收敛为 host 权威、单一 server core、客户端只发命令；第一版 server core 允许嵌在 host 进程中运行，后续再决定是否拆成独立进程。
+联机功能已开始进入最小房间和最小对局命令阶段。当前已有 `LanRoomService` 作为局域网房间服务入口，支持 host 侧 TCP 监听、UDP 房间广播、UDP 发现请求监听与单播回复、client 侧 UDP 搜索和主动探测、TCP 加入握手、最小准备状态交换、玩家资料同步、host 开局配置、主动 `LeaveRoom` 离开、对局中 `Heartbeat` 心跳检测、等待重连、client 恢复握手、进入带 LAN 标记的 `DuelScene`，以及 `SubmitMove` / `MoveAccepted` / `MoveRejected` / `BoardSnapshot` 的最小命令搬运；开局配置包含棋盘、时间、让子、host 座位、恢复会话凭据和双方已知玩家资料。正常落子、虚手、数子、悔棋和认输已通过 `DuelAuthoritySystem` 收敛为统一提交入口。页面预览、点击提交和动作按钮权限通过 `DuelInputAuthority` 读取，LAN 下该权限来自 host 广播的 `InputAuthority`，等待重连时强制无输入权。host 侧 `LanDuelSystem` 通过现有规则入口进行权威落子校验，并在合法落子后广播权威棋盘快照；当前 `BoardSnapshot` 携带棋盘尺寸、下一手玩家、最后一步、棋子列表和 host 权威 KataGo 标准手顺，client 应用快照时同步棋盘与 `kataGoMoves` 并清除旧形势缓存。`PlayerProfile` 使用 base64 JSON 同步 host/client 玩家资料，当前只包含 `name` 字段，但以对象结构保留后续扩展空间；资料到达后会映射到黑白座位并刷新对局显示名。虚手通过 `SubmitPass` / `PassAccepted` 同步；认输通过 `SubmitResign` / `ResignAccepted` 同步；数子和悔棋通过确认请求/确认回复协议让对端弹窗确认。LAN 数子在对端同意请求后只广播候选 `ScoreResult`，双方都通过 `ScoreResultConfirmResponse` 接受后，host 才广播 `ScoreResultAccepted` 进入终局；拒绝请求、拒绝结果、请求失效或计算失败都会通过带原因的 `ScoreFailed` 恢复对局。悔棋确认阶段由 host 按 `actionId` 暂存原始请求，确认回复使用原始 `boardVersion` / `removeCount`；拒绝消息带请求方座位，避免非发起方误报失败，悔棋接受后会补发权威快照。host 也负责广播当前行棋方 `TimeState` 并在超时后广播 `PlayerTimeout`，client 只使用 host 计时状态刷新显示。对局中断线会进入无限等待重连，host 暂停计时，client 按表驱动间隔向原 host 发起 `WEIQIXN_RESUME`；恢复成功后 host 补发 `BoardSnapshot`、`InputAuthority` 和 `TimeState`。任一端退出 LAN 房间或对局时会通过 `LanRoomService` 释放 TCP/UDP socket、清空 LAN 会话队列；对端收到 `LeaveRoom` 后提示并回主菜单。尚未实现正式传输抽象、匹配系统或完整同步系统。架构方向已收敛为 host 权威、单一 server core、客户端只发命令；第一版 server core 允许嵌在 host 进程中运行，后续再决定是否拆成独立进程。
 
 ## 已具备的基础
 
@@ -23,9 +23,10 @@
 - `LanDuelSystem` 已接入 `DuelScene`，host 消费带棋盘版本的 `SubmitMove` 并通过现有规则入口广播 `MoveAccepted` / `MoveRejected`，client 只应用 host 接受的落子。
 - 合法落子会递增 `SceneComponentDuel.lanBoardVersion`，host 随后广播包含棋盘尺寸、下一手玩家、最后一步、棋子列表和 host 权威 KataGo 标准手顺的 `BoardSnapshot`，client 用快照纠正本地棋盘与 `kataGoMoves`。
 - LAN 计时已按 host 权威收敛：host 广播 `TimeState`，client 不自行扣时或裁定超时；host 广播 `PlayerTimeout` 后 client 进入同样的超时终局。
-- `lan_room_config` 已承载局域网房间端口、连接超时、人数上限、广播间隔和缓冲区大小；协议消息名由 `LanRoomProtocol` 枚举按命名约定生成，并通过 `OnXxx` 接收函数注册到协议回调表。
+- `lan_room_config` 已承载局域网房间端口、连接超时、人数上限、广播间隔、缓冲区大小、心跳间隔、心跳超时和 client 重连探测间隔；协议消息名由 `LanRoomProtocol` 枚举按命名约定生成，并通过 `OnXxx` 接收函数注册到协议回调表。
 - LAN 房间搜索端解析 UDP 广播或单播发现回复时，加入连接地址以 UDP `remoteEndPoint.Address` 为准；房主 payload 中的 host address 只作为 UDP 来源地址为空时的兜底，避免 Android 房主自报地址不可靠导致房间可发现但无法加入。搜索端主动探测目标包含全局广播、系统网卡推导出的子网广播和常见 Android 热点广播地址，用于提高 Android 热点主机创建房间时的发现率。
-- `LeaveRoom` 已作为当前 LAN 会话生命周期协议接入；退出房间弹窗或 LAN 对局会主动通知对端、释放 TCP client/TCP listener/UDP broadcast/UDP discovery 并清空 LAN 消息队列，对端收到后提示联机结束并回主菜单。
+- `LeaveRoom` 已作为当前 LAN 会话生命周期协议接入；退出房间弹窗或 LAN 对局会主动通知对端、释放 TCP client/TCP listener/UDP broadcast/UDP discovery 并清空 LAN 消息队列，对端收到后提示联机结束并回主菜单。对局中非主动断线先进入等待重连，不立即触发对方离开。
+- client 收到 host 开局 `StartConfig` 后会把 `roomId`、恢复会话凭据、host 地址端口和开局配置保存到本地恢复票据；client 进程被强杀后重新进入 LAN 搜索，如果原 host 已因心跳超时进入等待重连并在房间广播中标记可恢复，点击原房间会优先使用本地票据发送 `WEIQIXN_RESUME`，恢复成功后进入 `DuelScene`，再由 host 补发权威快照纠正棋盘。正常主动离开或收到 `LeaveRoom` 会清除恢复票据，避免误恢复已放弃的对局。
 
 ## 主要缺口
 
@@ -34,7 +35,7 @@
 - 移动命令协议已有最小正常落子命令、版本确认、输入权下发、玩家资料同步、虚手、认输、数子确认和悔棋确认，尚未覆盖断线重连后的完整恢复。
 - 棋盘状态快照只覆盖落子后的棋盘纠偏，计时只覆盖在线显示校准和超时终局通知，尚未覆盖断线重连、房间完整状态或终局恢复。
 - 房间生命周期只覆盖创建、搜索、连接、开局和主动离开；当前玩家资料同步只覆盖座位显示名，座位只覆盖创建房间时 host 选择黑白或猜先，不包含房间内换座、观战、账号身份或跨设备账号。
-- 没有断线、重连和完整终局恢复在网络环境下的定义；当前数子仍依赖 KataGo ownership，悔棋不回滚历史计时快照。
+- 对局中断线已定义为无限等待重连并由 host 补发权威快照、输入权和时间状态；完整终局恢复仍未定义。当前数子仍依赖 KataGo ownership，悔棋不回滚历史计时快照。
 - 没有防作弊边界。
 
 ## 推荐联机路线
@@ -42,7 +43,7 @@
 1. 先定义最小在线对局目标：当前阶段以好友房或房间码为主，不把匹配当成第一交付物。
 2. 保持 host 权威和单一 server core：host 端也只通过同一套命令入口推进会话，不能因主机身份绕过协议；正常落子已按该方向收敛，后续动作继续沿用同一合同。
 3. 提取规则服务：本地和网络都调用同一个落子校验入口。
-4. 定义最小协议：`JoinRoom`、`Ready`、`StartConfig`、`PlayerProfile`、`InputAuthority`、`SubmitMove`、`MoveAccepted`、`MoveRejected`、`BoardSnapshot`、`SubmitPass`、`PassAccepted`、`SubmitResign`、`ResignAccepted`、`SubmitScore`、`ScoreConfirmRequest`、`ScoreConfirmResponse`、`ScoreResult`、`ScoreResultConfirmResponse`、`ScoreResultAccepted`、`ScoreFailed`、`SubmitTakeBack`、`TakeBackConfirmRequest`、`TakeBackConfirmResponse`、`TakeBackAccepted`、`TakeBackRejected`、`TimeState`、`PlayerTimeout`、`LeaveRoom`、`Heartbeat`。
+4. 定义最小协议：`JoinRoom`、`Ready`、`StartConfig`、`PlayerProfile`、`InputAuthority`、`SubmitMove`、`MoveAccepted`、`MoveRejected`、`BoardSnapshot`、`SubmitPass`、`PassAccepted`、`SubmitResign`、`ResignAccepted`、`SubmitScore`、`ScoreConfirmRequest`、`ScoreConfirmResponse`、`ScoreResult`、`ScoreResultConfirmResponse`、`ScoreResultAccepted`、`ScoreFailed`、`SubmitTakeBack`、`TakeBackConfirmRequest`、`TakeBackConfirmResponse`、`TakeBackAccepted`、`TakeBackRejected`、`TimeState`、`PlayerTimeout`、`LeaveRoom`、`Heartbeat`、`ResumeHello` / `ResumeAccept` / `ResumeReject`。
 5. 明确快照结构：棋盘尺寸、当前玩家、座位映射、棋子列表或位置字典、KataGo 标准手顺、回合计时、最后一步、局面版本号、房间状态。
 6. 再接入具体网络 SDK 或自建传输层，传输层只负责搬运命令和快照，不负责规则判断。
 

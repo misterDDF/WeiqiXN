@@ -29,6 +29,7 @@ public enum LanRoomProtocol
     TakeBackConfirmResponse,
     TakeBackAccepted,
     TakeBackRejected,
+    Heartbeat,
     LeaveRoom,
 }
 
@@ -40,6 +41,9 @@ public static class LanRoomProtocolName
     public const string HostAccept = "WEIQIXN_ACCEPT";
     public const string HostFull = "WEIQIXN_FULL";
     public const string HostReject = "WEIQIXN_REJECT";
+    public const string ResumeHello = "WEIQIXN_RESUME";
+    public const string ResumeAccept = "WEIQIXN_RESUME_ACCEPT";
+    public const string ResumeReject = "WEIQIXN_RESUME_REJECT";
 
     public static string ToWireName(LanRoomProtocol protocol)
     {

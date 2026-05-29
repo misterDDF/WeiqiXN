@@ -33,5 +33,20 @@
     "key": "sessionReadBufferSize",
     "remark": "TCP 会话读取缓冲区大小",
     "value": "512"
+  },
+  "heartbeatIntervalMilliseconds": {
+    "key": "heartbeatIntervalMilliseconds",
+    "remark": "对局中 TCP 心跳发送间隔（毫秒）",
+    "value": "1000"
+  },
+  "heartbeatTimeoutMilliseconds": {
+    "key": "heartbeatTimeoutMilliseconds",
+    "remark": "对局中超过该时长未收到对端消息则进入等待重连（毫秒）",
+    "value": "5000"
+  },
+  "reconnectProbeIntervalMilliseconds": {
+    "key": "reconnectProbeIntervalMilliseconds",
+    "remark": "client 等待重连时向 host 发起恢复握手的间隔（毫秒）",
+    "value": "2000"
   }
 }

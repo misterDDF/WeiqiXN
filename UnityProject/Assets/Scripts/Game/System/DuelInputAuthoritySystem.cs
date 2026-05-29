@@ -10,10 +10,25 @@ public class DuelInputAuthoritySystem : SystemBase
     {
         base.Init();
         scene.RegisterSystemEvent<OnDuelStateChanged>(OnDuelStateChanged);
+        scene.RegisterSystemEvent<OnLanRoomReconnectWaiting>(OnLanRoomReconnectWaiting);
+        scene.RegisterSystemEvent<OnLanRoomReconnected>(OnLanRoomReconnected);
         RefreshLocalInputAuthority();
     }
 
     private void OnDuelStateChanged(OnDuelStateChanged evt)
+    {
+        RefreshLocalInputAuthority();
+    }
+
+    private void OnLanRoomReconnectWaiting(OnLanRoomReconnectWaiting evt)
+    {
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
+        if (compDuel != null && compDuel.isLanDuel.value) {
+            compDuel.localInputPlayerFlag.value = 0;
+        }
+    }
+
+    private void OnLanRoomReconnected(OnLanRoomReconnected evt)
     {
         RefreshLocalInputAuthority();
     }
@@ -81,6 +96,7 @@ public class DuelInputAuthoritySystem : SystemBase
         return compDuel.duelFSM != null
             && compDuel.duelFSM.isActivated
             && !compDuel.isScoring
+            && (!compDuel.isLanDuel.value || Global.Instance.lanRoomService == null || !Global.Instance.lanRoomService.IsReconnectWaiting)
             && compDuel.duelFSM.curState != null
             && compDuel.duelFSM.curState.stateName == DuelStateDefine.STATE_TURN_INPUT
             && !string.IsNullOrEmpty(compDuel.curTurnPlayerGuid.value);

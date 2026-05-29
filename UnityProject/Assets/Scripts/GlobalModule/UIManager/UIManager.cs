@@ -37,11 +37,9 @@ public class UIManager : ModuleBase
 
     public void OnExitMainScene(OnExitMainScene evt)
     {
-        if (contextDict.TryGetValue(UIContextType.Header, out var headerContext)) {
-            headerContext.CloseAllMainPages();
-        }
-        if (contextDict.TryGetValue(UIContextType.General, out var generalContext)) {
-            generalContext.CloseAllMainPages();
+        ConfirmPopup.CloseSceneExitRequests();
+        foreach (UIContext context in contextDict.Values) {
+            context.CloseSceneExitPages();
         }
     }
 

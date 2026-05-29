@@ -10,6 +10,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     private DuelPageHudView hudView;
     private int pendingScorePopupRequestId;
     private int pendingTakeBackPopupRequestId;
+    private int reconnectWaitingPopupRequestId;
     private int pendingTakeBackMoveCount;
     private int pendingTakeBackRemoveCount;
     private string pendingTakeBackTurnPlayerGuid;
@@ -34,6 +35,8 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         RegisterSystemEvent<OnLanDuelScoreResultConfirmRequest>(OnLanDuelScoreResultConfirmRequest);
         RegisterSystemEvent<OnLanDuelTakeBackConfirmRequest>(OnLanDuelTakeBackConfirmRequest);
         RegisterSystemEvent<OnLanRoomPeerLeft>(OnLanRoomPeerLeft);
+        RegisterSystemEvent<OnLanRoomReconnectWaiting>(OnLanRoomReconnectWaiting);
+        RegisterSystemEvent<OnLanRoomReconnected>(OnLanRoomReconnected);
 
         BindPrefabHud();
     }
@@ -44,6 +47,9 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         hudView.Reset();
         RefreshDuelHud();
+        if (Global.Instance.lanRoomService != null && Global.Instance.lanRoomService.IsReconnectWaiting) {
+            ShowOrUpdateReconnectWaitingPopup(Global.Instance.lanRoomService.ReconnectWaitingSeconds);
+        }
     }
 
     protected override void OnUpdate()
@@ -67,6 +73,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     {
         ClosePendingScorePopup();
         ClosePendingTakeBackPopup();
+        CloseReconnectWaitingPopup();
         boardInput.Dispose();
         base.OnClose();
     }
@@ -217,11 +224,25 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     {
         ClosePendingScorePopup();
         ClosePendingTakeBackPopup();
+        CloseReconnectWaitingPopup();
         ConfirmPopup.ShowTip(
             MessageText.Get("lan_room_peer_left_title"),
             MessageText.Get("lan_room_peer_left_content"),
             () => Global.Instance.sceneManager.EnterMainScene(SceneConfig.MAIN_MENU_SCENE_TYPE_ID, SceneCreateParams.Default),
             MessageText.Get("common_confirm"));
+    }
+
+    public void OnLanRoomReconnectWaiting(OnLanRoomReconnectWaiting evt)
+    {
+        ClosePendingScorePopup();
+        ClosePendingTakeBackPopup();
+        ShowOrUpdateReconnectWaitingPopup(evt.elapsedSeconds);
+    }
+
+    public void OnLanRoomReconnected(OnLanRoomReconnected evt)
+    {
+        CloseReconnectWaitingPopup();
+        hudView.ShowActionNotice(MessageText.Get("lan_room_reconnect_restored"));
     }
 
     public void RefreshDuelHud()
@@ -259,6 +280,12 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             Global.Instance.lanRoomService?.LeaveCurrentSession(LanRoomLeaveReason.ExitDuel);
         }
 
+        Global.Instance.sceneManager.EnterMainScene(SceneConfig.MAIN_MENU_SCENE_TYPE_ID, SceneCreateParams.Default);
+    }
+
+    private void ExitReconnectWaitingToMainMenu()
+    {
+        Global.Instance.lanRoomService?.LeaveCurrentSession(LanRoomLeaveReason.ExitDuel, false);
         Global.Instance.sceneManager.EnterMainScene(SceneConfig.MAIN_MENU_SCENE_TYPE_ID, SceneCreateParams.Default);
     }
 
@@ -441,6 +468,37 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         ConfirmPopup.CloseIfOpen(pendingScorePopupRequestId);
         pendingScorePopupRequestId = 0;
+    }
+
+    private void ShowOrUpdateReconnectWaitingPopup(int elapsedSeconds)
+    {
+        string title = MessageText.Get("lan_room_reconnect_wait_title");
+        string content = MessageText.Format("lan_room_reconnect_wait_content", elapsedSeconds);
+        if (reconnectWaitingPopupRequestId <= 0) {
+            reconnectWaitingPopupRequestId = ConfirmPopup.ShowTip(
+                title,
+                content,
+                ExitReconnectWaitingToMainMenu,
+                MessageText.Get("lan_room_reconnect_leave_main_menu"));
+            return;
+        }
+
+        ConfirmPopup.UpdateOpenContent(
+            reconnectWaitingPopupRequestId,
+            title,
+            content,
+            ExitReconnectWaitingToMainMenu,
+            true);
+    }
+
+    private void CloseReconnectWaitingPopup()
+    {
+        if (reconnectWaitingPopupRequestId <= 0) {
+            return;
+        }
+
+        ConfirmPopup.CloseIfOpen(reconnectWaitingPopupRequestId);
+        reconnectWaitingPopupRequestId = 0;
     }
 
     private DuelScoreResult BuildScoreResult(LanDuelScoreResultMessage result)

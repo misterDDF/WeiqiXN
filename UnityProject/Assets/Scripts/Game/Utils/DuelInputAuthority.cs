@@ -39,6 +39,7 @@ public static class DuelInputAuthority
         return compDuel.duelFSM != null
             && compDuel.duelFSM.isActivated
             && !compDuel.isScoring
+            && (!compDuel.isLanDuel.value || Global.Instance.lanRoomService == null || !Global.Instance.lanRoomService.IsReconnectWaiting)
             && compDuel.duelFSM.curState != null
             && compDuel.duelFSM.curState.stateName == DuelStateDefine.STATE_TURN_INPUT
             && !string.IsNullOrEmpty(compDuel.curTurnPlayerGuid.value);

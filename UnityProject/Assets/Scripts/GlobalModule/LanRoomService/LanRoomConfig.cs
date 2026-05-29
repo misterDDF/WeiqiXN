@@ -10,6 +10,9 @@ public static class LanRoomConfig
     private const int DefaultBroadcastIntervalMilliseconds = 1000;
     private const int DefaultHandshakeBufferSize = 128;
     private const int DefaultSessionReadBufferSize = 512;
+    private const int DefaultHeartbeatIntervalMilliseconds = 1000;
+    private const int DefaultHeartbeatTimeoutMilliseconds = 5000;
+    private const int DefaultReconnectProbeIntervalMilliseconds = 2000;
 
     public static int UdpBroadcastPort => GetInt("udpBroadcastPort", DefaultUdpBroadcastPort);
     public static int TcpListenPort => GetInt("tcpListenPort", DefaultTcpListenPort);
@@ -18,6 +21,9 @@ public static class LanRoomConfig
     public static int BroadcastIntervalMilliseconds => GetInt("broadcastIntervalMilliseconds", DefaultBroadcastIntervalMilliseconds);
     public static int HandshakeBufferSize => GetInt("handshakeBufferSize", DefaultHandshakeBufferSize);
     public static int SessionReadBufferSize => GetInt("sessionReadBufferSize", DefaultSessionReadBufferSize);
+    public static int HeartbeatIntervalMilliseconds => GetInt("heartbeatIntervalMilliseconds", DefaultHeartbeatIntervalMilliseconds);
+    public static int HeartbeatTimeoutMilliseconds => GetInt("heartbeatTimeoutMilliseconds", DefaultHeartbeatTimeoutMilliseconds);
+    public static int ReconnectProbeIntervalMilliseconds => GetInt("reconnectProbeIntervalMilliseconds", DefaultReconnectProbeIntervalMilliseconds);
 
     private static int GetInt(string key, int fallbackValue)
     {
