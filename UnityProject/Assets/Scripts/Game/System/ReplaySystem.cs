@@ -107,6 +107,18 @@ public class ReplaySystem : SystemBase
     public IReadOnlyList<ReplayChartPoint> ChartPoints => compReplay != null ? compReplay.chartPoints : null;
     public string ReplayStatus => BuildReplayStatusText();
 
+    private static bool IsMobilePlayerBuild
+    {
+        get
+        {
+#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
+            return true;
+#else
+            return false;
+#endif
+        }
+    }
+
     public void RestoreDefaultBoard()
     {
         if (!IsReplayLoaded) {
@@ -363,7 +375,7 @@ public class ReplaySystem : SystemBase
                 compReplay.chartStatus = $"低精度曲线补全 {completedBackgroundCount}/{backgroundMoveIndexes.Count}（第 {result.moveIndex} 手）";
                 });
 
-            if (!chartBackgroundStoppedByFailure && GetReplayConfigBool(ConfigChartHighRefreshEnabled, true)) {
+            if (!chartBackgroundStoppedByFailure && IsChartHighPrecisionRequestEnabled() && GetReplayConfigBool(ConfigChartHighRefreshEnabled, true)) {
                 compReplay.isChartHighRefreshing = true;
                 List<int> highMoveIndexes = new List<int>();
                 for (int moveIndex = 0; moveIndex <= moveCount; moveIndex++) {
@@ -1286,6 +1298,11 @@ public class ReplaySystem : SystemBase
             return;
         }
 
+        if (!IsChartHighPrecisionRequestEnabled()) {
+            CancelCursorChartRequest();
+            return;
+        }
+
         if (compReplay.isChartLoading) {
             return;
         }
@@ -1453,6 +1470,11 @@ public class ReplaySystem : SystemBase
         }
 
         StartChartBackgroundBuild();
+    }
+
+    private bool IsChartHighPrecisionRequestEnabled()
+    {
+        return !IsMobilePlayerBuild;
     }
 
     private void CancelChartLoadingRequest()
