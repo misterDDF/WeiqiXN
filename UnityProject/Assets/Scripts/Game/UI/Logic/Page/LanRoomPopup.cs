@@ -149,7 +149,10 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
         SetStatus(MessageText.Format("lan_room_connecting", room.name, room.hostAddress, room.tcpPort));
         Global.Instance.lanRoomService.StopSearchRooms();
         if (Global.Instance.lanRoomService.ConnectToRoom(room)) {
-            Global.Instance.lanRoomService.SetLocalReady(true);
+            LanRoomSessionState state = Global.Instance.lanRoomService.SessionState;
+            if (!state.gameStarted) {
+                Global.Instance.lanRoomService.SetLocalReady(true);
+            }
         }
         SetStatus(Global.Instance.lanRoomService.LastStatus);
     }

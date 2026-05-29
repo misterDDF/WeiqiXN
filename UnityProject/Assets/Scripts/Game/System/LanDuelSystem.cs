@@ -23,6 +23,12 @@ public class LanDuelSystem : SystemBase
             return;
         }
 
+        ProcessReconnectRestored(compDuel);
+
+        if (Global.Instance.lanRoomService.IsReconnectWaiting) {
+            return;
+        }
+
         if ((LanRoomRole)compDuel.lanRole.value == LanRoomRole.Host) {
             ProcessSubmittedMoves();
             ProcessSubmittedPasses(compDuel);
@@ -36,6 +42,29 @@ public class LanDuelSystem : SystemBase
         }
 
         ProcessSessionMessages();
+    }
+
+    private void ProcessReconnectRestored(SceneComponentDuel compDuel)
+    {
+        if (!Global.Instance.lanRoomService.TryConsumeReconnectRestoredForDuel()) {
+            return;
+        }
+
+        ProcessSessionMessages();
+        if ((LanRoomRole)compDuel.lanRole.value != LanRoomRole.Host) {
+            return;
+        }
+
+        ChessBoardSystem chessBoardSystem = scene.GetSystem<ChessBoardSystem>();
+        if (chessBoardSystem != null && chessBoardSystem.TryBuildLanBoardSnapshot(out LanDuelBoardSnapshotMessage snapshot)) {
+            Global.Instance.lanRoomService.BroadcastBoardSnapshot(snapshot);
+        }
+
+        scene.GetSystem<DuelInputAuthoritySystem>()?.RefreshLocalInputAuthority();
+        LanDuelTimeStateMessage? timeState = BuildCurrentTimeState(compDuel);
+        if (timeState.HasValue) {
+            Global.Instance.lanRoomService.BroadcastTimeState(timeState.Value);
+        }
     }
 
     private void ProcessSubmittedMoves()

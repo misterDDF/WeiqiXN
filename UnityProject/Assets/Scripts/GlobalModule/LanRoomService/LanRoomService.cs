@@ -60,10 +60,19 @@ public partial class LanRoomService : ModuleBase
     private readonly Queue<OnLanRoomPeerLeft> pendingPeerLeftEvents = new Queue<OnLanRoomPeerLeft>();
     private TcpClient connectedClient;
     private Thread sessionReadThread;
+    private Thread reconnectThread;
+    private volatile bool isReconnectProbing;
     private LanRoomRole currentRole = LanRoomRole.None;
     private bool hostReady;
     private bool clientReady;
     private bool gameStarted;
+    private bool isReconnectWaiting;
+    private bool pendingReconnectRestoredUiEvent;
+    private bool pendingReconnectRestoredDuelEvent;
+    private int lastReconnectWaitingSecond = -1;
+    private DateTime lastPeerMessageUtc = DateTime.MinValue;
+    private DateTime lastHeartbeatSentUtc = DateTime.MinValue;
+    private DateTime reconnectStartedUtc = DateTime.MinValue;
     private int nextMoveId = 1;
     private string lanBoardCfgId = "9x9";
     private string lanHoldTimeCfgId = "infinite";
@@ -72,6 +81,11 @@ public partial class LanRoomService : ModuleBase
     private string lanHandicapCfgId = "9x9_0";
     private PlayerFlag lanHostPlayerFlag = PlayerFlag.Player1;
     private string lanHostPlayerSideCfgId = "black";
+    private string lanSessionId;
+    private string lanResumeToken;
+    private string lastRoomId;
+    private string lastHostAddress;
+    private int lastHostTcpPort;
     private UserProfileData hostPlayerProfile = UserProfileData.CreateFallback("Host");
     private UserProfileData clientPlayerProfile = UserProfileData.CreateFallback("Client");
     private string lastStatus;
@@ -88,6 +102,24 @@ public partial class LanRoomService : ModuleBase
     public string LanHostPlayerSideCfgId => lanHostPlayerSideCfgId;
     public UserProfileData HostPlayerProfile => hostPlayerProfile;
     public UserProfileData ClientPlayerProfile => clientPlayerProfile;
+    public bool IsReconnectWaiting
+    {
+        get
+        {
+            lock (sessionLock) {
+                return isReconnectWaiting;
+            }
+        }
+    }
+    public int ReconnectWaitingSeconds
+    {
+        get
+        {
+            lock (sessionLock) {
+                return GetReconnectWaitingSeconds(DateTime.UtcNow);
+            }
+        }
+    }
     public LanRoomSessionState SessionState
     {
         get
@@ -106,8 +138,14 @@ public partial class LanRoomService : ModuleBase
     {
         base.Update();
 
+        UpdateHeartbeatAndReconnect();
+
         while (TryDequeuePeerLeftEvent(out OnLanRoomPeerLeft evt)) {
             Global.Instance.eventManager.EmitSystemEvent(evt);
+        }
+
+        if (TryConsumeReconnectRestoredEvent()) {
+            Global.Instance.eventManager.EmitSystemEvent(new OnLanRoomReconnected());
         }
     }
 
@@ -153,6 +191,11 @@ public partial class LanRoomService : ModuleBase
         hostedRoomId = Guid.NewGuid().ToString("N");
         hostedRoomName = string.IsNullOrEmpty(roomName) ? MessageText.Get("lan_room_default_name") : roomName;
         hostedTcpPort = LanRoomConfig.TcpListenPort;
+        lanSessionId = Guid.NewGuid().ToString("N");
+        lanResumeToken = Guid.NewGuid().ToString("N");
+        lastRoomId = hostedRoomId;
+        lastHostAddress = null;
+        lastHostTcpPort = hostedTcpPort;
         lock (sessionLock) {
             currentRole = LanRoomRole.Host;
             hostPlayerProfile = User.Instance.compUserInfo.BuildProfileData();
@@ -160,7 +203,14 @@ public partial class LanRoomService : ModuleBase
             hostReady = false;
             clientReady = false;
             gameStarted = false;
+            isReconnectWaiting = false;
+            pendingReconnectRestoredUiEvent = false;
+            pendingReconnectRestoredDuelEvent = false;
+            lastReconnectWaitingSecond = -1;
             nextMoveId = 1;
+            lastPeerMessageUtc = DateTime.MinValue;
+            lastHeartbeatSentUtc = DateTime.MinValue;
+            reconnectStartedUtc = DateTime.MinValue;
             ClearDuelMessageQueues();
         }
 
@@ -208,6 +258,7 @@ public partial class LanRoomService : ModuleBase
     public void StopRoom()
     {
         isHosting = false;
+        StopReconnectProbe();
         CloseClient(connectedClient);
         connectedClient = null;
         lock (sessionLock) {
@@ -217,7 +268,14 @@ public partial class LanRoomService : ModuleBase
             hostReady = false;
             clientReady = false;
             gameStarted = false;
+            isReconnectWaiting = false;
+            pendingReconnectRestoredUiEvent = false;
+            pendingReconnectRestoredDuelEvent = false;
+            lastReconnectWaitingSecond = -1;
             nextMoveId = 1;
+            lastPeerMessageUtc = DateTime.MinValue;
+            lastHeartbeatSentUtc = DateTime.MinValue;
+            reconnectStartedUtc = DateTime.MinValue;
             ClearDuelMessageQueues();
         }
 
@@ -243,6 +301,11 @@ public partial class LanRoomService : ModuleBase
         sessionReadThread = null;
         hostedRoomId = null;
         hostedRoomName = null;
+        lanSessionId = null;
+        lanResumeToken = null;
+        lastRoomId = null;
+        lastHostAddress = null;
+        lastHostTcpPort = 0;
         lastStatus = MessageText.Get("lan_room_service_stopped");
     }
 
@@ -252,6 +315,8 @@ public partial class LanRoomService : ModuleBase
             SendLeaveRoomMessage(reason);
         }
 
+        LanRoomResumeTicketStore.Clear();
+        StopReconnectProbe();
         StopSearchRooms();
         StopRoom();
     }
@@ -317,8 +382,31 @@ public partial class LanRoomService : ModuleBase
 
     public bool ConnectToRoom(LanRoomInfo room)
     {
+        StopReconnectProbe();
         CloseClient(connectedClient);
         connectedClient = null;
+        lastHostAddress = room.hostAddress;
+        lastHostTcpPort = room.tcpPort;
+        lastRoomId = room.roomId;
+
+        if (room.canResumeGame && TryLoadResumeTicketForRoom(room, out LanRoomResumeTicket ticket)) {
+            lanSessionId = ticket.sessionId;
+            lanResumeToken = ticket.resumeToken;
+            ApplyResumeTicketConfig(ticket, room);
+            if (TryResumeConnection(room.hostAddress, room.tcpPort, true)) {
+                return true;
+            }
+
+            return false;
+        }
+
+        if (room.canResumeGame) {
+            lastStatus = MessageText.Get("lan_room_connect_rejected");
+            return false;
+        }
+
+        lanSessionId = null;
+        lanResumeToken = null;
 
         try {
             TcpClient client = new TcpClient();
@@ -352,12 +440,20 @@ public partial class LanRoomService : ModuleBase
                 hostReady = false;
                 clientReady = false;
                 gameStarted = false;
+                isReconnectWaiting = false;
+                pendingReconnectRestoredUiEvent = false;
+                pendingReconnectRestoredDuelEvent = false;
+                lastReconnectWaitingSecond = -1;
                 nextMoveId = 1;
+                lastPeerMessageUtc = DateTime.UtcNow;
+                lastHeartbeatSentUtc = DateTime.MinValue;
+                reconnectStartedUtc = DateTime.MinValue;
                 ClearDuelMessageQueues();
             }
             StartSessionReader(client);
             SyncLocalPlayerProfile();
             SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.Ready)}|CLIENT|0");
+            LanRoomResumeTicketStore.Clear();
             lastStatus = MessageText.Format("lan_room_connected", room.name);
             XNLogger.LogInfo("LAN room connected.", ("roomId", room.roomId), ("host", room.hostAddress));
             return true;
@@ -411,6 +507,7 @@ public partial class LanRoomService : ModuleBase
         }
 
         SendRoomMessage(SerializeStartConfigMessage());
+        SaveCurrentResumeTicket();
         BroadcastRoomState();
         lastStatus = MessageText.Get("lan_room_start_command_sent");
         return true;
@@ -419,6 +516,9 @@ public partial class LanRoomService : ModuleBase
     public bool SubmitLocalMove(PlayerFlag playerFlag, RectCoordinates coords, int boardVersion)
     {
         if (coords == null) {
+            return false;
+        }
+        if (IsReconnectWaiting) {
             return false;
         }
 
@@ -446,6 +546,10 @@ public partial class LanRoomService : ModuleBase
 
     public bool SubmitLocalResign(PlayerFlag loserFlag)
     {
+        if (IsReconnectWaiting) {
+            return false;
+        }
+
         LanRoomRole role;
         int actionId;
         lock (sessionLock) {
@@ -470,6 +574,10 @@ public partial class LanRoomService : ModuleBase
 
     public bool SubmitLocalPass(PlayerFlag playerFlag, int boardVersion)
     {
+        if (IsReconnectWaiting) {
+            return false;
+        }
+
         LanRoomRole role;
         int actionId;
         lock (sessionLock) {
@@ -494,6 +602,10 @@ public partial class LanRoomService : ModuleBase
 
     public bool SubmitLocalScore(PlayerFlag requesterFlag, int boardVersion)
     {
+        if (IsReconnectWaiting) {
+            return false;
+        }
+
         LanRoomRole role;
         int actionId;
         lock (sessionLock) {
@@ -562,6 +674,10 @@ public partial class LanRoomService : ModuleBase
 
     public bool SubmitLocalTakeBack(PlayerFlag requesterFlag, int boardVersion, int removeCount)
     {
+        if (IsReconnectWaiting) {
+            return false;
+        }
+
         LanRoomRole role;
         int actionId;
         lock (sessionLock) {
@@ -1147,15 +1263,28 @@ public partial class LanRoomService : ModuleBase
         while (isHosting) {
             try {
                 TcpClient client = hostListener.AcceptTcpClient();
+                NetworkStream stream = client.GetStream();
+                byte[] buffer = new byte[LanRoomConfig.HandshakeBufferSize];
+                int readLength = stream.Read(buffer, 0, buffer.Length);
+                string request = Encoding.UTF8.GetString(buffer, 0, readLength).Trim();
+
+                if (IsResumeRequest(request)) {
+                    HandleResumeRequest(client, stream, request);
+                    continue;
+                }
+
+                lock (sessionLock) {
+                    if (isReconnectWaiting || gameStarted) {
+                        SendAndClose(client, $"{LanRoomProtocolName.HostFull}\n");
+                        continue;
+                    }
+                }
+
                 if (connectedClient != null) {
                     SendAndClose(client, $"{LanRoomProtocolName.HostFull}\n");
                     continue;
                 }
 
-                NetworkStream stream = client.GetStream();
-                byte[] buffer = new byte[LanRoomConfig.HandshakeBufferSize];
-                int readLength = stream.Read(buffer, 0, buffer.Length);
-                string request = Encoding.UTF8.GetString(buffer, 0, readLength).Trim();
                 if (!request.StartsWith($"{LanRoomProtocolName.ClientHello}|{hostedRoomId}", StringComparison.Ordinal)) {
                     SendAndClose(client, $"{LanRoomProtocolName.HostReject}\n");
                     continue;
@@ -1170,7 +1299,14 @@ public partial class LanRoomService : ModuleBase
                     clientPlayerProfile = UserProfileData.CreateFallback("Client");
                     clientReady = false;
                     gameStarted = false;
+                    isReconnectWaiting = false;
+                    pendingReconnectRestoredUiEvent = false;
+                    pendingReconnectRestoredDuelEvent = false;
+                    lastReconnectWaitingSecond = -1;
                     nextMoveId = 1;
+                    lastPeerMessageUtc = DateTime.UtcNow;
+                    lastHeartbeatSentUtc = DateTime.MinValue;
+                    reconnectStartedUtc = DateTime.MinValue;
                     ClearDuelMessageQueues();
                 }
                 StartSessionReader(client);
@@ -1234,7 +1370,8 @@ public partial class LanRoomService : ModuleBase
     {
         room = default;
         string[] parts = payload.Split('|');
-        if ((parts.Length != 7 && parts.Length != 14 && parts.Length != 15) || parts[0] != LanRoomProtocolName.DiscoveryPrefix) {
+        if ((parts.Length != 7 && parts.Length != 14 && parts.Length != 15 && parts.Length != 16) ||
+            parts[0] != LanRoomProtocolName.DiscoveryPrefix) {
             return false;
         }
 
@@ -1271,20 +1408,23 @@ public partial class LanRoomService : ModuleBase
             parts[11],
             parts[12],
             (PlayerFlag)hostPlayerFlagValue,
-            parts.Length >= 15 ? parts[14] : string.Empty);
+            parts.Length >= 15 ? parts[14] : string.Empty,
+            parts.Length >= 16 && parts[15] == "1");
         return true;
     }
 
     private string BuildDiscoveryPayload(string localAddress)
     {
         string hostPlayerName;
+        bool canResumeGame;
         lock (sessionLock) {
             UserProfileData profile = hostPlayerProfile ?? UserProfileData.CreateFallback(GetDefaultProfileName(LanRoomRole.Host));
             profile.Normalize(GetDefaultProfileName(LanRoomRole.Host));
             hostPlayerName = profile.name;
+            canResumeGame = gameStarted && isReconnectWaiting;
         }
 
-        return $"{LanRoomProtocolName.DiscoveryPrefix}|{hostedRoomId}|{hostedRoomName}|{localAddress}|{hostedTcpPort}|{GetHostedPlayerCount()}|{LanRoomConfig.MaxPlayerCount}|{EncodeText(hostPlayerName)}|{lanBoardCfgId}|{lanHoldTimeCfgId}|{lanByoyomiCountCfgId}|{lanByoyomiTimeCfgId}|{lanHandicapCfgId}|{(int)lanHostPlayerFlag}|{lanHostPlayerSideCfgId}";
+        return $"{LanRoomProtocolName.DiscoveryPrefix}|{hostedRoomId}|{hostedRoomName}|{localAddress}|{hostedTcpPort}|{GetHostedPlayerCount()}|{LanRoomConfig.MaxPlayerCount}|{EncodeText(hostPlayerName)}|{lanBoardCfgId}|{lanHoldTimeCfgId}|{lanByoyomiCountCfgId}|{lanByoyomiTimeCfgId}|{lanHandicapCfgId}|{(int)lanHostPlayerFlag}|{lanHostPlayerSideCfgId}|{BoolToInt(canResumeGame)}";
     }
 
     private int GetHostedPlayerCount()
@@ -1421,6 +1561,7 @@ public partial class LanRoomService : ModuleBase
 
     private void StartSessionReader(TcpClient client)
     {
+        MarkPeerMessageReceived();
         sessionReadThread = new Thread(() => ReadSessionLoop(client))
         {
             IsBackground = true,
@@ -1481,6 +1622,7 @@ public partial class LanRoomService : ModuleBase
             return;
         }
 
+        MarkPeerMessageReceived();
         EnsureProtocolHandlers();
         if (protocolHandlers != null && protocolHandlers.TryGetValue(protocolMessage.protocol, out Action<LanRoomProtocolMessage> handler)) {
             handler(protocolMessage);
@@ -1502,6 +1644,7 @@ public partial class LanRoomService : ModuleBase
         }
 
         EnqueuePeerLeftEvent(peerRole, reason);
+        LanRoomResumeTicketStore.Clear();
         StopRoom();
         lastStatus = MessageText.Get("lan_room_peer_left");
     }
@@ -1569,7 +1712,7 @@ public partial class LanRoomService : ModuleBase
 
     private void HandleStartConfigMessage(LanRoomProtocolMessage message)
     {
-        if (message.ArgCount != 4 && message.ArgCount != 6 && message.ArgCount != 7) {
+        if (message.ArgCount != 4 && message.ArgCount != 6 && message.ArgCount != 7 && message.ArgCount != 9) {
             return;
         }
 
@@ -1586,9 +1729,18 @@ public partial class LanRoomService : ModuleBase
         lanHostPlayerSideCfgId = message.ArgCount >= 7
             ? GetValidHostPlayerSideCfgId(message.GetArg(6), lanHostPlayerFlag)
             : GetValidHostPlayerSideCfgId(string.Empty, lanHostPlayerFlag);
+        if (message.ArgCount >= 9) {
+            lanSessionId = message.GetArg(7);
+            lanResumeToken = message.GetArg(8);
+        }
+        if (string.IsNullOrEmpty(lastRoomId) && LanRoomResumeTicketStore.TryLoad(out LanRoomResumeTicket ticket)) {
+            lastRoomId = ticket.roomId;
+        }
         lock (sessionLock) {
             gameStarted = true;
+            lastPeerMessageUtc = DateTime.UtcNow;
         }
+        SaveCurrentResumeTicket();
         lastStatus = MessageText.Get("lan_room_host_started_game");
     }
 
@@ -2182,6 +2334,27 @@ public partial class LanRoomService : ModuleBase
         ClearTakeBackQueues();
     }
 
+    private void ClearTransientActionQueuesForReconnect()
+    {
+        pendingSubmittedMoves.Clear();
+        pendingAcceptedMoves.Clear();
+        pendingRejectedMoves.Clear();
+        pendingBoardSnapshots.Clear();
+        pendingTimeStates.Clear();
+        pendingTimeoutLosers.Clear();
+        pendingSubmittedResigns.Clear();
+        pendingAcceptedResigns.Clear();
+        pendingInputAuthorities.Clear();
+        pendingSubmittedPasses.Clear();
+        pendingAcceptedPasses.Clear();
+        pendingSubmittedScores.Clear();
+        pendingScoreConfirmRequests.Clear();
+        pendingScoreConfirmResponses.Clear();
+        pendingAcceptedScoreRequests.Clear();
+        ClearScoreResultQueues();
+        ClearTakeBackQueues();
+    }
+
     private bool TryDequeuePeerLeftEvent(out OnLanRoomPeerLeft evt)
     {
         lock (sessionLock) {
@@ -2200,6 +2373,31 @@ public partial class LanRoomService : ModuleBase
         lock (sessionLock) {
             pendingPeerLeftEvents.Enqueue(new OnLanRoomPeerLeft(peerRole, reason));
         }
+    }
+
+    public bool TryConsumeReconnectRestoredForDuel()
+    {
+        lock (sessionLock) {
+            if (!pendingReconnectRestoredDuelEvent || isReconnectWaiting) {
+                return false;
+            }
+
+            pendingReconnectRestoredDuelEvent = false;
+            return true;
+        }
+    }
+
+    private bool TryConsumeReconnectRestoredEvent()
+    {
+        lock (sessionLock) {
+            if (!pendingReconnectRestoredUiEvent || isReconnectWaiting) {
+                return false;
+            }
+
+            pendingReconnectRestoredUiEvent = false;
+        }
+
+        return true;
     }
 
     private string SerializeBoardSnapshot(LanDuelBoardSnapshotMessage snapshot)
@@ -2246,7 +2444,8 @@ public partial class LanRoomService : ModuleBase
 
     private string SerializeStartConfigMessage()
     {
-        return $"{LanRoomProtocolName.ToWireName(LanRoomProtocol.StartConfig)}|{lanBoardCfgId}|{lanHoldTimeCfgId}|{lanByoyomiCountCfgId}|{lanByoyomiTimeCfgId}|{lanHandicapCfgId}|{(int)lanHostPlayerFlag}|{lanHostPlayerSideCfgId}";
+        EnsureResumeSessionKeys();
+        return $"{LanRoomProtocolName.ToWireName(LanRoomProtocol.StartConfig)}|{lanBoardCfgId}|{lanHoldTimeCfgId}|{lanByoyomiCountCfgId}|{lanByoyomiTimeCfgId}|{lanHandicapCfgId}|{(int)lanHostPlayerFlag}|{lanHostPlayerSideCfgId}|{lanSessionId}|{lanResumeToken}";
     }
 
     private string SerializePlayerProfileMessage(LanRoomRole role, UserProfileData profile)
@@ -2264,6 +2463,402 @@ public partial class LanRoomService : ModuleBase
     private void SendLeaveRoomMessage(LanRoomLeaveReason reason)
     {
         SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.LeaveRoom)}|{currentRole}|{reason}", false);
+    }
+
+    private void UpdateHeartbeatAndReconnect()
+    {
+        DateTime now = DateTime.UtcNow;
+        TcpClient client;
+        LanRoomRole role;
+        bool waiting;
+        bool started;
+        lock (sessionLock) {
+            client = connectedClient;
+            role = currentRole;
+            waiting = isReconnectWaiting;
+            started = gameStarted;
+        }
+
+        if (waiting) {
+            EmitReconnectWaitingTick(now);
+            if (role == LanRoomRole.Client) {
+                EnsureReconnectProbeStarted();
+            }
+            return;
+        }
+
+        if (client == null || role == LanRoomRole.None || !started) {
+            return;
+        }
+
+        if ((now - lastHeartbeatSentUtc).TotalMilliseconds >= LanRoomConfig.HeartbeatIntervalMilliseconds) {
+            lastHeartbeatSentUtc = now;
+            SendRoomMessage($"{LanRoomProtocolName.ToWireName(LanRoomProtocol.Heartbeat)}|{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}");
+        }
+
+        if (lastPeerMessageUtc != DateTime.MinValue &&
+            (now - lastPeerMessageUtc).TotalMilliseconds >= LanRoomConfig.HeartbeatTimeoutMilliseconds) {
+            EnterReconnectWaiting(client, "heartbeat timeout");
+        }
+    }
+
+    private void EmitReconnectWaitingTick(DateTime now)
+    {
+        int elapsedSeconds;
+        lock (sessionLock) {
+            elapsedSeconds = GetReconnectWaitingSeconds(now);
+            if (elapsedSeconds == lastReconnectWaitingSecond) {
+                return;
+            }
+            lastReconnectWaitingSecond = elapsedSeconds;
+        }
+
+        Global.Instance.eventManager.EmitSystemEvent(new OnLanRoomReconnectWaiting(elapsedSeconds));
+    }
+
+    private int GetReconnectWaitingSeconds(DateTime now)
+    {
+        if (!isReconnectWaiting || reconnectStartedUtc == DateTime.MinValue) {
+            return 0;
+        }
+
+        return Math.Max(1, (int)(now - reconnectStartedUtc).TotalSeconds);
+    }
+
+    private void MarkPeerMessageReceived()
+    {
+        lock (sessionLock) {
+            lastPeerMessageUtc = DateTime.UtcNow;
+        }
+    }
+
+    private void EnsureResumeSessionKeys()
+    {
+        if (string.IsNullOrEmpty(lanSessionId)) {
+            lanSessionId = Guid.NewGuid().ToString("N");
+        }
+        if (string.IsNullOrEmpty(lanResumeToken)) {
+            lanResumeToken = Guid.NewGuid().ToString("N");
+        }
+    }
+
+    private void EnterReconnectWaiting(TcpClient client, string reason)
+    {
+        if (!IsCurrentClient(client)) {
+            return;
+        }
+
+        CloseClient(client);
+        connectedClient = null;
+        bool shouldStartProbe = false;
+        lock (sessionLock) {
+            if (!gameStarted || currentRole == LanRoomRole.None) {
+                ClearDuelMessageQueues();
+                lastStatus = MessageText.Get("lan_room_disconnected");
+                return;
+            }
+            if (isReconnectWaiting) {
+                return;
+            }
+
+            isReconnectWaiting = true;
+            reconnectStartedUtc = DateTime.UtcNow;
+            lastReconnectWaitingSecond = -1;
+            clientReady = false;
+            lastPeerMessageUtc = DateTime.MinValue;
+            lastHeartbeatSentUtc = DateTime.MinValue;
+            ClearTransientActionQueuesForReconnect();
+            shouldStartProbe = currentRole == LanRoomRole.Client;
+        }
+
+        lastStatus = MessageText.Get("lan_room_reconnect_waiting_status");
+        XNLogger.LogWarn("LAN room session entered reconnect waiting.", ("reason", reason ?? string.Empty));
+        if (shouldStartProbe) {
+            EnsureReconnectProbeStarted();
+        }
+    }
+
+    private bool IsResumeRequest(string request)
+    {
+        return !string.IsNullOrEmpty(request) &&
+            request.StartsWith($"{LanRoomProtocolName.ResumeHello}|", StringComparison.Ordinal);
+    }
+
+    private void HandleResumeRequest(TcpClient client, NetworkStream stream, string request)
+    {
+        string[] parts = request.Split('|');
+        if (parts.Length < 3) {
+            SendAndClose(client, $"{LanRoomProtocolName.ResumeReject}|BAD_REQUEST\n");
+            return;
+        }
+
+        bool accepted;
+        lock (sessionLock) {
+            accepted = currentRole == LanRoomRole.Host
+                && gameStarted
+                && isReconnectWaiting
+                && parts[1] == lanSessionId
+                && parts[2] == lanResumeToken;
+        }
+
+        if (!accepted) {
+            SendAndClose(client, $"{LanRoomProtocolName.ResumeReject}|INVALID_SESSION\n");
+            return;
+        }
+
+        try {
+            lock (sessionLock) {
+                if (!isReconnectWaiting || currentRole != LanRoomRole.Host) {
+                    SendAndClose(client, $"{LanRoomProtocolName.ResumeReject}|SESSION_ACTIVE\n");
+                    return;
+                }
+            }
+
+            byte[] acceptBytes = Encoding.UTF8.GetBytes($"{LanRoomProtocolName.ResumeAccept}|{lanSessionId}\n");
+            stream.Write(acceptBytes, 0, acceptBytes.Length);
+            CloseClient(connectedClient);
+            connectedClient = client;
+            lock (sessionLock) {
+                currentRole = LanRoomRole.Host;
+                clientReady = true;
+                isReconnectWaiting = false;
+                hostReady = true;
+                pendingReconnectRestoredUiEvent = true;
+                pendingReconnectRestoredDuelEvent = true;
+                lastReconnectWaitingSecond = -1;
+                lastPeerMessageUtc = DateTime.UtcNow;
+                lastHeartbeatSentUtc = DateTime.MinValue;
+                reconnectStartedUtc = DateTime.MinValue;
+            }
+
+            StartSessionReader(client);
+            SendRoomMessage(SerializeStartConfigMessage());
+            BroadcastRoomState();
+            SyncLocalPlayerProfile();
+            lastStatus = MessageText.Get("lan_room_reconnect_restored");
+            XNLogger.LogInfo("LAN room client resumed session.", ("sessionId", lanSessionId ?? string.Empty));
+        }
+        catch (Exception e) {
+            XNLogger.LogWarn("Accept LAN room resume failed.", ("error", e.Message));
+            CloseClient(client);
+        }
+    }
+
+    private void EnsureReconnectProbeStarted()
+    {
+        if (isReconnectProbing || string.IsNullOrEmpty(lastHostAddress) || lastHostTcpPort <= 0) {
+            return;
+        }
+
+        lock (sessionLock) {
+            if (isReconnectProbing || !isReconnectWaiting || currentRole != LanRoomRole.Client) {
+                return;
+            }
+
+            isReconnectProbing = true;
+        }
+
+        reconnectThread = new Thread(ReconnectProbeLoop)
+        {
+            IsBackground = true,
+            Name = "LanRoomReconnect"
+        };
+        reconnectThread.Start();
+    }
+
+    private void ReconnectProbeLoop()
+    {
+        while (isReconnectProbing) {
+            bool shouldContinue;
+            lock (sessionLock) {
+                shouldContinue = isReconnectWaiting && currentRole == LanRoomRole.Client;
+            }
+            if (!shouldContinue) {
+                break;
+            }
+
+            if (TryResumeConnection()) {
+                break;
+            }
+
+            Thread.Sleep(Math.Max(200, LanRoomConfig.ReconnectProbeIntervalMilliseconds));
+        }
+
+        isReconnectProbing = false;
+    }
+
+    private bool TryResumeConnection()
+    {
+        return TryResumeConnection(lastHostAddress, lastHostTcpPort, false);
+    }
+
+    private bool TryResumeConnection(string hostAddress, int tcpPort, bool allowColdStart)
+    {
+        string sessionId;
+        string resumeToken;
+        lock (sessionLock) {
+            sessionId = lanSessionId;
+            resumeToken = lanResumeToken;
+        }
+
+        if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(resumeToken) || string.IsNullOrEmpty(hostAddress) || tcpPort <= 0) {
+            return false;
+        }
+
+        TcpClient client = new TcpClient();
+        try {
+            if (!ConnectWithTimeout(client, hostAddress, tcpPort)) {
+                client.Close();
+                return false;
+            }
+
+            client.SendTimeout = LanRoomConfig.ConnectTimeoutMilliseconds;
+            client.ReceiveTimeout = LanRoomConfig.ConnectTimeoutMilliseconds;
+            NetworkStream stream = client.GetStream();
+            byte[] helloBytes = Encoding.UTF8.GetBytes($"{LanRoomProtocolName.ResumeHello}|{sessionId}|{resumeToken}\n");
+            stream.Write(helloBytes, 0, helloBytes.Length);
+
+            byte[] buffer = new byte[LanRoomConfig.HandshakeBufferSize];
+            int readLength = stream.Read(buffer, 0, buffer.Length);
+            string response = Encoding.UTF8.GetString(buffer, 0, readLength).Trim();
+            if (!response.StartsWith($"{LanRoomProtocolName.ResumeAccept}|{sessionId}", StringComparison.Ordinal)) {
+                client.Close();
+                return false;
+            }
+
+            lock (sessionLock) {
+                if (!allowColdStart && (!isReconnectProbing || !isReconnectWaiting || currentRole != LanRoomRole.Client)) {
+                    client.Close();
+                    return false;
+                }
+            }
+
+            CompleteClientResume(client, hostAddress, tcpPort, allowColdStart);
+            return true;
+        }
+        catch (Exception e) {
+            XNLogger.LogWarn("LAN room resume probe failed.", ("error", e.Message));
+            CloseClient(client);
+            return false;
+        }
+    }
+
+    private void StopReconnectProbe()
+    {
+        isReconnectProbing = false;
+        JoinThread(reconnectThread);
+        reconnectThread = null;
+    }
+
+    private void CompleteClientResume(TcpClient client, string hostAddress, int tcpPort, bool restoredFromTicket)
+    {
+        client.ReceiveTimeout = 0;
+        CloseClient(connectedClient);
+        connectedClient = client;
+        lastHostAddress = hostAddress;
+        lastHostTcpPort = tcpPort;
+        if (string.IsNullOrEmpty(lastRoomId)) {
+            lastRoomId = LoadTicketRoomIdFallback();
+        }
+        lock (sessionLock) {
+            currentRole = LanRoomRole.Client;
+            hostReady = true;
+            clientReady = true;
+            gameStarted = true;
+            isReconnectWaiting = false;
+            pendingReconnectRestoredUiEvent = true;
+            pendingReconnectRestoredDuelEvent = true;
+            lastReconnectWaitingSecond = -1;
+            lastPeerMessageUtc = DateTime.UtcNow;
+            lastHeartbeatSentUtc = DateTime.MinValue;
+            reconnectStartedUtc = DateTime.MinValue;
+            if (restoredFromTicket) {
+                ClearDuelMessageQueues();
+            }
+        }
+
+        StartSessionReader(client);
+        SyncLocalPlayerProfile();
+        SaveCurrentResumeTicket();
+        lastStatus = MessageText.Get("lan_room_reconnect_restored");
+        XNLogger.LogInfo(
+            "LAN room client resumed connection.",
+            ("host", hostAddress ?? string.Empty),
+            ("restoredFromTicket", restoredFromTicket.ToString()));
+    }
+
+    private bool TryLoadResumeTicketForRoom(LanRoomInfo room, out LanRoomResumeTicket ticket)
+    {
+        if (!LanRoomResumeTicketStore.TryLoad(out ticket)) {
+            return false;
+        }
+
+        return ticket.roomId == room.roomId;
+    }
+
+    private void ApplyResumeTicketConfig(LanRoomResumeTicket ticket, LanRoomInfo room)
+    {
+        lanBoardCfgId = string.IsNullOrEmpty(ticket.boardCfgId) ? room.boardCfgId : ticket.boardCfgId;
+        lanHoldTimeCfgId = string.IsNullOrEmpty(ticket.holdTimeCfgId) ? room.holdTimeCfgId : ticket.holdTimeCfgId;
+        lanByoyomiCountCfgId = string.IsNullOrEmpty(ticket.byoyomiCountCfgId) ? room.byoyomiCountCfgId : ticket.byoyomiCountCfgId;
+        lanByoyomiTimeCfgId = string.IsNullOrEmpty(ticket.byoyomiTimeCfgId) ? room.byoyomiTimeCfgId : ticket.byoyomiTimeCfgId;
+        string handicapCfgId = string.IsNullOrEmpty(ticket.handicapCfgId) ? room.handicapCfgId : ticket.handicapCfgId;
+        lanHandicapCfgId = DuelHandicapPlacement.GetValidCfgId(handicapCfgId, lanBoardCfgId);
+        lanHostPlayerFlag = DuelUtils.GetValidPlayerFlag((PlayerFlag)(ticket.hostPlayerFlag != 0 ? ticket.hostPlayerFlag : (int)room.hostPlayerFlag));
+        lanHostPlayerSideCfgId = GetValidHostPlayerSideCfgId(
+            string.IsNullOrEmpty(ticket.hostPlayerSideCfgId) ? room.hostPlayerSideCfgId : ticket.hostPlayerSideCfgId,
+            lanHostPlayerFlag);
+    }
+
+    private void SaveCurrentResumeTicket()
+    {
+        LanRoomRole role;
+        bool started;
+        string sessionId;
+        string resumeToken;
+        lock (sessionLock) {
+            role = currentRole;
+            started = gameStarted;
+            sessionId = lanSessionId;
+            resumeToken = lanResumeToken;
+        }
+
+        if (!started || role == LanRoomRole.None || string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(resumeToken)) {
+            return;
+        }
+
+        string roomId = role == LanRoomRole.Host ? hostedRoomId : lastRoomId;
+        if (string.IsNullOrEmpty(roomId)) {
+            roomId = LoadTicketRoomIdFallback();
+        }
+        if (string.IsNullOrEmpty(roomId)) {
+            return;
+        }
+
+        LanRoomResumeTicketStore.Save(new LanRoomResumeTicket
+        {
+            roomId = roomId,
+            sessionId = sessionId,
+            resumeToken = resumeToken,
+            hostAddress = role == LanRoomRole.Host ? GetLocalAddress() : lastHostAddress,
+            tcpPort = role == LanRoomRole.Host ? hostedTcpPort : lastHostTcpPort,
+            boardCfgId = lanBoardCfgId,
+            holdTimeCfgId = lanHoldTimeCfgId,
+            byoyomiCountCfgId = lanByoyomiCountCfgId,
+            byoyomiTimeCfgId = lanByoyomiTimeCfgId,
+            handicapCfgId = lanHandicapCfgId,
+            hostPlayerFlag = (int)lanHostPlayerFlag,
+            hostPlayerSideCfgId = lanHostPlayerSideCfgId,
+        });
+    }
+
+    private string LoadTicketRoomIdFallback()
+    {
+        if (LanRoomResumeTicketStore.TryLoad(out LanRoomResumeTicket ticket)) {
+            return ticket.roomId;
+        }
+
+        return null;
     }
 
     private void SendRoomMessage(string message)
@@ -2299,6 +2894,17 @@ public partial class LanRoomService : ModuleBase
     private void OnSessionDisconnected(TcpClient client)
     {
         if (!IsCurrentClient(client)) {
+            return;
+        }
+
+        LanRoomRole role;
+        bool started;
+        lock (sessionLock) {
+            role = currentRole;
+            started = gameStarted;
+        }
+        if (started && role != LanRoomRole.None) {
+            EnterReconnectWaiting(client, "session disconnected");
             return;
         }
 

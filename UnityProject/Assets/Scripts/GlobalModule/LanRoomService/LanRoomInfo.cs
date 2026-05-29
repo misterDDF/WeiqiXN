@@ -14,6 +14,7 @@ public readonly struct LanRoomInfo
     public readonly string handicapCfgId;
     public readonly PlayerFlag hostPlayerFlag;
     public readonly string hostPlayerSideCfgId;
+    public readonly bool canResumeGame;
 
     public LanRoomInfo(string roomId, string name, string hostAddress, int tcpPort, int playerCount, int maxPlayerCount)
         : this(
@@ -30,7 +31,8 @@ public readonly struct LanRoomInfo
             "30s",
             "9x9_0",
             PlayerFlag.Player1,
-            "black")
+            "black",
+            false)
     {
     }
 
@@ -48,7 +50,8 @@ public readonly struct LanRoomInfo
         string byoyomiTimeCfgId,
         string handicapCfgId,
         PlayerFlag hostPlayerFlag,
-        string hostPlayerSideCfgId)
+        string hostPlayerSideCfgId,
+        bool canResumeGame = false)
     {
         this.roomId = roomId;
         this.name = name;
@@ -64,6 +67,7 @@ public readonly struct LanRoomInfo
         this.handicapCfgId = DuelHandicapPlacement.GetValidCfgId(handicapCfgId, this.boardCfgId);
         this.hostPlayerFlag = DuelUtils.GetValidPlayerFlag(hostPlayerFlag);
         this.hostPlayerSideCfgId = GetValidHostPlayerSideCfgId(hostPlayerSideCfgId, this.hostPlayerFlag);
+        this.canResumeGame = canResumeGame;
     }
 
     public string GetDisplayText()

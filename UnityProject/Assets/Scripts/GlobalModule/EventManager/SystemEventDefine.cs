@@ -483,6 +483,23 @@ public class OnLanRoomPeerLeft : SystemEventBase
     }
 }
 
+public class OnLanRoomReconnectWaiting : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnLanRoomReconnectWaiting>();
+
+    public int elapsedSeconds;
+
+    public OnLanRoomReconnectWaiting(int elapsedSeconds)
+    {
+        this.elapsedSeconds = elapsedSeconds;
+    }
+}
+
+public class OnLanRoomReconnected : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnLanRoomReconnected>();
+}
+
 public class OnLanPlayerProfileChanged : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnLanPlayerProfileChanged>();

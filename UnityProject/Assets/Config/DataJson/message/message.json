@@ -164,36 +164,6 @@
     "text": "正在初始化 GPU KataGo 引擎并执行 OpenCL 调优，完成后会继续验证 9路、13路、19路棋盘。",
     "remark": "OpenCL 调优进度详情"
   },
-  "katago_android_opencl_warmup": {
-    "id": "katago_android_opencl_warmup",
-    "text": "正在优先预热 Android GPU KataGo 引擎。",
-    "remark": "Android OpenCL 优先预热详情"
-  },
-  "katago_android_opencl_first_init": {
-    "id": "katago_android_opencl_first_init",
-    "text": "正在初始化 Android GPU KataGo 引擎，首次启动可能需要较长时间。",
-    "remark": "Android OpenCL 首次初始化详情"
-  },
-  "katago_android_opencl_progress_init": {
-    "id": "katago_android_opencl_progress_init",
-    "text": "正在初始化 Android GPU KataGo 引擎，完成后会继续验证 9路、13路、19路棋盘。",
-    "remark": "Android OpenCL 初始化进度详情"
-  },
-  "katago_android_opencl_unavailable_native_warmup": {
-    "id": "katago_android_opencl_unavailable_native_warmup",
-    "text": "Android GPU 引擎不可用，正在预热 Android 本地 KataGo 引擎。",
-    "remark": "Android OpenCL 不可用转 native/eigen"
-  },
-  "katago_android_native_warmup": {
-    "id": "katago_android_native_warmup",
-    "text": "正在预热 Android 本地 KataGo 引擎。",
-    "remark": "Android native/eigen 预热详情"
-  },
-  "katago_android_native_verify_board": {
-    "id": "katago_android_native_verify_board",
-    "text": "Android 本地 KataGo 引擎正在验证 {0}路棋盘。",
-    "remark": "Android native/eigen 棋盘验证，0=棋盘路数"
-  },
   "katago_no_write_cpu_warmup": {
     "id": "katago_no_write_cpu_warmup",
     "text": "游戏目录不可写，已跳过 GPU 预热，正在预热 CPU KataGo 引擎。",
@@ -218,46 +188,6 @@
     "id": "katago_wait_start_status",
     "text": "AI模型等待启动",
     "remark": "KataGo 等待启动状态"
-  },
-  "katago_runtime_prepare_status": {
-    "id": "katago_runtime_prepare_status",
-    "text": "AI运行文件准备中...",
-    "remark": "Android KataGo 运行文件准备状态"
-  },
-  "katago_runtime_prepare_checking": {
-    "id": "katago_runtime_prepare_checking",
-    "text": "正在检查 AI 运行文件。",
-    "remark": "Android KataGo 运行文件检查详情"
-  },
-  "katago_runtime_prepare_cached": {
-    "id": "katago_runtime_prepare_cached",
-    "text": "AI 运行文件已就绪，正在快速校验。",
-    "remark": "Android KataGo 运行文件缓存命中详情"
-  },
-  "katago_runtime_prepare_cached_done": {
-    "id": "katago_runtime_prepare_cached_done",
-    "text": "AI 运行文件检查完成。",
-    "remark": "Android KataGo 运行文件缓存校验完成详情"
-  },
-  "katago_runtime_prepare_config": {
-    "id": "katago_runtime_prepare_config",
-    "text": "正在准备 AI 配置文件。",
-    "remark": "Android KataGo 配置文件复制详情"
-  },
-  "katago_runtime_prepare_model_first": {
-    "id": "katago_runtime_prepare_model_first",
-    "text": "首次启动正在复制 AI 模型文件，请稍候。",
-    "remark": "Android KataGo 首次模型复制详情"
-  },
-  "katago_runtime_prepare_model_progress": {
-    "id": "katago_runtime_prepare_model_progress",
-    "text": "首次启动正在复制 AI 模型文件，已完成 {0}。",
-    "remark": "Android KataGo 首次模型复制进度，0=已复制大小"
-  },
-  "katago_runtime_prepare_done": {
-    "id": "katago_runtime_prepare_done",
-    "text": "AI 运行文件准备完成。",
-    "remark": "Android KataGo 运行文件准备完成详情"
   },
   "lan_room_choose_action": {
     "id": "lan_room_choose_action",
@@ -458,21 +388,6 @@
     "id": "lan_room_disconnected",
     "text": "房间连接已断开。",
     "remark": "房间断开"
-  },
-  "lan_room_peer_left": {
-    "id": "lan_room_peer_left",
-    "text": "对方已离开房间。",
-    "remark": "对方离开房间状态"
-  },
-  "lan_room_peer_left_title": {
-    "id": "lan_room_peer_left_title",
-    "text": "联机已结束",
-    "remark": "对方离开后提示标题"
-  },
-  "lan_room_peer_left_content": {
-    "id": "lan_room_peer_left_content",
-    "text": "对方已离开联机对局，将返回主菜单。",
-    "remark": "对方离开后提示内容"
   },
   "duel_player_black": {
     "id": "duel_player_black",
@@ -853,5 +768,115 @@
     "id": "duel_score_confirm_content_handicap",
     "text": "黑方: {0} 目\n白方: {1} 目（让子，贴 {2}）\n结果: {3}",
     "remark": "数子确认内容，让子贴0.5目"
+  },
+  "lan_room_reconnect_wait_title": {
+    "id": "lan_room_reconnect_wait_title",
+    "text": "等待对方重连",
+    "remark": "LAN 对局断线等待重连弹窗标题"
+  },
+  "lan_room_reconnect_wait_content": {
+    "id": "lan_room_reconnect_wait_content",
+    "text": "连接已中断，正在等待对方重连。\n已等待 {0} 秒。",
+    "remark": "LAN 对局断线等待重连弹窗内容"
+  },
+  "lan_room_reconnect_leave_main_menu": {
+    "id": "lan_room_reconnect_leave_main_menu",
+    "text": "退出主菜单",
+    "remark": "LAN 对局断线等待重连弹窗按钮"
+  },
+  "lan_room_reconnect_restored": {
+    "id": "lan_room_reconnect_restored",
+    "text": "对方已重连",
+    "remark": "LAN 对局断线重连成功提示"
+  },
+  "lan_room_reconnect_waiting_status": {
+    "id": "lan_room_reconnect_waiting_status",
+    "text": "正在等待对方重连",
+    "remark": "LAN 房间服务断线等待状态"
+  },
+  "katago_android_opencl_warmup": {
+    "id": "katago_android_opencl_warmup",
+    "text": "正在优先预热 Android GPU KataGo 引擎。",
+    "remark": "Android OpenCL 优先预热详情"
+  },
+  "katago_android_opencl_first_init": {
+    "id": "katago_android_opencl_first_init",
+    "text": "正在初始化 Android GPU KataGo 引擎，首次启动可能需要较长时间。",
+    "remark": "Android OpenCL 首次初始化详情"
+  },
+  "katago_android_opencl_progress_init": {
+    "id": "katago_android_opencl_progress_init",
+    "text": "正在初始化 Android GPU KataGo 引擎，完成后会继续验证 9路、13路、19路棋盘。",
+    "remark": "Android OpenCL 初始化进度详情"
+  },
+  "katago_android_opencl_unavailable_native_warmup": {
+    "id": "katago_android_opencl_unavailable_native_warmup",
+    "text": "Android GPU 引擎不可用，正在预热 Android 本地 KataGo 引擎。",
+    "remark": "Android OpenCL 不可用转 native/eigen"
+  },
+  "katago_android_native_warmup": {
+    "id": "katago_android_native_warmup",
+    "text": "正在预热 Android 本地 KataGo 引擎。",
+    "remark": "Android native/eigen 预热详情"
+  },
+  "katago_android_native_verify_board": {
+    "id": "katago_android_native_verify_board",
+    "text": "Android 本地 KataGo 引擎正在验证 {0}路棋盘。",
+    "remark": "Android native/eigen 棋盘验证，0=棋盘路数"
+  },
+  "katago_runtime_prepare_status": {
+    "id": "katago_runtime_prepare_status",
+    "text": "AI运行文件准备中...",
+    "remark": "Android KataGo 运行文件准备状态"
+  },
+  "katago_runtime_prepare_checking": {
+    "id": "katago_runtime_prepare_checking",
+    "text": "正在检查 AI 运行文件。",
+    "remark": "Android KataGo 运行文件检查详情"
+  },
+  "katago_runtime_prepare_cached": {
+    "id": "katago_runtime_prepare_cached",
+    "text": "AI 运行文件已就绪，正在快速校验。",
+    "remark": "Android KataGo 运行文件缓存命中详情"
+  },
+  "katago_runtime_prepare_cached_done": {
+    "id": "katago_runtime_prepare_cached_done",
+    "text": "AI 运行文件检查完成。",
+    "remark": "Android KataGo 运行文件缓存校验完成详情"
+  },
+  "katago_runtime_prepare_config": {
+    "id": "katago_runtime_prepare_config",
+    "text": "正在准备 AI 配置文件。",
+    "remark": "Android KataGo 配置文件复制详情"
+  },
+  "katago_runtime_prepare_model_first": {
+    "id": "katago_runtime_prepare_model_first",
+    "text": "首次启动正在复制 AI 模型文件，请稍候。",
+    "remark": "Android KataGo 首次模型复制详情"
+  },
+  "katago_runtime_prepare_model_progress": {
+    "id": "katago_runtime_prepare_model_progress",
+    "text": "首次启动正在复制 AI 模型文件，已完成 {0}。",
+    "remark": "Android KataGo 首次模型复制进度，0=已复制大小"
+  },
+  "katago_runtime_prepare_done": {
+    "id": "katago_runtime_prepare_done",
+    "text": "AI 运行文件准备完成。",
+    "remark": "Android KataGo 运行文件准备完成详情"
+  },
+  "lan_room_peer_left": {
+    "id": "lan_room_peer_left",
+    "text": "对方已离开房间。",
+    "remark": "对方离开房间状态"
+  },
+  "lan_room_peer_left_title": {
+    "id": "lan_room_peer_left_title",
+    "text": "联机已结束",
+    "remark": "对方离开后提示标题"
+  },
+  "lan_room_peer_left_content": {
+    "id": "lan_room_peer_left_content",
+    "text": "对方已离开联机对局，将返回主菜单。",
+    "remark": "对方离开后提示内容"
   }
 }

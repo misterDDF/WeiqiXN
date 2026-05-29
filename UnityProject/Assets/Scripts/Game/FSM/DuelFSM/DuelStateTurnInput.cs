@@ -39,6 +39,7 @@ public class DuelStateTurnInput : DuelFSMState
 
         var compDuel = fsm.scene.GetComponent<SceneComponentDuel>();
         if (compDuel == null) return;
+        if (IsLanReconnectWaiting(compDuel)) return;
 
         Player curPlayer = fsm.scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
         if (curPlayer != null) {
@@ -63,6 +64,7 @@ public class DuelStateTurnInput : DuelFSMState
         var compDuel = fsm.scene.GetComponent<SceneComponentDuel>();
         if (compDuel == null) return;
         if (compDuel.isScoring) return;
+        if (IsLanReconnectWaiting(compDuel)) return;
 
         Player curPlayer = fsm.scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
         if (curPlayer != null) {
@@ -164,5 +166,13 @@ public class DuelStateTurnInput : DuelFSMState
     private bool IsLanClient(SceneComponentDuel compDuel)
     {
         return compDuel != null && compDuel.isLanDuel.value && compDuel.lanRole.value == (int)LanRoomRole.Client;
+    }
+
+    private bool IsLanReconnectWaiting(SceneComponentDuel compDuel)
+    {
+        return compDuel != null
+            && compDuel.isLanDuel.value
+            && Global.Instance.lanRoomService != null
+            && Global.Instance.lanRoomService.IsReconnectWaiting;
     }
 }
