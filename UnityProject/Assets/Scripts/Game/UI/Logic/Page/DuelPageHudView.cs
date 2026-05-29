@@ -1,5 +1,6 @@
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using XNClient.ChessBoard;
 
@@ -282,13 +283,14 @@ public class DuelPageHudView
         bool canTakeBack = DuelPageInteractionState.CanTakeBack(mainScene, compDuel);
         DuelAiRecommendationSystem aiRecommendationSystem = mainScene?.GetSystem<DuelAiRecommendationSystem>();
         bool showAiAnalysis = !isLanDuel;
+        bool hasAiAnalysisRender = aiRecommendationSystem != null && aiRecommendationSystem.HasAiAnalysisRender;
         bool canAiAnalysis = showAiAnalysis && aiRecommendationSystem != null &&
-            !aiRecommendationSystem.IsAiAnalyzing &&
-            (aiRecommendationSystem.IsAiAnalysisEnabled || aiRecommendationSystem.HasAiAnalysisRender);
+            (hasAiAnalysisRender || (!aiRecommendationSystem.IsAiAnalyzing && aiRecommendationSystem.IsAiAnalysisEnabled));
         if (binder.btn_duel_ai_analysis != null) {
             binder.btn_duel_ai_analysis.gameObject.SetActive(showAiAnalysis);
         }
         SetButtonInteractable(binder.btn_duel_ai_analysis, canAiAnalysis);
+        RefreshAiAnalysisButtonSelection(showAiAnalysis && hasAiAnalysisRender);
         SetButtonInteractable(binder.btn_duel_pass, canSubmitMove);
         SetButtonInteractable(binder.btn_settings_request_score, canRequestScore);
         SetButtonInteractable(binder.btn_settings_take_back, canTakeBack);
@@ -409,6 +411,25 @@ public class DuelPageHudView
     {
         if (button != null) {
             button.interactable = interactable;
+        }
+    }
+
+    private void RefreshAiAnalysisButtonSelection(bool selected)
+    {
+        if (binder.btn_duel_ai_analysis == null || EventSystem.current == null) {
+            return;
+        }
+
+        GameObject buttonGameObject = binder.btn_duel_ai_analysis.gameObject;
+        if (selected) {
+            if (EventSystem.current.currentSelectedGameObject != buttonGameObject) {
+                binder.btn_duel_ai_analysis.Select();
+            }
+            return;
+        }
+
+        if (EventSystem.current.currentSelectedGameObject == buttonGameObject) {
+            EventSystem.current.SetSelectedGameObject(null);
         }
     }
 

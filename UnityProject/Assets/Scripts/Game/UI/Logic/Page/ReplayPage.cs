@@ -95,9 +95,9 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         bool canBrowse = replaySystem != null && replaySystem.IsReplayLoaded &&
             (replaySystem.IsTryMode ? replaySystem.TryMoveCount > 0 : replaySystem.ReplayMoveCount > 0);
         bool isTryMode = replaySystem != null && replaySystem.IsReplayLoaded && replaySystem.IsTryMode;
-        bool canAiAnalysis = replaySystem != null && replaySystem.IsReplayLoaded && !replaySystem.IsAiAnalyzing &&
-            (replaySystem.IsAiAnalysisEnabled || replaySystem.HasAiAnalysisRender);
         bool hasAiAnalysisRender = replaySystem != null && replaySystem.HasAiAnalysisRender;
+        bool canAiAnalysis = replaySystem != null && replaySystem.IsReplayLoaded &&
+            (hasAiAnalysisRender || (!replaySystem.IsAiAnalyzing && replaySystem.IsAiAnalysisEnabled));
         bool canOwnership = replaySystem != null && replaySystem.IsReplayLoaded && !replaySystem.IsOwnershipAnalyzing;
 
         binder.txt_title.text = replayScene != null ? replayScene.configData.id : "Replay";
