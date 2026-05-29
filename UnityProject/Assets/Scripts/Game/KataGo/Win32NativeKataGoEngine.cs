@@ -14,15 +14,18 @@ internal sealed class Win32NativeKataGoEngine : IDisposable
     private IntPtr library;
     private KgCreateEngine kgCreateEngine;
     private KgAnalyze kgAnalyze;
+    private KgAnalyzeMany kgAnalyzeMany;
     private KgFreeString kgFreeString;
     private KgDestroyEngine kgDestroyEngine;
     private KgGetBridgeBackend kgGetBridgeBackend;
     private KgSupportsConcurrentAnalyze kgSupportsConcurrentAnalyze;
+    private KgSupportsAnalyzeMany kgSupportsAnalyzeMany;
     private bool disposed;
 
     public bool IsRunning => engine != IntPtr.Zero;
     public string BridgeBackend { get; private set; } = string.Empty;
     public bool SupportsConcurrentAnalyze { get; private set; }
+    public bool SupportsAnalyzeMany { get; private set; }
 
     public void Start(string libraryPath, string configPath, string modelPath, string workingDirectory)
     {
@@ -32,6 +35,7 @@ internal sealed class Win32NativeKataGoEngine : IDisposable
         LoadBridgeLibrary(libraryPath);
         BridgeBackend = ReadBridgeBackend();
         SupportsConcurrentAnalyze = kgSupportsConcurrentAnalyze != null && kgSupportsConcurrentAnalyze() != 0;
+        SupportsAnalyzeMany = kgSupportsAnalyzeMany() != 0;
 
         StringBuilder error = new StringBuilder(ErrorBufferSize);
         int result = kgCreateEngine(configPath, modelPath, workingDirectory, out engine, error, error.Capacity);
@@ -59,6 +63,36 @@ internal sealed class Win32NativeKataGoEngine : IDisposable
 
             string responseJson = PtrToUtf8String(responsePtr);
             return JObject.Parse(responseJson);
+        }
+        finally {
+            if (responsePtr != IntPtr.Zero) {
+                kgFreeString(responsePtr);
+            }
+        }
+    }
+
+    public JArray AnalyzeMany(JObject query, int timeoutMs)
+    {
+        ThrowIfDisposed();
+        if (!SupportsAnalyzeMany) {
+            throw new NotSupportedException("KataGo native bridge does not export kg_analyze_many.");
+        }
+
+        if (engine == IntPtr.Zero) {
+            throw new InvalidOperationException("KataGo native engine is not running.");
+        }
+
+        string requestJson = query.ToString(Newtonsoft.Json.Formatting.None);
+        StringBuilder error = new StringBuilder(ErrorBufferSize);
+        int result = kgAnalyzeMany(engine, requestJson, timeoutMs, out IntPtr responsePtr, error, error.Capacity);
+        try {
+            if (result == 0 || responsePtr == IntPtr.Zero) {
+                string message = error.ToString();
+                throw new InvalidOperationException(string.IsNullOrWhiteSpace(message) ? "kg_analyze_many failed." : message);
+            }
+
+            string responseJson = PtrToUtf8String(responsePtr);
+            return JArray.Parse(responseJson);
         }
         finally {
             if (responsePtr != IntPtr.Zero) {
@@ -108,10 +142,12 @@ internal sealed class Win32NativeKataGoEngine : IDisposable
 
         kgCreateEngine = LoadFunction<KgCreateEngine>("kg_create_engine");
         kgAnalyze = LoadFunction<KgAnalyze>("kg_analyze");
+        kgAnalyzeMany = LoadFunction<KgAnalyzeMany>("kg_analyze_many");
         kgFreeString = LoadFunction<KgFreeString>("kg_free_string");
         kgDestroyEngine = LoadFunction<KgDestroyEngine>("kg_destroy_engine");
         kgGetBridgeBackend = LoadFunction<KgGetBridgeBackend>("kg_get_bridge_backend");
         kgSupportsConcurrentAnalyze = LoadFunction<KgSupportsConcurrentAnalyze>("kg_supports_concurrent_analyze", false);
+        kgSupportsAnalyzeMany = LoadFunction<KgSupportsAnalyzeMany>("kg_supports_analyze_many");
     }
 
     private T LoadFunction<T>(string functionName, bool isRequired = true) where T : Delegate
@@ -148,12 +184,15 @@ internal sealed class Win32NativeKataGoEngine : IDisposable
     {
         kgCreateEngine = null;
         kgAnalyze = null;
+        kgAnalyzeMany = null;
         kgFreeString = null;
         kgDestroyEngine = null;
         kgGetBridgeBackend = null;
         kgSupportsConcurrentAnalyze = null;
+        kgSupportsAnalyzeMany = null;
         BridgeBackend = string.Empty;
         SupportsConcurrentAnalyze = false;
+        SupportsAnalyzeMany = false;
 
         if (library == IntPtr.Zero) {
             return;
@@ -193,6 +232,15 @@ internal sealed class Win32NativeKataGoEngine : IDisposable
         StringBuilder errorBuffer,
         int errorBufferSize);
 
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+    private delegate int KgAnalyzeMany(
+        IntPtr engine,
+        string requestJson,
+        int timeoutMs,
+        out IntPtr outResponsesJson,
+        StringBuilder errorBuffer,
+        int errorBufferSize);
+
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate void KgFreeString(IntPtr value);
 
@@ -204,6 +252,9 @@ internal sealed class Win32NativeKataGoEngine : IDisposable
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate int KgSupportsConcurrentAnalyze();
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int KgSupportsAnalyzeMany();
 
     [DllImport("kernel32", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern IntPtr LoadLibraryEx(string lpFileName, IntPtr hFile, int dwFlags);

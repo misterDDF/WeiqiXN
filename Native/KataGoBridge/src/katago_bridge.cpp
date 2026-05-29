@@ -345,8 +345,9 @@ class LineOutputStreamBuf final : public std::streambuf {
 class KataGoBridgeEngine final {
   struct PendingAnalysis {
     std::condition_variable completedCv;
-    std::string responseJson;
+    std::vector<std::string> responseJsons;
     std::string error;
+    int expectedResponseCount = 1;
     bool completed = false;
     bool failed = false;
   };
@@ -404,6 +405,41 @@ class KataGoBridgeEngine final {
   }
 
   bool analyze(const char* requestJson, int timeoutMs, std::string& responseJson, std::string& error) {
+    std::string responsesJson;
+    if (!analyzeInternal(requestJson, timeoutMs, 1, responsesJson, error)) {
+      return false;
+    }
+
+    try {
+      json responses = json::parse(responsesJson);
+      if (!responses.is_array() || responses.empty()) {
+        error = "KataGo bridge analyze returned no responses.";
+        return false;
+      }
+
+      responseJson = responses[0].dump();
+      return true;
+    }
+    catch (const std::exception& ex) {
+      error = std::string("Could not parse KataGo bridge analyze response array: ") + ex.what();
+      return false;
+    }
+  }
+
+  bool analyzeMany(const char* requestJson, int timeoutMs, std::string& responsesJson, std::string& error) {
+    int expectedResponseCount = 1;
+    try {
+      json request = json::parse(requestJson == nullptr ? "" : requestJson);
+      expectedResponseCount = resolveExpectedResponseCount(request);
+    }
+    catch (const std::exception&) {
+      expectedResponseCount = 1;
+    }
+
+    return analyzeInternal(requestJson, timeoutMs, expectedResponseCount, responsesJson, error);
+  }
+
+  bool analyzeInternal(const char* requestJson, int timeoutMs, int expectedResponseCount, std::string& responsesJson, std::string& error) {
     if (requestJson == nullptr || requestJson[0] == '\0') {
       error = "Request JSON is empty.";
       return false;
@@ -435,6 +471,7 @@ class KataGoBridgeEngine final {
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(safeTimeoutMs);
 
     auto pending = std::make_shared<PendingAnalysis>();
+    pending->expectedResponseCount = expectedResponseCount <= 0 ? 1 : expectedResponseCount;
     {
       std::lock_guard<std::mutex> lock(pendingMutex);
       if (pendingAnalyses.find(requestId) != pendingAnalyses.end()) {
@@ -456,7 +493,7 @@ class KataGoBridgeEngine final {
           return false;
         }
         if (pending->completed) {
-          responseJson = pending->responseJson;
+          responsesJson = buildResponsesArrayJson(pending->responseJsons);
           pendingAnalyses.erase(requestId);
           return true;
         }
@@ -490,7 +527,7 @@ class KataGoBridgeEngine final {
           return false;
         }
         if (pending->completed) {
-          responseJson = pending->responseJson;
+          responsesJson = buildResponsesArrayJson(pending->responseJsons);
           pendingAnalyses.erase(requestId);
           return true;
         }
@@ -541,6 +578,28 @@ class KataGoBridgeEngine final {
   }
 
  private:
+  static int resolveExpectedResponseCount(const json& request) {
+    if (request.contains("analyzeTurns") && request["analyzeTurns"].is_array()) {
+      int count = static_cast<int>(request["analyzeTurns"].size());
+      return count <= 0 ? 1 : count;
+    }
+
+    return 1;
+  }
+
+  static std::string buildResponsesArrayJson(const std::vector<std::string>& responseJsons) {
+    json responses = json::array();
+    for (const std::string& responseJson : responseJsons) {
+      try {
+        responses.push_back(json::parse(responseJson));
+      }
+      catch (const std::exception&) {
+      }
+    }
+
+    return responses.dump();
+  }
+
   static int millisecondsUntil(const std::chrono::steady_clock::time_point& deadline) {
     return static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()).count());
   }
@@ -589,9 +648,11 @@ class KataGoBridgeEngine final {
         return;
       }
 
-      pending->second->responseJson = line;
-      pending->second->completed = true;
-      pending->second->completedCv.notify_all();
+      pending->second->responseJsons.push_back(line);
+      if (response.contains("error") || static_cast<int>(pending->second->responseJsons.size()) >= pending->second->expectedResponseCount) {
+        pending->second->completed = true;
+        pending->second->completedCv.notify_all();
+      }
     }
     catch (const std::exception& ex) {
       if (error.empty()) {
@@ -788,6 +849,37 @@ KG_EXPORT int kg_analyze(
   return 1;
 }
 
+KG_EXPORT int kg_analyze_many(
+    void* enginePtr,
+    const char* requestJson,
+    int timeoutMs,
+    char** outResponsesJson,
+    char* errorBuffer,
+    int errorBufferSize) {
+  if (outResponsesJson == nullptr) {
+    writeError(errorBuffer, errorBufferSize, "outResponsesJson is null.");
+    return 0;
+  }
+  *outResponsesJson = nullptr;
+
+  auto* engine = static_cast<KataGoBridgeEngine*>(enginePtr);
+  if (engine == nullptr) {
+    writeError(errorBuffer, errorBufferSize, "engine is null.");
+    return 0;
+  }
+
+  std::string responses;
+  std::string error;
+  if (!engine->analyzeMany(requestJson, timeoutMs, responses, error)) {
+    writeError(errorBuffer, errorBufferSize, error);
+    return 0;
+  }
+
+  *outResponsesJson = duplicateCString(responses);
+  writeError(errorBuffer, errorBufferSize, "");
+  return 1;
+}
+
 KG_EXPORT void kg_free_string(char* value) {
   delete[] value;
 }
@@ -812,5 +904,9 @@ KG_EXPORT const char* kg_get_bridge_backend() {
 #endif
 
 KG_EXPORT int kg_supports_concurrent_analyze() {
+  return 1;
+}
+
+KG_EXPORT int kg_supports_analyze_many() {
   return 1;
 }

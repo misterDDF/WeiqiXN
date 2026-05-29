@@ -47,15 +47,29 @@ def main() -> int:
         ctypes.c_int,
     ]
     bridge.kg_analyze.restype = ctypes.c_int
+    bridge.kg_analyze_many.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.c_char_p,
+        ctypes.c_int,
+    ]
+    bridge.kg_analyze_many.restype = ctypes.c_int
     bridge.kg_free_string.argtypes = [ctypes.c_void_p]
     bridge.kg_destroy_engine.argtypes = [ctypes.c_void_p]
     bridge.kg_get_bridge_backend.argtypes = []
     bridge.kg_get_bridge_backend.restype = ctypes.c_char_p
+    bridge.kg_supports_analyze_many.argtypes = []
+    bridge.kg_supports_analyze_many.restype = ctypes.c_int
 
     bridge_backend = bridge.kg_get_bridge_backend().decode("utf-8")
     expected_backend = "opencl" if "opencl" in engine_name.lower() else "eigen"
     if bridge_backend != expected_backend:
         print(f"bridge backend mismatch: expected={expected_backend} actual={bridge_backend}", file=sys.stderr)
+        return 1
+    if bridge.kg_supports_analyze_many() == 0:
+        print("bridge reports kg_analyze_many unsupported", file=sys.stderr)
         return 1
 
     engine = ctypes.c_void_p()
@@ -110,7 +124,45 @@ def main() -> int:
             print(response_json, file=sys.stderr)
             return 1
 
-        print(f"id={response['id']} ownershipLength={len(ownership)}")
+        many_query = {
+            "id": "native-smoke-many-9",
+            "initialStones": [],
+            "moves": [["B", "D4"], ["W", "E4"], ["B", "D5"]],
+            "rules": "chinese",
+            "komi": 7.5,
+            "boardXSize": 9,
+            "boardYSize": 9,
+            "maxVisits": 1,
+            "includeOwnership": False,
+            "includePolicy": False,
+            "analyzeTurns": [1, 3],
+        }
+        response_ptr = ctypes.c_void_p()
+        error_buffer = ctypes.create_string_buffer(ERROR_BUFFER_SIZE)
+        analyzed = bridge.kg_analyze_many(
+            engine,
+            json.dumps(many_query, separators=(",", ":")).encode("utf-8"),
+            timeout_ms,
+            ctypes.byref(response_ptr),
+            error_buffer,
+            ERROR_BUFFER_SIZE,
+        )
+        if analyzed == 0 or not response_ptr.value:
+            print(error_buffer.value.decode("utf-8", errors="replace"), file=sys.stderr)
+            return 1
+
+        try:
+            many_response_json = ctypes.string_at(response_ptr).decode("utf-8")
+            many_response = json.loads(many_response_json)
+        finally:
+            bridge.kg_free_string(response_ptr)
+
+        turn_numbers = sorted(result.get("turnNumber") for result in many_response)
+        if len(many_response) != 2 or turn_numbers != many_query["analyzeTurns"]:
+            print(many_response_json, file=sys.stderr)
+            return 1
+
+        print(f"id={response['id']} ownershipLength={len(ownership)} analyzeManyTurns={turn_numbers}")
         return 0
     finally:
         bridge.kg_destroy_engine(engine)

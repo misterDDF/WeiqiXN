@@ -203,6 +203,56 @@ public static class KataGoBootstrap
 #endif
     }
 
+    public static async Task<List<JObject>> AnalyzeTurnsAsync(
+        JObject query,
+        IReadOnlyList<int> expectedTurns,
+        KataGoAnalyzeOptions options,
+        CancellationToken cancellationToken)
+    {
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN || UNITY_ANDROID
+        if (query == null) {
+            XNLogger.LogError("KataGo analyzeTurns failed, query is null.");
+            return new List<JObject>();
+        }
+
+        List<int> safeExpectedTurns = NormalizeExpectedAnalyzeTurns(query, expectedTurns);
+        if (safeExpectedTurns.Count <= 1) {
+            JObject singleResult = await AnalyzeAsync(query, options, cancellationToken);
+            return singleResult != null ? new List<JObject> { singleResult } : new List<JObject>();
+        }
+
+        KataGoAnalyzeOptions safeOptions = NormalizeAnalyzeOptions(options);
+        try {
+            if (activeBackendIsNative) {
+                return await AnalyzeNativeTurnsWithRetryAsync(query, safeExpectedTurns, safeOptions, cancellationToken);
+            }
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+            else {
+                return await AnalyzeProcessTurnsWithRetryAsync(query, safeExpectedTurns, safeOptions, cancellationToken);
+            }
+#else
+            XNLogger.LogError("KataGo analyzeTurns failed, non-native backend is unsupported on Android.");
+            return new List<JObject>();
+#endif
+        }
+        catch (OperationCanceledException) {
+            XNLogger.LogWarn(
+                "KataGo analyzeTurns canceled.",
+                ("id", query["id"]?.ToString() ?? string.Empty),
+                ("kind", safeOptions.requestKind ?? string.Empty));
+            if (cancellationToken.IsCancellationRequested) {
+                throw;
+            }
+
+            return new List<JObject>();
+        }
+#else
+        await Task.CompletedTask;
+        XNLogger.LogWarn("KataGo analyzeTurns skipped.", ("reason", "Local process analyze is not compiled for this platform."));
+        return new List<JObject>();
+#endif
+    }
+
     public static KataGoAnalyzeOptions CreateDefaultAnalyzeOptions(string requestKind)
     {
         string safeRequestKind = requestKind ?? string.Empty;
@@ -831,6 +881,49 @@ public static class KataGoBootstrap
         return null;
     }
 
+    private static async Task<List<JObject>> AnalyzeNativeTurnsWithRetryAsync(
+        JObject query,
+        IReadOnlyList<int> expectedTurns,
+        KataGoAnalyzeOptions options,
+        CancellationToken cancellationToken)
+    {
+        string requestId = query["id"]?.ToString() ?? string.Empty;
+        int attempt = 0;
+        while (true) {
+            cancellationToken.ThrowIfCancellationRequested();
+            List<JObject> results = await AnalyzeNativeTurnsOnceAsync(query, expectedTurns, options, cancellationToken);
+            if (results.Count > 0) {
+                if (attempt > 0) {
+                    XNLogger.LogInfo(
+                        "KataGo native analyzeTurns retry succeeded.",
+                        ("id", requestId),
+                        ("attempt", (attempt + 1).ToString()),
+                        ("kind", options.requestKind ?? string.Empty),
+                        ("resultCount", results.Count.ToString()));
+                }
+                return results;
+            }
+
+            if (!ShouldRetryAnalyze(options, attempt)) {
+                break;
+            }
+
+            XNLogger.LogWarn(
+                "KataGo native analyzeTurns failed, restarting engine and retrying.",
+                ("id", requestId),
+                ("attempt", (attempt + 1).ToString()),
+                ("kind", options.requestKind ?? string.Empty),
+                ("engine", hasActivePaths ? activePaths.engineName : "unknown"));
+            if (options.restartEngineBeforeRetry) {
+                MarkNativeEngineForRestart();
+            }
+            await DelayBeforeAnalyzeRetry(options, cancellationToken);
+            attempt += 1;
+        }
+
+        return new List<JObject>();
+    }
+
     private static async Task<JObject> AnalyzeNativeOnceAsync(JObject query, KataGoAnalyzeOptions options, CancellationToken cancellationToken)
     {
         using (await WaitForAnalyzeRequestSlotAsync(options, cancellationToken)) {
@@ -842,6 +935,24 @@ public static class KataGoBootstrap
             JObject result = await Task.Run(() => AnalyzeNative(query, ResolveAnalyzeTimeoutMs(options)), cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             return result;
+        }
+    }
+
+    private static async Task<List<JObject>> AnalyzeNativeTurnsOnceAsync(
+        JObject query,
+        IReadOnlyList<int> expectedTurns,
+        KataGoAnalyzeOptions options,
+        CancellationToken cancellationToken)
+    {
+        using (await WaitForAnalyzeRequestSlotAsync(options, cancellationToken)) {
+            if (!await EnsureNativeReadyAsync()) {
+                XNLogger.LogError("KataGo analyzeTurns failed, native engine is not running.", ("id", query["id"]?.ToString() ?? string.Empty));
+                return new List<JObject>();
+            }
+
+            List<JObject> results = await Task.Run(() => AnalyzeNativeMany(query, expectedTurns, ResolveAnalyzeTimeoutMs(options)), cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            return results;
         }
     }
 
@@ -884,6 +995,49 @@ public static class KataGoBootstrap
         return null;
     }
 
+    private static async Task<List<JObject>> AnalyzeProcessTurnsWithRetryAsync(
+        JObject query,
+        IReadOnlyList<int> expectedTurns,
+        KataGoAnalyzeOptions options,
+        CancellationToken cancellationToken)
+    {
+        string requestId = query["id"]?.ToString() ?? string.Empty;
+        int attempt = 0;
+        while (true) {
+            cancellationToken.ThrowIfCancellationRequested();
+            List<JObject> results = await AnalyzeProcessTurnsOnceAsync(query, expectedTurns, options, cancellationToken);
+            if (results.Count > 0) {
+                if (attempt > 0) {
+                    XNLogger.LogInfo(
+                        "KataGo analyzeTurns retry succeeded.",
+                        ("id", requestId),
+                        ("attempt", (attempt + 1).ToString()),
+                        ("kind", options.requestKind ?? string.Empty),
+                        ("resultCount", results.Count.ToString()));
+                }
+                return results;
+            }
+
+            if (!ShouldRetryAnalyze(options, attempt)) {
+                break;
+            }
+
+            XNLogger.LogWarn(
+                "KataGo analyzeTurns failed, restarting process and retrying.",
+                ("id", requestId),
+                ("attempt", (attempt + 1).ToString()),
+                ("kind", options.requestKind ?? string.Empty),
+                ("engine", hasActivePaths ? activePaths.engineName : "unknown"));
+            if (options.restartEngineBeforeRetry) {
+                MarkProcessForRestart();
+            }
+            await DelayBeforeAnalyzeRetry(options, cancellationToken);
+            attempt += 1;
+        }
+
+        return new List<JObject>();
+    }
+
     private static async Task<JObject> AnalyzeProcessOnceAsync(JObject query, KataGoAnalyzeOptions options, CancellationToken cancellationToken)
     {
         using (await WaitForAnalyzeRequestSlotAsync(options, cancellationToken)) {
@@ -895,6 +1049,24 @@ public static class KataGoBootstrap
             JObject result = await Task.Run(() => Analyze(query, ResolveAnalyzeTimeoutMs(options)), cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             return result;
+        }
+    }
+
+    private static async Task<List<JObject>> AnalyzeProcessTurnsOnceAsync(
+        JObject query,
+        IReadOnlyList<int> expectedTurns,
+        KataGoAnalyzeOptions options,
+        CancellationToken cancellationToken)
+    {
+        using (await WaitForAnalyzeRequestSlotAsync(options, cancellationToken)) {
+            if (!await EnsureProcessReadyAsync()) {
+                XNLogger.LogError("KataGo analyzeTurns failed, process is not running.", ("id", query["id"]?.ToString() ?? string.Empty));
+                return new List<JObject>();
+            }
+
+            List<JObject> results = await Task.Run(() => AnalyzeMany(query, expectedTurns, ResolveAnalyzeTimeoutMs(options)), cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            return results;
         }
     }
 #endif
@@ -1225,6 +1397,20 @@ public static class KataGoBootstrap
         }
 
         return currentEngine.Analyze(query, timeoutMs);
+    }
+
+    private static JArray AnalyzeWithNativeEngineMany(JObject query, int timeoutMs)
+    {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        AndroidNativeKataGoEngine currentEngine = androidNativeEngine;
+#else
+        Win32NativeKataGoEngine currentEngine = windowsNativeEngine;
+#endif
+        if (currentEngine == null || !currentEngine.IsRunning) {
+            throw new InvalidOperationException("KataGo native engine is not running.");
+        }
+
+        return currentEngine.AnalyzeMany(query, timeoutMs);
     }
 
     private static int ResolveAnalyzeTimeoutMs(KataGoAnalyzeOptions options)
@@ -1918,6 +2104,85 @@ public static class KataGoBootstrap
             return null;
         }
     }
+
+    private static List<JObject> AnalyzeMany(JObject query, IReadOnlyList<int> expectedTurns, int timeoutMs)
+    {
+        try {
+            string requestId = query["id"]?.ToString() ?? string.Empty;
+            if (string.IsNullOrEmpty(requestId)) {
+                XNLogger.LogError("KataGo analyzeTurns failed, query id is empty.");
+                return new List<JObject>();
+            }
+
+            Win32KataGoProcess currentProcess = process;
+            if (currentProcess == null || !currentProcess.IsRunning) {
+                XNLogger.LogError("KataGo analyzeTurns failed, process exited.");
+                return new List<JObject>();
+            }
+
+            currentProcess.WriteLine(query.ToString(Newtonsoft.Json.Formatting.None));
+            Dictionary<int, JObject> resultsByTurn = new Dictionary<int, JObject>();
+            List<JObject> resultsWithoutTurn = new List<JObject>();
+            DateTime deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+            while (DateTime.UtcNow < deadline) {
+                if (process == null || !currentProcess.IsRunning) {
+                    XNLogger.LogError("KataGo analyzeTurns failed, process exited.");
+                    return OrderAnalyzeTurnResults(resultsByTurn, resultsWithoutTurn, expectedTurns);
+                }
+
+                string line;
+                try {
+                    if (!TryReadOutputLineBefore(
+                            deadline,
+                            CancellationToken.None,
+                            $"KataGo analyzeTurns request {requestId}",
+                            timeoutMs,
+                            100,
+                            out line)) {
+                        continue;
+                    }
+                }
+                catch (TimeoutException) {
+                    break;
+                }
+
+                if (string.IsNullOrWhiteSpace(line) || !line.TrimStart().StartsWith("{", StringComparison.Ordinal)) {
+                    continue;
+                }
+
+                JObject result = JObject.Parse(line);
+                if (result["id"]?.ToString() != requestId) {
+                    continue;
+                }
+
+                if (!TryCollectAnalyzeTurnResult(result, expectedTurns, resultsByTurn, resultsWithoutTurn)) {
+                    continue;
+                }
+
+                if (HasCollectedExpectedAnalyzeTurns(resultsByTurn, resultsWithoutTurn, expectedTurns)) {
+                    List<JObject> orderedResults = OrderAnalyzeTurnResults(resultsByTurn, resultsWithoutTurn, expectedTurns);
+                    XNLogger.LogInfo(
+                        "KataGo analyzeTurns success.",
+                        ("engine", hasActivePaths ? activePaths.engineName : "unknown"),
+                        ("id", requestId),
+                        ("resultCount", orderedResults.Count.ToString()),
+                        ("expectedCount", expectedTurns?.Count.ToString() ?? "0"));
+                    return orderedResults;
+                }
+            }
+
+            XNLogger.LogError(
+                "KataGo analyzeTurns failed, request timed out.",
+                ("id", requestId),
+                ("resultCount", (resultsByTurn.Count + resultsWithoutTurn.Count).ToString()),
+                ("expectedCount", expectedTurns?.Count.ToString() ?? "0"));
+            return OrderAnalyzeTurnResults(resultsByTurn, resultsWithoutTurn, expectedTurns);
+        }
+        catch (Exception ex) {
+            XNLogger.LogError("KataGo analyzeTurns failed.", ("err", ex.Message));
+            return new List<JObject>();
+        }
+    }
 #endif
 
     private static JObject AnalyzeNative(JObject query, int timeoutMs)
@@ -1952,12 +2217,175 @@ public static class KataGoBootstrap
         }
     }
 
+    private static List<JObject> AnalyzeNativeMany(JObject query, IReadOnlyList<int> expectedTurns, int timeoutMs)
+    {
+        try {
+            string requestId = query["id"]?.ToString() ?? string.Empty;
+            if (string.IsNullOrEmpty(requestId)) {
+                XNLogger.LogError("KataGo native analyzeTurns failed, query id is empty.");
+                return new List<JObject>();
+            }
+
+            JArray responses = AnalyzeWithNativeEngineMany(query, timeoutMs);
+            Dictionary<int, JObject> resultsByTurn = new Dictionary<int, JObject>();
+            List<JObject> resultsWithoutTurn = new List<JObject>();
+            foreach (JToken token in responses) {
+                if (token is JObject result && result["id"]?.ToString() == requestId) {
+                    TryCollectAnalyzeTurnResult(result, expectedTurns, resultsByTurn, resultsWithoutTurn);
+                }
+            }
+
+            List<JObject> orderedResults = OrderAnalyzeTurnResults(resultsByTurn, resultsWithoutTurn, expectedTurns);
+            if (orderedResults.Count == 0) {
+                XNLogger.LogError("KataGo native analyzeTurns failed, result has no analysis payload.", ("id", requestId));
+                return new List<JObject>();
+            }
+
+            XNLogger.LogInfo(
+                "KataGo native analyzeTurns success.",
+                ("engine", hasActivePaths ? activePaths.engineName : "unknown"),
+                ("id", requestId),
+                ("resultCount", orderedResults.Count.ToString()),
+                ("expectedCount", expectedTurns?.Count.ToString() ?? "0"));
+            return orderedResults;
+        }
+        catch (Exception ex) {
+            XNLogger.LogError("KataGo native analyzeTurns failed.", ("err", ex.Message));
+            StopNativeEngine();
+            return new List<JObject>();
+        }
+    }
+
+    private static List<int> NormalizeExpectedAnalyzeTurns(JObject query, IReadOnlyList<int> expectedTurns)
+    {
+        List<int> turns = new List<int>();
+        if (expectedTurns != null) {
+            foreach (int turn in expectedTurns) {
+                if (!turns.Contains(turn)) {
+                    turns.Add(turn);
+                }
+            }
+        }
+
+        if (turns.Count == 0 && query?["analyzeTurns"] is JArray analyzeTurns) {
+            foreach (JToken token in analyzeTurns) {
+                if (int.TryParse(token?.ToString(), out int turn) && !turns.Contains(turn)) {
+                    turns.Add(turn);
+                }
+            }
+        }
+
+        return turns;
+    }
+
+    private static bool TryCollectAnalyzeTurnResult(
+        JObject result,
+        IReadOnlyList<int> expectedTurns,
+        Dictionary<int, JObject> resultsByTurn,
+        List<JObject> resultsWithoutTurn)
+    {
+        if (result == null) {
+            return false;
+        }
+
+        if ((bool?)result["isDuringSearch"] == true) {
+            return false;
+        }
+
+        string requestId = result["id"]?.ToString() ?? string.Empty;
+        LogKataGoResultDiagnostics(result, requestId);
+        if (!HasAnalysisPayload(result)) {
+            if (result["error"] != null) {
+                resultsWithoutTurn.Add(result);
+                return true;
+            }
+
+            return false;
+        }
+
+        if (!TryGetAnalyzeTurnNumber(result, out int turnNumber)) {
+            resultsWithoutTurn.Add(result);
+            return true;
+        }
+
+        if (expectedTurns != null && expectedTurns.Count > 0 && !expectedTurns.Contains(turnNumber)) {
+            return false;
+        }
+
+        if (!resultsByTurn.TryGetValue(turnNumber, out JObject current) || GetRootVisits(result) >= GetRootVisits(current)) {
+            resultsByTurn[turnNumber] = result;
+        }
+
+        return true;
+    }
+
+    private static bool HasCollectedExpectedAnalyzeTurns(
+        Dictionary<int, JObject> resultsByTurn,
+        List<JObject> resultsWithoutTurn,
+        IReadOnlyList<int> expectedTurns)
+    {
+        if (resultsWithoutTurn.Any(result => result?["error"] != null)) {
+            return true;
+        }
+
+        if (expectedTurns == null || expectedTurns.Count == 0) {
+            return resultsByTurn.Count > 0 || resultsWithoutTurn.Count > 0;
+        }
+
+        if (expectedTurns.Count == 1 && resultsWithoutTurn.Count > 0) {
+            return true;
+        }
+
+        foreach (int turn in expectedTurns) {
+            if (!resultsByTurn.ContainsKey(turn)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static List<JObject> OrderAnalyzeTurnResults(
+        Dictionary<int, JObject> resultsByTurn,
+        List<JObject> resultsWithoutTurn,
+        IReadOnlyList<int> expectedTurns)
+    {
+        List<JObject> orderedResults = new List<JObject>();
+        if (expectedTurns != null) {
+            foreach (int turn in expectedTurns) {
+                if (resultsByTurn.TryGetValue(turn, out JObject result)) {
+                    orderedResults.Add(result);
+                }
+            }
+        }
+
+        foreach (KeyValuePair<int, JObject> item in resultsByTurn.OrderBy(item => item.Key)) {
+            if (!orderedResults.Contains(item.Value)) {
+                orderedResults.Add(item.Value);
+            }
+        }
+
+        orderedResults.AddRange(resultsWithoutTurn);
+        return orderedResults;
+    }
+
+    private static bool TryGetAnalyzeTurnNumber(JObject result, out int turnNumber)
+    {
+        return int.TryParse(result?["turnNumber"]?.ToString(), out turnNumber);
+    }
+
+    private static int GetRootVisits(JObject result)
+    {
+        return int.TryParse(result?["rootInfo"]?["visits"]?.ToString(), out int visits) ? visits : 0;
+    }
+
     private static bool HasAnalysisPayload(JObject result)
     {
-        return result["moveInfos"] != null
+        return result != null
+            && (result["moveInfos"] != null
             || result["ownership"] != null
             || result["rootInfo"] != null
-            || result["policy"] != null;
+            || result["policy"] != null);
     }
 
     private static void LogKataGoResultDiagnostics(JObject result, string requestId)

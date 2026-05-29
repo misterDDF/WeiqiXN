@@ -20,7 +20,9 @@ public class SceneComponentReplay : SceneComponentBase
     public bool isChartReady;
     public bool isChartLoading;
     public bool isChartBackgroundBuilding;
+    public bool isChartHighRefreshing;
     public int aiAnalysisVersion;
+    public int chartAnalysisVersion;
     public float lastAiAnalysisRequestTime;
     public string aiAnalysisStatus;
     public string chartStatus;
@@ -54,4 +56,8 @@ public class ReplayChartPoint
     public float blackWinrate;
     public bool hasScoreLead;
     public float scoreLead;
+    public int analysisVisits;
+    public string analysisTier;
+    public string analysisSource;
+    public int analysisVersion;
 }

@@ -8,24 +8,108 @@
   },
   "aiMaxVisits9": {
     "id": "aiMaxVisits9",
-    "group": "ai_analysis",
+    "group": "ai_analysis_legacy",
     "valueType": "int",
     "intValue": 800,
-    "description": "9 路 AI 分析 KataGo 访问次数"
+    "description": "旧版 9 路 AI 分析访问次数，保留兼容"
   },
   "aiMaxVisits13": {
     "id": "aiMaxVisits13",
-    "group": "ai_analysis",
+    "group": "ai_analysis_legacy",
     "valueType": "int",
     "intValue": 512,
-    "description": "13 路 AI 分析 KataGo 访问次数"
+    "description": "旧版 13 路 AI 分析访问次数，保留兼容"
   },
   "aiMaxVisits19": {
     "id": "aiMaxVisits19",
-    "group": "ai_analysis",
+    "group": "ai_analysis_legacy",
     "valueType": "int",
     "intValue": 320,
-    "description": "19 路 AI 分析 KataGo 访问次数"
+    "description": "旧版 19 路 AI 分析访问次数，保留兼容"
+  },
+  "aiTier1MaxVisits9": {
+    "id": "aiTier1MaxVisits9",
+    "group": "ai_analysis",
+    "valueType": "int",
+    "intValue": 64,
+    "description": "9 路 AI 推荐第一档快速访问次数"
+  },
+  "aiTier1MaxVisits13": {
+    "id": "aiTier1MaxVisits13",
+    "group": "ai_analysis",
+    "valueType": "int",
+    "intValue": 40,
+    "description": "13 路 AI 推荐第一档快速访问次数"
+  },
+  "aiTier1MaxVisits19": {
+    "id": "aiTier1MaxVisits19",
+    "group": "ai_analysis",
+    "valueType": "int",
+    "intValue": 25,
+    "description": "19 路 AI 推荐第一档快速访问次数"
+  },
+  "aiTier2MaxVisits9": {
+    "id": "aiTier2MaxVisits9",
+    "group": "ai_analysis",
+    "valueType": "int",
+    "intValue": 128,
+    "description": "9 路 AI 推荐第二档快速 ownership 访问次数"
+  },
+  "aiTier2MaxVisits13": {
+    "id": "aiTier2MaxVisits13",
+    "group": "ai_analysis",
+    "valueType": "int",
+    "intValue": 80,
+    "description": "13 路 AI 推荐第二档快速 ownership 访问次数"
+  },
+  "aiTier2MaxVisits19": {
+    "id": "aiTier2MaxVisits19",
+    "group": "ai_analysis",
+    "valueType": "int",
+    "intValue": 50,
+    "description": "19 路 AI 推荐第二档快速 ownership 访问次数"
+  },
+  "aiTier3MaxVisits9": {
+    "id": "aiTier3MaxVisits9",
+    "group": "ai_analysis",
+    "valueType": "int",
+    "intValue": 1000,
+    "description": "9 路 AI 推荐第三档最终访问次数"
+  },
+  "aiTier3MaxVisits13": {
+    "id": "aiTier3MaxVisits13",
+    "group": "ai_analysis",
+    "valueType": "int",
+    "intValue": 768,
+    "description": "13 路 AI 推荐第三档最终访问次数"
+  },
+  "aiTier3MaxVisits19": {
+    "id": "aiTier3MaxVisits19",
+    "group": "ai_analysis",
+    "valueType": "int",
+    "intValue": 500,
+    "description": "19 路 AI 推荐第三档最终访问次数"
+  },
+  "aiTier1IncludeOwnership": {
+    "id": "aiTier1IncludeOwnership",
+    "group": "ai_analysis",
+    "valueType": "boolean",
+    "boolValue": false,
+    "description": "AI 第一档是否请求 ownership"
+  },
+  "aiTier2IncludeOwnership": {
+    "id": "aiTier2IncludeOwnership",
+    "group": "ai_analysis",
+    "valueType": "boolean",
+    "boolValue": true,
+    "description": "AI 第二档是否请求 ownership"
+  },
+  "aiTier3IncludeOwnership": {
+    "id": "aiTier3IncludeOwnership",
+    "group": "ai_analysis",
+    "valueType": "boolean",
+    "boolValue": true,
+    "description": "AI 第三档是否请求 ownership"
   },
   "aiDisplayCandidateLimit": {
     "id": "aiDisplayCandidateLimit",
@@ -43,10 +127,10 @@
   },
   "aiIncludeOwnership": {
     "id": "aiIncludeOwnership",
-    "group": "ai_analysis",
+    "group": "ai_analysis_legacy",
     "valueType": "boolean",
     "boolValue": false,
-    "description": "AI 分析请求是否包含 ownership"
+    "description": "旧版 AI 分析 ownership 开关，保留兼容"
   },
   "aiIncludePolicy": {
     "id": "aiIncludePolicy",
@@ -88,34 +172,118 @@
     "group": "chart_analysis",
     "valueType": "boolean",
     "boolValue": true,
-    "description": "进入复盘场景 loading 阶段是否生成胜率/目差折线图"
+    "description": "是否启用复盘胜率/目差曲线"
   },
-  "chartMaxVisits9": {
-    "id": "chartMaxVisits9",
+  "chartLoadingSampleRatio": {
+    "id": "chartLoadingSampleRatio",
     "group": "chart_analysis",
     "valueType": "int",
-    "intValue": 96,
-    "description": "9 路复盘图表每手 KataGo 访问次数"
+    "intValue": 35,
+    "description": "进入 loading 阶段低精度采样比例百分比"
   },
-  "chartMaxVisits13": {
-    "id": "chartMaxVisits13",
-    "group": "chart_analysis",
-    "valueType": "int",
-    "intValue": 64,
-    "description": "13 路复盘图表每手 KataGo 访问次数"
-  },
-  "chartMaxVisits19": {
-    "id": "chartMaxVisits19",
-    "group": "chart_analysis",
-    "valueType": "int",
-    "intValue": 32,
-    "description": "19 路复盘图表每手 KataGo 访问次数"
-  },
-  "chartLoadingSampleLimit": {
-    "id": "chartLoadingSampleLimit",
+  "chartLoadingSampleMin": {
+    "id": "chartLoadingSampleMin",
     "group": "chart_analysis",
     "valueType": "int",
     "intValue": 3,
-    "description": "进入复盘场景 loading 阶段最多同步生成的图表种子采样点数量，其余点进入 HUD 后后台补齐"
+    "description": "进入 loading 阶段低精度最少采样点数"
+  },
+  "chartLowMaxVisits9": {
+    "id": "chartLowMaxVisits9",
+    "group": "chart_analysis",
+    "valueType": "int",
+    "intValue": 48,
+    "description": "9 路复盘曲线低精度访问次数"
+  },
+  "chartLowMaxVisits13": {
+    "id": "chartLowMaxVisits13",
+    "group": "chart_analysis",
+    "valueType": "int",
+    "intValue": 32,
+    "description": "13 路复盘曲线低精度访问次数"
+  },
+  "chartLowMaxVisits19": {
+    "id": "chartLowMaxVisits19",
+    "group": "chart_analysis",
+    "valueType": "int",
+    "intValue": 24,
+    "description": "19 路复盘曲线低精度访问次数"
+  },
+  "chartHighMaxVisits9": {
+    "id": "chartHighMaxVisits9",
+    "group": "chart_analysis",
+    "valueType": "int",
+    "intValue": 192,
+    "description": "9 路复盘曲线高精度访问次数"
+  },
+  "chartHighMaxVisits13": {
+    "id": "chartHighMaxVisits13",
+    "group": "chart_analysis",
+    "valueType": "int",
+    "intValue": 128,
+    "description": "13 路复盘曲线高精度访问次数"
+  },
+  "chartHighMaxVisits19": {
+    "id": "chartHighMaxVisits19",
+    "group": "chart_analysis",
+    "valueType": "int",
+    "intValue": 96,
+    "description": "19 路复盘曲线高精度访问次数"
+  },
+  "chartHighRefreshEnabled": {
+    "id": "chartHighRefreshEnabled",
+    "group": "chart_analysis",
+    "valueType": "boolean",
+    "boolValue": true,
+    "description": "低精度补完后是否从头进行高精度刷新"
+  },
+  "chartLowBatchTurnsLimit": {
+    "id": "chartLowBatchTurnsLimit",
+    "group": "chart_analysis",
+    "valueType": "int",
+    "intValue": 12,
+    "description": "低精度曲线并发批大小"
+  },
+  "chartHighBatchTurnsLimit": {
+    "id": "chartHighBatchTurnsLimit",
+    "group": "chart_analysis",
+    "valueType": "int",
+    "intValue": 6,
+    "description": "高精度曲线并发批大小"
+  },
+  "chartCurrentBatchTurnsLimit": {
+    "id": "chartCurrentBatchTurnsLimit",
+    "group": "chart_analysis",
+    "valueType": "int",
+    "intValue": 1,
+    "description": "当前手曲线补算批大小"
+  },
+  "chartMaxVisits9": {
+    "id": "chartMaxVisits9",
+    "group": "chart_analysis_legacy",
+    "valueType": "int",
+    "intValue": 96,
+    "description": "旧版 9 路曲线访问次数，保留兼容"
+  },
+  "chartMaxVisits13": {
+    "id": "chartMaxVisits13",
+    "group": "chart_analysis_legacy",
+    "valueType": "int",
+    "intValue": 64,
+    "description": "旧版 13 路曲线访问次数，保留兼容"
+  },
+  "chartMaxVisits19": {
+    "id": "chartMaxVisits19",
+    "group": "chart_analysis_legacy",
+    "valueType": "int",
+    "intValue": 32,
+    "description": "旧版 19 路曲线访问次数，保留兼容"
+  },
+  "chartLoadingSampleLimit": {
+    "id": "chartLoadingSampleLimit",
+    "group": "chart_analysis_legacy",
+    "valueType": "int",
+    "intValue": 3,
+    "description": "旧版 loading 采样数量，保留兼容"
   }
 }
