@@ -14,6 +14,7 @@ $RECYCLE.BIN/
 # Build
 /Build/
 /save/
+.codex_tmp/
 UnityProject/Assets/StreamingAssets/KataGo/
 UnityProject/Assets/StreamingAssets/KataGo.meta
 UnityProject/Assets/StreamingAssets/KataGo/**/analysis_logs/
@@ -22,4 +23,5 @@ UnityProject/Assets/StreamingAssets/KataGo/**/KataGoData.meta
 KataGo/**/analysis_logs/
 KataGo/**/KataGoData/
 KataGo/**/KataGoData.meta
+KataGo/**/weiqixn_bridge_resolved_config.cfg
 Native/KataGoBridge/build-*/

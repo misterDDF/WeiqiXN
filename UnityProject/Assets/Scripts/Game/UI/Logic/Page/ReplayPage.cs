@@ -108,6 +108,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         RefreshChartProgress(replaySystem);
         RefreshScrubPreview(replaySystem);
         RefreshChart(replaySystem);
+        RefreshOwnershipResult(replaySystem);
         binder.btn_first.interactable = canBrowse;
         binder.btn_prev.interactable = canBrowse;
         binder.btn_next.interactable = canBrowse;
@@ -204,7 +205,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
             return;
         }
 
-        if (replaySystem.IsOwnershipAnalyzing || replaySystem.HasOwnershipRender) {
+        if (replaySystem.IsOwnershipAnalyzing || replaySystem.HasOwnershipRender || replaySystem.HasOwnershipResult) {
             replaySystem.ClearOwnershipRender();
         }
 
@@ -218,7 +219,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
             return;
         }
 
-        if (replaySystem.HasOwnershipRender) {
+        if (replaySystem.HasOwnershipRender || replaySystem.HasOwnershipResult) {
             replaySystem.ClearOwnershipRender();
             return;
         }
@@ -339,6 +340,30 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         binder.txt_scrub_preview.text = previewText;
     }
 
+    private void RefreshOwnershipResult(ReplaySystem replaySystem)
+    {
+        if (binder.panel_ownership_result == null) {
+            return;
+        }
+
+        bool isVisible = replaySystem != null && (replaySystem.IsOwnershipAnalyzing || replaySystem.HasOwnershipResult);
+        binder.panel_ownership_result.SetActive(isVisible);
+        if (!isVisible) {
+            return;
+        }
+
+        if (replaySystem.IsOwnershipAnalyzing) {
+            SetText(binder.txt_ownership_black_points, MessageText.Get("duel_ownership_black_calculating"));
+            SetText(binder.txt_ownership_white_points, MessageText.Get("duel_ownership_white_calculating"));
+            return;
+        }
+
+        if (replaySystem.TryGetOwnershipScore(out DuelOwnershipScore score)) {
+            SetText(binder.txt_ownership_black_points, MessageText.Format("duel_ownership_black_points", FormatPointCount(score.blackPoints)));
+            SetText(binder.txt_ownership_white_points, MessageText.Format("duel_ownership_white_points", FormatPointCount(score.whitePoints)));
+        }
+    }
+
     private void RefreshChartProgress(ReplaySystem replaySystem)
     {
         if (binder.txt_analysis_placeholder == null) {
@@ -423,11 +448,25 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
             return "计算中";
         }
 
-        if (replaySystem != null && replaySystem.HasOwnershipRender) {
+        if (replaySystem != null && (replaySystem.HasOwnershipRender || replaySystem.HasOwnershipResult)) {
             return MessageText.Get("common_close");
         }
 
         return MessageText.Get("duel_ownership_button");
+    }
+
+    private string FormatPointCount(float pointCount)
+    {
+        return Mathf.Approximately(pointCount, Mathf.Round(pointCount))
+            ? Mathf.RoundToInt(pointCount).ToString()
+            : pointCount.ToString("0.0");
+    }
+
+    private void SetText(TextMeshProUGUI text, string value)
+    {
+        if (text != null) {
+            text.text = value;
+        }
     }
 
     private void SetButtonText(Button button, string text)

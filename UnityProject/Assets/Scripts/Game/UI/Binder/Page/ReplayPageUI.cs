@@ -22,13 +22,16 @@ public class ReplayPageUI : UIBinderBase
 	public Button btn_last;
 	public Button btn_try_mode;
 	public Button btn_ai_analysis;
-	public Button btn_ownership;
-	public TextMeshProUGUI txt_ownership_button;
 	public TextMeshProUGUI txt_scrub_preview;
 	public RectTransform rect_chart_area;
 	public Image img_move_scrubber_hit;
 	public Image img_chart_cursor;
 	public ReplayAnalysisChartGraphic chart_analysis;
+	public Button btn_ownership;
+	public TextMeshProUGUI txt_ownership_button;
+	public GameObject panel_ownership_result;
+	public TextMeshProUGUI txt_ownership_black_points;
+	public TextMeshProUGUI txt_ownership_white_points;
 
 	public enum SrPlatformState
 	{

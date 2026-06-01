@@ -49,6 +49,8 @@ public class ReplaySystem : SystemBase
     private int chartCursorRequestVersion;
     private int activeCursorChartMoveIndex = -1;
     private bool hasOwnershipRender;
+    private bool hasOwnershipScore;
+    private DuelOwnershipScore ownershipScore;
 
     private struct ChartAnalysisBatchResult
     {
@@ -102,6 +104,7 @@ public class ReplaySystem : SystemBase
     public bool HasAiAnalysisRender => compReplay != null && compReplay.hasAiAnalysisRender;
     public bool IsOwnershipAnalyzing => ownershipCancellationTokenSource != null;
     public bool HasOwnershipRender => hasOwnershipRender;
+    public bool HasOwnershipResult => hasOwnershipScore;
     public bool IsAiAnalysisEnabled => KataGoAiAnalysisConfigService.IsAiAnalysisEnabled;
     public bool IsChartReady => compReplay != null && compReplay.isChartReady;
     public IReadOnlyList<ReplayChartPoint> ChartPoints => compReplay != null ? compReplay.chartPoints : null;
@@ -538,7 +541,15 @@ public class ReplaySystem : SystemBase
     {
         CancelOwnershipRequest();
         hasOwnershipRender = false;
+        hasOwnershipScore = false;
+        ownershipScore = default;
         compChessBoard?.chessBoardGrid?.ClearOwnership();
+    }
+
+    public bool TryGetOwnershipScore(out DuelOwnershipScore score)
+    {
+        score = ownershipScore;
+        return hasOwnershipScore;
     }
 
     private async Task RequestOwnershipAnalysisAsync()
@@ -557,11 +568,21 @@ public class ReplaySystem : SystemBase
         try {
             string requestId = $"replay-ownership-{DateTime.UtcNow.Ticks}";
             JObject query = KataGoPositionJsonBuilder.BuildOwnershipAnalysisJson(scene, requestId);
+            if (compReplay != null) {
+                query["komi"] = compReplay.replayKomi;
+            }
+
             KataGoAnalyzeOptions options = CreateReplayRetryUntilCanceledAnalyzeOptions("replay-ownership");
             options.priority = ReplayOwnershipPriority;
             JObject result = await KataGoBootstrap.AnalyzeAsync(query, options, requestCancellationTokenSource.Token);
             if (requestCancellationTokenSource.IsCancellationRequested) {
                 return;
+            }
+
+            JArray ownership = result?["ownership"] as JArray;
+            if (ownership != null) {
+                ownershipScore = DuelOwnershipQueryService.CalculateOwnershipScore(ownership, query);
+                hasOwnershipScore = true;
             }
 
             hasOwnershipRender = KataGoAiAnalysisRenderService.DrawOwnership(compChessBoard, result);
@@ -1425,6 +1446,8 @@ public class ReplaySystem : SystemBase
         }
 
         hasOwnershipRender = false;
+        hasOwnershipScore = false;
+        ownershipScore = default;
         compChessBoard?.chessBoardGrid?.ClearAiRecommendationMarkers();
         compChessBoard?.chessBoardGrid?.ClearOwnership();
     }
