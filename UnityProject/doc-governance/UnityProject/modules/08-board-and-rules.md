@@ -30,7 +30,7 @@
 - `ReplaySystem` 使用棋子级手数数字：普通复盘只标当前最新非虚手主线手数，试下模式标仍留在棋盘上的每一步试下分支编号。手数数字与最新手三角通过单一 `StoneMarkerIntent` 互斥。
 - `SceneComponentChessBoard` 负责棋盘配置 id、运行时当前棋子信息、上一局面棋子信息、棋盘引用和虚拟相机引用；棋子字典不再作为持久化棋盘权威。
 - `ChessStoneViewCache` 负责棋子 prefab 表现缓存。规则状态仍以 `SceneComponentChessBoard.chessInfoDict` 为权威；普通落子、提子、LAN 快照纠偏、读档恢复和悔棋重建只把最终棋盘状态同步给表现缓存，由缓存按棋盘位置显示、隐藏或复用黑白棋子 prefab，避免整盘销毁重建造成闪动。
-- `ChessBoardSystem.Init()` 根据棋盘配置初始化网格，设置对局虚拟相机为轻透视俯视：相机仍看向棋盘中心并自动按棋盘尺寸和屏幕宽高比完整取景，但使用较窄 FOV 和小倾角保留少量真实桌面透视。`ReplayScene` 在非竖屏视图下额外使用水平偏移为桌面 HUD 留空间；竖屏判断复用 UI 的 `height > width` 口径，竖屏复盘保持棋盘居中取景。对局画面的后处理由 Duel 场景显式维护：主相机开启 URP post-processing，全局 `DuelLookVolume` 引用 `Assets/Scenes/Duel/Profiles/DuelLookProfile.asset`，Profile 包含 ACES tonemapping、轻微色彩校正、低强度 Bloom 和 Vignette；读档/继续对局暂不作为当前正式功能。
+- `ChessBoardSystem.Init()` 根据棋盘配置初始化网格，设置对局虚拟相机为轻透视俯视：相机仍看向棋盘中心并自动按棋盘尺寸和屏幕宽高比完整取景，但使用较窄 FOV 和小倾角保留少量真实桌面透视。`DuelGameEndCameraSystem` 复用该正常相机位置，进入 `GameEnd` 时用 1.5 秒把对局虚拟相机移动到距棋盘中心 1.35 倍的位置，终局后悔棋回到 `TurnInput` 时恢复正常位置。`ReplayScene` 在非竖屏视图下额外使用水平偏移为桌面 HUD 留空间；竖屏判断复用 UI 的 `height > width` 口径，竖屏复盘保持棋盘居中取景。对局画面的后处理由 Duel 场景显式维护：主相机开启 URP post-processing，全局 `DuelLookVolume` 引用 `Assets/Scenes/Duel/Profiles/DuelLookProfile.asset`，Profile 包含 ACES tonemapping、轻微色彩校正、低强度 Bloom 和 Vignette；读档/继续对局暂不作为当前正式功能。
 - `OnSubmitDuelMove` 是当前页面和 AI 的正常落子提交入口；`DuelAuthoritySystem` 在本地/电脑对局中转入本进程权威落子应用，在 LAN 对局中先读取 `DuelInputAuthority` 的本端输入权限，再提交到 `LanRoomService`，由房间服务决定本端 host 入队还是远端 TCP 发送。`OnAddChessToBoard` 仍保留为本地落子应用的兼容入口，不再作为 UI/AI 首选入口。
 - `DuelMoveRule` 提供领域落子命令和结果模型：`DuelMoveCommand` 描述落子方、坐标和棋子 guid；`DuelMoveResult` 描述是否接受、拒绝原因、上一局面、下一局面和待移除位置；`DuelMoveRejectReason` 记录非法原因。
 - `DuelMoveRule.BuildMoveResult()` 先在临时棋盘缓存上模拟落子并生成结果，结束后恢复原棋盘引用；AI 候选检查和非法性判断不会保留模拟状态。`TryBuildMoveResult()` 作为兼容入口保留，但后续新调用优先使用结果对象本身。

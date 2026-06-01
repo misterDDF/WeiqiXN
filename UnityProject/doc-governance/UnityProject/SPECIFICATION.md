@@ -80,14 +80,14 @@
 - `DuelSetupPopup` 可以用 `9x9`、`13x13`、`19x19` 三个棋盘配置进入对局场景，并配置持有时间、读秒、让子和开局座位；本地对局隐藏开局座位选择但保留让子选择，从电脑对局和 LAN 创建房间入口打开时显示 `猜先` / `执黑` / `执白`。让子配置由 `duel_handicap` 提供，分先贴目为 `7.5`，让先和让子贴目为 `0.5`。弹窗根据根节点宽高比切换横竖屏布局，竖屏下主面板铺满屏幕，选项居中展示，设置项标签和选项控件改为上下结构，棋盘预览缩小以适配竖屏空间。
 - 棋盘尺寸和对局虚拟相机 y 偏移配置在 `Assets/Config/DataJson/chess_board/chess_board.json`。
 - 场景、UI 页面、运行时 UI 文案、预制体和 TMP sprite 配置放在 `Assets/Config/DataJson/`，对应的数据读取类放在 `Assets/Config/DataType/`。
-- `DuelScene` 创建 `SceneComponentChessBoard` 和 `SceneComponentDuel`，从 `DuelSceneFixedRef` 绑定固定场景引用，安装 `ChessBoardSystem`、`DuelOwnershipSystem`、`DuelAuthoritySystem`、`DuelInputAuthoritySystem`、`DuelAiSystem`、`DuelSystem`、`LanDuelSystem`、`DuelReplayArchiveSystem`，然后打开 `DuelPage`。
+- `DuelScene` 创建 `SceneComponentChessBoard` 和 `SceneComponentDuel`，从 `DuelSceneFixedRef` 绑定固定场景引用，安装 `ChessBoardSystem`、`DuelGameEndCameraSystem`、`DuelOwnershipSystem`、`DuelAuthoritySystem`、`DuelInputAuthoritySystem`、`DuelAiSystem`、`DuelSystem`、`LanDuelSystem`、`DuelReplayArchiveSystem`，然后打开 `DuelPage`。
 - `ReplayScene` 创建 `SceneComponentChessBoard`、`SceneComponentDuel` 和 `SceneComponentReplay`，从复制自对局场景的 `DuelSceneFixedRef` 绑定同一套棋盘固定引用，安装 `ReplaySystem` 和 `ChessBoardSystem`，再由 `ReplaySystem` 按复盘记录默认回放到末手，并在 loading 阶段生成复盘胜率/目差图表低精度种子采样后打开 `ReplayPage` HUD 控制层；未采样的图表点进入 HUD 后先低精度后台补齐，再从头进行高精度刷新。复盘场景不安装 `DuelSystem`、AI、LAN、保存或归档系统，不推进对局 FSM，也不会把复盘浏览、图表跳转或试下分支写回为新对局。
 - `SceneComponentChessBoard` 保存当前棋盘配置 id、运行时按棋盘位置索引缓存的棋子信息、用于简单重复局面对比的上一局面快照、`RectGrid` 引用、对局虚拟相机引用和运行时棋子表现缓存。棋盘规则状态以 `chessInfoDict` 为权威，棋子 prefab 由表现缓存按位置显示、隐藏和复用；LAN 快照纠偏、悔棋回放和读档恢复在最终规则状态确定后同步表现缓存，不再通过整盘销毁重建棋子 prefab 更新画面。`ChessStoneViewCache` 维护当前可见棋子与棋子级标记，`ChessStoneView` 在棋子绑定版本内等待落子动画到达棋面后显示最新手三角或手数数字，隐藏、提子和复用时清理标记。
 - `SceneComponentDuel` 保存双方玩家 guid、当前回合玩家 guid、本端玩家座位、双方显示名、时间配置、让子配置、电脑对局配置、局域网对局标记、局域网角色、局域网 host 座位、局域网棋盘版本、超时/胜者 guid、连续虚手数、终局原因、最终数子分数、复盘归档身份字段和运行时 KataGo 标准 `moves` 手顺。
 - `RectGrid` 及其相关棋盘类使用 `RectCoordinates` 生成和寻址矩形棋盘；`RectCoordinates` 的逻辑行列语义与 KataGo 坐标保持一致。
 - `RectGrid` 会在棋盘四周显示围棋常用坐标：列标使用 `A` 到 `T` 但跳过 `I`，行标按从上到下递减显示 `boardSize` 到 `1`，用于和当前棋盘逻辑坐标保持一致的可见提示。
 - 棋子级标记支持最新手三角和手数数字 overlay：黑棋上方使用白色标记，白棋上方使用黑色标记。该 overlay 只作为表现层标记，不写入棋盘规则状态，并与同一棋子的其他棋子级标记互斥。
-- `ChessBoardSystem` 根据所选棋盘尺寸初始化网格，并把对局虚拟相机调整为轻透视俯视以覆盖棋盘；相机使用较窄 FOV 和小倾角，在保留棋盘读盘清晰度的同时提供少量真实桌面透视。Duel 场景显式维护主相机 URP post-processing 和全局 `DuelLookVolume`，Volume 引用 `Assets/Scenes/Duel/Profiles/DuelLookProfile.asset`，使用 ACES tonemapping、轻微色彩校正、低强度 Bloom 和 Vignette 统一棋盘画面。
+- `ChessBoardSystem` 根据所选棋盘尺寸初始化网格，并把对局虚拟相机调整为轻透视俯视以覆盖棋盘；相机使用较窄 FOV 和小倾角，在保留棋盘读盘清晰度的同时提供少量真实桌面透视。`DuelGameEndCameraSystem` 监听对局状态进入 `GameEnd`，把对局虚拟相机沿棋盘中心到相机的方向用 1.5 秒过渡到 1.35 倍距离，使棋盘在终局结算时渐渐缩小；终局后悔棋回到 `TurnInput` 时相机恢复到正常对局位置。Duel 场景显式维护主相机 URP post-processing 和全局 `DuelLookVolume`，Volume 引用 `Assets/Scenes/Duel/Profiles/DuelLookProfile.asset`，使用 ACES tonemapping、轻微色彩校正、低强度 Bloom 和 Vignette 统一棋盘画面。
 - `DuelSystem` 在新对局中创建两个本地玩家，按让子配置预置黑棋，并启动对局状态机；分先和让先对局从玩家 1 / 黑方开始，让子对局摆子后从玩家 2 / 白方开始。
 - 电脑对局仍复用本地双玩家和本地回合 FSM，人类可选择执黑、执白或猜先，AI 控制另一方；人类座位显示本地用户名，AI 座位显示 AI 文案，AI 难度配置随场景状态保存。
 - `DuelFSM` 当前定义本地回合循环：`GameStart -> TurnStart -> TurnInput -> TurnEnd -> TurnStart`，回合输入可以通过落子完成或超时进入回合结束。
@@ -105,7 +105,7 @@
 - `OnRequestDuelPass` 在回合输入状态下记录当前玩家虚手并推动回合结束；双方连续虚手会按 KataGo `ownership` 统计结果结算，然后直接进入 `GameEnd`；如果 ownership 数子失败，会回滚第二手虚手记录并保持当前对局。
 - `OnRequestDuelScore` 会先显示“数子中...”确认弹窗且禁用确认按钮，再按 KataGo `ownership` 统计结果更新确认内容；若 KataGo 不可用或无结果，则显示失败且不进入终局。玩家确认后进入 `GameEnd`，取消则继续当前对局。
 - `OnSubmitDuelResign` 是认输提交入口；本地/电脑对局会转成 `OnConfirmDuelResign` 并把当前行棋方记录为认输方，LAN 对局会提交到 host，收到 `ResignAccepted` 后双方按 host 接受的认输方进入 `GameEnd`。
-- `GameEnd` 结果面板按终局原因显示结果：数子和连续虚手显示领先目数，超时显示对应显示名超时判负，认输显示对应显示名认输；电脑对局或 LAN 对局的非平局终局会按本端玩家座位记录一次胜场或负场，本地双人对局不记录胜负场。
+- `GameEnd` 结果面板按终局原因显示结果：数子和连续虚手显示领先目数，超时显示对应显示名超时判负，认输显示对应显示名认输；进入 `GameEnd` 时对局镜头会同步抬高并让棋盘渐渐缩小；电脑对局或 LAN 对局的非平局终局会按本端玩家座位记录一次胜场或负场，本地双人对局不记录胜负场。
 - 当前正式对局保存由 `DuelReplayArchiveSystem` 自动完成：成功落子、成功虚手、成功悔棋、数子失败回滚和终局后覆盖写入同一局复盘目录，并维护最近复盘索引。手动保存棋谱按钮、`OnSaveDuelScene`、`DuelSaveSystem` 和 `SavingPopup` 均不再作为正式运行入口。
 - 保存使用 `SavableObj`、`SavableField`、可保存集合和 JSON 文件；Unity Editor 下存档根目录是仓库根目录的 `save/`，PC Standalone 下存档根目录是游戏包体根目录的 `save/`，其他非 Editor 平台默认使用 `Application.persistentDataPath`；当前正式复盘归档目录为 `save/replay/{gameId}/`。`SaveInfo.json` 记录存档时间、槽位、棋盘配置、时间配置、让子配置、当前手数和复盘列表摘要字段。读档/继续对局暂不作为当前正式功能。
 - 当前包依赖包括 Unity 内置模块、URP、Cinemachine、TextMesh Pro、UGUI、Newtonsoft JSON、AssetBundle Browser 和开发工具包。

@@ -29,6 +29,7 @@ public class DuelScene : SceneBase
         }
 
         AddSystem(new ChessBoardSystem(this));
+        AddSystem(new DuelGameEndCameraSystem(this));
         AddSystem(new DuelOwnershipSystem(this));
         AddSystem(new DuelAuthoritySystem(this));
         AddSystem(new DuelInputAuthoritySystem(this));
