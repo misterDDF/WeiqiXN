@@ -9,6 +9,7 @@ public static class ResourceUtils
         { typeof(GameObject).Name, ".prefab" },
         { typeof(Sprite).Name, ".png" },
         { typeof(Material).Name, ".mat" },
+        { typeof(AudioClip).Name, ".ogg" },
     };
 
     public static string GetAssetFullPath<TAsset>(string path) where TAsset : UnityEngine.Object

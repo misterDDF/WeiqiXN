@@ -8,6 +8,7 @@
 - `Assets/Scripts/Game/System/DuelAiAnalyzeService.cs`
 - `Assets/Scripts/Game/System/DuelAiBudgetService.cs`
 - `Assets/Scripts/Game/System/DuelAiMoveSelector.cs`
+- `Assets/Scripts/Game/System/DuelAudioSystem.cs`
 - `Assets/Scripts/Game/System/DuelMoveRule.cs`
 - `Assets/Scripts/Game/FSM/DuelFSM/DuelFSM.cs`
 - `Assets/Scripts/Game/FSM/DuelFSM/DuelFSMConst.cs`
@@ -30,7 +31,7 @@
 - 当前实际主循环是 `GameStart -> TurnStart -> TurnInput -> TurnEnd -> TurnStart`。
 - `TurnInput` 进入时按当前玩家的持有时间或读秒状态刷新剩余时间。
 - 回合倒计时归零时触发 `TURN_TIMEOUT`，进入 `TurnEnd`。
-- 成功落子后 `OnAfterAddChessToBoard` 触发 `TURN_INPUT_FINISH`，进入 `TurnEnd`。
+- 成功落子后 `OnAfterAddChessToBoard` 触发 `TURN_INPUT_FINISH`，进入 `TurnEnd`；`DuelAudioSystem` 同时监听该事件播放随机落子音效，不参与棋规、手顺或 FSM 推进。
 - `TurnEnd` 切换当前玩家，然后触发下一轮 `TurnStart`。
 - `DuelInputAuthority` 是当前本端人类输入权限的集中读取入口；它只读取 `SceneComponentDuel.localInputPlayerFlag`，不在 UI 中派生 LAN 座位。`DuelInputAuthoritySystem` 负责刷新该字段：本地热座跟随当前回合玩家，电脑对局在 AI 回合不给本端人类输入权，LAN 对局由 host 广播 `InputAuthority` 后双方应用。
 - `DuelAuthoritySystem` 是正常落子、虚手、数子、悔棋和认输的统一提交入口：页面和 AI 提交 `OnSubmitDuelMove` / `OnSubmitDuelPass` 等命令，本地/电脑对局直接转入本进程权威应用，LAN 对局按 `DuelInputAuthority` 给出的本端输入方提交到 `LanRoomService`，由房间服务决定本端 host 入队还是远端 TCP 发送。

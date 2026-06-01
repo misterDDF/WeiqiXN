@@ -15,6 +15,7 @@ public class DuelScene : SceneBase
     {
         base.OnSceneLoaded();
         Global.RequestKeepAwake(Global.KeepAwakeReason.Duel);
+        GameAudio.PlayDuelBgm();
 
         foreach (var rootObj in unityScene.GetRootGameObjects()) {
             DuelSceneFixedRef fixedRef = rootObj.GetComponent<DuelSceneFixedRef>();
@@ -29,6 +30,7 @@ public class DuelScene : SceneBase
         }
 
         AddSystem(new ChessBoardSystem(this));
+        AddSystem(new DuelAudioSystem(this));
         AddSystem(new DuelGameEndCameraSystem(this));
         AddSystem(new DuelOwnershipSystem(this));
         AddSystem(new DuelAuthoritySystem(this));

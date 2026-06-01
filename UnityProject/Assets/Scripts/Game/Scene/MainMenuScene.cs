@@ -8,6 +8,7 @@
     {
         base.OnSceneLoaded();
 
+        GameAudio.PlayMainMenuBgm();
         Global.Instance.uiManager.ShowPage<MainMenuPage>();
     }
 }
