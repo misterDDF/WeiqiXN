@@ -58,7 +58,7 @@
 - 不做过度封装；只有当封装能减少真实复杂度、消除重复、稳定边界或提升可读性时才新增公共方法、类或模块。
 - 同一逻辑出现超过 3 行重复代码时，必须进行必要的封装复用；封装后仍应保持调用关系直观。
 - 修改必须聚焦当前任务范围，不做无关重构、无关格式化或无关资源整理。
-- 修改 Unity C# 代码前必须先通过可用 Unity Editor/MCP 状态检查确认 Editor 不在 Play 模式；优先通过 MCP 执行 `自定义功能/Editor/Print Editor State` 并读取 `[EditorStateProbe]` Console 日志。若正在 Play，或无法可靠判断 Play 状态且本轮需要改 C#，必须停止代码改动并等待用户关闭 Play 后再继续。不得在 Play 模式中直接编辑 C# 文件，避免触发 Domain Reload、脚本导入或 Editor 崩溃；除非用户明确要求，不由 agent 主动切换/停止 Play。
+- 修改 Unity C# 代码前必须先通过可用 Unity Editor/MCP 状态检查确认 Editor 不在 Play 模式；优先通过 MCP 执行 `自定义功能/Editor/Write Editor State`，再读取 `UnityProject/Temp/WeiqiXN/editor_state_probe.json`，以文件中的最新 `timeUtc` / `sequence`、`isPlaying`、`isPlayingOrWillChangePlaymode` 和 `isCompiling` 为准，不依赖 Console 日志。若正在 Play，或无法可靠判断 Play 状态且本轮需要改 C#，必须停止代码改动并等待用户关闭 Play 后再继续。不得在 Play 模式中直接编辑 C# 文件，避免触发 Domain Reload、脚本导入或 Editor 崩溃；除非用户明确要求，不由 agent 主动切换/停止 Play。
 - 不为小范围需求引入新的 Unity 包、插件、全局服务或编辑器工具；确实需要时必须说明现有能力为什么不足。
 - 不把 UI、网络、KataGo、本地规则、存档或资源加载职责混入彼此边界；需要跨边界协作时优先使用已有事件、系统入口或文档已定义的模块职责。
 - UI 类负责展示和输入转发，不直接承担棋规、存档、网络同步或 AI 分析决策。
@@ -108,7 +108,7 @@
 **编辑器操作策略**
 
 - 能通过 Unity MCP 完成的编辑器操作优先使用 MCP，包括脚本重编译、Console 日志读取、场景对象查询与修改、材质和资源的常规编辑器操作。
-- 涉及 Unity C# 文件改动的任务，在任何文件编辑前必须先完成 Play 模式状态检查；优先通过 MCP 执行 `自定义功能/Editor/Print Editor State` 并读取 `[EditorStateProbe]` Console 日志。发现 Editor 正在 Play 时，不执行 `apply_patch`、脚本生成、格式化或其他会改写 C# 文件的操作，先告知用户需要退出 Play。
+- 涉及 Unity C# 文件改动的任务，在任何文件编辑前必须先完成 Play 模式状态检查；优先通过 MCP 执行 `自定义功能/Editor/Write Editor State`，再读取 `UnityProject/Temp/WeiqiXN/editor_state_probe.json`，以文件中的最新 `timeUtc` / `sequence`、`isPlaying`、`isPlayingOrWillChangePlaymode` 和 `isCompiling` 为准，不依赖 Console 日志。发现 Editor 正在 Play 时，不执行 `apply_patch`、脚本生成、格式化或其他会改写 C# 文件的操作，先告知用户需要退出 Play。
 - prefab、场景和资源导入相关修改应优先走 Unity 编辑器能力；当现有 MCP 工具能覆盖目标 prefab 或资源操作时使用 MCP。
 - 任何 C#、Editor 菜单、asmdef、prefab、scene、material 或 asset 改动完成后，交付前必须至少通过 Unity MCP 执行一次 `Assets/Refresh` 菜单项或等效 Editor 刷新入口；若涉及 C#、asmdef 或 Editor 菜单函数，还必须在刷新后执行脚本编译验证，并检查 Console 错误。
 - 当前 MCP 未提供完整既有 prefab asset 层级编辑能力时，不直接手写复杂 prefab YAML；应改用 Unity 编辑器脚本、明确的编辑器菜单或人工维护 prefab，再通过 MCP 执行导入、编译和日志检查。
