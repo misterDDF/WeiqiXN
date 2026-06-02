@@ -10,6 +10,7 @@ public class DuelAudioSystem : SystemBase
     {
         base.Init();
         scene.RegisterSystemEvent<OnAfterAddChessToBoard>(OnAfterAddChessToBoard);
+        scene.RegisterSystemEvent<OnAfterCaptureChessFromBoard>(OnAfterCaptureChessFromBoard);
     }
 
     private void OnAfterAddChessToBoard(OnAfterAddChessToBoard evt)
@@ -19,5 +20,14 @@ public class DuelAudioSystem : SystemBase
         }
 
         GameAudio.PlayStonePlace();
+    }
+
+    private void OnAfterCaptureChessFromBoard(OnAfterCaptureChessFromBoard evt)
+    {
+        if (evt == null || evt.captureCount <= 0) {
+            return;
+        }
+
+        GameAudio.PlayStoneCapture(evt.captureCount);
     }
 }

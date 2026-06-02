@@ -796,6 +796,9 @@ public class ChessBoardSystem : SystemBase
             RectCoordinates removeCoords = compChessBoard.GetCoordsByPosIndex(removePosIndex);
             stoneViewCache.HideStone(removeCoords);
         }
+        if (moveResult.pendingRemovePosIndexes.Count > 0) {
+            scene.EmitSystemEvent(new OnAfterCaptureChessFromBoard(moveResult.pendingRemovePosIndexes.Count));
+        }
 
         stoneViewCache.ShowStone(coords, playerFlag);
     }

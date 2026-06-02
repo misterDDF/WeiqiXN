@@ -22,5 +22,53 @@
     "assetType": "Material",
     "resPath": "Scenes/Duel/Materials/ChessBoardLatestMoveOnWhiteStone",
     "bundleName": "runtime_asset"
+  },
+  "audio_sfx_stone_place_sabaki_00": {
+    "id": "audio_sfx_stone_place_sabaki_00",
+    "assetType": "AudioClip",
+    "resPath": "Audio/SFX/StonePlace/StonePlace_Sabaki_00.mp3",
+    "bundleName": "runtime_asset"
+  },
+  "audio_sfx_stone_place_sabaki_01": {
+    "id": "audio_sfx_stone_place_sabaki_01",
+    "assetType": "AudioClip",
+    "resPath": "Audio/SFX/StonePlace/StonePlace_Sabaki_01.mp3",
+    "bundleName": "runtime_asset"
+  },
+  "audio_sfx_stone_place_sabaki_02": {
+    "id": "audio_sfx_stone_place_sabaki_02",
+    "assetType": "AudioClip",
+    "resPath": "Audio/SFX/StonePlace/StonePlace_Sabaki_02.mp3",
+    "bundleName": "runtime_asset"
+  },
+  "audio_sfx_stone_place_sabaki_03": {
+    "id": "audio_sfx_stone_place_sabaki_03",
+    "assetType": "AudioClip",
+    "resPath": "Audio/SFX/StonePlace/StonePlace_Sabaki_03.mp3",
+    "bundleName": "runtime_asset"
+  },
+  "audio_sfx_stone_place_sabaki_04": {
+    "id": "audio_sfx_stone_place_sabaki_04",
+    "assetType": "AudioClip",
+    "resPath": "Audio/SFX/StonePlace/StonePlace_Sabaki_04.mp3",
+    "bundleName": "runtime_asset"
+  },
+  "audio_sfx_capture_single": {
+    "id": "audio_sfx_capture_single",
+    "assetType": "AudioClip",
+    "resPath": "Audio/SFX/Capture/Capture_Single.mp3",
+    "bundleName": "runtime_asset"
+  },
+  "audio_sfx_capture_multi": {
+    "id": "audio_sfx_capture_multi",
+    "assetType": "AudioClip",
+    "resPath": "Audio/SFX/Capture/Capture_Multi.mp3",
+    "bundleName": "runtime_asset"
+  },
+  "audio_bgm_happy_moments_piano_full": {
+    "id": "audio_bgm_happy_moments_piano_full",
+    "assetType": "AudioClip",
+    "resPath": "Audio/BGM/Active/HappyMomentsPianoFull.ogg",
+    "bundleName": "runtime_asset"
   }
 }
