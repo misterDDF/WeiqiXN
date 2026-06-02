@@ -18,14 +18,14 @@
 
 - 当前阶段的架构优化按 [modules/12-architecture-iteration-plan.md](modules/12-architecture-iteration-plan.md) 推进；该表只承载执行明细，阶段目标和范围仍以本文为准。
 - 当前架构优化主线只收敛本地对局、AI、UI、结算、手顺和存档边界，为后续联机开发降低混乱度；本阶段不接网络 SDK、不实现传输层、房间、匹配或重连。
-- 联机方案的默认方向是 host 权威、单一 server core、客户端只发命令；第一版 server core 可以嵌在 host 进程里，后续若有必要再拆分为独立进程，但命令合同和快照合同必须保持不变。
+- 联机方案的默认方向是 host 权威、单一 server core、客户端只发命令；第一版 server core 可以嵌在 host 进程里，后续若有必要再拆分为独立进程，但命令合同和快照合同必须保持不变。接入 OGS 前，先把 Local/Computer 与 LAN host 的本进程 host 权威路径收敛，再把 OGS 作为外部 server 权威适配到同一提交和表现框架。
 - 在 Windows Unity Editor 和 Windows PC 包中继续验证本地 KataGo ownership 链路：通过 `game-config.json` 选择 `exe` 或 `native` 后端，发送当前对局 JSON，读取 `ownership`、失败状态，并验证棋盘 overlay 表现。
 - 将 AI 控制区域与当前结算口径保持一致：第一版形势按钮已接入 `ownership` 请求、棋盘黑白小方块 overlay 和按钮上方的双方目数面板；请求数子和双方连续虚手也复用 KataGo `ownership` 统计目数，不展示胜率、目差或最佳选点。
 - 为本地对局建立可重复的手动验证流程。
 - 非法落子反馈采用合法预览口径：不能落的位置不显示预览棋子，不额外弹出无法落子提示。
 - 明确本地终局流程的剩余规则：当前已有虚手、KataGo ownership 数子、认输和基础终局结果 UI，仍需补死子确认和线上裁定模型。
-- 做出联机架构决策：传输或框架选择、权威模型、房间或会话模型、落子协议、重连策略、持久化预期。当前已收敛为 host 权威、单一 server core、客户端命令驱动的方案；最小房间、正常落子、虚手、认输、确认式数子、确认式悔棋、主动离开、心跳等待重连、棋盘版本、落子后快照纠偏、恢复后补发权威快照、host 下发输入权、host 开局座位配置和 host 权威计时已进入原型，下一步需要补齐完整终局恢复边界。
-- 稳定对局命令入口：正常落子已通过 `OnSubmitDuelMove` 收敛到 `DuelAuthoritySystem`，虚手、数子、悔棋和认输也已接入同一提交边界；页面预览、点击提交、动作按钮和 LAN 提交前置检查已通过 `DuelInputAuthority` 共用本端人类输入权限口径。本地/电脑对局和 LAN 对局共用同一提交口径，LAN 输入权限来自 host 下发的 `InputAuthority`。
+- 做出联机架构决策：传输或框架选择、权威模型、房间或会话模型、落子协议、重连策略、持久化预期。当前已收敛为 host 权威、单一 server core、客户端命令驱动的方案；最小房间、正常落子、虚手、认输、确认式数子、确认式悔棋、主动离开、心跳等待重连、棋盘版本、落子后快照纠偏、恢复后补发权威快照、host 下发输入权、host 开局座位配置和 host 权威计时已进入原型。下一步先继续结构迭代，收敛 Local/Computer 与 LAN host 的 host 权威核心，再补齐完整终局恢复边界和进入 OGS 连接测试。
+- 稳定对局命令入口：正常落子已通过 `OnSubmitDuelMove` 收敛到 `DuelAuthoritySystem`，虚手、数子、悔棋和认输也已接入同一提交边界；页面预览、点击提交、动作按钮和 LAN 提交前置检查已通过 `DuelInputAuthority` 共用本端人类输入权限口径。本地/电脑对局和 LAN 对局共用同一提交口径，LAN 输入权限来自 host 下发的 `InputAuthority`；本地/电脑正常落子与 LAN host 接受正常落子已共用本进程 host 权威落子入口，虚手和认输已共用 `DuelSystem` 的 host 回合命令校验与状态应用入口，数子和悔棋的 LAN 第一阶段请求校验已复用 host 回合状态与版本校验入口。
 
 ## Progress
 

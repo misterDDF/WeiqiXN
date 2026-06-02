@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using XNClient.Logger;
 
 public class LanDuelSystem : SystemBase
 {
@@ -109,6 +110,13 @@ public class LanDuelSystem : SystemBase
             scene.EmitSystemEvent(new OnApplyLanDuelMove(move));
         }
 
+        while (Global.Instance.lanRoomService.TryDequeueAcceptedPass(out LanDuelPassMessage pass)) {
+            if ((LanRoomRole)compDuel.lanRole.value == LanRoomRole.Host) {
+                continue;
+            }
+            scene.EmitSystemEvent(new OnApplyLanDuelPass(pass));
+        }
+
         ChessBoardSystem chessBoardSystem = scene.GetSystem<ChessBoardSystem>();
         while (Global.Instance.lanRoomService.TryDequeueBoardSnapshot(out LanDuelBoardSnapshotMessage snapshot)) {
             if ((LanRoomRole)compDuel.lanRole.value == LanRoomRole.Host) {
@@ -138,13 +146,6 @@ public class LanDuelSystem : SystemBase
 
         while (Global.Instance.lanRoomService.TryDequeueInputAuthority(out LanDuelInputAuthorityMessage authority)) {
             ApplyInputAuthority(compDuel, authority);
-        }
-
-        while (Global.Instance.lanRoomService.TryDequeueAcceptedPass(out LanDuelPassMessage pass)) {
-            if ((LanRoomRole)compDuel.lanRole.value == LanRoomRole.Host) {
-                continue;
-            }
-            scene.EmitSystemEvent(new OnApplyLanDuelPass(pass));
         }
 
         while (Global.Instance.lanRoomService.TryDequeueScoreConfirmRequest(out LanDuelScoreRequestMessage request)) {
@@ -223,16 +224,8 @@ public class LanDuelSystem : SystemBase
 
     private bool CanAcceptResign(SceneComponentDuel compDuel, PlayerFlag loserFlag)
     {
-        if (compDuel == null || compDuel.duelFSM == null || !compDuel.duelFSM.isActivated) {
-            return false;
-        }
-
-        if (compDuel.duelFSM.curState == null || compDuel.duelFSM.curState.stateName != DuelStateDefine.STATE_TURN_INPUT) {
-            return false;
-        }
-
-        Player curPlayer = scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
-        return curPlayer != null && (PlayerFlag)curPlayer.playerFlag.value == loserFlag;
+        DuelSystem duelSystem = scene.GetSystem<DuelSystem>();
+        return duelSystem != null && duelSystem.CanAcceptHostDuelResign(compDuel, loserFlag);
     }
 
     private void ProcessSubmittedResigns(SceneComponentDuel compDuel)
@@ -249,17 +242,37 @@ public class LanDuelSystem : SystemBase
     private void ProcessSubmittedPasses(SceneComponentDuel compDuel)
     {
         DuelSystem duelSystem = scene.GetSystem<DuelSystem>();
+        ChessBoardSystem chessBoardSystem = scene.GetSystem<ChessBoardSystem>();
         if (duelSystem == null) {
             return;
         }
 
         while (Global.Instance.lanRoomService.TryDequeueSubmittedPass(out LanDuelPassMessage pass)) {
             if (!duelSystem.CanAcceptLanDuelPass(compDuel, pass)) {
+                XNLogger.LogWarn(
+                    "LAN duel pass rejected by host.",
+                    ("actionId", pass.actionId.ToString()),
+                    ("playerFlag", pass.playerFlag.ToString()),
+                    ("passBoardVersion", pass.boardVersion.ToString()),
+                    ("localBoardVersion", compDuel.lanBoardVersion.value.ToString()),
+                    ("curTurnPlayerGuid", compDuel.curTurnPlayerGuid.value ?? string.Empty),
+                    ("consecutivePassCount", compDuel.consecutivePassCount.value.ToString()));
                 continue;
             }
 
             LanDuelPassMessage acceptedPass = duelSystem.AcceptLanDuelPass(pass);
+            XNLogger.LogInfo(
+                "LAN duel pass accepted by host.",
+                ("actionId", acceptedPass.actionId.ToString()),
+                ("playerFlag", acceptedPass.playerFlag.ToString()),
+                ("boardVersion", acceptedPass.boardVersion.ToString()),
+                ("consecutivePassCount", acceptedPass.consecutivePassCount.ToString()),
+                ("curTurnPlayerGuid", compDuel.curTurnPlayerGuid.value ?? string.Empty),
+                ("localInputPlayerFlag", compDuel.localInputPlayerFlag.value.ToString()));
             Global.Instance.lanRoomService.BroadcastAcceptedPass(acceptedPass);
+            if (chessBoardSystem != null && chessBoardSystem.TryBuildLanBoardSnapshot(out LanDuelBoardSnapshotMessage snapshot)) {
+                Global.Instance.lanRoomService.BroadcastBoardSnapshot(snapshot);
+            }
             scene.GetSystem<DuelInputAuthoritySystem>()?.RefreshLocalInputAuthority();
         }
     }

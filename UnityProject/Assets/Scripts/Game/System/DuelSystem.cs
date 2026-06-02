@@ -11,6 +11,18 @@ public class DuelSystem : SystemBase
     private const string DEFAULT_BYOYOMI_TIME_CFG_ID = "30s";
     private const string DEFAULT_AI_DIFFICULTY_CFG_ID = "k20_k15";
 
+    private readonly struct HostDuelPassResult
+    {
+        public readonly int boardVersion;
+        public readonly int consecutivePassCount;
+
+        public HostDuelPassResult(int boardVersion, int consecutivePassCount)
+        {
+            this.boardVersion = boardVersion;
+            this.consecutivePassCount = consecutivePassCount;
+        }
+    }
+
     public DuelSystem(DuelScene scene) : base(scene)
     {
 
@@ -377,12 +389,7 @@ public class DuelSystem : SystemBase
             return;
         }
 
-        Player loser = GetPlayerByFlag(compDuel, evt.loserFlag);
-        if (loser == null) {
-            return;
-        }
-
-        EndGameByResign(compDuel, loser.guid);
+        ApplyAcceptedDuelResign(evt.loserFlag);
     }
 
     private void OnApplyLanDuelPass(OnApplyLanDuelPass evt)
@@ -414,7 +421,10 @@ public class DuelSystem : SystemBase
         }
 
         compDuel.isScoring = false;
-        EndGameByScore(BuildScoreResult(evt.result), DuelGameEndReason.Score);
+        string reason = compDuel.consecutivePassCount.value >= 2
+            ? DuelGameEndReason.ConsecutivePass
+            : DuelGameEndReason.Score;
+        EndGameByScore(BuildScoreResult(evt.result), reason);
     }
 
     private void OnApplyLanDuelScoreFailed(OnApplyLanDuelScoreFailed evt)
@@ -490,12 +500,12 @@ public class DuelSystem : SystemBase
             return;
         }
 
-        string loserGuid = evt.loserGuid;
-        if (string.IsNullOrEmpty(loserGuid)) {
+        PlayerFlag loserFlag = GetPlayerFlagByGuid(compDuel, evt.loserGuid);
+        if (loserFlag == 0) {
             return;
         }
 
-        EndGameByResign(compDuel, loserGuid);
+        ApplyAcceptedDuelResign(loserFlag);
     }
 
     private void OnRequestDuelTakeBack(OnRequestDuelTakeBack evt)
@@ -554,22 +564,7 @@ public class DuelSystem : SystemBase
 
     public bool CanAcceptLanDuelTakeBack(SceneComponentDuel compDuel, LanDuelTakeBackRequestMessage request)
     {
-        if (compDuel == null || request.removeCount <= 0 || request.boardVersion != compDuel.lanBoardVersion.value) {
-            return false;
-        }
-
-        if (compDuel.isScoring || compDuel.duelFSM == null || !compDuel.duelFSM.isActivated) {
-            return false;
-        }
-
-        if (compDuel.duelFSM.curState == null || compDuel.duelFSM.curState.stateName != DuelStateDefine.STATE_TURN_INPUT) {
-            return false;
-        }
-
-        Player requester = request.requesterFlag == PlayerFlag.Player1
-            ? scene.GetEntity<Player>(compDuel.player1Guid.value)
-            : scene.GetEntity<Player>(compDuel.player2Guid.value);
-        if (requester == null || request.requesterFlag != (PlayerFlag)requester.playerFlag.value) {
+        if (!CanAcceptHostDuelTakeBackRequest(compDuel, request.requesterFlag, request.boardVersion, request.removeCount)) {
             return false;
         }
 
@@ -638,12 +633,10 @@ public class DuelSystem : SystemBase
         }
 
         Player curPlayer = scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
-        if (curPlayer == null) {
+        PlayerFlag curPlayerFlag = curPlayer != null ? (PlayerFlag)curPlayer.playerFlag.value : 0;
+        if (!TrySubmitHostDuelPass(curPlayerFlag, null, out _)) {
             return;
         }
-
-        PlayerFlag curPlayerFlag = (PlayerFlag)curPlayer.playerFlag.value;
-        ApplyPassToState(compDuel, curPlayer, curPlayerFlag, compDuel.consecutivePassCount.value + 1);
 
         if (compDuel.consecutivePassCount.value >= 2) {
             DuelScoreResult scoreResult = null;
@@ -672,31 +665,30 @@ public class DuelSystem : SystemBase
 
     public bool CanAcceptLanDuelPass(SceneComponentDuel compDuel, LanDuelPassMessage pass)
     {
-        return CanAcceptTurnCommand(compDuel, pass.playerFlag)
-            && pass.boardVersion == compDuel.lanBoardVersion.value;
+        return CanAcceptHostTurnCommand(compDuel, pass.playerFlag, pass.boardVersion);
     }
 
     public bool CanAcceptLanDuelScore(SceneComponentDuel compDuel, LanDuelScoreRequestMessage request)
     {
-        return CanAcceptTurnCommand(compDuel, request.requesterFlag)
-            && request.boardVersion == compDuel.lanBoardVersion.value;
+        return CanAcceptHostDuelScoreRequest(compDuel, request.requesterFlag, request.boardVersion);
     }
 
     public LanDuelPassMessage AcceptLanDuelPass(LanDuelPassMessage pass)
     {
-        var compDuel = scene.GetComponent<SceneComponentDuel>();
-        if (compDuel == null) {
+        if (!TrySubmitHostDuelPass(pass.playerFlag, pass.boardVersion, out HostDuelPassResult result)) {
             return pass;
         }
 
-        int nextConsecutivePassCount = compDuel.consecutivePassCount.value + 1;
-        LanDuelPassMessage acceptedPass = new LanDuelPassMessage(
+        AdvanceTurnAfterAcceptedHostPass(result);
+        if (result.consecutivePassCount >= 2) {
+            QueryAndBroadcastLanConsecutivePassScore(pass.actionId, pass.playerFlag);
+        }
+
+        return new LanDuelPassMessage(
             pass.actionId,
-            compDuel.lanBoardVersion.value,
+            result.boardVersion,
             pass.playerFlag,
-            nextConsecutivePassCount);
-        ApplyAcceptedPass(compDuel, acceptedPass);
-        return acceptedPass;
+            result.consecutivePassCount);
     }
 
     public void AcceptLanDuelScoreRequest(LanDuelScoreRequestMessage request)
@@ -705,9 +697,58 @@ public class DuelSystem : SystemBase
         QueryAndBroadcastLanScore(request);
     }
 
-    private bool CanAcceptTurnCommand(SceneComponentDuel compDuel, PlayerFlag playerFlag)
+    public bool CanAcceptHostDuelTakeBackRequest(
+        SceneComponentDuel compDuel,
+        PlayerFlag requesterFlag,
+        int? expectedBoardVersion,
+        int removeCount)
     {
-        if (compDuel == null || compDuel.duelFSM == null || !compDuel.duelFSM.isActivated || compDuel.isScoring) {
+        if (removeCount <= 0) {
+            return false;
+        }
+
+        if (!CanAcceptHostActionState(compDuel, expectedBoardVersion)) {
+            return false;
+        }
+
+        Player requester = GetPlayerByFlag(compDuel, requesterFlag);
+        return requester != null && requesterFlag == (PlayerFlag)requester.playerFlag.value;
+    }
+
+    public bool CanAcceptHostDuelScoreRequest(SceneComponentDuel compDuel, PlayerFlag requesterFlag, int? expectedBoardVersion)
+    {
+        return CanAcceptHostTurnCommand(compDuel, requesterFlag, expectedBoardVersion);
+    }
+
+    public bool CanAcceptHostDuelResign(SceneComponentDuel compDuel, PlayerFlag loserFlag)
+    {
+        return CanAcceptHostTurnCommand(compDuel, loserFlag, null, false);
+    }
+
+    private bool CanAcceptHostTurnCommand(
+        SceneComponentDuel compDuel,
+        PlayerFlag playerFlag,
+        int? expectedBoardVersion,
+        bool blockScoring = true)
+    {
+        if (!CanAcceptHostActionState(compDuel, expectedBoardVersion, blockScoring)) {
+            return false;
+        }
+
+        Player curPlayer = scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
+        return curPlayer != null && (PlayerFlag)curPlayer.playerFlag.value == playerFlag;
+    }
+
+    private bool CanAcceptHostActionState(
+        SceneComponentDuel compDuel,
+        int? expectedBoardVersion,
+        bool blockScoring = true)
+    {
+        if (compDuel == null || compDuel.duelFSM == null || !compDuel.duelFSM.isActivated) {
+            return false;
+        }
+
+        if (blockScoring && compDuel.isScoring) {
             return false;
         }
 
@@ -715,8 +756,42 @@ public class DuelSystem : SystemBase
             return false;
         }
 
-        Player curPlayer = scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
-        return curPlayer != null && (PlayerFlag)curPlayer.playerFlag.value == playerFlag;
+        return !expectedBoardVersion.HasValue || expectedBoardVersion.Value == compDuel.lanBoardVersion.value;
+    }
+
+    private bool TrySubmitHostDuelPass(PlayerFlag playerFlag, int? expectedBoardVersion, out HostDuelPassResult result)
+    {
+        result = default;
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
+        if (!CanAcceptHostTurnCommand(compDuel, playerFlag, expectedBoardVersion)) {
+            return false;
+        }
+
+        Player player = GetPlayerByFlag(compDuel, playerFlag);
+        if (player == null) {
+            return false;
+        }
+
+        int consecutivePassCount = compDuel.consecutivePassCount.value + 1;
+        ApplyPassToState(compDuel, player, playerFlag, consecutivePassCount);
+        if (expectedBoardVersion.HasValue) {
+            compDuel.lanBoardVersion.value = expectedBoardVersion.Value + 1;
+        }
+        if (expectedBoardVersion.HasValue && compDuel.consecutivePassCount.value >= 2) {
+            compDuel.localInputPlayerFlag.value = 0;
+        }
+        result = new HostDuelPassResult(compDuel.lanBoardVersion.value, consecutivePassCount);
+        return true;
+    }
+
+    private void AdvanceTurnAfterAcceptedHostPass(HostDuelPassResult result)
+    {
+        if (result.consecutivePassCount >= 2) {
+            return;
+        }
+
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
+        compDuel?.duelFSM?.SetParamterTrigger(DuelParamDefine.TRIGGER_PARAM_TURN_INPUT_FINISH);
     }
 
     private void ApplyAcceptedPass(SceneComponentDuel compDuel, LanDuelPassMessage pass)
@@ -726,6 +801,12 @@ public class DuelSystem : SystemBase
         }
 
         if (compDuel.duelFSM?.curState == null || compDuel.duelFSM.curState.stateName == DuelStateDefine.STATE_GAME_END) {
+            return;
+        }
+
+        if (IsAcceptedPassAlreadyApplied(compDuel, pass)) {
+            compDuel.lanBoardVersion.value = pass.boardVersion;
+            compDuel.consecutivePassCount.value = pass.consecutivePassCount;
             return;
         }
 
@@ -758,6 +839,36 @@ public class DuelSystem : SystemBase
         ));
     }
 
+    private bool IsAcceptedPassAlreadyApplied(SceneComponentDuel compDuel, LanDuelPassMessage pass)
+    {
+        if (compDuel == null || pass.boardVersion <= 0 || compDuel.lanBoardVersion.value < pass.boardVersion) {
+            return false;
+        }
+
+        return TryGetLastKataGoMove(compDuel, out PlayerFlag lastPlayerFlag, out bool isPass)
+            && isPass
+            && lastPlayerFlag == pass.playerFlag
+            && DuelMoveHistory.CountTrailingPasses(compDuel.kataGoMoves) == pass.consecutivePassCount;
+    }
+
+    private bool TryGetLastKataGoMove(SceneComponentDuel compDuel, out PlayerFlag playerFlag, out bool isPass)
+    {
+        playerFlag = 0;
+        isPass = false;
+        if (compDuel?.kataGoMoves == null || compDuel.kataGoMoves.Count == 0) {
+            return false;
+        }
+
+        SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
+        int boardSize = compChessBoard?.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : 19;
+        return KataGoDuelRecordFile.TryParseMove(
+            compDuel.kataGoMoves[compDuel.kataGoMoves.Count - 1],
+            out playerFlag,
+            out _,
+            out isPass,
+            boardSize);
+    }
+
     private async void QueryAndBroadcastLanScore(LanDuelScoreRequestMessage request)
     {
         var compDuel = scene.GetComponent<SceneComponentDuel>();
@@ -777,6 +888,33 @@ public class DuelSystem : SystemBase
         compDuel.isScoring = true;
         compDuel.localInputPlayerFlag.value = 0;
         Global.Instance.lanRoomService?.BroadcastScoreResult(BuildLanScoreResultMessage(request, scoreResult));
+    }
+
+    private async void QueryAndBroadcastLanConsecutivePassScore(int actionId, PlayerFlag requesterFlag)
+    {
+        var compDuel = scene.GetComponent<SceneComponentDuel>();
+        if (compDuel == null || !compDuel.isLanDuel.value || compDuel.lanRole.value != (int)LanRoomRole.Host) {
+            return;
+        }
+
+        DuelScoreResult scoreResult = await QueryScoreResult(compDuel, "lan-duel-consecutive-pass-score");
+        if (scoreResult == null) {
+            compDuel.RemoveLastKataGoMove();
+            compDuel.consecutivePassCount.value = 1;
+            compDuel.localInputPlayerFlag.value = 0;
+            Global.Instance.lanRoomService?.BroadcastScoreFailed(
+                actionId,
+                requesterFlag,
+                LanDuelScoreFailureReason.CalculationFailed);
+            scene.EmitSystemEvent(new OnDuelScoreFailed(false));
+            scene.GetSystem<DuelInputAuthoritySystem>()?.RefreshLocalInputAuthority();
+            return;
+        }
+
+        LanDuelScoreResultMessage resultMessage = BuildLanScoreResultMessage(actionId, requesterFlag, scoreResult);
+        Global.Instance.lanRoomService?.BroadcastAcceptedScoreResult(resultMessage);
+        scene.EmitSystemEvent(new OnDuelScoreResult(scoreResult, false));
+        EndGameByScore(scoreResult, DuelGameEndReason.ConsecutivePass);
     }
 
     private async System.Threading.Tasks.Task<DuelScoreResult> QueryScoreResult(SceneComponentDuel compDuel, string requestTag)
@@ -893,6 +1031,22 @@ public class DuelSystem : SystemBase
         return null;
     }
 
+    private PlayerFlag GetPlayerFlagByGuid(SceneComponentDuel compDuel, string playerGuid)
+    {
+        if (compDuel == null || string.IsNullOrEmpty(playerGuid)) {
+            return 0;
+        }
+
+        if (playerGuid == compDuel.player1Guid.value) {
+            return PlayerFlag.Player1;
+        }
+        if (playerGuid == compDuel.player2Guid.value) {
+            return PlayerFlag.Player2;
+        }
+
+        return 0;
+    }
+
     private string GetPlayerGuidByFlag(SceneComponentDuel compDuel, PlayerFlag playerFlag)
     {
         if (compDuel == null) {
@@ -946,6 +1100,17 @@ public class DuelSystem : SystemBase
         }
 
         compDuel.duelFSM.SetParamterTrigger(DuelParamDefine.TRIGGER_PARAM_GAME_END);
+    }
+
+    private void ApplyAcceptedDuelResign(PlayerFlag loserFlag)
+    {
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
+        Player loser = GetPlayerByFlag(compDuel, loserFlag);
+        if (loser == null) {
+            return;
+        }
+
+        EndGameByResign(compDuel, loser.guid);
     }
 
     private void EndGameByResign(SceneComponentDuel compDuel, string loserGuid)
@@ -1032,9 +1197,14 @@ public class DuelSystem : SystemBase
 
     private LanDuelScoreResultMessage BuildLanScoreResultMessage(LanDuelScoreRequestMessage request, DuelScoreResult scoreResult)
     {
+        return BuildLanScoreResultMessage(request.actionId, request.requesterFlag, scoreResult);
+    }
+
+    private LanDuelScoreResultMessage BuildLanScoreResultMessage(int actionId, PlayerFlag requesterFlag, DuelScoreResult scoreResult)
+    {
         return new LanDuelScoreResultMessage(
-            request.actionId,
-            request.requesterFlag,
+            actionId,
+            requesterFlag,
             scoreResult.blackScore,
             scoreResult.whiteScore,
             scoreResult.komi,

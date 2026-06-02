@@ -17,6 +17,7 @@ public class DuelOwnershipSystem : SystemBase
         base.Init();
         scene.RegisterSystemEvent<OnRequestDuelOwnership>(OnRequestDuelOwnership);
         scene.RegisterSystemEvent<OnRequestClearDuelOwnership>(OnRequestClearDuelOwnership);
+        scene.RegisterSystemEvent<OnClearDuelOwnership>(OnClearDuelOwnership);
         scene.RegisterSystemEvent<OnAfterAddChessToBoard>(OnAfterAddChessToBoard);
         scene.RegisterSystemEvent<OnRequestDuelPass>(OnRequestDuelPass);
     }
@@ -30,6 +31,11 @@ public class DuelOwnershipSystem : SystemBase
     private void OnRequestClearDuelOwnership(OnRequestClearDuelOwnership evt)
     {
         ClearOwnershipAndNotify();
+    }
+
+    private void OnClearDuelOwnership(OnClearDuelOwnership evt)
+    {
+        InvalidateOwnershipRequest();
     }
 
     private void OnRequestDuelPass(OnRequestDuelPass evt)
@@ -91,9 +97,14 @@ public class DuelOwnershipSystem : SystemBase
 
     private void ClearOwnershipAndNotify()
     {
-        requestVersion += 1;
+        InvalidateOwnershipRequest();
         ClearOwnershipOverlay();
         scene.EmitSystemEvent(new OnClearDuelOwnership());
+    }
+
+    private void InvalidateOwnershipRequest()
+    {
+        requestVersion += 1;
     }
 
     private void ClearOwnershipOverlay()

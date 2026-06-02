@@ -19,6 +19,16 @@ public class ChessBoardSystem : SystemBase
     private const float ReplayCameraHorizontalOffsetFactor = 0.6f;
     private const float ReplayCameraHorizontalSpareUseFactor = 0.85f;
 
+    private readonly struct HostDuelMoveResult
+    {
+        public readonly int boardVersion;
+
+        public HostDuelMoveResult(int boardVersion)
+        {
+            this.boardVersion = boardVersion;
+        }
+    }
+
     public ChessBoardSystem(SceneBase scene) : base(scene)
     {
 
@@ -68,10 +78,9 @@ public class ChessBoardSystem : SystemBase
 
     public bool TryApplyLocalDuelMove(RectCoordinates coords, out DuelMoveRejectReason rejectReason)
     {
-        var compDuel = scene.GetComponent<SceneComponentDuel>();
-        var compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
         rejectReason = DuelMoveRejectReason.None;
-        if (compDuel == null || compChessBoard == null) {
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
+        if (compDuel == null) {
             rejectReason = DuelMoveRejectReason.InvalidBoard;
             return false;
         }
@@ -81,36 +90,14 @@ public class ChessBoardSystem : SystemBase
             return false;
         }
 
-        if (compDuel.isScoring) {
-            rejectReason = DuelMoveRejectReason.InvalidBoard;
-            return false;
-        }
-
-        var curPlayer = scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
-        if (curPlayer == null) {
-            rejectReason = DuelMoveRejectReason.InvalidCommand;
-            return false;
-        }
-
-        PlayerFlag playerFlag = (PlayerFlag)curPlayer.playerFlag.value;
-        string chessGuid = EntityUtils.CreateGuidWithEntityType(EntityBase.GetEntityType<Chess>());
-        DuelMoveResult moveResult = DuelMoveRule.BuildMoveResult(
-            compChessBoard,
-            new DuelMoveCommand(playerFlag, coords, chessGuid)
-        );
-        if (!moveResult.accepted) {
-            rejectReason = moveResult.rejectReason;
-            scene.EmitSystemEvent(new OnDuelMoveRejected(playerFlag, coords?.Clone(), moveResult.rejectReason));
-            return false;
-        }
-
-        DuelMoveRule.ApplyMoveResult(compChessBoard, moveResult);
-        ApplyMoveStoneViews(compChessBoard, moveResult, playerFlag, coords);
-        ApplyLatestMoveMarker(compChessBoard, playerFlag, coords);
-        int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : chessBoardData?.boardSize ?? 19;
-        compDuel.AppendKataGoMove(playerFlag, coords, boardSize);
-        scene.EmitSystemEvent(new OnAfterAddChessToBoard(playerFlag, coords.Clone()));
-        return true;
+        Player curPlayer = scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
+        PlayerFlag playerFlag = curPlayer != null ? (PlayerFlag)curPlayer.playerFlag.value : 0;
+        return TrySubmitHostDuelMove(
+            playerFlag,
+            coords,
+            null,
+            out _,
+            out rejectReason);
     }
 
     public void OnApplyLanDuelMove(OnApplyLanDuelMove evt)
@@ -121,13 +108,91 @@ public class ChessBoardSystem : SystemBase
     public bool TryAcceptLanDuelMove(LanDuelMoveMessage move, out LanDuelMoveMessage acceptedMove, out DuelMoveRejectReason rejectReason)
     {
         acceptedMove = move;
-        if (!ApplyLanDuelMove(move, true, out rejectReason)) {
+        if (!TrySubmitHostDuelMove(
+            move.playerFlag,
+            move.coords,
+            move.boardVersion,
+            out HostDuelMoveResult hostResult,
+            out rejectReason)) {
             return false;
         }
 
+        acceptedMove = new LanDuelMoveMessage(move.moveId, hostResult.boardVersion, move.playerFlag, move.coords?.Clone());
+        return true;
+    }
+
+    private bool TrySubmitHostDuelMove(
+        PlayerFlag playerFlag,
+        RectCoordinates coords,
+        int? expectedBoardVersion,
+        out HostDuelMoveResult hostResult,
+        out DuelMoveRejectReason rejectReason,
+        bool emitRejectEvent = true,
+        bool emitAcceptedEvent = true)
+    {
+        hostResult = default;
+        rejectReason = DuelMoveRejectReason.None;
         SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
-        int boardVersion = compDuel != null ? compDuel.lanBoardVersion.value : move.boardVersion;
-        acceptedMove = new LanDuelMoveMessage(move.moveId, boardVersion, move.playerFlag, move.coords?.Clone());
+        SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
+        if (compDuel == null || compChessBoard == null || compDuel.isScoring) {
+            rejectReason = DuelMoveRejectReason.InvalidBoard;
+            return false;
+        }
+
+        Player curPlayer = scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
+        if (curPlayer == null || playerFlag == 0 || coords == null) {
+            rejectReason = DuelMoveRejectReason.InvalidCommand;
+            if (emitRejectEvent && playerFlag != 0) {
+                scene.EmitSystemEvent(new OnDuelMoveRejected(playerFlag, null, rejectReason));
+            }
+            return false;
+        }
+
+        PlayerFlag curPlayerFlag = (PlayerFlag)curPlayer.playerFlag.value;
+        if (curPlayerFlag != playerFlag) {
+            rejectReason = DuelMoveRejectReason.NotPlayerTurn;
+            if (emitRejectEvent) {
+                scene.EmitSystemEvent(new OnDuelMoveRejected(playerFlag, coords.Clone(), rejectReason));
+            }
+            return false;
+        }
+
+        if (expectedBoardVersion.HasValue && expectedBoardVersion.Value != compDuel.lanBoardVersion.value) {
+            rejectReason = DuelMoveRejectReason.BoardVersionMismatch;
+            if (emitRejectEvent) {
+                scene.EmitSystemEvent(new OnDuelMoveRejected(playerFlag, coords.Clone(), rejectReason));
+            }
+            return false;
+        }
+
+        string chessGuid = EntityUtils.CreateGuidWithEntityType(EntityBase.GetEntityType<Chess>());
+        DuelMoveResult moveResult = DuelMoveRule.BuildMoveResult(
+            compChessBoard,
+            new DuelMoveCommand(playerFlag, coords, chessGuid)
+        );
+        if (!moveResult.accepted) {
+            rejectReason = moveResult.rejectReason;
+            if (emitRejectEvent) {
+                scene.EmitSystemEvent(new OnDuelMoveRejected(playerFlag, coords.Clone(), moveResult.rejectReason));
+            }
+            return false;
+        }
+
+        DuelMoveRule.ApplyMoveResult(compChessBoard, moveResult);
+        ApplyMoveStoneViews(compChessBoard, moveResult, playerFlag, coords);
+        ApplyLatestMoveMarker(compChessBoard, playerFlag, coords);
+        int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : chessBoardData?.boardSize ?? 19;
+        compDuel.AppendKataGoMove(playerFlag, coords, boardSize);
+        compDuel.consecutivePassCount.value = 0;
+        if (expectedBoardVersion.HasValue) {
+            compDuel.lanBoardVersion.value = expectedBoardVersion.Value + 1;
+        }
+
+        int boardVersion = compDuel.lanBoardVersion.value;
+        hostResult = new HostDuelMoveResult(boardVersion);
+        if (emitAcceptedEvent) {
+            scene.EmitSystemEvent(new OnAfterAddChessToBoard(playerFlag, coords.Clone()));
+        }
         return true;
     }
 
@@ -196,6 +261,7 @@ public class ChessBoardSystem : SystemBase
         ApplyLatestMoveMarker(compChessBoard, move.playerFlag, move.coords);
         int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : chessBoardData?.boardSize ?? 19;
         compDuel.AppendKataGoMove(move.playerFlag, move.coords, boardSize);
+        compDuel.consecutivePassCount.value = 0;
         if (move.boardVersion > 0) {
             compDuel.lanBoardVersion.value = move.boardVersion;
         } else {
@@ -417,11 +483,13 @@ public class ChessBoardSystem : SystemBase
         compDuel.lanBoardVersion.value = snapshot.boardVersion;
         if (snapshot.hasKataGoMoves) {
             compDuel.kataGoMoves = DuelMoveHistory.Clone(snapshot.kataGoMoves);
+            compDuel.consecutivePassCount.value = DuelMoveHistory.CountTrailingPasses(compDuel.kataGoMoves);
         } else if (appendFallbackMove &&
             snapshot.boardVersion > previousBoardVersion &&
             snapshot.latestMoveCoords != null &&
             snapshot.latestMovePlayerFlag != 0) {
             compDuel.AppendKataGoMove(snapshot.latestMovePlayerFlag, snapshot.latestMoveCoords, compChessBoard.chessBoardGrid.gridSize);
+            compDuel.consecutivePassCount.value = 0;
         }
         if (snapshot.nextTurnPlayerFlag == PlayerFlag.Player1) {
             compDuel.curTurnPlayerGuid.value = compDuel.player1Guid.value;
