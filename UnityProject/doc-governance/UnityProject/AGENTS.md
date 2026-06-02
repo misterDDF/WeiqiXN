@@ -58,7 +58,7 @@
 - 不做过度封装；只有当封装能减少真实复杂度、消除重复、稳定边界或提升可读性时才新增公共方法、类或模块。
 - 同一逻辑出现超过 3 行重复代码时，必须进行必要的封装复用；封装后仍应保持调用关系直观。
 - 修改必须聚焦当前任务范围，不做无关重构、无关格式化或无关资源整理。
-- 修改 Unity C# 代码前必须先通过可用 Unity Editor/MCP 状态检查确认 Editor 不在 Play 模式；优先通过 MCP 执行 `自定义功能/Editor/Write Editor State`，再读取 `UnityProject/Temp/WeiqiXN/editor_state_probe.json`，以文件中的最新 `timeUtc` / `sequence`、`isPlaying`、`isPlayingOrWillChangePlaymode` 和 `isCompiling` 为准，不依赖 Console 日志。若正在 Play，或无法可靠判断 Play 状态且本轮需要改 C#，必须停止代码改动并等待用户关闭 Play 后再继续。不得在 Play 模式中直接编辑 C# 文件，避免触发 Domain Reload、脚本导入或 Editor 崩溃；除非用户明确要求，不由 agent 主动切换/停止 Play。
+- 修改 Unity C# 代码前必须先通过可用 Unity Editor/MCP 状态检查确认 Editor 不在 Play 模式；优先通过 MCP 执行 `自定义功能/Editor/Write Editor State`，再读取 `UnityProject/Temp/WeiqiXN/editor_state_probe.json`，以文件中的最新 `timeUtc` / `sequence`、`isPlaying`、`isPlayingOrWillChangePlaymode` 和 `isCompiling` 为准，不依赖 Console 日志。若正在 Play，或无法可靠判断 Play 状态且本轮需要改 C#，必须停止代码改动并等待用户关闭 Play 后再继续。不得在 Play 模式中直接编辑 C# 文件，避免触发 Domain Reload、脚本导入或 Editor 崩溃；除非用户明确要求，不由 agent 主动切换/停止 Play。C# 文件写入后应立即触发必要的 `Assets/Refresh` 和脚本重编译验证；若代码写入后先进入文档维护、等待、用户交互、长时间排查或其他明显间隔，再触发 Unity 导入/编译前必须重新执行文件探针，若用户已进入 Play，则停止 Unity 导入/编译验证并说明剩余风险。
 - 不为小范围需求引入新的 Unity 包、插件、全局服务或编辑器工具；确实需要时必须说明现有能力为什么不足。
 - 不把 UI、网络、KataGo、本地规则、存档或资源加载职责混入彼此边界；需要跨边界协作时优先使用已有事件、系统入口或文档已定义的模块职责。
 - UI 类负责展示和输入转发，不直接承担棋规、存档、网络同步或 AI 分析决策。
@@ -86,6 +86,7 @@
 **文档同步门禁**
 
 - 修改代码后必须先判断改动是否改变当前行为、架构边界、阶段计划、入口约束或模块维护事实，再进入最终交付。
+- 涉及 Unity C# 改动时，除已知 bug 登记等必须前置的记录外，应在 C# 文件写入后立即完成 `Assets/Refresh`、脚本重编译和 Console 检查，再进行较长的文档同步；如果代码写入后没有立即验证而先发生文档维护、等待或其他明显间隔，则触发 Unity 导入/编译前必须重新探针，避免文档维护期间用户进入 Play 后继续触发 Unity 导入或 Domain Reload。
 - 修复 bug 前必须确认该问题已登记在 [KNOWN_BUGS.md](KNOWN_BUGS.md)；一轮任务包含多个 bug 时，先完整登记所有已观察问题，再按条修复，避免会话中断后丢失定位上下文。
 - 只要触发文档更新矩阵中的任一条件，必须在同一轮改动中同步更新对应权威文档；不能把必要文档更新留到后续任务。
 - 若判断不需要更新文档，交付说明中必须明确说明未触发文档更新的原因。
@@ -97,7 +98,7 @@
 **编译验证**
 
 - 修改 Unity C# 代码、asmdef、Editor 脚本或会影响 Unity 脚本导入的资源后，必须触发 Unity Editor 脚本编译作为最小验证。
-- 修改 Unity C# 代码、新增或修改 Editor 菜单函数、修改 asmdef、prefab、scene、material、asset 或其他会被 Unity 导入/序列化的资源后，必须先通过 Unity MCP 执行 `Assets/Refresh` 菜单项或等效 Editor 刷新入口，让 Unity Editor 实际感知改动；不能只停留在文件系统 diff。若改动涉及 C#、asmdef 或 Editor 菜单函数，刷新后还必须执行脚本编译验证并检查 Console。
+- 修改 Unity C# 代码、新增或修改 Editor 菜单函数、修改 asmdef、prefab、scene、material、asset 或其他会被 Unity 导入/序列化的资源后，必须先通过 Unity MCP 执行 `Assets/Refresh` 菜单项或等效 Editor 刷新入口，让 Unity Editor 实际感知改动；不能只停留在文件系统 diff。若改动涉及 C#、asmdef 或 Editor 菜单函数，刷新后还必须执行脚本编译验证并检查 Console。C# 写入后立即执行刷新和重编译时，改 C# 前的文件探针可覆盖这次连续验证；若代码写入和刷新/重编译之间出现文档维护、等待、用户交互、长时间排查或其他明显间隔，则必须重新写入并读取 Editor 状态探针，确认 `isPlaying=false`、`isPlayingOrWillChangePlaymode=false`、`isCompiling=false` 后才允许继续。
 - 编译验证优先使用已连接的 Unity MCP 触发脚本重编译，并检查 Unity Console 编译错误；当前通用入口为 MCP `recompile_scripts`，可用时不再使用 `dotnet build UnityProject.sln` 作为常规验证。
 - Unity MCP 触发重编译、Domain Reload 等编辑器操作时，执行、等待和读取日志应拆成多次调用。若 MCP 因 Domain Reload 短暂断开，应重试轻量检查。
 - `dotnet build UnityProject.sln` 不能作为 Unity 编译的权威验证；除非 Unity Editor 或 MCP 不可用且需要辅助定位纯 C# 编译问题，否则不再执行。
@@ -108,9 +109,9 @@
 **编辑器操作策略**
 
 - 能通过 Unity MCP 完成的编辑器操作优先使用 MCP，包括脚本重编译、Console 日志读取、场景对象查询与修改、材质和资源的常规编辑器操作。
-- 涉及 Unity C# 文件改动的任务，在任何文件编辑前必须先完成 Play 模式状态检查；优先通过 MCP 执行 `自定义功能/Editor/Write Editor State`，再读取 `UnityProject/Temp/WeiqiXN/editor_state_probe.json`，以文件中的最新 `timeUtc` / `sequence`、`isPlaying`、`isPlayingOrWillChangePlaymode` 和 `isCompiling` 为准，不依赖 Console 日志。发现 Editor 正在 Play 时，不执行 `apply_patch`、脚本生成、格式化或其他会改写 C# 文件的操作，先告知用户需要退出 Play。
+- 涉及 Unity C# 文件改动的任务，在任何文件编辑前必须先完成 Play 模式状态检查；优先通过 MCP 执行 `自定义功能/Editor/Write Editor State`，再读取 `UnityProject/Temp/WeiqiXN/editor_state_probe.json`，以文件中的最新 `timeUtc` / `sequence`、`isPlaying`、`isPlayingOrWillChangePlaymode` 和 `isCompiling` 为准，不依赖 Console 日志。发现 Editor 正在 Play 时，不执行 `apply_patch`、脚本生成、格式化或其他会改写 C# 文件的操作，先告知用户需要退出 Play。C# 写入完成后应立即执行必要 Unity 导入/编译验证，再进入较长文档同步；若写入后未立即验证而发生文档维护、等待、用户交互或其他明显间隔，则在导入、重编译或任何可能触发 Domain Reload 的 Editor 操作前必须重新探针确认非 Play。
 - prefab、场景和资源导入相关修改应优先走 Unity 编辑器能力；当现有 MCP 工具能覆盖目标 prefab 或资源操作时使用 MCP。
-- 任何 C#、Editor 菜单、asmdef、prefab、scene、material 或 asset 改动完成后，交付前必须至少通过 Unity MCP 执行一次 `Assets/Refresh` 菜单项或等效 Editor 刷新入口；若涉及 C#、asmdef 或 Editor 菜单函数，还必须在刷新后执行脚本编译验证，并检查 Console 错误。
+- 任何 C#、Editor 菜单、asmdef、prefab、scene、material 或 asset 改动完成后，交付前必须至少通过 Unity MCP 执行一次 `Assets/Refresh` 菜单项或等效 Editor 刷新入口；若涉及 C#、asmdef 或 Editor 菜单函数，还必须执行脚本编译验证并检查 Console 错误。C# 写入后立即连续执行刷新/重编译时，不需要在中间额外补探针；若改动完成和刷新/重编译之间存在明显间隔，则执行前必须重新读取 Editor 状态探针，确认非 Play、非即将 Play、非编译。
 - 当前 MCP 未提供完整既有 prefab asset 层级编辑能力时，不直接手写复杂 prefab YAML；应改用 Unity 编辑器脚本、明确的编辑器菜单或人工维护 prefab，再通过 MCP 执行导入、编译和日志检查。
 - 固定 UI 控件仍必须由 prefab 或场景显式维护并通过现有 Binder 绑定；MCP 只是优先编辑入口，不改变 UI 维护边界。
 - `Assets/UI/Prefab/Page/*.prefab` 的 prefab 根节点必须作为 Unity Canvas 根节点维护，根节点上的 `RectTransform`、`Canvas`、`CanvasScaler` 和 `GraphicRaycaster` 一律视为受保护编辑器结构，不得为了界面铺满或横竖屏适配修改根 `RectTransform`。已验证可正常预览的 Page prefab 根节点通常是 Unity Canvas 编辑态零尺寸结构（如 `localScale=(0,0,0)`、`anchorMin=(0,0)`、`anchorMax=(0,0)`、`anchoredPosition=(0,0)`、`sizeDelta=(0,0)`、`pivot=(0,0)`）并使用 `Screen Space - Camera`；不要把根节点改成四向 Stretch 或 `Screen Space - Overlay` 来做页面布局，否则容易诱发 Unity Prefab 预览创建 `Canvas (environment)`。
@@ -129,7 +130,7 @@
 
 - 代码或文档修改已经落地。
 - 必要检查已经完成；如无法执行，需要记录原因。
-- 涉及 Unity C#、Editor 菜单、asmdef、prefab、scene、material 或 asset 变更时，已通过 Unity MCP 执行 `Assets/Refresh` 菜单项或等效 Editor 刷新入口；涉及 C#、asmdef 或 Editor 菜单函数时，已在刷新后完成脚本编译验证并确认 Console 无相关错误；无法执行时已说明原因和剩余风险。
+- 涉及 Unity C#、Editor 菜单、asmdef、prefab、scene、material 或 asset 变更时，已通过 Unity MCP 执行 `Assets/Refresh` 菜单项或等效 Editor 刷新入口；涉及 C#、asmdef 或 Editor 菜单函数时，已完成脚本编译验证并确认 Console 无相关错误。C# 写入后立即连续验证时，以改 C# 前的状态探针作为安全前置；若写入和验证之间存在明显间隔，则已在导入/编译前重新通过 Editor 状态文件探针确认非 Play、非即将 Play、非编译；无法执行时已说明原因和剩余风险。
 - 已判断对本地对局基线的影响。
 - 已判断是否触发四件套文档或模块文档更新。
 - 被触发的权威文档已经同步更新。

@@ -24,8 +24,11 @@ public class OgsDuelSystem : SystemBase
     private int pendingUndoMoveCount;
     private int pendingUndoRequesterOgsUserId;
     private bool hasOgsClock;
+    private bool hasOgsStartClock;
     private float ogsClockBaseLocalTime;
     private PlayerFlag ogsClockCurrentPlayerFlag;
+    private PlayerFlag ogsStartClockPlayerFlag;
+    private int ogsStartClockBaseLeftSeconds;
     private OgsClockPlayerTime ogsBlackClock = OgsClockPlayerTime.Empty;
     private OgsClockPlayerTime ogsWhiteClock = OgsClockPlayerTime.Empty;
 
@@ -290,9 +293,9 @@ public class OgsDuelSystem : SystemBase
         compOgsDuel.acceptedMoveCount = moves.Count;
         compOgsDuel.isSubmitting = false;
         if (TryBuildOgsScoreResult(gameData, out DuelScoreResult scoreResult)) {
-            EndGameByOgsScore(scoreResult);
+            EndGameByOgsScore(scoreResult, gameData);
         } else if (IsFinishedPhase()) {
-            EndGameByOgsFinishedFallback();
+            EndGameByOgsFinishedFallback(gameData);
         } else {
             SyncTurnAndInputFromMoveCount(moves.Count);
         }
@@ -430,15 +433,18 @@ public class OgsDuelSystem : SystemBase
 
     private void ApplyPhase(string phase)
     {
-        if (compOgsDuel == null) {
+        if (compOgsDuel == null || compDuel == null) {
             return;
         }
 
         compOgsDuel.phase = phase ?? string.Empty;
         if (IsFinishedPhase()) {
-            compDuel.localInputPlayerFlag.value = 0;
-            compDuel.gameEndReason.value = DuelGameEndReason.Score;
-            compDuel.duelFSM.SetParamterTrigger(DuelParamDefine.TRIGGER_PARAM_GAME_END);
+            JObject gameData = compOgsDuel.lastGameData as JObject;
+            if (TryBuildOgsScoreResult(gameData, out DuelScoreResult scoreResult)) {
+                EndGameByOgsScore(scoreResult, gameData);
+            } else {
+                EndGameByOgsFinishedFallback(gameData);
+            }
         } else {
             SyncInputAuthority();
         }
@@ -453,10 +459,13 @@ public class OgsDuelSystem : SystemBase
         ogsBlackClock = ReadOgsClockPlayerTime(clock["black_time"] as JObject);
         ogsWhiteClock = ReadOgsClockPlayerTime(clock["white_time"] as JObject);
         ogsClockCurrentPlayerFlag = ResolveClockCurrentPlayerFlag(clock);
+        hasOgsStartClock = ReadFirstBool(clock, false, "start_mode", "startMode") &&
+            TryReadOgsStartClockLeftSeconds(clock, out ogsStartClockBaseLeftSeconds);
+        ogsStartClockPlayerFlag = ResolveOgsStartClockPlayerFlag();
         ogsClockBaseLocalTime = UnityEngine.Time.unscaledTime;
         hasOgsClock = true;
 
-        bool hasByoyomi = ogsBlackClock.HasByoyomi || ogsWhiteClock.HasByoyomi;
+        bool hasByoyomi = !hasOgsStartClock && (ogsBlackClock.HasByoyomi || ogsWhiteClock.HasByoyomi);
         compDuel.byoyomiCountCfgId.value = hasByoyomi ? "1" : "off";
         RefreshOgsClockDisplay();
     }
@@ -470,8 +479,12 @@ public class OgsDuelSystem : SystemBase
         float elapsedSeconds = IsFinishedPhase() || IsPausedPhase()
             ? 0f
             : Math.Max(0f, UnityEngine.Time.unscaledTime - ogsClockBaseLocalTime);
-        ApplyOgsClockToPlayer(PlayerFlag.Player1, ogsBlackClock, ogsClockCurrentPlayerFlag == PlayerFlag.Player1, elapsedSeconds);
-        ApplyOgsClockToPlayer(PlayerFlag.Player2, ogsWhiteClock, ogsClockCurrentPlayerFlag == PlayerFlag.Player2, elapsedSeconds);
+        bool useStartClock = hasOgsStartClock && ogsStartClockPlayerFlag != 0;
+        ApplyOgsClockToPlayer(PlayerFlag.Player1, ogsBlackClock, !useStartClock && ogsClockCurrentPlayerFlag == PlayerFlag.Player1, elapsedSeconds);
+        ApplyOgsClockToPlayer(PlayerFlag.Player2, ogsWhiteClock, !useStartClock && ogsClockCurrentPlayerFlag == PlayerFlag.Player2, elapsedSeconds);
+        if (useStartClock) {
+            ApplyOgsStartClockToPlayer(ogsStartClockPlayerFlag, CeilRemainingSeconds(ogsStartClockBaseLeftSeconds - elapsedSeconds));
+        }
     }
 
     private void ApplyOgsClockToPlayer(PlayerFlag playerFlag, OgsClockPlayerTime baseTime, bool isCurrentPlayer, float elapsedSeconds)
@@ -512,6 +525,23 @@ public class OgsDuelSystem : SystemBase
             : duelInfo.holdLeftSeconds.value;
     }
 
+    private void ApplyOgsStartClockToPlayer(PlayerFlag playerFlag, int leftSeconds)
+    {
+        Player player = GetPlayerByFlag(playerFlag);
+        ComponentDuelInfo duelInfo = player?.GetComponent<ComponentDuelInfo>();
+        if (duelInfo == null) {
+            return;
+        }
+
+        int safeLeftSeconds = Math.Max(0, leftSeconds);
+        duelInfo.isInfiniteTime.value = false;
+        duelInfo.holdLeftSeconds.value = safeLeftSeconds;
+        duelInfo.byoyomiLeftCount.value = 0;
+        duelInfo.byoyomiLeftSeconds.value = 0;
+        duelInfo.isInByoyomi.value = false;
+        duelInfo.turnLeftTimes.value = safeLeftSeconds;
+    }
+
     private PlayerFlag ResolveClockCurrentPlayerFlag(JObject clock)
     {
         string currentPlayer = ReadFirstString(clock, "current_player", "currentPlayer", "current_player_id", "player_id");
@@ -534,6 +564,17 @@ public class OgsDuelSystem : SystemBase
             : 0;
     }
 
+    private PlayerFlag ResolveOgsStartClockPlayerFlag()
+    {
+        if (ogsClockCurrentPlayerFlag == PlayerFlag.Player1 || ogsClockCurrentPlayerFlag == PlayerFlag.Player2) {
+            return ogsClockCurrentPlayerFlag;
+        }
+        if (compOgsDuel != null && (compOgsDuel.firstMovePlayerFlag == PlayerFlag.Player1 || compOgsDuel.firstMovePlayerFlag == PlayerFlag.Player2)) {
+            return compOgsDuel.firstMovePlayerFlag;
+        }
+        return PlayerFlag.Player1;
+    }
+
     private static OgsClockPlayerTime ReadOgsClockPlayerTime(JObject playerClock)
     {
         if (playerClock == null) {
@@ -552,6 +593,52 @@ public class OgsDuelSystem : SystemBase
             byoyomiLeftCount,
             byoyomiLeftSeconds,
             isInByoyomi);
+    }
+
+    private static bool TryReadOgsStartClockLeftSeconds(JObject clock, out int leftSeconds)
+    {
+        leftSeconds = 0;
+        if (clock == null) {
+            return false;
+        }
+
+        double deltaSeconds = ReadOgsClockDurationSeconds(clock);
+        if (deltaSeconds > 0d) {
+            leftSeconds = CeilRemainingSeconds(deltaSeconds);
+            return true;
+        }
+
+        double expirationMillis = ReadOgsUnixMillis(clock, "expiration", "expires_at", "expiresAt");
+        if (expirationMillis <= 0d) {
+            return false;
+        }
+
+        double nowMillis = ReadOgsUnixMillis(clock, "now", "server_time", "serverTime", "current_time", "currentTime");
+        if (nowMillis <= 0d) {
+            nowMillis = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        }
+
+        leftSeconds = CeilRemainingSeconds((expirationMillis - nowMillis) / 1000d);
+        return true;
+    }
+
+    private static double ReadOgsUnixMillis(JObject json, params string[] fieldNames)
+    {
+        double value = ReadFirstDouble(json, 0d, fieldNames);
+        if (value <= 0d) {
+            return 0d;
+        }
+        return value < 100000000000d ? value * 1000d : value;
+    }
+
+    private static double ReadOgsClockDurationSeconds(JObject json)
+    {
+        double expirationDeltaMillis = ReadFirstDouble(json, 0d, "expiration_delta", "expirationDelta");
+        if (expirationDeltaMillis > 0d) {
+            return expirationDeltaMillis / 1000d;
+        }
+
+        return ReadFirstDouble(json, 0d, "time_left", "timeLeft");
     }
 
     private static int CeilRemainingSeconds(double seconds)
@@ -1060,19 +1147,24 @@ public class OgsDuelSystem : SystemBase
             return false;
         }
 
-        JObject score = gameData["score"] as JObject;
-        bool hasFinishedScore = IsFinishedPhase() || HasNonEmptyField(gameData, "end_time") || HasNonEmptyField(gameData, "outcome");
+        JObject payload = GetOgsTerminalPayload(gameData);
+        JObject score = payload?["score"] as JObject ?? gameData["score"] as JObject;
+        bool hasFinishedScore = IsFinishedPhase() ||
+            HasNonEmptyField(gameData, "end_time") ||
+            HasNonEmptyField(payload, "end_time") ||
+            HasNonEmptyField(gameData, "outcome") ||
+            HasNonEmptyField(payload, "outcome");
         if (!hasFinishedScore) {
             return false;
         }
 
         float blackScore = ReadFirstFloat(score?["black"] as JObject, 0f, "total");
         float whiteScore = ReadFirstFloat(score?["white"] as JObject, 0f, "total");
-        float komi = ReadFirstFloat(gameData, 0f, "komi");
+        float komi = ReadFirstFloat(payload, ReadFirstFloat(gameData, 0f, "komi"), "komi");
         PlayerFlag winnerFlag = ResolveWinnerFlag(gameData, blackScore, whiteScore);
         float margin = Math.Abs(blackScore - whiteScore);
         if (margin <= 0f) {
-            margin = ParseOutcomeMargin(ReadFirstString(gameData, "outcome"));
+            margin = ParseOutcomeMargin(ReadFirstOgsTerminalText(gameData));
         }
 
         scoreResult = new DuelScoreResult
@@ -1087,22 +1179,26 @@ public class OgsDuelSystem : SystemBase
         return true;
     }
 
-    private void EndGameByOgsScore(DuelScoreResult scoreResult)
+    private void EndGameByOgsScore(DuelScoreResult scoreResult, JObject gameData)
     {
         if (compDuel == null || scoreResult == null || compDuel.duelFSM == null || !compDuel.duelFSM.isActivated) {
             return;
         }
 
+        OgsGameEndResolution endResolution = ResolveOgsGameEndReason(gameData, scoreResult.winnerFlag);
         compDuel.finalBlackScore.value = scoreResult.blackScore;
         compDuel.finalWhiteScore.value = scoreResult.whiteScore;
         compDuel.finalScoreMargin.value = scoreResult.margin;
-        compDuel.gameEndReason.value = DuelGameEndReason.Score;
+        ApplyOgsGameEndResolution(endResolution);
         compDuel.localInputPlayerFlag.value = 0;
         compOgsDuel.isSubmitting = false;
 
-        if (scoreResult.winnerFlag == PlayerFlag.Player1) {
+        PlayerFlag winnerFlag = scoreResult.winnerFlag != 0 || endResolution.loserFlag == 0
+            ? scoreResult.winnerFlag
+            : endResolution.loserFlag.GetOpponentPlayerFlag();
+        if (winnerFlag == PlayerFlag.Player1) {
             compDuel.winnerGuid.value = compDuel.player1Guid.value;
-        } else if (scoreResult.winnerFlag == PlayerFlag.Player2) {
+        } else if (winnerFlag == PlayerFlag.Player2) {
             compDuel.winnerGuid.value = compDuel.player2Guid.value;
         } else {
             compDuel.winnerGuid.value = string.Empty;
@@ -1117,28 +1213,75 @@ public class OgsDuelSystem : SystemBase
             ("blackScore", scoreResult.blackScore.ToString(CultureInfo.InvariantCulture)),
             ("whiteScore", scoreResult.whiteScore.ToString(CultureInfo.InvariantCulture)),
             ("margin", scoreResult.margin.ToString(CultureInfo.InvariantCulture)),
-            ("winnerFlag", scoreResult.winnerFlag.ToString()));
+            ("winnerFlag", winnerFlag.ToString()),
+            ("reason", endResolution.reason),
+            ("loserFlag", endResolution.loserFlag.ToString()),
+            ("reasonSource", endResolution.source));
     }
 
-    private void EndGameByOgsFinishedFallback()
+    private void EndGameByOgsFinishedFallback(JObject gameData)
     {
+        PlayerFlag winnerFlag = ResolveWinnerFlag(gameData, 0f, 0f);
         var scoreResult = new DuelScoreResult
         {
             blackScore = 0f,
             whiteScore = 0f,
             komi = 0f,
             margin = 0f,
-            winnerFlag = 0,
+            winnerFlag = winnerFlag,
             scoreSource = "ogs",
         };
-        EndGameByOgsScore(scoreResult);
+        EndGameByOgsScore(scoreResult, gameData);
+    }
+
+    private OgsGameEndResolution ResolveOgsGameEndReason(JObject gameData, PlayerFlag winnerFlag)
+    {
+        PlayerFlag loserFlag = ResolveOgsLoserFlag(gameData, winnerFlag);
+        if (TryFindOgsTerminalText(gameData, IsOgsResignText, out string resignSource)) {
+            return new OgsGameEndResolution(DuelGameEndReason.Resign, loserFlag, resignSource);
+        }
+        if (TryFindOgsTerminalText(gameData, IsOgsTimeoutText, out string timeoutSource)) {
+            return new OgsGameEndResolution(DuelGameEndReason.Timeout, loserFlag, timeoutSource);
+        }
+        if (TryFindOgsTerminalText(gameData, IsOgsScoreText, out string scoreSource) || HasOgsScorePayload(gameData)) {
+            return new OgsGameEndResolution(DuelGameEndReason.Score, 0, scoreSource);
+        }
+
+        string terminalSource = ReadFirstOgsTerminalText(gameData);
+        if (winnerFlag != 0) {
+            XNLogger.LogWarn(
+                "OGS game end reason was not recognized, defaulting to score display.",
+                ("gameId", compOgsDuel?.gameId.ToString() ?? string.Empty),
+                ("winnerFlag", winnerFlag.ToString()),
+                ("loserFlag", loserFlag.ToString()),
+                ("terminalSource", terminalSource));
+        }
+        return new OgsGameEndResolution(DuelGameEndReason.Score, 0, terminalSource);
+    }
+
+    private void ApplyOgsGameEndResolution(OgsGameEndResolution endResolution)
+    {
+        compDuel.gameEndReason.value = endResolution.reason;
+        compDuel.timeoutLoserGuid.value = string.Empty;
+        compDuel.resignLoserGuid.value = string.Empty;
+
+        string loserGuid = GetPlayerGuidByFlag(endResolution.loserFlag);
+        if (endResolution.reason == DuelGameEndReason.Timeout) {
+            compDuel.timeoutLoserGuid.value = loserGuid;
+        } else if (endResolution.reason == DuelGameEndReason.Resign) {
+            compDuel.resignLoserGuid.value = loserGuid;
+        }
     }
 
     private PlayerFlag ResolveWinnerFlag(JObject gameData, float blackScore, float whiteScore)
     {
-        int winnerId = ReadFirstInt(gameData, 0, "winner", "winner_id");
-        int blackId = ReadFirstInt(gameData, compOgsDuel.blackOgsUserId, "black_player_id", "black");
-        int whiteId = ReadFirstInt(gameData, compOgsDuel.whiteOgsUserId, "white_player_id", "white");
+        JObject payload = GetOgsTerminalPayload(gameData);
+        int winnerId = ReadFirstInt(gameData, 0, "winner", "winner_id", "winnerId");
+        if (winnerId <= 0) {
+            winnerId = ReadFirstInt(payload, 0, "winner", "winner_id", "winnerId");
+        }
+        int blackId = ReadFirstInt(payload, compOgsDuel.blackOgsUserId, "black_player_id", "black_id", "black");
+        int whiteId = ReadFirstInt(payload, compOgsDuel.whiteOgsUserId, "white_player_id", "white_id", "white");
         if (winnerId > 0) {
             if (winnerId == blackId || winnerId == compOgsDuel.blackOgsUserId) {
                 return PlayerFlag.Player1;
@@ -1154,6 +1297,43 @@ public class OgsDuelSystem : SystemBase
             return PlayerFlag.Player2;
         }
         return 0;
+    }
+
+    private PlayerFlag ResolveOgsLoserFlag(JObject gameData, PlayerFlag winnerFlag)
+    {
+        if (TryReadOgsLostPlayerFlag(gameData, out PlayerFlag lostFlag)) {
+            return lostFlag;
+        }
+
+        int loserId = ReadFirstOgsInt(gameData, 0, "loser", "loser_id", "loserId", "losing_player", "losing_player_id");
+        if (loserId > 0) {
+            if (loserId == compOgsDuel.blackOgsUserId) {
+                return PlayerFlag.Player1;
+            }
+            if (loserId == compOgsDuel.whiteOgsUserId) {
+                return PlayerFlag.Player2;
+            }
+        }
+
+        return winnerFlag == PlayerFlag.Player1 || winnerFlag == PlayerFlag.Player2
+            ? winnerFlag.GetOpponentPlayerFlag()
+            : 0;
+    }
+
+    private bool TryReadOgsLostPlayerFlag(JObject gameData, out PlayerFlag lostFlag)
+    {
+        lostFlag = 0;
+        bool blackLost = ReadFirstOgsBool(gameData, false, "black_lost", "blackLost");
+        bool whiteLost = ReadFirstOgsBool(gameData, false, "white_lost", "whiteLost");
+        if (blackLost && !whiteLost) {
+            lostFlag = PlayerFlag.Player1;
+            return true;
+        }
+        if (whiteLost && !blackLost) {
+            lostFlag = PlayerFlag.Player2;
+            return true;
+        }
+        return false;
     }
 
     private static float ParseOutcomeMargin(string outcome)
@@ -1196,6 +1376,20 @@ public class OgsDuelSystem : SystemBase
             return scene.GetEntity<Player>(compDuel.player2Guid.value);
         }
         return null;
+    }
+
+    private string GetPlayerGuidByFlag(PlayerFlag playerFlag)
+    {
+        if (compDuel == null) {
+            return string.Empty;
+        }
+        if (playerFlag == PlayerFlag.Player1) {
+            return compDuel.player1Guid.value;
+        }
+        if (playerFlag == PlayerFlag.Player2) {
+            return compDuel.player2Guid.value;
+        }
+        return string.Empty;
     }
 
     private void SetError(string message)
@@ -1283,6 +1477,144 @@ public class OgsDuelSystem : SystemBase
         }
 
         return string.Empty;
+    }
+
+    private static bool TryFindOgsTerminalText(JObject gameData, Func<string, bool> matcher, out string matchedValue)
+    {
+        matchedValue = string.Empty;
+        if (matcher == null) {
+            return false;
+        }
+
+        if (TryFindTerminalText(gameData, matcher, out matchedValue)) {
+            return true;
+        }
+
+        JObject payload = GetOgsTerminalPayload(gameData);
+        return payload != gameData && TryFindTerminalText(payload, matcher, out matchedValue);
+    }
+
+    private static bool TryFindTerminalText(JObject json, Func<string, bool> matcher, out string matchedValue)
+    {
+        matchedValue = string.Empty;
+        if (json == null) {
+            return false;
+        }
+
+        foreach (string fieldName in OgsTerminalTextFieldNames) {
+            string value = json[fieldName]?.ToString();
+            if (!string.IsNullOrWhiteSpace(value) && matcher(value)) {
+                matchedValue = value;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static string ReadFirstOgsTerminalText(JObject gameData)
+    {
+        string value = ReadFirstTerminalText(gameData);
+        if (!string.IsNullOrWhiteSpace(value)) {
+            return value;
+        }
+
+        JObject payload = GetOgsTerminalPayload(gameData);
+        return payload != gameData ? ReadFirstTerminalText(payload) : string.Empty;
+    }
+
+    private static string ReadFirstTerminalText(JObject json)
+    {
+        if (json == null) {
+            return string.Empty;
+        }
+
+        foreach (string fieldName in OgsTerminalTextFieldNames) {
+            string value = json[fieldName]?.ToString();
+            if (!string.IsNullOrWhiteSpace(value)) {
+                return value;
+            }
+        }
+        return string.Empty;
+    }
+
+    private static bool IsOgsResignText(string value)
+    {
+        string normalized = NormalizeOgsTerminalText(value);
+        return normalized.Contains("resign") ||
+            normalized.Contains("+r");
+    }
+
+    private static bool IsOgsTimeoutText(string value)
+    {
+        string normalized = NormalizeOgsTerminalText(value);
+        return normalized == "time" ||
+            normalized.Contains("timeout") ||
+            normalized.Contains("time out") ||
+            normalized.Contains("timed out") ||
+            normalized.Contains("time loss") ||
+            normalized.Contains("out of time") ||
+            normalized.Contains("on time") ||
+            normalized.Contains("+t");
+    }
+
+    private static bool IsOgsScoreText(string value)
+    {
+        string normalized = NormalizeOgsTerminalText(value);
+        return normalized.Contains("point") ||
+            normalized.Contains("score") ||
+            normalized.Contains("jigo") ||
+            normalized.Contains("draw") ||
+            normalized.Contains("+0") ||
+            normalized.Contains("+1") ||
+            normalized.Contains("+2") ||
+            normalized.Contains("+3") ||
+            normalized.Contains("+4") ||
+            normalized.Contains("+5") ||
+            normalized.Contains("+6") ||
+            normalized.Contains("+7") ||
+            normalized.Contains("+8") ||
+            normalized.Contains("+9");
+    }
+
+    private static string NormalizeOgsTerminalText(string value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? string.Empty
+            : value.Trim().ToLowerInvariant().Replace("_", " ").Replace("-", " ");
+    }
+
+    private static bool HasOgsScorePayload(JObject gameData)
+    {
+        JObject payload = GetOgsTerminalPayload(gameData);
+        JObject score = payload?["score"] as JObject ?? gameData?["score"] as JObject;
+        return score?["black"] != null || score?["white"] != null;
+    }
+
+    private static int ReadFirstOgsInt(JObject gameData, int defaultValue, params string[] fieldNames)
+    {
+        int value = ReadFirstInt(gameData, defaultValue, fieldNames);
+        if (value != defaultValue) {
+            return value;
+        }
+
+        JObject payload = GetOgsTerminalPayload(gameData);
+        return payload != gameData ? ReadFirstInt(payload, defaultValue, fieldNames) : defaultValue;
+    }
+
+    private static bool ReadFirstOgsBool(JObject gameData, bool defaultValue, params string[] fieldNames)
+    {
+        bool value = ReadFirstBool(gameData, defaultValue, fieldNames);
+        if (value != defaultValue) {
+            return value;
+        }
+
+        JObject payload = GetOgsTerminalPayload(gameData);
+        return payload != gameData ? ReadFirstBool(payload, defaultValue, fieldNames) : defaultValue;
+    }
+
+    private static JObject GetOgsTerminalPayload(JObject gameData)
+    {
+        return gameData?["gamedata"] as JObject ?? gameData;
     }
 
     private static JToken ReadFirstToken(JObject json, params string[] fieldNames)
@@ -1446,6 +1778,33 @@ public class OgsDuelSystem : SystemBase
         }
 
         return defaultValue;
+    }
+
+    private static readonly string[] OgsTerminalTextFieldNames = {
+        "ended_reason",
+        "endedReason",
+        "termination",
+        "termination_reason",
+        "terminationReason",
+        "result",
+        "reason",
+        "win_reason",
+        "winReason",
+        "outcome"
+    };
+
+    private readonly struct OgsGameEndResolution
+    {
+        public readonly string reason;
+        public readonly PlayerFlag loserFlag;
+        public readonly string source;
+
+        public OgsGameEndResolution(string reason, PlayerFlag loserFlag, string source)
+        {
+            this.reason = string.IsNullOrWhiteSpace(reason) ? DuelGameEndReason.Score : reason;
+            this.loserFlag = loserFlag;
+            this.source = source ?? string.Empty;
+        }
     }
 
     private readonly struct OgsClockPlayerTime
