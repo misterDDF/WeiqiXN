@@ -65,6 +65,7 @@ public class Global
     public GameSaveManager gameSaveManager;
     public ReddotManager reddotManager;
     public LanRoomService lanRoomService;
+    public OgsConnectionService ogsConnectionService;
     public UIManager uiManager;
     public SceneManager sceneManager;
 
@@ -91,6 +92,9 @@ public class Global
 
         lanRoomService = new LanRoomService();
         moduleList.Add(lanRoomService);
+
+        ogsConnectionService = new OgsConnectionService();
+        moduleList.Add(ogsConnectionService);
 
         startupState = StartupState.LoadingResources;
         TryFinishStartup();

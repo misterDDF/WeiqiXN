@@ -29,6 +29,15 @@
 
 ## Progress
 
+### 2026-06-02 OGS Login Preparation Addendum
+
+- Added the first OGS connection foundation: `OgsConnectionService` is registered as a global module and owns OAuth2 PKCE authorization URL creation, authorization-code token exchange, refresh-token exchange, logout, session persistence, and minimum authenticated REST probes for current user and realtime UI config.
+- Added an Editor-only OGS smoke menu for setting a client id/redirect URI/scope/authorization code/websocket URL/game id, generating an authorization URL, running browser callback login, running saved-code login, refreshing the current user, sending a realtime authentication smoke with the OGS UI-config JWT, and connecting to a configured game id for read-only `gamedata` summary logging. This is a connection smoke path only; it does not add OGS game UI or change duel submission behavior.
+- Editor smoke verification has passed with a real OGS OAuth application: browser callback login, `/api/v1/me/` current-user probe, OGS UI config `user_jwt` retrieval, and websocket realtime authentication all succeeded.
+- User-confirmed Editor smoke verification has also passed for read-only OGS game-state connection: a configured game id returned `gamedata` through the authenticated websocket path.
+- Current OGS scope is still login and minimum REST/realtime connectivity plus read-only game-state smoke. OGS accepted move/pass submission, game state mapping into project board presentation, and minimum 9x9 game smoke remain next steps.
+- Local, computer, and LAN duel authority paths remain unchanged. LAN/local continue to use the existing host-authority path, while OGS remains planned as an external server-authority adapter.
+
 ### 2026-05-25 KataGo Native Bridge Addendum
 
 - 根目录 `game-config.json` 已成为 KataGo 后端选择入口；Windows Editor/Player 当前默认使用 `native` DLL bridge，可切换为 `exe` 回到旧子进程路径，Android/iOS 先预留 native 方向。

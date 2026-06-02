@@ -20,13 +20,14 @@ public class UserInfoPopupUI : UIBinderBase
 	public Button btn_replay_prev;
 	public Button btn_replay_next;
 	public RectTransform content_replay_list;
-
+	public Button btn_login_ogs;
+	
 	public enum SrPlatformState
 	{
 		Landscape = 0,
 		Portrait = 1,
 	}
-
+	
 	public void SetSrPlatformState(SrPlatformState state, bool force = false)
 	{
 		if (sr_platform != null) {
