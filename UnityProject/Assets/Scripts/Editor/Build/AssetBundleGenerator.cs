@@ -427,6 +427,10 @@ public class AssetBundleGenerator
             throw new Exception($"Runtime asset path is empty. id: {id}");
         }
 
+        if (Path.HasExtension(resPath)) {
+            return resPath.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase) ? resPath : $"Assets/{resPath}";
+        }
+
         if (!ResourceUtils.AssetExtendDict.TryGetValue(assetType, out string extension)) {
             throw new Exception($"Runtime asset type is unsupported. id: {id}, assetType: {assetType}");
         }
@@ -453,6 +457,11 @@ public class AssetBundleGenerator
         }
         if (assetType == typeof(Material).Name) {
             ValidateRuntimeAssetType<Material>(id, assetType, assetPath);
+            return;
+        }
+
+        if (assetType == typeof(AudioClip).Name) {
+            ValidateRuntimeAssetType<AudioClip>(id, assetType, assetPath);
             return;
         }
 

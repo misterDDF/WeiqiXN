@@ -350,6 +350,17 @@ public class OnAfterAddChessToBoard : SystemEventBase
     }
 }
 
+public class OnAfterCaptureChessFromBoard : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnAfterCaptureChessFromBoard>();
+
+    public int captureCount;
+    public OnAfterCaptureChessFromBoard(int captureCount)
+    {
+        this.captureCount = captureCount;
+    }
+}
+
 public class OnDuelMoveRejected : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnDuelMoveRejected>();

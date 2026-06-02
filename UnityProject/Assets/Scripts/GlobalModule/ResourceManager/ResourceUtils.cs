@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 using XNLogger = XNClient.Logger.XNLogger;
 
@@ -14,6 +15,10 @@ public static class ResourceUtils
 
     public static string GetAssetFullPath<TAsset>(string path) where TAsset : UnityEngine.Object
     {
+        if (Path.HasExtension(path)) {
+            return path.StartsWith("Assets/") ? path : $"Assets/{path}";
+        }
+
         if (AssetExtendDict.TryGetValue(typeof(TAsset).Name, out string ext)) {
             return $"Assets/{path}{ext}";
         } else {
@@ -23,4 +28,3 @@ public static class ResourceUtils
         return string.Empty;
     }
 }
-

@@ -4,24 +4,37 @@ using XNClient.Logger;
 public static class GameAudio
 {
     private const string AudioRootName = "GameAudio";
-    private const string MainMenuBgmPath = "Audio/BGM/Active/MainMenu_Asianoriental1";
-    private const string DuelBgmPath = "Audio/BGM/Active/Duel_KotoBooth";
-    private const float MainMenuBgmVolume = 0.42f;
-    private const float DuelBgmVolume = 0.26f;
-    private const float StonePlaceVolume = 0.72f;
+    private const string MainMenuBgmPath = "Audio/BGM/Active/HappyMomentsPianoFull.ogg";
+    private const string DuelBgmPath = "Audio/BGM/Active/HappyMomentsPianoFull.ogg";
+    private const float MainMenuBgmVolume = 0.34f;
+    private const float DuelBgmVolume = 0.24f;
+    private const float StonePlaceVolume = 0.58f;
+    private const float StoneCaptureVolume = 0.64f;
+    private const float StonePlaceMinInterval = 0.055f;
+    private const float StoneCaptureMinInterval = 0.12f;
+    private const float CaptureSuppressPlaceDuration = 0.10f;
 
     private static readonly string[] StonePlaceClipPaths = {
-        "Audio/SFX/StonePlace/StonePlace_01",
-        "Audio/SFX/StonePlace/StonePlace_02",
-        "Audio/SFX/StonePlace/StonePlace_03",
-        "Audio/SFX/StonePlace/StonePlace_04",
+        "Audio/SFX/StonePlace/StonePlace_Sabaki_00.mp3",
+        "Audio/SFX/StonePlace/StonePlace_Sabaki_01.mp3",
+        "Audio/SFX/StonePlace/StonePlace_Sabaki_02.mp3",
+        "Audio/SFX/StonePlace/StonePlace_Sabaki_03.mp3",
+        "Audio/SFX/StonePlace/StonePlace_Sabaki_04.mp3",
     };
+
+    private const string StoneSingleCaptureClipPath = "Audio/SFX/Capture/Capture_Single.mp3";
+    private const string StoneMultiCaptureClipPath = "Audio/SFX/Capture/Capture_Multi.mp3";
 
     private static GameObject audioRoot;
     private static AudioSource bgmSource;
     private static AudioSource sfxSource;
     private static string currentBgmPath;
     private static AudioClip[] stonePlaceClips;
+    private static AudioClip stoneSingleCaptureClip;
+    private static AudioClip stoneMultiCaptureClip;
+    private static float lastStonePlaceTime = -999f;
+    private static float lastStoneCaptureTime = -999f;
+    private static int lastStonePlaceClipIndex = -1;
 
     public static void PlayMainMenuBgm()
     {
@@ -36,18 +49,44 @@ public static class GameAudio
     public static void PlayStonePlace()
     {
         EnsureAudioRoot();
+        float now = Time.unscaledTime;
+        if (now - lastStoneCaptureTime <= CaptureSuppressPlaceDuration || now - lastStonePlaceTime < StonePlaceMinInterval) {
+            return;
+        }
+
         AudioClip[] clips = LoadStonePlaceClips();
         if (clips.Length <= 0) {
             return;
         }
 
-        AudioClip clip = clips[Random.Range(0, clips.Length)];
+        AudioClip clip = PickClip(clips, ref lastStonePlaceClipIndex);
         if (clip == null) {
             return;
         }
 
-        sfxSource.pitch = Random.Range(0.97f, 1.03f);
-        sfxSource.PlayOneShot(clip, StonePlaceVolume);
+        lastStonePlaceTime = now;
+        PlayExclusiveSfx(clip, StonePlaceVolume, Random.Range(0.97f, 1.03f));
+    }
+
+    public static void PlayStoneCapture(int captureCount)
+    {
+        if (captureCount <= 0) {
+            return;
+        }
+
+        EnsureAudioRoot();
+        float now = Time.unscaledTime;
+        if (now - lastStoneCaptureTime < StoneCaptureMinInterval) {
+            return;
+        }
+
+        AudioClip clip = LoadStoneCaptureClip(captureCount);
+        if (clip == null) {
+            return;
+        }
+
+        lastStoneCaptureTime = now;
+        PlayExclusiveSfx(clip, StoneCaptureVolume, Random.Range(0.99f, 1.05f));
     }
 
     private static void PlayBgm(string clipPath, float volume)
@@ -80,16 +119,56 @@ public static class GameAudio
             return stonePlaceClips;
         }
 
+        stonePlaceClips = LoadAudioClips(StonePlaceClipPaths);
+        return stonePlaceClips;
+    }
+
+    private static AudioClip LoadStoneCaptureClip(int captureCount)
+    {
+        if (captureCount > 1) {
+            if (stoneMultiCaptureClip == null) {
+                stoneMultiCaptureClip = LoadAudioClip(StoneMultiCaptureClipPath);
+            }
+            return stoneMultiCaptureClip;
+        }
+
+        if (stoneSingleCaptureClip == null) {
+            stoneSingleCaptureClip = LoadAudioClip(StoneSingleCaptureClipPath);
+        }
+        return stoneSingleCaptureClip;
+    }
+
+    private static AudioClip[] LoadAudioClips(string[] clipPaths)
+    {
         var clips = new System.Collections.Generic.List<AudioClip>();
-        foreach (string clipPath in StonePlaceClipPaths) {
+        foreach (string clipPath in clipPaths) {
             AudioClip clip = LoadAudioClip(clipPath);
             if (clip != null) {
                 clips.Add(clip);
             }
         }
 
-        stonePlaceClips = clips.ToArray();
-        return stonePlaceClips;
+        return clips.ToArray();
+    }
+
+    private static AudioClip PickClip(AudioClip[] clips, ref int lastClipIndex)
+    {
+        int clipIndex = Random.Range(0, clips.Length);
+        if (clips.Length > 1 && clipIndex == lastClipIndex) {
+            clipIndex = (clipIndex + 1 + Random.Range(0, clips.Length - 1)) % clips.Length;
+        }
+
+        lastClipIndex = clipIndex;
+        return clips[clipIndex];
+    }
+
+    private static void PlayExclusiveSfx(AudioClip clip, float volume, float pitch)
+    {
+        sfxSource.Stop();
+        sfxSource.clip = clip;
+        sfxSource.volume = volume;
+        sfxSource.pitch = pitch;
+        sfxSource.Play();
     }
 
     private static AudioClip LoadAudioClip(string clipPath)
