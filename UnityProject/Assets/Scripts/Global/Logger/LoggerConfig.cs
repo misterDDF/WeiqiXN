@@ -11,5 +11,6 @@ namespace XNClient.Logger
         public static bool ENABLE_FSM_VERBOSE_LOG = false;
         public static bool ENABLE_DUEL_AI_VERBOSE_LOG = false;
         public static bool ENABLE_DUEL_AI_DETAIL_LOG = false;
+        public static bool ENABLE_OGS_VERBOSE_LOG = false;
     }
 }

@@ -326,6 +326,57 @@ public class OnSubmitDuelMove : SystemEventBase
     }
 }
 
+public class OnSubmitOgsDuelMove : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnSubmitOgsDuelMove>();
+
+    public RectCoordinates coords;
+
+    public OnSubmitOgsDuelMove(RectCoordinates coords)
+    {
+        this.coords = coords;
+    }
+}
+
+public class OnSubmitOgsDuelPass : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnSubmitOgsDuelPass>();
+}
+
+public class OnSubmitOgsDuelResign : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnSubmitOgsDuelResign>();
+}
+
+public class OnSubmitOgsDuelTakeBack : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnSubmitOgsDuelTakeBack>();
+}
+
+public class OnOgsDuelTakeBackConfirmRequest : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnOgsDuelTakeBackConfirmRequest>();
+
+    public int moveNumber;
+
+    public OnOgsDuelTakeBackConfirmRequest(int moveNumber)
+    {
+        this.moveNumber = moveNumber;
+    }
+}
+
+public class OnSubmitOgsDuelTakeBackConfirm : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnSubmitOgsDuelTakeBackConfirm>();
+
+    public bool accepted;
+
+    public OnSubmitOgsDuelTakeBackConfirm(bool accepted)
+    {
+        this.accepted = accepted;
+    }
+}
+
 public class OnApplyLanDuelMove : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnApplyLanDuelMove>();

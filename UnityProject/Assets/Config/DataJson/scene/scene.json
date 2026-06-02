@@ -13,5 +13,10 @@
     "id": "Replay",
     "unitySceneName": "Replay",
     "sceneType": "Replay"
+  },
+  "OgsDuel": {
+    "id": "OgsDuel",
+    "unitySceneName": "Duel",
+    "sceneType": "OgsDuel"
   }
 }

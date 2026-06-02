@@ -64,6 +64,9 @@ public class SceneManager : ModuleBase
                 case SceneConfig.SceneTypeEnum.Replay:
                     scene = new ReplayScene(sceneData, sceneCreateParams);
                     return true;
+                case SceneConfig.SceneTypeEnum.OgsDuel:
+                    scene = new OgsDuelScene(sceneData, sceneCreateParams);
+                    return true;
             }
         }
 

@@ -10,4 +10,4 @@
 
 ## 未移除 Bug
 
-暂无。
+- OGS 载入已有对局时可能把本端玩家座位或让子局首手颜色判断错误；已观察到 `free_handicap_placement=true` 的让二子对局中，服务器把前两手黑方自由摆子放在 `moves` 内。当前坐标规则已确认 OGS y 直接映射本地 `RectCoordinates.z`，不是反向转换；已补充多形态玩家 id 解析、OGS verbose payload 日志、free handicap 同色开局手顺解析和 OGS/local `z=y` 直接坐标映射，待用已有 OGS 对局载入路径复测确认。

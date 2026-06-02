@@ -8,7 +8,7 @@ public class DuelOwnershipSystem : SystemBase
     private bool isAnalyzing;
     private int requestVersion;
 
-    public DuelOwnershipSystem(DuelScene scene) : base(scene)
+    public DuelOwnershipSystem(SceneBase scene) : base(scene)
     {
     }
 
@@ -51,19 +51,13 @@ public class DuelOwnershipSystem : SystemBase
             return;
         }
 
-        DuelScene duelScene = scene as DuelScene;
-        if (duelScene == null) {
-            XNLogger.LogError("Duel ownership analyze failed, scene is not DuelScene.");
-            return;
-        }
+            isAnalyzing = true;
+            try {
+                requestVersion += 1;
+                int currentRequestVersion = requestVersion;
+                ClearOwnershipOverlay();
 
-        isAnalyzing = true;
-        try {
-            requestVersion += 1;
-            int currentRequestVersion = requestVersion;
-            ClearOwnershipOverlay();
-
-            DuelOwnershipQueryResult queryResult = await DuelOwnershipQueryService.QueryOwnershipAsync(duelScene, "duel-ownership", true);
+            DuelOwnershipQueryResult queryResult = await DuelOwnershipQueryService.QueryOwnershipAsync(scene, "duel-ownership", true);
             if (currentRequestVersion != requestVersion) {
                 return;
             }

@@ -17,7 +17,7 @@ public class DuelGameEndCameraSystem : SystemBase
     private float animationElapsedSeconds;
     private float animationDurationSeconds;
 
-    public DuelGameEndCameraSystem(DuelScene scene) : base(scene)
+    public DuelGameEndCameraSystem(SceneBase scene) : base(scene)
     {
     }
 

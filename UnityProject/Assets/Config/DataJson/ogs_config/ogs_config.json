@@ -1,0 +1,92 @@
+{
+  "clientId": {
+    "key": "clientId",
+    "remark": "OGS OAuth2 client id",
+    "value": "fdvTJ1wMm3v5psveVoE5BD6b0RYykAX8uLwWLQIP"
+  },
+  "apiBaseUrl": {
+    "key": "apiBaseUrl",
+    "remark": "OGS REST API base URL",
+    "value": "https://online-go.com"
+  },
+  "authorizationPath": {
+    "key": "authorizationPath",
+    "remark": "OGS OAuth authorization path",
+    "value": "/oauth2/authorize/"
+  },
+  "tokenPath": {
+    "key": "tokenPath",
+    "remark": "OGS OAuth token path",
+    "value": "/oauth2/token/"
+  },
+  "mePath": {
+    "key": "mePath",
+    "remark": "OGS current user API path with trailing slash",
+    "value": "/api/v1/me/"
+  },
+  "mePathWithoutTrailingSlash": {
+    "key": "mePathWithoutTrailingSlash",
+    "remark": "OGS current user API path without trailing slash",
+    "value": "/api/v1/me"
+  },
+  "uiConfigPath": {
+    "key": "uiConfigPath",
+    "remark": "OGS UI config API path used to read user_jwt",
+    "value": "/api/v1/ui/config"
+  },
+  "redirectUri": {
+    "key": "redirectUri",
+    "remark": "Desktop localhost OAuth redirect URI",
+    "value": "http://127.0.0.1:8765/ogs/callback"
+  },
+  "webSocketUrl": {
+    "key": "webSocketUrl",
+    "remark": "OGS realtime websocket URL",
+    "value": "wss://online-go.com/ws"
+  },
+  "scope": {
+    "key": "scope",
+    "remark": "OGS OAuth scope",
+    "value": "read write"
+  },
+  "requestTimeoutMilliseconds": {
+    "key": "requestTimeoutMilliseconds",
+    "remark": "OGS REST request timeout in milliseconds",
+    "value": "15000"
+  },
+  "webSocketSmokeReceiveMilliseconds": {
+    "key": "webSocketSmokeReceiveMilliseconds",
+    "remark": "Realtime auth smoke receive timeout in milliseconds",
+    "value": "3000"
+  },
+  "gameStateSmokeReceiveMilliseconds": {
+    "key": "gameStateSmokeReceiveMilliseconds",
+    "remark": "Readonly game-state smoke timeout in milliseconds",
+    "value": "10000"
+  },
+  "activeBotsReceiveMilliseconds": {
+    "key": "activeBotsReceiveMilliseconds",
+    "remark": "Active-bots receive timeout in milliseconds",
+    "value": "10000"
+  },
+  "botGameStateReceiveMilliseconds": {
+    "key": "botGameStateReceiveMilliseconds",
+    "remark": "Bot game gamedata receive timeout in milliseconds",
+    "value": "60000"
+  },
+  "defaultBotGameBoardSize": {
+    "key": "defaultBotGameBoardSize",
+    "remark": "Default OGS bot game board size",
+    "value": "9"
+  },
+  "defaultBotGameRules": {
+    "key": "defaultBotGameRules",
+    "remark": "Default OGS bot game rules",
+    "value": "japanese"
+  },
+  "defaultBotGameName": {
+    "key": "defaultBotGameName",
+    "remark": "Default OGS bot game name",
+    "value": "Friendly Match"
+  }
+}

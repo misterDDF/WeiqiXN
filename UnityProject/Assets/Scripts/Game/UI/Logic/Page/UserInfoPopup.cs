@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using XNClient.Logger;
 
 public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
 {
@@ -11,6 +12,7 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
     private bool replayLoadFailed;
     private bool hasAppliedLayoutState;
     private bool lastPortraitLayout;
+    private bool isOgsLoginRunning;
 
     public override string pageName => UIPage.GetPageName<UserInfoPopup>();
 
@@ -21,15 +23,10 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
         ApplyCurrentLayoutState(true);
 
         binder.btn_close.onClick.AddListener(OnClickBtnClose);
-        if (binder.btn_edit_name != null) {
-            binder.btn_edit_name.onClick.AddListener(OnClickBtnEditName);
-        }
-        if (binder.btn_replay_prev != null) {
-            binder.btn_replay_prev.onClick.AddListener(OnClickBtnReplayPrev);
-        }
-        if (binder.btn_replay_next != null) {
-            binder.btn_replay_next.onClick.AddListener(OnClickBtnReplayNext);
-        }
+        binder.btn_edit_name.onClick.AddListener(OnClickBtnEditName);
+        binder.btn_login_ogs.onClick.AddListener(OnClickBtnLoginOgs);
+        binder.btn_replay_prev.onClick.AddListener(OnClickBtnReplayPrev);
+        binder.btn_replay_next.onClick.AddListener(OnClickBtnReplayNext);
     }
 
     protected override void OnOpen()
@@ -82,6 +79,53 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
         Global.Instance.lanRoomService?.SyncLocalPlayerProfile();
     }
 
+    private async void OnClickBtnLoginOgs()
+    {
+        XNLogger.LogInfo("OGS login button clicked.");
+        if (isOgsLoginRunning) {
+            return;
+        }
+
+        OgsConnectionService service = Global.Instance.ogsConnectionService;
+        if (service == null) {
+            SetSaveTip("OGS 登录服务不可用");
+            return;
+        }
+
+        isOgsLoginRunning = true;
+        SetOgsLoginButtonInteractable(false);
+        SetSaveTip("正在打开 OGS 登录...");
+
+        try {
+            OgsConnectionResult result = await service.LoginWithBrowserCallbackAsync();
+            if (!result.success) {
+                SetSaveTip($"OGS 登录失败：{result.message}");
+                ConfirmPopup.ShowTip("OGS 登录失败", result.message, null, "确定");
+                return;
+            }
+
+            OgsSession session = service.Session;
+            string ogsName = session.DisplayName;
+            if (!string.IsNullOrWhiteSpace(ogsName)) {
+                User.Instance.compUserInfo.Rename(ogsName);
+                User.Instance.Save();
+                Global.Instance.lanRoomService?.SyncLocalPlayerProfile();
+            }
+
+            RefreshUserInfo();
+            SetSaveTip(string.IsNullOrWhiteSpace(ogsName) ? "OGS 登录成功" : $"已登录 OGS：{ogsName}");
+        }
+        catch (System.Exception ex) {
+            XNLogger.LogError("OGS login from user info popup failed.", ("err", ex.Message));
+            SetSaveTip($"OGS 登录失败：{ex.Message}");
+            ConfirmPopup.ShowTip("OGS 登录失败", ex.Message, null, "确定");
+        }
+        finally {
+            isOgsLoginRunning = false;
+            SetOgsLoginButtonInteractable(true);
+        }
+    }
+
     private void RefreshUserInfo()
     {
         User.Instance.compUserInfo.EnsureValidUserInfo();
@@ -97,6 +141,13 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
     {
         if (binder.txt_save_tip != null) {
             binder.txt_save_tip.text = message ?? string.Empty;
+        }
+    }
+
+    private void SetOgsLoginButtonInteractable(bool interactable)
+    {
+        if (binder.btn_login_ogs != null) {
+            binder.btn_login_ogs.interactable = interactable;
         }
     }
 

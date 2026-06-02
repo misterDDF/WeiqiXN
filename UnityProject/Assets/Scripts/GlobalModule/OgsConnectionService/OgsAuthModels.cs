@@ -58,6 +58,20 @@ public sealed class OgsConnectionResult
     }
 }
 
+public sealed class OgsCallbackResult
+{
+    public readonly bool success;
+    public readonly string message;
+    public readonly string code;
+
+    public OgsCallbackResult(bool success, string message, string code = "")
+    {
+        this.success = success;
+        this.message = message ?? string.Empty;
+        this.code = code ?? string.Empty;
+    }
+}
+
 public sealed class OgsRealtimeSmokeResult
 {
     public readonly bool success;
@@ -107,5 +121,43 @@ public sealed class OgsGameStateSmokeResult
         this.whitePlayer = whitePlayer ?? string.Empty;
         this.phase = phase ?? string.Empty;
         this.rawMessage = rawMessage ?? string.Empty;
+    }
+}
+
+public sealed class OgsBotGameStartResult
+{
+    public readonly bool success;
+    public readonly string message;
+    public readonly int botId;
+    public readonly string botName;
+    public readonly int challengeId;
+    public readonly string challengeUuid;
+    public readonly int gameId;
+    public readonly OgsGameStateSmokeResult gameState;
+    public readonly string rawResponse;
+    public readonly bool isBotGame;
+
+    public OgsBotGameStartResult(
+        bool success,
+        string message,
+        int botId = 0,
+        string botName = "",
+        int challengeId = 0,
+        string challengeUuid = "",
+        int gameId = 0,
+        OgsGameStateSmokeResult gameState = null,
+        string rawResponse = "",
+        bool isBotGame = false)
+    {
+        this.success = success;
+        this.message = message ?? string.Empty;
+        this.botId = botId;
+        this.botName = botName ?? string.Empty;
+        this.challengeId = challengeId;
+        this.challengeUuid = challengeUuid ?? string.Empty;
+        this.gameId = gameId;
+        this.gameState = gameState;
+        this.rawResponse = rawResponse ?? string.Empty;
+        this.isBotGame = isBotGame;
     }
 }

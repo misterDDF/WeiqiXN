@@ -34,6 +34,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         RegisterSystemEvent<OnLanDuelScoreConfirmRequest>(OnLanDuelScoreConfirmRequest);
         RegisterSystemEvent<OnLanDuelScoreResultConfirmRequest>(OnLanDuelScoreResultConfirmRequest);
         RegisterSystemEvent<OnLanDuelTakeBackConfirmRequest>(OnLanDuelTakeBackConfirmRequest);
+        RegisterSystemEvent<OnOgsDuelTakeBackConfirmRequest>(OnOgsDuelTakeBackConfirmRequest);
         RegisterSystemEvent<OnLanRoomPeerLeft>(OnLanRoomPeerLeft);
         RegisterSystemEvent<OnLanRoomReconnectWaiting>(OnLanRoomReconnectWaiting);
         RegisterSystemEvent<OnLanRoomReconnected>(OnLanRoomReconnected);
@@ -61,7 +62,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
-        DuelInputAuthorityState inputState = DuelInputAuthority.GetLocalState(mainScene, compDuel);
+        DuelInputAuthorityState inputState = GetCurrentInputState(mainScene, compDuel);
         boardInput.Refresh(mainScene, compDuel, inputState, hudView.IsSettingsPanelVisible());
 
         if (Input.GetKeyDown(KeyCode.Mouse0) && !IsPointerOverUI()) {
@@ -220,6 +221,22 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         );
     }
 
+    public void OnOgsDuelTakeBackConfirmRequest(OnOgsDuelTakeBackConfirmRequest evt)
+    {
+        if (evt == null) {
+            return;
+        }
+
+        ConfirmPopup.Show(
+            MessageText.Get("duel_take_back_title"),
+            MessageText.Get("duel_take_back_request_content"),
+            () => EmitSystemEvent(new OnSubmitOgsDuelTakeBackConfirm(true)),
+            () => EmitSystemEvent(new OnSubmitOgsDuelTakeBackConfirm(false)),
+            MessageText.Get("duel_take_back_accept"),
+            MessageText.Get("common_reject")
+        );
+    }
+
     public void OnLanRoomPeerLeft(OnLanRoomPeerLeft evt)
     {
         ClosePendingScorePopup();
@@ -258,8 +275,13 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
-        DuelInputAuthorityState inputState = DuelInputAuthority.GetLocalState(mainScene, compDuel);
+        DuelInputAuthorityState inputState = GetCurrentInputState(mainScene, compDuel);
         if (boardInput.TryGetMoveCoords(inputState, out RectCoordinates coords)) {
+            if (mainScene is OgsDuelScene) {
+                EmitSystemEvent(new OnSubmitOgsDuelMove(coords));
+                return;
+            }
+
             EmitSystemEvent(new OnSubmitDuelMove(coords, inputState.localInputPlayerFlag));
         }
     }
@@ -309,7 +331,13 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     {
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
-        if (compDuel == null || !DuelInputAuthority.GetLocalState(mainScene, compDuel).CanSubmitMove) {
+        DuelInputAuthorityState inputState = GetCurrentInputState(mainScene, compDuel);
+        if (compDuel == null || !inputState.CanSubmitMove) {
+            return;
+        }
+
+        if (mainScene is OgsDuelScene) {
+            EmitSystemEvent(new OnSubmitOgsDuelPass());
             return;
         }
 
@@ -319,6 +347,12 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     public void OnClickBtnRequestScore()
     {
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
+        if (mainScene is OgsDuelScene) {
+            hudView.CloseSettingsPanel();
+            hudView.ShowActionNotice("OGS 对局数子由连续虚手后的服务器确认流程处理。");
+            return;
+        }
+
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
         if (compDuel == null || compDuel.isScoring || !DuelInputAuthority.GetLocalState(mainScene, compDuel).CanSubmitMove) {
             return;
@@ -349,6 +383,26 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     public void OnClickBtnTakeBack()
     {
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
+        if (mainScene is OgsDuelScene) {
+            OgsDuelSystem ogsDuelSystem = mainScene.GetSystem<OgsDuelSystem>();
+            if (ogsDuelSystem == null || !ogsDuelSystem.CanSubmitTakeBack()) {
+                hudView.CloseSettingsPanel();
+                hudView.ShowActionNotice(MessageText.Get("duel_take_back_unavailable"));
+                return;
+            }
+
+            hudView.CloseSettingsPanel();
+            ConfirmPopup.Show(
+                MessageText.Get("duel_take_back_title"),
+                MessageText.Get("duel_take_back_local_confirm_content"),
+                () => EmitSystemEvent(new OnSubmitOgsDuelTakeBack()),
+                null,
+                MessageText.Get("duel_take_back_confirm"),
+                MessageText.Get("common_cancel")
+            );
+            return;
+        }
+
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
         if (compDuel == null) {
             return;
@@ -381,6 +435,28 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     public void OnClickBtnResign()
     {
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
+        if (mainScene is OgsDuelScene) {
+            OgsDuelSystem ogsDuelSystem = mainScene.GetSystem<OgsDuelSystem>();
+            if (ogsDuelSystem == null || !ogsDuelSystem.CanSubmitResign()) {
+                hudView.SetResignButtonVisible(false);
+                return;
+            }
+
+            hudView.CloseSettingsPanel();
+            SceneComponentDuel ogsCompDuel = mainScene.GetComponent<SceneComponentDuel>();
+            Player ogsCurPlayer = ogsCompDuel != null ? mainScene.GetEntity<Player>(ogsCompDuel.curTurnPlayerGuid.value) : null;
+            string ogsPlayerText = hudView.GetPlayerDisplayName(ogsCurPlayer, ogsCompDuel, ogsCompDuel?.curTurnPlayerGuid.value);
+            ConfirmPopup.Show(
+                MessageText.Get("duel_resign_title"),
+                MessageText.Format("duel_resign_content", ogsPlayerText),
+                () => EmitSystemEvent(new OnSubmitOgsDuelResign()),
+                null,
+                MessageText.Get("duel_resign_confirm"),
+                MessageText.Get("duel_continue_game")
+            );
+            return;
+        }
+
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
         DuelInputAuthorityState inputState = DuelInputAuthority.GetLocalState(mainScene, compDuel);
         if (compDuel == null || !inputState.CanSubmitMove || !DuelPageInteractionState.CanResign(mainScene, compDuel)) {
@@ -428,6 +504,11 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     private void OnClickBtnAiAnalysis()
     {
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
+        if (mainScene is OgsDuelScene) {
+            hudView.ShowActionNotice("OGS 对局暂不支持本地 AI 分析。");
+            return;
+        }
+
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
         if (compDuel == null || compDuel.isLanDuel.value) {
             return;
@@ -548,5 +629,15 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     private bool IsPointerOverUI()
     {
         return UIUtils.IsPointerOverUI();
+    }
+
+    private DuelInputAuthorityState GetCurrentInputState(SceneBase mainScene, SceneComponentDuel compDuel)
+    {
+        if (mainScene is OgsDuelScene) {
+            OgsDuelSystem ogsDuelSystem = mainScene.GetSystem<OgsDuelSystem>();
+            return ogsDuelSystem != null ? ogsDuelSystem.GetInputState() : default;
+        }
+
+        return DuelInputAuthority.GetLocalState(mainScene, compDuel);
     }
 }

@@ -100,6 +100,61 @@ public class ChessBoardSystem : SystemBase
             out rejectReason);
     }
 
+    public bool TryApplyAcceptedRemoteMove(
+        PlayerFlag playerFlag,
+        RectCoordinates coords,
+        bool emitAcceptedEvent,
+        out DuelMoveRejectReason rejectReason)
+    {
+        rejectReason = DuelMoveRejectReason.None;
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
+        SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
+        if (compDuel == null || compChessBoard == null || coords == null) {
+            rejectReason = DuelMoveRejectReason.InvalidBoard;
+            return false;
+        }
+
+        string chessGuid = EntityUtils.CreateGuidWithEntityType(EntityBase.GetEntityType<Chess>());
+        DuelMoveResult moveResult = DuelMoveRule.BuildMoveResult(
+            compChessBoard,
+            new DuelMoveCommand(playerFlag, coords, chessGuid)
+        );
+        if (!moveResult.accepted) {
+            rejectReason = moveResult.rejectReason;
+            return false;
+        }
+
+        DuelMoveRule.ApplyMoveResult(compChessBoard, moveResult);
+        ApplyMoveStoneViews(compChessBoard, moveResult, playerFlag, coords);
+        ApplyLatestMoveMarker(compChessBoard, playerFlag, coords);
+        int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : chessBoardData?.boardSize ?? 19;
+        compDuel.AppendKataGoMove(playerFlag, coords, boardSize);
+        compDuel.consecutivePassCount.value = 0;
+        if (emitAcceptedEvent) {
+            scene.EmitSystemEvent(new OnAfterAddChessToBoard(playerFlag, coords.Clone()));
+        }
+        return true;
+    }
+
+    public void ClearBoardRuntimeState()
+    {
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
+        SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
+        if (compChessBoard == null) {
+            return;
+        }
+
+        compChessBoard.chessInfoDict.Clear();
+        compChessBoard.lastChessInfoDict.Clear();
+        compChessBoard.GetStoneViewCache().ClearStoneMarkers();
+        compChessBoard.chessBoardGrid?.ClearLatestMoveMarker();
+        if (compDuel != null) {
+            compDuel.ResetKataGoMoves();
+            compDuel.consecutivePassCount.value = 0;
+            ClearOwnershipState(compDuel, compChessBoard);
+        }
+    }
+
     public void OnApplyLanDuelMove(OnApplyLanDuelMove evt)
     {
         ApplyLanDuelMove(evt.move);

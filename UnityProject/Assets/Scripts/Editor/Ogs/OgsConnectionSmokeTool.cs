@@ -1,7 +1,4 @@
 using System;
-using System.Net;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
@@ -63,23 +60,10 @@ public static class OgsConnectionSmokeTool
             }
 
             OgsConnectionService service = CreateService();
-            OgsAuthorizationRequest request = service.CreateAuthorizationRequest(clientId, redirectUri, GetScope());
-            EditorPrefs.SetString(CodeVerifierKey, request.codeVerifier);
-            EditorPrefs.SetString(AuthorizationStateKey, request.state);
-            Application.OpenURL(request.authorizationUrl);
-            Debug.Log($"OGS authorization opened in browser. Waiting for callback: {redirectUri}");
-
-            OgsCallbackResult callback = await WaitForCallbackAsync(redirectUri, request.state, CancellationToken.None);
-            if (!callback.success) {
-                return new OgsConnectionResult(false, callback.message);
-            }
-
-            EditorPrefs.SetString(AuthorizationCodeKey, callback.code);
-            OgsConnectionResult result = await service.LoginWithAuthorizationCodeAsync(
+            OgsConnectionResult result = await service.LoginWithBrowserCallbackAsync(
                 clientId,
-                callback.code,
-                request.codeVerifier,
-                request.redirectUri);
+                redirectUri,
+                GetScope());
             LogResult("OGS browser login smoke", result, service.Session);
             return result;
         });
@@ -159,7 +143,32 @@ public static class OgsConnectionSmokeTool
         }
     }
 
-    [MenuItem(CustomEditorMenuPaths.Root + "/OGS/7. Logout And Clear Session")]
+    [MenuItem(CustomEditorMenuPaths.Root + "/OGS/7. Start 9x9 Bot Game Smoke")]
+    public static async void StartBotGameSmoke()
+    {
+        try {
+            OgsConnectionService service = CreateService();
+            OgsBotGameStartResult result = await service.StartDefaultBotGameAsync(GetWebSocketUrl());
+            OgsGameStateSmokeResult gameState = result.gameState;
+            Debug.Log(
+                $"OGS bot game smoke: {(result.success ? "success" : "failed")}\n" +
+                $"message: {result.message}\n" +
+                $"gameId: {result.gameId}\n" +
+                $"challengeId: {result.challengeId}\n" +
+                $"botId: {result.botId}\n" +
+                $"botName: {result.botName}\n" +
+                $"board: {gameState?.boardWidth ?? 0}x{gameState?.boardHeight ?? 0}\n" +
+                $"moveCount: {gameState?.moveCount ?? 0}\n" +
+                $"rawResponse: {TrimForLog(result.rawResponse)}");
+            EditorUtility.DisplayDialog("OGS", $"OGS bot game smoke: {(result.success ? "success" : "failed")}\n{result.message}", "OK");
+        }
+        catch (Exception ex) {
+            Debug.LogError($"OGS bot game smoke failed: {ex}");
+            EditorUtility.DisplayDialog("OGS", $"OGS bot game smoke failed: {ex.Message}", "OK");
+        }
+    }
+
+    [MenuItem(CustomEditorMenuPaths.Root + "/OGS/8. Logout And Clear Session")]
     public static void Logout()
     {
         OgsConnectionService service = CreateService();
@@ -224,111 +233,6 @@ public static class OgsConnectionSmokeTool
     private static int GetGameId()
     {
         return EditorPrefs.GetInt(GameIdKey, 0);
-    }
-
-    private static async Task<OgsCallbackResult> WaitForCallbackAsync(
-        string redirectUri,
-        string expectedState,
-        CancellationToken cancellationToken)
-    {
-        string prefix = BuildHttpListenerPrefix(redirectUri);
-        using (var listener = new HttpListener()) {
-            try {
-                listener.Prefixes.Add(prefix);
-                listener.Start();
-                using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)) {
-                    timeout.CancelAfter(120000);
-                    HttpListenerContext context = await WaitForContextAsync(listener, timeout.Token);
-                    if (!IsExpectedCallbackPath(context.Request.Url, redirectUri)) {
-                        WriteCallbackResponse(context, false);
-                        return new OgsCallbackResult(false, $"OGS callback path mismatch: {context.Request.Url?.AbsolutePath ?? string.Empty}", string.Empty);
-                    }
-
-                    string code = context.Request.QueryString["code"] ?? string.Empty;
-                    string state = context.Request.QueryString["state"] ?? string.Empty;
-                    string error = context.Request.QueryString["error"] ?? string.Empty;
-                    WriteCallbackResponse(context, string.IsNullOrEmpty(error) && !string.IsNullOrEmpty(code));
-
-                    if (!string.IsNullOrEmpty(error)) {
-                        return new OgsCallbackResult(false, $"OGS authorization failed: {error}", string.Empty);
-                    }
-                    if (string.IsNullOrEmpty(code)) {
-                        return new OgsCallbackResult(false, "OGS callback did not include a code.", string.Empty);
-                    }
-                    if (!string.IsNullOrEmpty(expectedState) && state != expectedState) {
-                        return new OgsCallbackResult(false, "OGS callback state mismatch.", string.Empty);
-                    }
-
-                    return new OgsCallbackResult(true, "OGS callback received.", code);
-                }
-            }
-            catch (OperationCanceledException) {
-                return new OgsCallbackResult(false, "Timed out waiting for OGS callback.", string.Empty);
-            }
-            catch (Exception ex) {
-                return new OgsCallbackResult(false, $"Start OGS callback listener failed: {ex.Message}", string.Empty);
-            }
-            finally {
-                if (listener.IsListening) {
-                    listener.Stop();
-                }
-            }
-        }
-    }
-
-    private static Task<HttpListenerContext> WaitForContextAsync(HttpListener listener, CancellationToken cancellationToken)
-    {
-        return Task.Run(() => {
-            using (cancellationToken.Register(() => {
-                try {
-                    listener.Stop();
-                }
-                catch {
-                }
-            })) {
-                return listener.GetContext();
-            }
-        }, cancellationToken);
-    }
-
-    private static string BuildHttpListenerPrefix(string redirectUri)
-    {
-        var uri = new Uri(redirectUri);
-        return $"{uri.Scheme}://{uri.Host}:{uri.Port}/";
-    }
-
-    private static bool IsExpectedCallbackPath(Uri callbackUri, string redirectUri)
-    {
-        if (callbackUri == null) {
-            return false;
-        }
-
-        var expectedUri = new Uri(redirectUri);
-        string actualPath = NormalizeCallbackPath(callbackUri.AbsolutePath);
-        string expectedPath = NormalizeCallbackPath(expectedUri.AbsolutePath);
-        return string.Equals(actualPath, expectedPath, StringComparison.Ordinal);
-    }
-
-    private static string NormalizeCallbackPath(string path)
-    {
-        if (string.IsNullOrEmpty(path)) {
-            return "/";
-        }
-
-        string normalized = path.TrimEnd('/');
-        return string.IsNullOrEmpty(normalized) ? "/" : normalized;
-    }
-
-    private static void WriteCallbackResponse(HttpListenerContext context, bool success)
-    {
-        string body = success
-            ? "OGS login code received. You can return to Unity."
-            : "OGS login failed. You can return to Unity.";
-        byte[] bytes = Encoding.UTF8.GetBytes(body);
-        context.Response.ContentType = "text/plain; charset=utf-8";
-        context.Response.ContentLength64 = bytes.Length;
-        context.Response.OutputStream.Write(bytes, 0, bytes.Length);
-        context.Response.OutputStream.Close();
     }
 
     private static string TrimForLog(string value)
@@ -399,20 +303,6 @@ public static class OgsConnectionSmokeTool
             EditorPrefs.SetString(WebSocketUrlKey, string.IsNullOrWhiteSpace(websocketUrl) ? OgsConnectionConfig.DefaultWebSocketUrl : websocketUrl.Trim());
             EditorPrefs.SetInt(GameIdKey, Math.Max(0, gameId));
             Debug.Log("OGS editor smoke settings saved.");
-        }
-    }
-
-    private sealed class OgsCallbackResult
-    {
-        public readonly bool success;
-        public readonly string message;
-        public readonly string code;
-
-        public OgsCallbackResult(bool success, string message, string code)
-        {
-            this.success = success;
-            this.message = message ?? string.Empty;
-            this.code = code ?? string.Empty;
         }
     }
 }

@@ -6,6 +6,7 @@ public class SceneCreateParams
     public string replayGameId;
 
     public DuelSceneCreateParamas duelSceneCreateParamas;
+    public OgsDuelSceneCreateParams ogsDuelSceneCreateParams;
 }
 
 public class DuelSceneCreateParamas
@@ -26,4 +27,15 @@ public class DuelSceneCreateParamas
     public PlayerFlag lanHostPlayerFlag;
     public string lanHostPlayerSideCfgId;
     public bool isLanRoomHostConfig;
+}
+
+public class OgsDuelSceneCreateParams
+{
+    public int gameId;
+    public int boardSize;
+    public int botId;
+    public string botName;
+    public bool isBotGame;
+    public int challengeId;
+    public string challengeUuid;
 }

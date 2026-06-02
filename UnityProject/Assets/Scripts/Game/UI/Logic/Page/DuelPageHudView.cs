@@ -276,13 +276,22 @@ public class DuelPageHudView
 
     private void RefreshSettingsActionVisibility(SceneBase mainScene, SceneComponentDuel compDuel)
     {
-        bool canSubmitMove = DuelInputAuthority.GetLocalState(mainScene, compDuel).CanSubmitMove;
+        bool isOgsDuel = mainScene is OgsDuelScene;
+        OgsDuelSystem ogsDuelSystem = isOgsDuel ? mainScene?.GetSystem<OgsDuelSystem>() : null;
+        bool canSubmitMove = isOgsDuel
+            ? ogsDuelSystem != null && ogsDuelSystem.GetInputState().CanSubmitMove
+            : DuelInputAuthority.GetLocalState(mainScene, compDuel).CanSubmitMove;
         bool isLanDuel = compDuel != null && compDuel.isLanDuel.value;
         bool isGameEnd = compDuel?.duelFSM?.curState != null && compDuel.duelFSM.curState.stateName == DuelStateDefine.STATE_GAME_END;
-        bool canRequestScore = compDuel != null && !compDuel.isScoring && !isGameEnd && canSubmitMove;
-        bool canTakeBack = DuelPageInteractionState.CanTakeBack(mainScene, compDuel);
+        bool canRequestScore = !isOgsDuel && compDuel != null && !compDuel.isScoring && !isGameEnd && canSubmitMove;
+        bool canTakeBack = isOgsDuel
+            ? ogsDuelSystem != null && ogsDuelSystem.CanSubmitTakeBack()
+            : DuelPageInteractionState.CanTakeBack(mainScene, compDuel);
+        bool canResign = isOgsDuel
+            ? ogsDuelSystem != null && ogsDuelSystem.CanSubmitResign()
+            : canSubmitMove && DuelPageInteractionState.CanResign(mainScene, compDuel);
         DuelAiRecommendationSystem aiRecommendationSystem = mainScene?.GetSystem<DuelAiRecommendationSystem>();
-        bool showAiAnalysis = !isLanDuel;
+        bool showAiAnalysis = !isLanDuel && !isOgsDuel;
         bool hasAiAnalysisRender = aiRecommendationSystem != null && aiRecommendationSystem.HasAiAnalysisRender;
         bool canAiAnalysis = showAiAnalysis && aiRecommendationSystem != null &&
             (hasAiAnalysisRender || (!aiRecommendationSystem.IsAiAnalyzing && aiRecommendationSystem.IsAiAnalysisEnabled));
@@ -291,10 +300,11 @@ public class DuelPageHudView
         }
         SetButtonInteractable(binder.btn_duel_ai_analysis, canAiAnalysis);
         RefreshAiAnalysisButtonSelection(showAiAnalysis && hasAiAnalysisRender);
+        SetButtonInteractable(binder.btn_duel_ownership, true);
         SetButtonInteractable(binder.btn_duel_pass, canSubmitMove);
         SetButtonInteractable(binder.btn_settings_request_score, canRequestScore);
         SetButtonInteractable(binder.btn_settings_take_back, canTakeBack);
-        SetResignButtonVisible(canSubmitMove && DuelPageInteractionState.CanResign(mainScene, compDuel));
+        SetResignButtonVisible(canResign);
     }
 
     private void RefreshGameEndResultPanel(SceneBase mainScene, SceneComponentDuel compDuel)

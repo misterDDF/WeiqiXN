@@ -1051,7 +1051,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f7290625e79f3034cad912afb582de50, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  generatedTime: 639152726334212450
+  generatedTime: 639159843519536936
   panel_root: {fileID: 2216140516167044419}
   sr_platform: {fileID: 4690230420719473326}
   txt_user_id: {fileID: 8011537848297401026}
@@ -1066,6 +1066,7 @@ MonoBehaviour:
   btn_replay_prev: {fileID: 8544277659573164383}
   btn_replay_next: {fileID: 906961154692267018}
   content_replay_list: {fileID: 6005024815520669906}
+  btn_login_ogs: {fileID: 8285304040088691684}
 --- !u!1 &1369855917230324294
 GameObject:
   m_ObjectHideFlags: 0

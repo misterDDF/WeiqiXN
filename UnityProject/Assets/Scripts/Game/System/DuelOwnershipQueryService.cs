@@ -8,21 +8,21 @@ public static class DuelOwnershipQueryService
     public const float OwnershipThreshold = 0.3f;
     public const string ScoreSourceOwnership = "katago_ownership";
 
-    public static async Task<DuelOwnershipQueryResult> QueryOwnershipAsync(DuelScene duelScene, string requestIdPrefix, bool allowCachedResult)
+    public static async Task<DuelOwnershipQueryResult> QueryOwnershipAsync(SceneBase scene, string requestIdPrefix, bool allowCachedResult)
     {
-        if (duelScene == null) {
-            XNLogger.LogError("Duel ownership query failed, scene is not DuelScene.");
+        if (scene == null) {
+            XNLogger.LogError("Duel ownership query failed, scene is empty.");
             return null;
         }
 
-        SceneComponentDuel compDuel = duelScene.GetComponent<SceneComponentDuel>();
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
         if (allowCachedResult && TryBuildCachedResult(compDuel, out DuelOwnershipQueryResult cachedResult)) {
             return cachedResult;
         }
 
         try {
             string requestId = $"{requestIdPrefix}-{DateTime.UtcNow.Ticks}";
-            JObject query = KataGoPositionJsonBuilder.BuildOwnershipAnalysisJson(duelScene, requestId);
+            JObject query = KataGoPositionJsonBuilder.BuildOwnershipAnalysisJson(scene, requestId);
             JArray ownership = await KataGoBootstrap.AnalyzeOwnershipAsync(query);
             if (ownership == null) {
                 XNLogger.LogWarn("Duel ownership query failed, ownership result is empty.", ("requestId", requestId));

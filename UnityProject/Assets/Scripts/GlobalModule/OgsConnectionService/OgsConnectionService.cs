@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Net.WebSockets;
 using System.Net.Http;
 using System.Security.Cryptography;
@@ -7,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
+using UnityEngine;
 using XNClient.Logger;
 
 public sealed class OgsConnectionService : ModuleBase
@@ -39,6 +41,17 @@ public sealed class OgsConnectionService : ModuleBase
             EnsureInitialized();
             lock (sessionLock) {
                 return session.HasAccessToken || session.CanRefresh;
+            }
+        }
+    }
+
+    public bool HasWriteSession
+    {
+        get
+        {
+            EnsureInitialized();
+            lock (sessionLock) {
+                return (session.HasAccessToken || session.CanRefresh) && ContainsScope(session.scope, "write");
             }
         }
     }
@@ -86,8 +99,8 @@ public sealed class OgsConnectionService : ModuleBase
 
     public OgsAuthorizationRequest CreateAuthorizationRequest(
         string clientId,
-        string redirectUri = OgsConnectionConfig.DefaultRedirectUri,
-        string scope = OgsConnectionConfig.DefaultScope)
+        string redirectUri = null,
+        string scope = null)
     {
         EnsureInitialized();
         if (string.IsNullOrWhiteSpace(clientId)) {
@@ -120,7 +133,7 @@ public sealed class OgsConnectionService : ModuleBase
         string clientId,
         string authorizationCode,
         string codeVerifier,
-        string redirectUri = OgsConnectionConfig.DefaultRedirectUri,
+        string redirectUri = null,
         CancellationToken cancellationToken = default(CancellationToken))
     {
         EnsureInitialized();
@@ -160,6 +173,49 @@ public sealed class OgsConnectionService : ModuleBase
         }
         catch (Exception ex) {
             XNLogger.LogError("OGS login failed.", ("err", ex.Message));
+            return new OgsConnectionResult(false, ex.Message);
+        }
+    }
+
+    public async Task<OgsConnectionResult> LoginWithBrowserCallbackAsync(
+        string clientId = null,
+        string redirectUri = null,
+        string scope = null,
+        CancellationToken cancellationToken = default(CancellationToken))
+    {
+        EnsureInitialized();
+        clientId = string.IsNullOrWhiteSpace(clientId) ? OgsConnectionConfig.DefaultClientId : clientId.Trim();
+        if (string.IsNullOrWhiteSpace(clientId)) {
+            return new OgsConnectionResult(false, "OGS client id is empty.");
+        }
+
+        string safeRedirectUri = string.IsNullOrWhiteSpace(redirectUri)
+            ? OgsConnectionConfig.DefaultRedirectUri
+            : redirectUri.Trim();
+        if (!CanUseLocalhostCallback(safeRedirectUri)) {
+            return new OgsConnectionResult(false, "OGS browser login currently requires a desktop localhost callback. Mobile login needs a deep-link callback implementation.");
+        }
+
+        try {
+            OgsAuthorizationRequest request = CreateAuthorizationRequest(clientId, safeRedirectUri, scope);
+            Task<OgsCallbackResult> callbackTask = WaitForCallbackAsync(safeRedirectUri, request.state, cancellationToken);
+            Application.OpenURL(request.authorizationUrl);
+            XNLogger.LogInfo("OGS authorization opened in browser.", ("redirectUri", safeRedirectUri));
+
+            OgsCallbackResult callback = await callbackTask;
+            if (!callback.success) {
+                return new OgsConnectionResult(false, callback.message);
+            }
+
+            return await LoginWithAuthorizationCodeAsync(
+                clientId,
+                callback.code,
+                request.codeVerifier,
+                request.redirectUri,
+                cancellationToken);
+        }
+        catch (Exception ex) {
+            XNLogger.LogError("OGS browser callback login failed.", ("err", ex.Message));
             return new OgsConnectionResult(false, ex.Message);
         }
     }
@@ -271,7 +327,7 @@ public sealed class OgsConnectionService : ModuleBase
     }
 
     public async Task<OgsRealtimeSmokeResult> TestRealtimeAuthenticationAsync(
-        string websocketUrl = OgsConnectionConfig.DefaultWebSocketUrl,
+        string websocketUrl = null,
         CancellationToken cancellationToken = default(CancellationToken))
     {
         EnsureInitialized();
@@ -323,13 +379,14 @@ public sealed class OgsConnectionService : ModuleBase
 
     public async Task<OgsGameStateSmokeResult> TestReadonlyGameStateAsync(
         int gameId,
-        string websocketUrl = OgsConnectionConfig.DefaultWebSocketUrl,
+        string websocketUrl = null,
         CancellationToken cancellationToken = default(CancellationToken))
     {
         EnsureInitialized();
         if (gameId <= 0) {
             return new OgsGameStateSmokeResult(false, "OGS game id must be positive.", gameId);
         }
+        websocketUrl = string.IsNullOrWhiteSpace(websocketUrl) ? OgsConnectionConfig.DefaultWebSocketUrl : websocketUrl.Trim();
 
         string accessToken;
         lock (sessionLock) {
@@ -369,10 +426,408 @@ public sealed class OgsConnectionService : ModuleBase
         }
     }
 
+    public async Task<OgsBotGameStartResult> StartDefaultBotGameAsync(
+        string websocketUrl = null,
+        CancellationToken cancellationToken = default(CancellationToken))
+    {
+        EnsureInitialized();
+        websocketUrl = string.IsNullOrWhiteSpace(websocketUrl) ? OgsConnectionConfig.DefaultWebSocketUrl : websocketUrl.Trim();
+        if (string.IsNullOrWhiteSpace(websocketUrl)) {
+            return new OgsBotGameStartResult(false, "OGS websocket URL is empty.");
+        }
+
+        OgsConnectionResult accessResult = await EnsureUsableAccessTokenAsync(cancellationToken);
+        if (!accessResult.success) {
+            return new OgsBotGameStartResult(false, accessResult.message);
+        }
+
+        string accessToken;
+        lock (sessionLock) {
+            accessToken = session.accessToken;
+        }
+
+        try {
+            string userJwt = await RequestRealtimeUserJwtAsync(accessToken, cancellationToken);
+            if (string.IsNullOrEmpty(userJwt)) {
+                return new OgsBotGameStartResult(false, "OGS ui config did not include user_jwt.");
+            }
+
+            using (var websocket = new ClientWebSocket()) {
+                await websocket.ConnectAsync(new Uri(websocketUrl.Trim()), cancellationToken);
+                await SendRealtimePayloadAsync(websocket, BuildRealtimeAuthenticatePayload(userJwt), cancellationToken);
+
+                JObject activeBots = await WaitForActiveBotsAsync(websocket, cancellationToken);
+                if (activeBots == null || activeBots.Count <= 0) {
+                    return new OgsBotGameStartResult(false, "OGS did not return any active bots.");
+                }
+
+                OgsBotSelection bot = SelectDefaultBot(activeBots);
+                if (bot.id <= 0) {
+                    return new OgsBotGameStartResult(false, "No active OGS bot accepted the default 9x9 settings.");
+                }
+
+                JObject challengePayload = BuildDefaultBotChallengePayload();
+                JObject challengeJson = await PostJsonAsync(
+                    $"{apiBaseUrl}/api/v1/players/{bot.id}/challenge",
+                    challengePayload,
+                    accessToken,
+                    cancellationToken);
+
+                int gameId = ReadGameIdFromChallengeResponse(challengeJson);
+                int challengeId = ReadFirstInt(challengeJson, "challenge", "challenge_id");
+                string challengeUuid = ReadFirstString(challengeJson, "uuid", "challenge_uuid");
+                if (gameId <= 0) {
+                    return new OgsBotGameStartResult(
+                        false,
+                        "OGS bot challenge response did not include a game id.",
+                        bot.id,
+                        bot.name,
+                        challengeId,
+                        challengeUuid,
+                        rawResponse: TrimForLog(challengeJson?.ToString(Newtonsoft.Json.Formatting.None)));
+                }
+
+                await SendRealtimePayloadAsync(websocket, BuildGameConnectPayload(gameId), cancellationToken);
+
+                OgsGameStateSmokeResult gameState = await WaitForBotGameDataAsync(
+                    websocket,
+                    gameId,
+                    challengeId,
+                    OgsConnectionConfig.BotGameStateReceiveMilliseconds,
+                    cancellationToken);
+                if (!gameState.success) {
+                    XNLogger.LogWarn(
+                        "OGS bot game created, but game data was not received.",
+                        ("gameId", gameId.ToString()),
+                        ("botId", bot.id.ToString()),
+                        ("botName", bot.name),
+                        ("message", gameState.message),
+                        ("lastMessage", gameState.rawMessage),
+                        ("rawResponse", TrimForLog(challengeJson?.ToString(Newtonsoft.Json.Formatting.None))));
+                    return new OgsBotGameStartResult(
+                        false,
+                        $"OGS bot game created, but game data was not received: {gameState.message}",
+                        bot.id,
+                        bot.name,
+                        challengeId,
+                        challengeUuid,
+                        gameId,
+                        gameState,
+                        TrimForLog(challengeJson?.ToString(Newtonsoft.Json.Formatting.None)));
+                }
+
+                XNLogger.LogInfo(
+                    "OGS bot game started.",
+                    ("gameId", gameId.ToString()),
+                    ("botId", bot.id.ToString()),
+                    ("botName", bot.name),
+                    ("board", $"{gameState.boardWidth}x{gameState.boardHeight}"));
+                return new OgsBotGameStartResult(
+                    true,
+                    "OGS bot game created and game data received.",
+                    bot.id,
+                    bot.name,
+                    challengeId,
+                    challengeUuid,
+                    gameId,
+                    gameState,
+                    TrimForLog(challengeJson?.ToString(Newtonsoft.Json.Formatting.None)),
+                    true);
+            }
+        }
+        catch (Exception ex) {
+            XNLogger.LogError("OGS bot game start failed.", ("err", ex.Message));
+            return new OgsBotGameStartResult(false, ex.Message);
+        }
+    }
+
+    public async Task<OgsBotGameStartResult> StartOrLoadDefaultBotGameAsync(
+        string websocketUrl = null,
+        CancellationToken cancellationToken = default(CancellationToken))
+    {
+        OgsBotGameStartResult activeGameResult = await TryLoadCurrentActiveGameAsync(websocketUrl, cancellationToken);
+        if (activeGameResult != null) {
+            return activeGameResult;
+        }
+
+        return await StartDefaultBotGameAsync(websocketUrl, cancellationToken);
+    }
+
+    private async Task<OgsBotGameStartResult> TryLoadCurrentActiveGameAsync(
+        string websocketUrl,
+        CancellationToken cancellationToken)
+    {
+        EnsureInitialized();
+        websocketUrl = string.IsNullOrWhiteSpace(websocketUrl) ? OgsConnectionConfig.DefaultWebSocketUrl : websocketUrl.Trim();
+
+        OgsConnectionResult accessResult = await EnsureUsableAccessTokenAsync(cancellationToken);
+        if (!accessResult.success) {
+            return new OgsBotGameStartResult(false, accessResult.message);
+        }
+
+        string accessToken;
+        string userId;
+        lock (sessionLock) {
+            accessToken = session.accessToken;
+            userId = session.userId;
+        }
+
+        if (string.IsNullOrWhiteSpace(userId)) {
+            OgsConnectionResult userResult = await RefreshCurrentUserAsync(cancellationToken);
+            if (!userResult.success) {
+                return new OgsBotGameStartResult(false, userResult.message);
+            }
+            lock (sessionLock) {
+                userId = session.userId;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(userId)) {
+            return null;
+        }
+
+        try {
+            string url = $"{apiBaseUrl}/api/v1/players/{Uri.EscapeDataString(userId)}/games?ended__isnull=true";
+            JObject gamesJson = await GetJsonAsync(url, accessToken, cancellationToken);
+            OgsActiveGameSelection activeGame = SelectCurrentActiveGame(gamesJson, userId);
+            if (activeGame.gameId <= 0) {
+                return null;
+            }
+
+            OgsGameStateSmokeResult gameState = await TestReadonlyGameStateAsync(activeGame.gameId, websocketUrl, cancellationToken);
+            if (!gameState.success) {
+                return new OgsBotGameStartResult(
+                    false,
+                    $"OGS active game was found but could not be loaded: {gameState.message}",
+                    activeGame.opponentId,
+                    activeGame.opponentName,
+                    gameId: activeGame.gameId,
+                    gameState: gameState,
+                    rawResponse: activeGame.rawResponse,
+                    isBotGame: activeGame.opponentIsBot);
+            }
+
+            XNLogger.LogInfo(
+                "OGS active game loaded.",
+                ("gameId", activeGame.gameId.ToString()),
+                ("opponentId", activeGame.opponentId.ToString()),
+                ("opponentName", activeGame.opponentName),
+                ("opponentIsBot", activeGame.opponentIsBot.ToString()));
+            return new OgsBotGameStartResult(
+                true,
+                "OGS active game loaded.",
+                activeGame.opponentId,
+                activeGame.opponentName,
+                gameId: activeGame.gameId,
+                gameState: gameState,
+                rawResponse: activeGame.rawResponse,
+                isBotGame: activeGame.opponentIsBot);
+        }
+        catch (Exception ex) {
+            XNLogger.LogWarn("OGS active game lookup failed.", ("err", ex.Message));
+            return null;
+        }
+    }
+
+    public async Task<OgsRealtimeGameSession> CreateRealtimeGameSessionAsync(
+        int gameId,
+        string websocketUrl = null,
+        CancellationToken cancellationToken = default(CancellationToken))
+    {
+        EnsureInitialized();
+        if (gameId <= 0) {
+            throw new ArgumentException("OGS game id must be positive.", nameof(gameId));
+        }
+        websocketUrl = string.IsNullOrWhiteSpace(websocketUrl) ? OgsConnectionConfig.DefaultWebSocketUrl : websocketUrl.Trim();
+        if (string.IsNullOrWhiteSpace(websocketUrl)) {
+            throw new ArgumentException("OGS websocket URL is empty.", nameof(websocketUrl));
+        }
+
+        OgsConnectionResult accessResult = await EnsureUsableAccessTokenAsync(cancellationToken);
+        if (!accessResult.success) {
+            throw new InvalidOperationException(accessResult.message);
+        }
+
+        string accessToken;
+        lock (sessionLock) {
+            accessToken = session.accessToken;
+        }
+
+        string userJwt = await RequestRealtimeUserJwtAsync(accessToken, cancellationToken);
+        if (string.IsNullOrEmpty(userJwt)) {
+            throw new InvalidOperationException("OGS ui config did not include user_jwt.");
+        }
+
+        var websocket = new ClientWebSocket();
+        try {
+            await websocket.ConnectAsync(new Uri(websocketUrl.Trim()), cancellationToken);
+            await SendRealtimePayloadAsync(websocket, BuildRealtimeAuthenticatePayload(userJwt), cancellationToken);
+            await SendRealtimePayloadAsync(websocket, BuildGameConnectPayload(gameId), cancellationToken);
+            var session = new OgsRealtimeGameSession(websocket, gameId);
+            session.StartReceiveLoop();
+            XNLogger.LogInfo("OGS realtime game session connected.", ("gameId", gameId.ToString()));
+            return session;
+        }
+        catch {
+            websocket.Dispose();
+            throw;
+        }
+    }
+
+    private async Task<OgsConnectionResult> EnsureUsableAccessTokenAsync(CancellationToken cancellationToken)
+    {
+        string accessToken;
+        bool isExpired;
+        bool canRefresh;
+        string scope;
+        lock (sessionLock) {
+            accessToken = session.accessToken;
+            isExpired = session.IsExpired;
+            canRefresh = session.CanRefresh;
+            scope = session.scope ?? string.Empty;
+        }
+
+        if (!string.IsNullOrEmpty(scope) && !ContainsScope(scope, "write")) {
+            return new OgsConnectionResult(false, "当前 OGS 授权缺少 write 权限，请重新登录 OGS 后再创建对局。");
+        }
+
+        if (!string.IsNullOrEmpty(accessToken) && !isExpired) {
+            return new OgsConnectionResult(true, "OGS access token is available.");
+        }
+
+        if (canRefresh) {
+            return await RefreshTokenAsync(OgsConnectionConfig.DefaultClientId, cancellationToken);
+        }
+
+        return new OgsConnectionResult(false, "请先登录 OGS。");
+    }
+
     private async Task<string> RequestRealtimeUserJwtAsync(string accessToken, CancellationToken cancellationToken)
     {
         JObject configJson = await GetJsonAsync($"{apiBaseUrl}{OgsConnectionConfig.UiConfigPath}", accessToken, cancellationToken);
         return ReadFirstString(configJson, "user_jwt", "jwt");
+    }
+
+    private static bool CanUseLocalhostCallback(string redirectUri)
+    {
+        if (string.IsNullOrWhiteSpace(redirectUri)) {
+            return false;
+        }
+        if (!redirectUri.StartsWith("http://127.0.0.1:", StringComparison.OrdinalIgnoreCase) &&
+            !redirectUri.StartsWith("http://localhost:", StringComparison.OrdinalIgnoreCase)) {
+            return false;
+        }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+        return false;
+#else
+        return true;
+#endif
+    }
+
+    private static async Task<OgsCallbackResult> WaitForCallbackAsync(
+        string redirectUri,
+        string expectedState,
+        CancellationToken cancellationToken)
+    {
+        string prefix = BuildHttpListenerPrefix(redirectUri);
+        using (var listener = new HttpListener()) {
+            try {
+                listener.Prefixes.Add(prefix);
+                listener.Start();
+                using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)) {
+                    timeout.CancelAfter(120000);
+                    HttpListenerContext context = await WaitForContextAsync(listener, timeout.Token);
+                    if (!IsExpectedCallbackPath(context.Request.Url, redirectUri)) {
+                        WriteCallbackResponse(context, false);
+                        return new OgsCallbackResult(false, $"OGS callback path mismatch: {context.Request.Url?.AbsolutePath ?? string.Empty}");
+                    }
+
+                    string code = context.Request.QueryString["code"] ?? string.Empty;
+                    string state = context.Request.QueryString["state"] ?? string.Empty;
+                    string error = context.Request.QueryString["error"] ?? string.Empty;
+                    WriteCallbackResponse(context, string.IsNullOrEmpty(error) && !string.IsNullOrEmpty(code));
+
+                    if (!string.IsNullOrEmpty(error)) {
+                        return new OgsCallbackResult(false, $"OGS authorization failed: {error}");
+                    }
+                    if (string.IsNullOrEmpty(code)) {
+                        return new OgsCallbackResult(false, "OGS callback did not include a code.");
+                    }
+                    if (!string.IsNullOrEmpty(expectedState) && state != expectedState) {
+                        return new OgsCallbackResult(false, "OGS callback state mismatch.");
+                    }
+
+                    return new OgsCallbackResult(true, "OGS callback received.", code);
+                }
+            }
+            catch (OperationCanceledException) {
+                return new OgsCallbackResult(false, "Timed out waiting for OGS callback.");
+            }
+            catch (Exception ex) {
+                return new OgsCallbackResult(false, $"Start OGS callback listener failed: {ex.Message}");
+            }
+            finally {
+                if (listener.IsListening) {
+                    listener.Stop();
+                }
+            }
+        }
+    }
+
+    private static Task<HttpListenerContext> WaitForContextAsync(HttpListener listener, CancellationToken cancellationToken)
+    {
+        return Task.Run(() => {
+            using (cancellationToken.Register(() => {
+                try {
+                    listener.Stop();
+                }
+                catch {
+                }
+            })) {
+                return listener.GetContext();
+            }
+        }, cancellationToken);
+    }
+
+    private static string BuildHttpListenerPrefix(string redirectUri)
+    {
+        var uri = new Uri(redirectUri);
+        return $"{uri.Scheme}://{uri.Host}:{uri.Port}/";
+    }
+
+    private static bool IsExpectedCallbackPath(Uri callbackUri, string redirectUri)
+    {
+        if (callbackUri == null) {
+            return false;
+        }
+
+        var expectedUri = new Uri(redirectUri);
+        string actualPath = NormalizeCallbackPath(callbackUri.AbsolutePath);
+        string expectedPath = NormalizeCallbackPath(expectedUri.AbsolutePath);
+        return string.Equals(actualPath, expectedPath, StringComparison.Ordinal);
+    }
+
+    private static string NormalizeCallbackPath(string path)
+    {
+        if (string.IsNullOrEmpty(path)) {
+            return "/";
+        }
+
+        string normalized = path.TrimEnd('/');
+        return string.IsNullOrEmpty(normalized) ? "/" : normalized;
+    }
+
+    private static void WriteCallbackResponse(HttpListenerContext context, bool success)
+    {
+        string body = success
+            ? "OGS login code received. You can return to WeiqiXN."
+            : "OGS login failed. You can return to WeiqiXN.";
+        byte[] bytes = Encoding.UTF8.GetBytes(body);
+        context.Response.ContentType = "text/plain; charset=utf-8";
+        context.Response.ContentLength64 = bytes.Length;
+        context.Response.OutputStream.Write(bytes, 0, bytes.Length);
+        context.Response.OutputStream.Close();
     }
 
     private async Task<JObject> GetJsonAsync(string url, string accessToken, CancellationToken cancellationToken)
@@ -380,12 +835,40 @@ public sealed class OgsConnectionService : ModuleBase
         using (HttpClient client = CreateHttpClient())
         using (var request = new HttpRequestMessage(HttpMethod.Get, url)) {
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
-            using (HttpResponseMessage response = await client.SendAsync(request, cancellationToken)) {
+            using (HttpResponseMessage response = await SendOgsRequestAsync(client, request, "GET", cancellationToken)) {
                 string body = await response.Content.ReadAsStringAsync();
+                LogVerboseHttpResponse("GET", url, response, body);
                 if (!response.IsSuccessStatusCode) {
                     throw new InvalidOperationException($"OGS GET failed: {(int)response.StatusCode} {response.ReasonPhrase} {TrimForLog(body)}");
                 }
                 return JObject.Parse(body);
+            }
+        }
+    }
+
+    private async Task<JObject> PostJsonAsync(
+        string url,
+        JObject json,
+        string accessToken,
+        CancellationToken cancellationToken)
+    {
+        using (HttpClient client = CreateHttpClient())
+        using (var request = new HttpRequestMessage(HttpMethod.Post, url)) {
+            request.Content = new StringContent(
+                (json ?? new JObject()).ToString(Newtonsoft.Json.Formatting.None),
+                Encoding.UTF8,
+                "application/json");
+            if (!string.IsNullOrEmpty(accessToken)) {
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+            }
+
+            using (HttpResponseMessage response = await SendOgsRequestAsync(client, request, "POST", cancellationToken)) {
+                string body = await response.Content.ReadAsStringAsync();
+                LogVerboseHttpResponse("POST", url, response, body);
+                if (!response.IsSuccessStatusCode) {
+                    throw new InvalidOperationException($"OGS POST failed: {(int)response.StatusCode} {response.ReasonPhrase} {TrimForLog(body)}");
+                }
+                return string.IsNullOrWhiteSpace(body) ? new JObject() : JObject.Parse(body);
             }
         }
     }
@@ -403,8 +886,9 @@ public sealed class OgsConnectionService : ModuleBase
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
             }
 
-            using (HttpResponseMessage response = await client.SendAsync(request, cancellationToken)) {
+            using (HttpResponseMessage response = await SendOgsRequestAsync(client, request, "POST", cancellationToken)) {
                 string body = await response.Content.ReadAsStringAsync();
+                LogVerboseHttpResponse("POST", url, response, body);
                 if (!response.IsSuccessStatusCode) {
                     throw new InvalidOperationException($"OGS POST failed: {(int)response.StatusCode} {response.ReasonPhrase} {TrimForLog(body)}");
                 }
@@ -420,6 +904,27 @@ public sealed class OgsConnectionService : ModuleBase
             Timeout = TimeSpan.FromMilliseconds(OgsConnectionConfig.RequestTimeoutMilliseconds),
         };
         return client;
+    }
+
+    private static async Task<HttpResponseMessage> SendOgsRequestAsync(
+        HttpClient client,
+        HttpRequestMessage request,
+        string method,
+        CancellationToken cancellationToken)
+    {
+        try {
+            return await client.SendAsync(request, cancellationToken);
+        }
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested) {
+            throw new TimeoutException(
+                $"OGS {method} timed out: {request.RequestUri} ({OgsConnectionConfig.RequestTimeoutMilliseconds} ms). {DescribeException(ex)}",
+                ex);
+        }
+        catch (Exception ex) {
+            throw new InvalidOperationException(
+                $"OGS {method} send failed: {request.RequestUri}. {DescribeException(ex)}",
+                ex);
+        }
     }
 
     private static string BuildRealtimeAuthenticatePayload(string userJwt)
@@ -449,6 +954,63 @@ public sealed class OgsConnectionService : ModuleBase
         return payload.ToString(Newtonsoft.Json.Formatting.None);
     }
 
+    private static string BuildChallengeKeepalivePayload(int challengeId, int gameId)
+    {
+        var payload = new JArray
+        {
+            "challenge/keepalive",
+            new JObject
+            {
+                ["challenge_id"] = challengeId,
+                ["game_id"] = gameId,
+            },
+        };
+        return payload.ToString(Newtonsoft.Json.Formatting.None);
+    }
+
+    private static JObject BuildDefaultBotChallengePayload()
+    {
+        int boardSize = OgsConnectionConfig.DefaultBotGameBoardSize;
+        return new JObject
+        {
+            ["initialized"] = false,
+            ["min_ranking"] = -1000,
+            ["max_ranking"] = 1000,
+            ["challenger_color"] = "automatic",
+            ["rengo_auto_start"] = 0,
+            ["game"] = new JObject
+            {
+                ["name"] = OgsConnectionConfig.DefaultBotGameName,
+                ["rules"] = OgsConnectionConfig.DefaultBotGameRules,
+                ["ranked"] = false,
+                ["width"] = boardSize,
+                ["height"] = boardSize,
+                ["handicap"] = 0,
+                ["komi_auto"] = "automatic",
+                ["disable_analysis"] = false,
+                ["initial_state"] = JValue.CreateNull(),
+                ["private"] = false,
+                ["rengo"] = false,
+                ["rengo_casual_mode"] = true,
+                ["time_control"] = "byoyomi",
+                ["time_control_parameters"] = new JObject
+                {
+                    ["main_time"] = 600,
+                    ["period_time"] = 30,
+                    ["periods"] = 5,
+                    ["periods_min"] = 1,
+                    ["periods_max"] = 300,
+                    ["pause_on_weekends"] = false,
+                    ["speed"] = "live",
+                    ["system"] = "byoyomi",
+                    ["time_control"] = "byoyomi",
+                },
+                ["pause_on_weekends"] = false,
+            },
+            ["aga_ranked"] = false,
+        };
+    }
+
     private static async Task SendRealtimePayloadAsync(ClientWebSocket websocket, string payload, CancellationToken cancellationToken)
     {
         byte[] bytes = Encoding.UTF8.GetBytes(payload);
@@ -457,6 +1019,7 @@ public sealed class OgsConnectionService : ModuleBase
             WebSocketMessageType.Text,
             true,
             cancellationToken);
+        LogVerboseRealtimePayload("OGS transient realtime sent.", payload);
     }
 
     private static async Task<string> TryReceiveRealtimeMessage(ClientWebSocket websocket, CancellationToken cancellationToken)
@@ -470,7 +1033,9 @@ public sealed class OgsConnectionService : ModuleBase
                 do {
                     result = await websocket.ReceiveAsync(new ArraySegment<byte>(buffer), receiveCancellation.Token);
                     if (result.MessageType == WebSocketMessageType.Close) {
-                        return messageBuilder.ToString();
+                        string closeMessage = messageBuilder.ToString();
+                        LogVerboseRealtimePayload("OGS transient realtime received.", closeMessage);
+                        return closeMessage;
                     }
                     messageBuilder.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
                 } while (!result.EndOfMessage);
@@ -479,14 +1044,30 @@ public sealed class OgsConnectionService : ModuleBase
                 return string.Empty;
             }
 
-            return messageBuilder.ToString();
+            string message = messageBuilder.ToString();
+            LogVerboseRealtimePayload("OGS transient realtime received.", message);
+            return message;
         }
     }
 
     private static async Task<OgsGameStateSmokeResult> WaitForGameDataAsync(ClientWebSocket websocket, int gameId, CancellationToken cancellationToken)
     {
+        return await WaitForGameDataAsync(
+            websocket,
+            gameId,
+            OgsConnectionConfig.GameStateSmokeReceiveMilliseconds,
+            cancellationToken);
+    }
+
+    private static async Task<OgsGameStateSmokeResult> WaitForGameDataAsync(
+        ClientWebSocket websocket,
+        int gameId,
+        int timeoutMilliseconds,
+        CancellationToken cancellationToken)
+    {
+        string lastObservedMessage = string.Empty;
         using (var receiveCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)) {
-            receiveCancellation.CancelAfter(OgsConnectionConfig.GameStateSmokeReceiveMilliseconds);
+            receiveCancellation.CancelAfter(timeoutMilliseconds);
             try {
                 while (websocket.State == WebSocketState.Open || websocket.State == WebSocketState.CloseReceived) {
                     string message = await ReceiveRealtimeMessageAsync(websocket, receiveCancellation.Token);
@@ -498,14 +1079,83 @@ public sealed class OgsConnectionService : ModuleBase
                     if (result != null) {
                         return result;
                     }
+
+                    lastObservedMessage = DescribeRealtimeMessageForLog(message);
                 }
             }
             catch (OperationCanceledException) {
-                return new OgsGameStateSmokeResult(false, "Timed out waiting for OGS game data.", gameId);
+                string detail = string.IsNullOrEmpty(lastObservedMessage)
+                    ? string.Empty
+                    : $" Last OGS realtime message: {lastObservedMessage}";
+                return new OgsGameStateSmokeResult(false, $"Timed out waiting for OGS game data.{detail}", gameId, rawMessage: lastObservedMessage);
             }
         }
 
-        return new OgsGameStateSmokeResult(false, $"OGS websocket closed before game data: {websocket.State}", gameId);
+        string closeDetail = string.IsNullOrEmpty(lastObservedMessage)
+            ? string.Empty
+            : $" Last OGS realtime message: {lastObservedMessage}";
+        return new OgsGameStateSmokeResult(false, $"OGS websocket closed before game data: {websocket.State}.{closeDetail}", gameId, rawMessage: lastObservedMessage);
+    }
+
+    private static async Task<OgsGameStateSmokeResult> WaitForBotGameDataAsync(
+        ClientWebSocket websocket,
+        int gameId,
+        int challengeId,
+        int timeoutMilliseconds,
+        CancellationToken cancellationToken)
+    {
+        using (var keepaliveCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)) {
+            Task keepaliveTask = challengeId > 0
+                ? SendChallengeKeepaliveLoopAsync(websocket, challengeId, gameId, keepaliveCancellation.Token)
+                : Task.CompletedTask;
+            try {
+                return await WaitForGameDataAsync(websocket, gameId, timeoutMilliseconds, cancellationToken);
+            }
+            finally {
+                keepaliveCancellation.Cancel();
+                try {
+                    await keepaliveTask;
+                }
+                catch (OperationCanceledException) {
+                }
+                catch (Exception ex) {
+                    XNLogger.LogWarn("OGS challenge keepalive loop failed.", ("gameId", gameId.ToString()), ("challengeId", challengeId.ToString()), ("err", ex.Message));
+                }
+            }
+        }
+    }
+
+    private static async Task SendChallengeKeepaliveLoopAsync(
+        ClientWebSocket websocket,
+        int challengeId,
+        int gameId,
+        CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested && websocket.State == WebSocketState.Open) {
+            await SendRealtimePayloadAsync(websocket, BuildChallengeKeepalivePayload(challengeId, gameId), cancellationToken);
+            await Task.Delay(1000, cancellationToken);
+        }
+    }
+
+    private static async Task<JObject> WaitForActiveBotsAsync(ClientWebSocket websocket, CancellationToken cancellationToken)
+    {
+        using (var receiveCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)) {
+            receiveCancellation.CancelAfter(OgsConnectionConfig.ActiveBotsReceiveMilliseconds);
+            try {
+                while (websocket.State == WebSocketState.Open || websocket.State == WebSocketState.CloseReceived) {
+                    string message = await ReceiveRealtimeMessageAsync(websocket, receiveCancellation.Token);
+                    JObject activeBots = TryParseActiveBotsMessage(message);
+                    if (activeBots != null) {
+                        return activeBots;
+                    }
+                }
+            }
+            catch (OperationCanceledException) {
+                return null;
+            }
+        }
+
+        return null;
     }
 
     private static async Task<string> ReceiveRealtimeMessageAsync(ClientWebSocket websocket, CancellationToken cancellationToken)
@@ -516,12 +1166,16 @@ public sealed class OgsConnectionService : ModuleBase
         do {
             result = await websocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
             if (result.MessageType == WebSocketMessageType.Close) {
-                return messageBuilder.ToString();
+                string closeMessage = messageBuilder.ToString();
+                LogVerboseRealtimePayload("OGS transient realtime received.", closeMessage);
+                return closeMessage;
             }
             messageBuilder.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
         } while (!result.EndOfMessage);
 
-        return messageBuilder.ToString();
+        string message = messageBuilder.ToString();
+        LogVerboseRealtimePayload("OGS transient realtime received.", message);
+        return message;
     }
 
     private static OgsGameStateSmokeResult TryParseGameStateSmokeMessage(string message, int gameId)
@@ -534,6 +1188,12 @@ public sealed class OgsConnectionService : ModuleBase
         string channel = envelope[0]?.ToString() ?? string.Empty;
         if (channel == $"game/{gameId}/error") {
             return new OgsGameStateSmokeResult(false, $"OGS game connect error: {TrimForLog(envelope[1]?.ToString(Newtonsoft.Json.Formatting.None) ?? string.Empty)}", gameId, rawMessage: TrimForLog(message));
+        }
+        if (channel == $"game/{gameId}/rejected") {
+            return new OgsGameStateSmokeResult(false, $"OGS game offer was rejected: {TrimForLog(envelope[1]?.ToString(Newtonsoft.Json.Formatting.None) ?? string.Empty)}", gameId, rawMessage: TrimForLog(message));
+        }
+        if (TryParseGameOfferRejectedMessage(envelope, gameId, out string rejectionMessage)) {
+            return new OgsGameStateSmokeResult(false, rejectionMessage, gameId, rawMessage: TrimForLog(message));
         }
         if (channel != $"game/{gameId}/gamedata") {
             return null;
@@ -570,6 +1230,238 @@ public sealed class OgsConnectionService : ModuleBase
             whitePlayer,
             phase,
             TrimForLog(message));
+    }
+
+    private static JObject TryParseActiveBotsMessage(string message)
+    {
+        JArray envelope = TryParseArray(message);
+        if (envelope == null || envelope.Count < 2) {
+            return null;
+        }
+
+        string channel = envelope[0]?.ToString() ?? string.Empty;
+        if (channel != "active-bots") {
+            return null;
+        }
+
+        return envelope[1] as JObject;
+    }
+
+    private static bool TryParseGameOfferRejectedMessage(JArray envelope, int gameId, out string message)
+    {
+        message = string.Empty;
+        if (envelope == null || envelope.Count < 2) {
+            return false;
+        }
+
+        string channel = envelope[0]?.ToString() ?? string.Empty;
+        if (!channel.Contains("notification")) {
+            return false;
+        }
+
+        JObject payload = envelope[1] as JObject;
+        if (payload == null) {
+            return false;
+        }
+
+        string type = ReadFirstString(payload, "type", "notification_type");
+        if (!string.Equals(type, "gameOfferRejected", StringComparison.OrdinalIgnoreCase)) {
+            return false;
+        }
+
+        int rejectedGameId = ReadFirstInt(payload, "game_id", "gameId");
+        if (rejectedGameId > 0 && rejectedGameId != gameId) {
+            return false;
+        }
+
+        string serverMessage = ReadFirstString(payload, "message", "text", "reason");
+        JObject details = payload["rejection_details"] as JObject;
+        if (details != null && string.IsNullOrEmpty(serverMessage)) {
+            serverMessage = details.ToString(Newtonsoft.Json.Formatting.None);
+        }
+
+        message = string.IsNullOrEmpty(serverMessage)
+            ? "OGS game offer was rejected."
+            : $"OGS game offer was rejected: {TrimForLog(serverMessage)}";
+        return true;
+    }
+
+    private static OgsBotSelection SelectDefaultBot(JObject activeBots)
+    {
+        if (activeBots == null) {
+            return default(OgsBotSelection);
+        }
+
+        OgsBotSelection fallback = default(OgsBotSelection);
+        foreach (JProperty property in activeBots.Properties()) {
+            JObject botJson = property.Value as JObject;
+            if (botJson == null) {
+                continue;
+            }
+
+            int botId = ReadFirstInt(botJson, "id", "user_id");
+            if (botId <= 0 && !int.TryParse(property.Name, out botId)) {
+                continue;
+            }
+
+            string botName = ReadFirstString(botJson, "username", "name");
+            var candidate = new OgsBotSelection(botId, botName);
+            if (fallback.id <= 0) {
+                fallback = candidate;
+            }
+            if (CanBotPlayDefaultBoard(botJson["config"] as JObject)) {
+                return candidate;
+            }
+        }
+
+        return fallback;
+    }
+
+    private static bool CanBotPlayDefaultBoard(JObject config)
+    {
+        if (config == null) {
+            return true;
+        }
+
+        JToken sizes = config["allowed_board_sizes"];
+        int boardSize = OgsConnectionConfig.DefaultBotGameBoardSize;
+        if (sizes == null || sizes.Type == JTokenType.Null) {
+            return true;
+        }
+        if (sizes.Type == JTokenType.String) {
+            string value = sizes.ToString();
+            return value == "all" || value == "square";
+        }
+        if (sizes.Type == JTokenType.Integer) {
+            return sizes.ToObject<int>() == boardSize;
+        }
+        if (sizes is JArray sizeArray) {
+            if (sizeArray.Count == 1 && sizeArray[0]?.ToObject<int>() == 0) {
+                return true;
+            }
+            foreach (JToken size in sizeArray) {
+                if (size.Type == JTokenType.Integer && size.ToObject<int>() == boardSize) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static int ReadGameIdFromChallengeResponse(JObject json)
+    {
+        if (json == null) {
+            return 0;
+        }
+
+        int gameId = ReadFirstInt(json, "game", "game_id");
+        if (gameId > 0) {
+            return gameId;
+        }
+
+        return ReadFirstInt(json["game"] as JObject, "id", "game_id");
+    }
+
+    private static OgsActiveGameSelection SelectCurrentActiveGame(JObject gamesJson, string userId)
+    {
+        if (gamesJson == null) {
+            return default(OgsActiveGameSelection);
+        }
+
+        JArray results = gamesJson["results"] as JArray;
+        if (results == null || results.Count <= 0) {
+            return default(OgsActiveGameSelection);
+        }
+
+        int.TryParse(userId, out int localUserId);
+        int defaultBoardSize = OgsConnectionConfig.DefaultBotGameBoardSize;
+        OgsActiveGameSelection best = default(OgsActiveGameSelection);
+        int bestScore = -1;
+        foreach (JToken token in results) {
+            JObject gameJson = token as JObject;
+            if (gameJson == null || HasNonNullField(gameJson, "ended")) {
+                continue;
+            }
+
+            int gameId = ReadFirstInt(gameJson, "id", "game_id");
+            int width = ReadFirstInt(gameJson, "width", "board_width", "size");
+            int height = ReadFirstInt(gameJson, "height", "board_height", "size");
+            if (gameId <= 0 || width <= 0 || width != height) {
+                continue;
+            }
+
+            JObject playersJson = gameJson["players"] as JObject;
+            JToken blackPlayerToken = playersJson?["black"] ?? gameJson["black_player"] ?? gameJson["black"];
+            JToken whitePlayerToken = playersJson?["white"] ?? gameJson["white_player"] ?? gameJson["white"];
+            JObject blackPlayer = ReadPlayerObject(blackPlayerToken);
+            JObject whitePlayer = ReadPlayerObject(whitePlayerToken);
+            int blackId = ReadPlayerId(blackPlayerToken, gameJson, "black", "black_id", "black_player_id");
+            int whiteId = ReadPlayerId(whitePlayerToken, gameJson, "white", "white_id", "white_player_id");
+            if (localUserId > 0 && blackId != localUserId && whiteId != localUserId) {
+                continue;
+            }
+
+            JObject opponentPlayer = blackId == localUserId ? whitePlayer : blackPlayer;
+            int opponentId = blackId == localUserId ? whiteId : blackId;
+            string opponentName = ReadPlayerName(opponentPlayer);
+            bool opponentIsBot = IsBotPlayer(opponentPlayer);
+            int score = 1;
+            if (width == defaultBoardSize) {
+                score += 10;
+            }
+            if (opponentIsBot) {
+                score += 100;
+            }
+
+            if (score > bestScore) {
+                bestScore = score;
+                best = new OgsActiveGameSelection(
+                    gameId,
+                    opponentId,
+                    opponentName,
+                    width,
+                    height,
+                    opponentIsBot,
+                    TrimForLog(gameJson.ToString(Newtonsoft.Json.Formatting.None)));
+            }
+        }
+
+        return best;
+    }
+
+    private static bool HasNonNullField(JObject json, string fieldName)
+    {
+        JToken token = json?[fieldName];
+        return token != null && token.Type != JTokenType.Null && !string.IsNullOrEmpty(token.ToString());
+    }
+
+    private static bool IsBotPlayer(JObject playerJson)
+    {
+        string uiClass = ReadFirstString(playerJson, "ui_class", "class");
+        if (string.IsNullOrWhiteSpace(uiClass)) {
+            uiClass = ReadFirstString(playerJson?["user"] as JObject, "ui_class", "class");
+        }
+        if (string.IsNullOrWhiteSpace(uiClass)) {
+            uiClass = ReadFirstString(playerJson?["player"] as JObject, "ui_class", "class");
+        }
+        return uiClass.IndexOf("bot", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static bool ContainsScope(string scope, string expectedScope)
+    {
+        if (string.IsNullOrWhiteSpace(scope) || string.IsNullOrWhiteSpace(expectedScope)) {
+            return false;
+        }
+
+        string[] parts = scope.Split(new[] { ' ', ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+        foreach (string part in parts) {
+            if (string.Equals(part.Trim(), expectedScope, StringComparison.OrdinalIgnoreCase)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static JArray TryParseArray(string json)
@@ -679,7 +1571,62 @@ public sealed class OgsConnectionService : ModuleBase
             return string.Empty;
         }
 
-        return ReadFirstString(playerJson, "username", "name", "professional_name", "id");
+        string value = ReadFirstString(playerJson, "username", "name", "professional_name", "id");
+        if (!string.IsNullOrWhiteSpace(value)) {
+            return value;
+        }
+
+        value = ReadFirstString(playerJson["user"] as JObject, "username", "name", "professional_name", "id");
+        if (!string.IsNullOrWhiteSpace(value)) {
+            return value;
+        }
+
+        return ReadFirstString(playerJson["player"] as JObject, "username", "name", "professional_name", "id");
+    }
+
+    private static JObject ReadPlayerObject(JToken token)
+    {
+        return token as JObject;
+    }
+
+    private static int ReadPlayerId(JToken playerToken, JObject gameJson, params string[] topLevelFieldNames)
+    {
+        int id = ReadFirstInt(playerToken, 0);
+        if (id > 0) {
+            return id;
+        }
+
+        if (playerToken is JObject playerObj) {
+            id = ReadFirstInt(playerObj, "id", "user_id", "player_id", "pk", "uid");
+            if (id > 0) {
+                return id;
+            }
+
+            id = ReadFirstInt(playerObj["user"] as JObject, "id", "user_id", "player_id", "pk", "uid");
+            if (id > 0) {
+                return id;
+            }
+
+            id = ReadFirstInt(playerObj["player"] as JObject, "id", "user_id", "player_id", "pk", "uid");
+            if (id > 0) {
+                return id;
+            }
+        }
+
+        return ReadFirstInt(gameJson, topLevelFieldNames);
+    }
+
+    private static int ReadFirstInt(JToken token, int defaultValue)
+    {
+        if (token == null || token.Type == JTokenType.Null) {
+            return defaultValue;
+        }
+
+        if (token.Type == JTokenType.Integer || token.Type == JTokenType.String) {
+            return int.TryParse(token.ToString(), out int value) ? value : defaultValue;
+        }
+
+        return defaultValue;
     }
 
     private static void ReadCurrentUserFields(JObject json, ref string userId, ref string username)
@@ -703,5 +1650,163 @@ public sealed class OgsConnectionService : ModuleBase
         }
 
         return value.Length <= 300 ? value : value.Substring(0, 300);
+    }
+
+    private static void LogVerboseHttpResponse(string method, string url, HttpResponseMessage response, string body)
+    {
+        if (!LoggerConfig.ENABLE_OGS_VERBOSE_LOG) {
+            return;
+        }
+
+        XNLogger.LogInfo(
+            "OGS HTTP response.",
+            ("method", method ?? string.Empty),
+            ("url", url ?? string.Empty),
+            ("status", response != null ? ((int)response.StatusCode).ToString() : string.Empty),
+            ("reason", response?.ReasonPhrase ?? string.Empty),
+            ("body", RedactSensitiveOgsLogPayload(body)));
+    }
+
+    private static void LogVerboseRealtimePayload(string message, string payload)
+    {
+        if (!LoggerConfig.ENABLE_OGS_VERBOSE_LOG) {
+            return;
+        }
+
+        XNLogger.LogInfo(
+            message,
+            ("payload", RedactSensitiveOgsLogPayload(payload)));
+    }
+
+    private static string RedactSensitiveOgsLogPayload(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) {
+            return string.Empty;
+        }
+
+        try {
+            JToken token = JToken.Parse(value);
+            RedactSensitiveOgsLogFields(token);
+            return token.ToString(Newtonsoft.Json.Formatting.None);
+        }
+        catch {
+            return value;
+        }
+    }
+
+    private static void RedactSensitiveOgsLogFields(JToken token)
+    {
+        if (token is JObject obj) {
+            foreach (JProperty property in obj.Properties()) {
+                if (IsSensitiveOgsLogField(property.Name)) {
+                    property.Value = "[redacted]";
+                } else {
+                    RedactSensitiveOgsLogFields(property.Value);
+                }
+            }
+            return;
+        }
+
+        if (token is JArray array) {
+            foreach (JToken item in array) {
+                RedactSensitiveOgsLogFields(item);
+            }
+        }
+    }
+
+    private static bool IsSensitiveOgsLogField(string fieldName)
+    {
+        if (string.IsNullOrWhiteSpace(fieldName)) {
+            return false;
+        }
+
+        string lower = fieldName.Trim().ToLowerInvariant();
+        return lower.Contains("token") ||
+            lower.Contains("jwt") ||
+            lower.Contains("authorization") ||
+            lower.Contains("password") ||
+            lower == "code_verifier" ||
+            lower == "code_challenge";
+    }
+
+    private static string DescribeRealtimeMessageForLog(string message)
+    {
+        JArray envelope = TryParseArray(message);
+        if (envelope == null || envelope.Count <= 0) {
+            return TrimForLog(message);
+        }
+
+        string channel = envelope[0]?.ToString() ?? string.Empty;
+        string payload = envelope.Count > 1
+            ? envelope[1]?.ToString(Newtonsoft.Json.Formatting.None) ?? string.Empty
+            : string.Empty;
+        return TrimForLog($"{channel} {payload}");
+    }
+
+    private static string DescribeException(Exception ex)
+    {
+        if (ex == null) {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder();
+        Exception current = ex;
+        int depth = 0;
+        while (current != null && depth < 4) {
+            if (builder.Length > 0) {
+                builder.Append(" Inner: ");
+            }
+            builder.Append(current.GetType().Name);
+            if (!string.IsNullOrEmpty(current.Message)) {
+                builder.Append(": ");
+                builder.Append(current.Message);
+            }
+
+            current = current.InnerException;
+            depth += 1;
+        }
+
+        return builder.ToString();
+    }
+
+    private struct OgsBotSelection
+    {
+        public readonly int id;
+        public readonly string name;
+
+        public OgsBotSelection(int id, string name)
+        {
+            this.id = id;
+            this.name = name ?? string.Empty;
+        }
+    }
+
+    private struct OgsActiveGameSelection
+    {
+        public readonly int gameId;
+        public readonly int opponentId;
+        public readonly string opponentName;
+        public readonly int boardWidth;
+        public readonly int boardHeight;
+        public readonly bool opponentIsBot;
+        public readonly string rawResponse;
+
+        public OgsActiveGameSelection(
+            int gameId,
+            int opponentId,
+            string opponentName,
+            int boardWidth,
+            int boardHeight,
+            bool opponentIsBot,
+            string rawResponse)
+        {
+            this.gameId = gameId;
+            this.opponentId = opponentId;
+            this.opponentName = opponentName ?? string.Empty;
+            this.boardWidth = boardWidth;
+            this.boardHeight = boardHeight;
+            this.opponentIsBot = opponentIsBot;
+            this.rawResponse = rawResponse ?? string.Empty;
+        }
     }
 }
