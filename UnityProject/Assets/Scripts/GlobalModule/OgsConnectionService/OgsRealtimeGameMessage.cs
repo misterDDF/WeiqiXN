@@ -4,6 +4,7 @@ public enum OgsRealtimeGameMessageType
 {
     GameData,
     Move,
+    Clock,
     Phase,
     UndoAccepted,
     UndoCanceled,

@@ -21,11 +21,11 @@ public class DuelStateTurnInput : DuelFSMState
         Player curPlayer = fsm.scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
         if (curPlayer != null) {
             var compDuelInfo = curPlayer.GetComponent<ComponentDuelInfo>();
-            if (compDuelInfo != null && compDuelInfo.isInByoyomi.value) {
+            if (!IsRemoteTimeAuthority() && compDuelInfo != null && compDuelInfo.isInByoyomi.value) {
                 ResetByoyomiSeconds(compDuelInfo);
             }
             RefreshTurnLeftTimes(compDuelInfo);
-            if (compDuelInfo != null && !compDuelInfo.isInfiniteTime.value) {
+            if (compDuelInfo != null && !compDuelInfo.isInfiniteTime.value && !IsRemoteTimeAuthority()) {
                 if (!IsLanClient(compDuel)) {
                     turnTimer = fsm.scene.SetSecondInterval(1, OnTurnPassSecond);
                 }
@@ -44,7 +44,7 @@ public class DuelStateTurnInput : DuelFSMState
         Player curPlayer = fsm.scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
         if (curPlayer != null) {
             var compDuelInfo = curPlayer.GetComponent<ComponentDuelInfo>();
-            if (!IsLanClient(compDuel)) {
+            if (!IsLanClient(compDuel) && !IsRemoteTimeAuthority()) {
                 CheckTimeout(compDuel, compDuelInfo);
             }
         }
@@ -174,5 +174,10 @@ public class DuelStateTurnInput : DuelFSMState
             && compDuel.isLanDuel.value
             && Global.Instance.lanRoomService != null
             && Global.Instance.lanRoomService.IsReconnectWaiting;
+    }
+
+    private bool IsRemoteTimeAuthority()
+    {
+        return fsm.scene is OgsDuelScene;
     }
 }

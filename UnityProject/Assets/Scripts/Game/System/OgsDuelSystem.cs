@@ -23,6 +23,11 @@ public class OgsDuelSystem : SystemBase
     private int pendingUndoMoveNumber;
     private int pendingUndoMoveCount;
     private int pendingUndoRequesterOgsUserId;
+    private bool hasOgsClock;
+    private float ogsClockBaseLocalTime;
+    private PlayerFlag ogsClockCurrentPlayerFlag;
+    private OgsClockPlayerTime ogsBlackClock = OgsClockPlayerTime.Empty;
+    private OgsClockPlayerTime ogsWhiteClock = OgsClockPlayerTime.Empty;
 
     public OgsDuelSystem(SceneBase scene) : base(scene)
     {
@@ -59,6 +64,7 @@ public class OgsDuelSystem : SystemBase
         while (realtimeSession != null && realtimeSession.TryDequeueMessage(out OgsRealtimeGameMessage message)) {
             HandleRealtimeMessage(message);
         }
+        RefreshOgsClockDisplay();
     }
 
     public override void OnDestroy()
@@ -194,6 +200,9 @@ public class OgsDuelSystem : SystemBase
             case OgsRealtimeGameMessageType.Move:
                 ApplyIncrementalMove(message.payload as JObject);
                 break;
+            case OgsRealtimeGameMessageType.Clock:
+                ApplyClock(message.payload as JObject);
+                break;
             case OgsRealtimeGameMessageType.Phase:
                 ApplyPhase(message.payload?.ToString());
                 break;
@@ -251,6 +260,7 @@ public class OgsDuelSystem : SystemBase
         if (!string.IsNullOrEmpty(phase)) {
             compOgsDuel.phase = phase;
         }
+        ApplyClock(gameData["clock"] as JObject);
         if (!TryResolveOgsInitialStones(gameData, out List<OgsDuelInitialStone> initialStones)) {
             SetError("OGS game data initial stones could not be parsed.");
             return;
@@ -306,6 +316,7 @@ public class OgsDuelSystem : SystemBase
         if (moveData == null || compOgsDuel == null || compDuel == null || chessBoardSystem == null) {
             return;
         }
+        ApplyClock(moveData["clock"] as JObject);
 
         int serverMoveNumber = ReadFirstInt(moveData, compOgsDuel.acceptedMoveCount + 1, "move_number", "moveNumber");
         int acceptedMoveNumber = NormalizeOgsMoveNumber(serverMoveNumber);
@@ -431,6 +442,121 @@ public class OgsDuelSystem : SystemBase
         } else {
             SyncInputAuthority();
         }
+    }
+
+    private void ApplyClock(JObject clock)
+    {
+        if (clock == null || compDuel == null) {
+            return;
+        }
+
+        ogsBlackClock = ReadOgsClockPlayerTime(clock["black_time"] as JObject);
+        ogsWhiteClock = ReadOgsClockPlayerTime(clock["white_time"] as JObject);
+        ogsClockCurrentPlayerFlag = ResolveClockCurrentPlayerFlag(clock);
+        ogsClockBaseLocalTime = UnityEngine.Time.unscaledTime;
+        hasOgsClock = true;
+
+        bool hasByoyomi = ogsBlackClock.HasByoyomi || ogsWhiteClock.HasByoyomi;
+        compDuel.byoyomiCountCfgId.value = hasByoyomi ? "1" : "off";
+        RefreshOgsClockDisplay();
+    }
+
+    private void RefreshOgsClockDisplay()
+    {
+        if (!hasOgsClock || compDuel == null) {
+            return;
+        }
+
+        float elapsedSeconds = IsFinishedPhase() || IsPausedPhase()
+            ? 0f
+            : Math.Max(0f, UnityEngine.Time.unscaledTime - ogsClockBaseLocalTime);
+        ApplyOgsClockToPlayer(PlayerFlag.Player1, ogsBlackClock, ogsClockCurrentPlayerFlag == PlayerFlag.Player1, elapsedSeconds);
+        ApplyOgsClockToPlayer(PlayerFlag.Player2, ogsWhiteClock, ogsClockCurrentPlayerFlag == PlayerFlag.Player2, elapsedSeconds);
+    }
+
+    private void ApplyOgsClockToPlayer(PlayerFlag playerFlag, OgsClockPlayerTime baseTime, bool isCurrentPlayer, float elapsedSeconds)
+    {
+        Player player = GetPlayerByFlag(playerFlag);
+        ComponentDuelInfo duelInfo = player?.GetComponent<ComponentDuelInfo>();
+        if (duelInfo == null) {
+            return;
+        }
+
+        int holdLeftSeconds = baseTime.holdLeftSeconds;
+        int byoyomiLeftSeconds = baseTime.byoyomiLeftSeconds;
+        int byoyomiLeftCount = baseTime.byoyomiLeftCount;
+        bool isInByoyomi = baseTime.isInByoyomi;
+
+        if (isCurrentPlayer && elapsedSeconds > 0f) {
+            if (isInByoyomi) {
+                byoyomiLeftSeconds = CeilRemainingSeconds(baseTime.byoyomiLeftSeconds - elapsedSeconds);
+            } else {
+                holdLeftSeconds = CeilRemainingSeconds(baseTime.holdLeftSeconds - elapsedSeconds);
+                if (holdLeftSeconds <= 0 && byoyomiLeftCount > 0 && baseTime.byoyomiLeftSeconds > 0) {
+                    float byoyomiElapsedSeconds = elapsedSeconds - baseTime.holdLeftSeconds;
+                    isInByoyomi = byoyomiElapsedSeconds > 0f;
+                    byoyomiLeftSeconds = isInByoyomi
+                        ? CeilRemainingSeconds(baseTime.byoyomiLeftSeconds - byoyomiElapsedSeconds)
+                        : baseTime.byoyomiLeftSeconds;
+                }
+            }
+        }
+
+        duelInfo.isInfiniteTime.value = false;
+        duelInfo.holdLeftSeconds.value = Math.Max(0, holdLeftSeconds);
+        duelInfo.byoyomiLeftCount.value = Math.Max(0, byoyomiLeftCount);
+        duelInfo.byoyomiLeftSeconds.value = Math.Max(0, byoyomiLeftSeconds);
+        duelInfo.isInByoyomi.value = isInByoyomi;
+        duelInfo.turnLeftTimes.value = isInByoyomi
+            ? duelInfo.byoyomiLeftSeconds.value
+            : duelInfo.holdLeftSeconds.value;
+    }
+
+    private PlayerFlag ResolveClockCurrentPlayerFlag(JObject clock)
+    {
+        string currentPlayer = ReadFirstString(clock, "current_player", "currentPlayer", "current_player_id", "player_id");
+        if (TryResolvePlayerFlagFromText(currentPlayer, out PlayerFlag textFlag)) {
+            return textFlag;
+        }
+
+        if (int.TryParse(currentPlayer, out int currentPlayerId)) {
+            if (currentPlayerId == compOgsDuel.blackOgsUserId) {
+                return PlayerFlag.Player1;
+            }
+            if (currentPlayerId == compOgsDuel.whiteOgsUserId) {
+                return PlayerFlag.Player2;
+            }
+        }
+
+        Player currentTurnPlayer = scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
+        return currentTurnPlayer != null
+            ? (PlayerFlag)currentTurnPlayer.playerFlag.value
+            : 0;
+    }
+
+    private static OgsClockPlayerTime ReadOgsClockPlayerTime(JObject playerClock)
+    {
+        if (playerClock == null) {
+            return OgsClockPlayerTime.Empty;
+        }
+
+        double thinkingTime = ReadFirstDouble(playerClock, 0d, "thinking_time", "thinkingTime", "main_time", "mainTime", "time");
+        int byoyomiLeftCount = Math.Max(0, ReadFirstInt(playerClock, 0, "periods", "periods_left", "periodsLeft"));
+        int byoyomiLeftSeconds = CeilRemainingSeconds(ReadFirstDouble(playerClock, 0d, "period_time", "periodTime", "byoyomi_time", "byoyomiTime"));
+        bool isInByoyomi = ReadFirstBool(playerClock, false, "is_in_byoyomi", "isInByoyomi", "in_byoyomi", "inByoyomi") ||
+            (thinkingTime <= 0d && (byoyomiLeftCount > 0 || byoyomiLeftSeconds > 0));
+        int holdLeftSeconds = isInByoyomi ? 0 : CeilRemainingSeconds(thinkingTime);
+
+        return new OgsClockPlayerTime(
+            holdLeftSeconds,
+            byoyomiLeftCount,
+            byoyomiLeftSeconds,
+            isInByoyomi);
+    }
+
+    private static int CeilRemainingSeconds(double seconds)
+    {
+        return Math.Max(0, (int)Math.Ceiling(seconds));
     }
 
     private void ApplyUndoAccepted(JToken payload)
@@ -1304,5 +1430,41 @@ public class OgsDuelSystem : SystemBase
         }
 
         return defaultValue;
+    }
+
+    private static double ReadFirstDouble(JObject json, double defaultValue, params string[] fieldNames)
+    {
+        if (json == null || fieldNames == null) {
+            return defaultValue;
+        }
+
+        foreach (string fieldName in fieldNames) {
+            JToken token = json[fieldName];
+            if (token != null && double.TryParse(token.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double value)) {
+                return value;
+            }
+        }
+
+        return defaultValue;
+    }
+
+    private readonly struct OgsClockPlayerTime
+    {
+        public static readonly OgsClockPlayerTime Empty = new OgsClockPlayerTime(0, 0, 0, false);
+
+        public readonly int holdLeftSeconds;
+        public readonly int byoyomiLeftCount;
+        public readonly int byoyomiLeftSeconds;
+        public readonly bool isInByoyomi;
+
+        public OgsClockPlayerTime(int holdLeftSeconds, int byoyomiLeftCount, int byoyomiLeftSeconds, bool isInByoyomi)
+        {
+            this.holdLeftSeconds = Math.Max(0, holdLeftSeconds);
+            this.byoyomiLeftCount = Math.Max(0, byoyomiLeftCount);
+            this.byoyomiLeftSeconds = Math.Max(0, byoyomiLeftSeconds);
+            this.isInByoyomi = isInByoyomi;
+        }
+
+        public bool HasByoyomi => byoyomiLeftCount > 0 || byoyomiLeftSeconds > 0;
     }
 }

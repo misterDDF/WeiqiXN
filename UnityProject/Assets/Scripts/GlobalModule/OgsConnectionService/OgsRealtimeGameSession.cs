@@ -227,10 +227,12 @@ public sealed class OgsRealtimeGameSession : IDisposable
 
         string channel = envelope[0]?.ToString() ?? string.Empty;
         JToken payload = envelope[1];
-        if (channel == $"game/{gameId}/gamedata") {
+        if (channel == $"game/{gameId}/gamedata" || channel == $"game/{gameId}/data") {
             messageQueue.Enqueue(new OgsRealtimeGameMessage(OgsRealtimeGameMessageType.GameData, channel, payload));
         } else if (channel == $"game/{gameId}/move") {
             messageQueue.Enqueue(new OgsRealtimeGameMessage(OgsRealtimeGameMessageType.Move, channel, payload));
+        } else if (channel == $"game/{gameId}/clock") {
+            messageQueue.Enqueue(new OgsRealtimeGameMessage(OgsRealtimeGameMessageType.Clock, channel, payload));
         } else if (channel == $"game/{gameId}/phase") {
             messageQueue.Enqueue(new OgsRealtimeGameMessage(OgsRealtimeGameMessageType.Phase, channel, payload));
         } else if (channel == $"game/{gameId}/undo_accepted") {
@@ -241,8 +243,7 @@ public sealed class OgsRealtimeGameSession : IDisposable
             messageQueue.Enqueue(new OgsRealtimeGameMessage(OgsRealtimeGameMessageType.UndoRequested, channel, payload));
         } else if (channel == $"game/{gameId}/error") {
             messageQueue.Enqueue(new OgsRealtimeGameMessage(OgsRealtimeGameMessageType.Error, channel, payload, payload?.ToString(Newtonsoft.Json.Formatting.None) ?? string.Empty));
-        } else if (channel.StartsWith($"game/{gameId}/", StringComparison.Ordinal) &&
-            !channel.EndsWith("/clock", StringComparison.Ordinal)) {
+        } else if (channel.StartsWith($"game/{gameId}/", StringComparison.Ordinal)) {
             XNLogger.LogInfo(
                 "OGS realtime unhandled game message.",
                 ("gameId", gameId.ToString()),
