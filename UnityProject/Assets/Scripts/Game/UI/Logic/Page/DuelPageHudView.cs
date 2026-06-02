@@ -42,6 +42,7 @@ public class DuelPageHudView
 
         RefreshPlayerInfoPanel(
             binder.txt_black_title,
+            binder.txt_black_player_name,
             binder.txt_black_hold_time,
             binder.txt_black_byoyomi_count,
             binder.txt_black_byoyomi_time,
@@ -52,6 +53,7 @@ public class DuelPageHudView
         );
         RefreshPlayerInfoPanel(
             binder.txt_white_title,
+            binder.txt_white_player_name,
             binder.txt_white_hold_time,
             binder.txt_white_byoyomi_count,
             binder.txt_white_byoyomi_time,
@@ -234,6 +236,7 @@ public class DuelPageHudView
 
     private void RefreshPlayerInfoPanel(
         TextMeshProUGUI titleText,
+        TextMeshProUGUI playerNameText,
         TextMeshProUGUI holdText,
         TextMeshProUGUI byoyomiCountText,
         TextMeshProUGUI byoyomiTimeText,
@@ -244,12 +247,10 @@ public class DuelPageHudView
     )
     {
         bool isCurTurnPlayer = player != null && player.guid == curTurnPlayerGuid;
-        bool isAi = DuelPageInteractionState.IsAiPlayer(player, compDuel);
-        string playerTypeText = isAi
-            ? MessageText.Get("duel_player_type_ai")
-            : GetPlayerDisplayName(compDuel, player != null ? (PlayerFlag)player.playerFlag.value : 0);
-        string turnText = isCurTurnPlayer ? MessageText.Get("duel_turn_suffix") : string.Empty;
-        SetText(titleText, MessageText.Format("duel_player_title", title, playerTypeText, turnText));
+        PlayerFlag playerFlag = player != null ? (PlayerFlag)player.playerFlag.value : 0;
+        string turnText = isCurTurnPlayer ? MessageText.Get("duel_turn_suffix").Replace(" ", string.Empty) : string.Empty;
+        SetText(titleText, $"{title}{turnText}");
+        SetText(playerNameText, GetPlayerDisplayName(compDuel, playerFlag));
 
         ComponentDuelInfo compDuelInfo = player?.GetComponent<ComponentDuelInfo>();
         bool isByoyomiEnabled = DuelPageInteractionState.IsByoyomiEnabled(compDuel, compDuelInfo);
@@ -295,8 +296,8 @@ public class DuelPageHudView
         bool hasAiAnalysisRender = aiRecommendationSystem != null && aiRecommendationSystem.HasAiAnalysisRender;
         bool canAiAnalysis = showAiAnalysis && aiRecommendationSystem != null &&
             (hasAiAnalysisRender || (!aiRecommendationSystem.IsAiAnalyzing && aiRecommendationSystem.IsAiAnalysisEnabled));
-        if (binder.btn_duel_ai_analysis != null) {
-            binder.btn_duel_ai_analysis.gameObject.SetActive(showAiAnalysis);
+        if (binder.panel_duel_ai_analysis != null) {
+            binder.panel_duel_ai_analysis.SetActive(showAiAnalysis);
         }
         SetButtonInteractable(binder.btn_duel_ai_analysis, canAiAnalysis);
         RefreshAiAnalysisButtonSelection(showAiAnalysis && hasAiAnalysisRender);
