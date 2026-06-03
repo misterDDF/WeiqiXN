@@ -41,6 +41,12 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
         if (binder.btn_ogs_retry != null) {
             binder.btn_ogs_retry.onClick.AddListener(OnClickBtnRefreshOgs);
         }
+        if (binder.btn_open_ogs_friends != null) {
+            binder.btn_open_ogs_friends.onClick.AddListener(OnClickBtnOpenOgsFriends);
+        }
+        if (binder.btn_open_recent_replays != null) {
+            binder.btn_open_recent_replays.onClick.AddListener(OnClickBtnOpenRecentReplays);
+        }
         binder.btn_replay_prev.onClick.AddListener(OnClickBtnReplayPrev);
         binder.btn_replay_next.onClick.AddListener(OnClickBtnReplayNext);
     }
@@ -73,6 +79,16 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
     public void OnClickBtnClose()
     {
         ClosePage();
+    }
+
+    private void OnClickBtnOpenOgsFriends()
+    {
+        Global.Instance.uiManager.ShowPage<OgsFriendListPopup>();
+    }
+
+    private void OnClickBtnOpenRecentReplays()
+    {
+        Global.Instance.uiManager.ShowPage<RecentReplayListPopup>();
     }
 
     public void OnClickBtnEditName()

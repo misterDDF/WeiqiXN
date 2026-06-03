@@ -54,5 +54,19 @@
     "isPopup": true,
     "isLoadAsync": false,
     "closeOnSceneExit": true
+  },
+  "OgsFriendListPopup": {
+    "id": "OgsFriendListPopup",
+    "contextType": "General",
+    "isPopup": true,
+    "isLoadAsync": true,
+    "closeOnSceneExit": true
+  },
+  "RecentReplayListPopup": {
+    "id": "RecentReplayListPopup",
+    "contextType": "General",
+    "isPopup": true,
+    "isLoadAsync": true,
+    "closeOnSceneExit": true
   }
 }
