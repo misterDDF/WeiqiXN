@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using XNClient.Logger;
 
 public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
 {
@@ -11,7 +12,11 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
     private readonly List<OgsFriendListItem> friendItems = new List<OgsFriendListItem>();
     private readonly List<OgsFriendItemWidget> itemWidgets = new List<OgsFriendItemWidget>();
     private int pageIndex;
+    private int friendTotalCount;
+    private int lastItemsPerPage = -1;
     private float nextAutoRefreshTime;
+    private int refreshVersion;
+    private bool isRefreshRunning;
     private bool hasAppliedLayoutState;
     private bool lastPortraitLayout;
 
@@ -42,41 +47,112 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
     {
         base.OnUpdate();
 
-        if (ApplyCurrentLayoutState(false) && friendItems.Count > 0) {
-            RefreshPage();
+        bool layoutChanged = ApplyCurrentLayoutState(false);
+        int itemsPerPage = GetItemsPerPage();
+        if (layoutChanged && friendItems.Count > 0) {
+            if (itemsPerPage != lastItemsPerPage) {
+                RefreshFriendList(false, false);
+            } else {
+                RefreshPage();
+            }
         }
-        if (Time.unscaledTime >= nextAutoRefreshTime) {
+        if (isVisible && Time.unscaledTime >= nextAutoRefreshTime) {
             nextAutoRefreshTime = Time.unscaledTime + AutoRefreshIntervalSeconds;
-            RefreshFriendList(false);
+            RefreshFriendList(false, friendItems.Count <= 0);
         }
     }
 
     protected override void OnClose()
     {
+        refreshVersion += 1;
+        isRefreshRunning = false;
         ClearItemWidgets();
         base.OnClose();
     }
 
-    private void RefreshFriendList(bool resetPage = true)
+    private async void RefreshFriendList(bool resetPage = true, bool showLoading = true)
     {
-        friendItems.Clear();
-        if (resetPage) {
-            pageIndex = 0;
+        if (isRefreshRunning) {
+            return;
         }
-        ClearItemWidgets();
 
         OgsConnectionService service = Global.Instance.ogsConnectionService;
         if (service == null || !service.HasSession) {
+            friendItems.Clear();
+            friendTotalCount = 0;
+            if (resetPage) {
+                pageIndex = 0;
+            }
+            ClearItemWidgets();
             SetState(OgsFriendListPopupUI.SrOgsFriendState.NotLoggedIn);
             SetText(binder.txt_page, "0 / 0");
             SetPageButtons(false, false);
             return;
         }
 
-        SetText(binder.txt_empty, "OGS 好友列表接口待确认，当前版本暂不展示好友数据");
-        SetState(OgsFriendListPopupUI.SrOgsFriendState.Empty);
-        SetText(binder.txt_page, "0 / 0");
-        SetPageButtons(false, false);
+        int currentVersion = ++refreshVersion;
+        isRefreshRunning = true;
+        if (resetPage) {
+            pageIndex = 0;
+        }
+        int itemsPerPage = GetItemsPerPage();
+        lastItemsPerPage = itemsPerPage;
+        if (showLoading) {
+            ClearItemWidgets();
+            SetText(binder.txt_loading, "正在读取 OGS 好友...");
+            SetState(OgsFriendListPopupUI.SrOgsFriendState.Loading);
+            SetPageButtons(false, false);
+        }
+
+        try {
+            OgsFriendListResult result = await service.RequestFriendListAsync(pageIndex + 1, itemsPerPage);
+            if (currentVersion != refreshVersion) {
+                return;
+            }
+
+            if (!result.success) {
+                if (friendItems.Count > 0 && !showLoading) {
+                    XNLogger.LogWarn("OGS friend auto refresh failed, keeping current list.", ("message", result.message));
+                    return;
+                }
+
+                friendItems.Clear();
+                friendTotalCount = 0;
+                ClearItemWidgets();
+                SetText(binder.txt_error, string.IsNullOrWhiteSpace(result.message) ? "OGS 好友列表读取失败" : result.message);
+                SetState(OgsFriendListPopupUI.SrOgsFriendState.Error);
+                SetText(binder.txt_page, "0 / 0");
+                SetPageButtons(false, false);
+                return;
+            }
+
+            friendItems.Clear();
+            if (result.friends != null) {
+                friendItems.AddRange(result.friends);
+            }
+            friendTotalCount = Mathf.Max(result.totalCount, friendItems.Count);
+            RefreshPage();
+        }
+        catch (System.Exception ex) {
+            XNLogger.LogError("Refresh OGS friend list from popup failed.", ("err", ex.Message));
+            if (currentVersion != refreshVersion) {
+                return;
+            }
+
+            friendItems.Clear();
+            friendTotalCount = 0;
+            ClearItemWidgets();
+            SetText(binder.txt_error, ex.Message);
+            SetState(OgsFriendListPopupUI.SrOgsFriendState.Error);
+            SetText(binder.txt_page, "0 / 0");
+            SetPageButtons(false, false);
+        }
+        finally {
+            if (currentVersion == refreshVersion) {
+                isRefreshRunning = false;
+                nextAutoRefreshTime = Time.unscaledTime + AutoRefreshIntervalSeconds;
+            }
+        }
     }
 
     private void RefreshPage()
@@ -94,9 +170,8 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
         }
 
         pageIndex = Mathf.Clamp(pageIndex, 0, pageCount - 1);
-        int startIndex = pageIndex * itemsPerPage;
-        int endIndex = Mathf.Min(startIndex + itemsPerPage, friendItems.Count);
-        for (int i = startIndex; i < endIndex; i++) {
+        int endIndex = Mathf.Min(itemsPerPage, friendItems.Count);
+        for (int i = 0; i < endIndex; i++) {
             OgsFriendItemWidget itemWidget = CreateItemWidget();
             if (itemWidget == null) {
                 continue;
@@ -169,12 +244,13 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
 
     private int GetPageCount(int itemsPerPage)
     {
-        if (friendItems.Count <= 0) {
+        int totalCount = Mathf.Max(friendTotalCount, friendItems.Count);
+        if (totalCount <= 0) {
             return 0;
         }
 
         itemsPerPage = Mathf.Max(1, itemsPerPage);
-        return (friendItems.Count + itemsPerPage - 1) / itemsPerPage;
+        return (totalCount + itemsPerPage - 1) / itemsPerPage;
     }
 
     private void OnClickBtnClose()
@@ -190,6 +266,7 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
     private void OnClickBtnLogin()
     {
         ClosePage();
+        Global.Instance.uiManager.ShowPage<UserInfoPopup>();
     }
 
     private void OnClickBtnPrevPage()
@@ -199,7 +276,7 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
         }
 
         pageIndex -= 1;
-        RefreshPage();
+        RefreshFriendList(false);
     }
 
     private void OnClickBtnNextPage()
@@ -209,12 +286,22 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
         }
 
         pageIndex += 1;
-        RefreshPage();
+        RefreshFriendList(false);
     }
 
     private void OnClickFriendItem(OgsFriendListItem item)
     {
-        SetText(binder.txt_empty, item == null ? string.Empty : item.username);
+        if (item == null) {
+            return;
+        }
+
+        string username = string.IsNullOrWhiteSpace(item.username) ? "OGS 好友" : item.username.Trim();
+        string message =
+            $"OGS ID: {DisplayValue(item.userId)}\n" +
+            $"地区: {DisplayValue(item.country)}\n" +
+            $"等级: {DisplayValue(item.ratingText)}\n" +
+            $"状态: {DisplayValue(item.statusText)}";
+        ConfirmPopup.ShowTip(username, message, null, "确定");
     }
 
     private bool ApplyCurrentLayoutState(bool force)
@@ -260,6 +347,11 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
         if (button != null) {
             button.interactable = interactable;
         }
+    }
+
+    private static string DisplayValue(string value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "--" : value.Trim();
     }
 
     private static void AddButtonListener(Button button, UnityEngine.Events.UnityAction action)

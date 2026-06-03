@@ -83,12 +83,3 @@ public class OgsFriendItemWidget : UIWidgetWithBinder<OgsFriendItemWidgetUI>
         clickHandler?.Invoke(item);
     }
 }
-
-public sealed class OgsFriendListItem
-{
-    public string userId;
-    public string username;
-    public string country;
-    public string ratingText;
-    public string statusText;
-}

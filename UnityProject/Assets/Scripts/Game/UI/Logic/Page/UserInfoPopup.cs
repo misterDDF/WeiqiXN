@@ -47,8 +47,12 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
         if (binder.btn_open_recent_replays != null) {
             binder.btn_open_recent_replays.onClick.AddListener(OnClickBtnOpenRecentReplays);
         }
-        binder.btn_replay_prev.onClick.AddListener(OnClickBtnReplayPrev);
-        binder.btn_replay_next.onClick.AddListener(OnClickBtnReplayNext);
+        if (binder.btn_replay_prev != null) {
+            binder.btn_replay_prev.onClick.AddListener(OnClickBtnReplayPrev);
+        }
+        if (binder.btn_replay_next != null) {
+            binder.btn_replay_next.onClick.AddListener(OnClickBtnReplayNext);
+        }
     }
 
     protected override void OnOpen()

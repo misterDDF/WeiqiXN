@@ -325,6 +325,43 @@ public sealed class OgsConnectionService : ModuleBase
         }
     }
 
+    public async Task<OgsFriendListResult> RequestFriendListAsync(
+        int page = 1,
+        int pageSize = 20,
+        CancellationToken cancellationToken = default(CancellationToken))
+    {
+        EnsureInitialized();
+        OgsConnectionResult accessResult = await EnsureReadableAccessTokenAsync(cancellationToken);
+        if (!accessResult.success) {
+            return new OgsFriendListResult(false, accessResult.message);
+        }
+
+        string accessToken;
+        lock (sessionLock) {
+            accessToken = session.accessToken;
+        }
+
+        try {
+            page = Math.Max(1, page);
+            pageSize = Mathf.Clamp(pageSize, 1, 100);
+            string url = $"{apiBaseUrl}/api/v1/me/friends/?page={page}&page_size={pageSize}";
+            JToken friendJson = await GetJsonTokenAsync(url, accessToken, cancellationToken);
+            List<OgsFriendListItem> friends = ReadFriendListItems(friendJson);
+            int totalCount = ReadFriendListTotalCount(friendJson, friends.Count);
+            XNLogger.LogInfo(
+                "OGS friend list refreshed.",
+                ("page", page.ToString()),
+                ("pageSize", pageSize.ToString()),
+                ("count", friends.Count.ToString()),
+                ("total", totalCount.ToString()));
+            return new OgsFriendListResult(true, "OGS friend list refreshed.", friends, totalCount);
+        }
+        catch (Exception ex) {
+            XNLogger.LogError("OGS friend list request failed.", ("err", ex.Message));
+            return new OgsFriendListResult(false, ex.Message);
+        }
+    }
+
     public void Logout()
     {
         EnsureInitialized();
@@ -711,6 +748,28 @@ public sealed class OgsConnectionService : ModuleBase
         return new OgsConnectionResult(false, "请先登录 OGS。");
     }
 
+    private async Task<OgsConnectionResult> EnsureReadableAccessTokenAsync(CancellationToken cancellationToken)
+    {
+        string accessToken;
+        bool isExpired;
+        bool canRefresh;
+        lock (sessionLock) {
+            accessToken = session.accessToken;
+            isExpired = session.IsExpired;
+            canRefresh = session.CanRefresh;
+        }
+
+        if (!string.IsNullOrEmpty(accessToken) && !isExpired) {
+            return new OgsConnectionResult(true, "OGS access token is available.");
+        }
+
+        if (canRefresh) {
+            return await RefreshTokenAsync(OgsConnectionConfig.DefaultClientId, cancellationToken);
+        }
+
+        return new OgsConnectionResult(false, "请先登录 OGS。");
+    }
+
     private async Task<string> RequestRealtimeUserJwtAsync(string accessToken, CancellationToken cancellationToken)
     {
         JObject configJson = await GetJsonAsync($"{apiBaseUrl}{OgsConnectionConfig.UiConfigPath}", accessToken, cancellationToken);
@@ -841,6 +900,16 @@ public sealed class OgsConnectionService : ModuleBase
 
     private async Task<JObject> GetJsonAsync(string url, string accessToken, CancellationToken cancellationToken)
     {
+        JToken token = await GetJsonTokenAsync(url, accessToken, cancellationToken);
+        if (token is JObject obj) {
+            return obj;
+        }
+
+        throw new InvalidOperationException($"OGS GET did not return a JSON object: {url}");
+    }
+
+    private async Task<JToken> GetJsonTokenAsync(string url, string accessToken, CancellationToken cancellationToken)
+    {
         using (HttpClient client = CreateHttpClient())
         using (var request = new HttpRequestMessage(HttpMethod.Get, url)) {
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
@@ -850,7 +919,7 @@ public sealed class OgsConnectionService : ModuleBase
                 if (!response.IsSuccessStatusCode) {
                     throw new InvalidOperationException($"OGS GET failed: {(int)response.StatusCode} {response.ReasonPhrase} {TrimForLog(body)}");
                 }
-                return JObject.Parse(body);
+                return string.IsNullOrWhiteSpace(body) ? new JObject() : JToken.Parse(body);
             }
         }
     }
@@ -1646,6 +1715,196 @@ public sealed class OgsConnectionService : ModuleBase
         }
 
         return defaultValue;
+    }
+
+    private static List<OgsFriendListItem> ReadFriendListItems(JToken root)
+    {
+        var result = new List<OgsFriendListItem>();
+        JToken listToken = SelectFriendListToken(root);
+        if (listToken is JArray array) {
+            foreach (JToken token in array) {
+                OgsFriendListItem item = ReadFriendListItem(token);
+                if (item != null) {
+                    result.Add(item);
+                }
+            }
+            return result;
+        }
+
+        if (listToken is JObject obj) {
+            foreach (JProperty property in obj.Properties()) {
+                OgsFriendListItem item = ReadFriendListItem(property.Value);
+                if (item != null) {
+                    result.Add(item);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private static int ReadFriendListTotalCount(JToken root, int fallbackCount)
+    {
+        if (root is JObject obj && obj["count"] != null && int.TryParse(obj["count"].ToString(), out int count)) {
+            return Math.Max(0, count);
+        }
+
+        return Math.Max(0, fallbackCount);
+    }
+
+    private static JToken SelectFriendListToken(JToken root)
+    {
+        if (root == null) {
+            return null;
+        }
+        if (root is JArray) {
+            return root;
+        }
+        if (root is JObject obj) {
+            return obj["results"] ??
+                obj["friends"] ??
+                obj["users"] ??
+                obj["players"] ??
+                obj["items"] ??
+                obj["data"] ??
+                root;
+        }
+
+        return null;
+    }
+
+    private static OgsFriendListItem ReadFriendListItem(JToken token)
+    {
+        JObject wrapper = token as JObject;
+        JObject userJson = SelectFriendUserJson(wrapper);
+        if (userJson == null) {
+            return null;
+        }
+
+        string userId = ReadFirstString(userJson, "id", "user_id", "player_id", "pk", "uid");
+        string username = ReadPlayerName(userJson);
+        if (string.IsNullOrWhiteSpace(userId) && string.IsNullOrWhiteSpace(username)) {
+            return null;
+        }
+
+        return new OgsFriendListItem
+        {
+            userId = userId,
+            username = username,
+            country = ReadFriendCountry(userJson),
+            ratingText = BuildFriendRatingText(userJson),
+            statusText = BuildFriendStatusText(userJson, wrapper),
+        };
+    }
+
+    private static JObject SelectFriendUserJson(JObject wrapper)
+    {
+        if (wrapper == null) {
+            return null;
+        }
+
+        JObject userJson =
+            wrapper["friend"] as JObject ??
+            wrapper["user"] as JObject ??
+            wrapper["player"] as JObject ??
+            wrapper["profile"] as JObject ??
+            wrapper["target"] as JObject;
+        if (HasFriendIdentity(userJson)) {
+            return userJson;
+        }
+
+        return wrapper;
+    }
+
+    private static bool HasFriendIdentity(JObject json)
+    {
+        if (json == null) {
+            return false;
+        }
+
+        return HasNonNullField(json, "id") ||
+            HasNonNullField(json, "user_id") ||
+            HasNonNullField(json, "player_id") ||
+            HasNonNullField(json, "username") ||
+            HasNonNullField(json, "name");
+    }
+
+    private static string ReadFriendCountry(JObject userJson)
+    {
+        string value = ReadFirstString(userJson["country"] as JObject, "code", "name");
+        return string.IsNullOrWhiteSpace(value)
+            ? ReadFirstString(userJson, "country", "country_code", "location")
+            : value;
+    }
+
+    private static string BuildFriendRatingText(JObject userJson)
+    {
+        string rating = ReadRating(userJson["ratings"]?["overall"]) ??
+            ReadRating(userJson["rating"]) ??
+            ReadRating(userJson["ratings"]) ??
+            string.Empty;
+        string ranking = FormatNumericString(ReadFirstString(userJson, "ranking", "rank"));
+
+        if (!string.IsNullOrWhiteSpace(rating) && !string.IsNullOrWhiteSpace(ranking)) {
+            return $"分数 {rating} / 排名 {ranking}";
+        }
+        if (!string.IsNullOrWhiteSpace(rating)) {
+            return $"分数 {rating}";
+        }
+        if (!string.IsNullOrWhiteSpace(ranking)) {
+            return $"排名 {ranking}";
+        }
+
+        return string.Empty;
+    }
+
+    private static string BuildFriendStatusText(JObject userJson, JObject wrapper)
+    {
+        string explicitStatus = ReadFirstString(userJson, "status", "online_status", "availability", "state");
+        if (string.IsNullOrWhiteSpace(explicitStatus) && wrapper != null && wrapper != userJson) {
+            explicitStatus = ReadFirstString(wrapper, "status", "online_status", "availability", "state");
+        }
+        if (!string.IsNullOrWhiteSpace(explicitStatus)) {
+            return explicitStatus;
+        }
+
+        bool hasOnline = TryReadBoolean(userJson, out bool online, "online", "is_online", "isOnline", "connected");
+        if (!hasOnline && wrapper != null && wrapper != userJson) {
+            hasOnline = TryReadBoolean(wrapper, out online, "online", "is_online", "isOnline", "connected");
+        }
+        if (hasOnline) {
+            return online ? "在线" : "离线";
+        }
+
+        string lastOnline = ReadFirstString(userJson, "last_online", "last_seen", "seen_at");
+        if (string.IsNullOrWhiteSpace(lastOnline) && wrapper != null && wrapper != userJson) {
+            lastOnline = ReadFirstString(wrapper, "last_online", "last_seen", "seen_at");
+        }
+        return string.IsNullOrWhiteSpace(lastOnline) ? string.Empty : $"上次在线 {lastOnline}";
+    }
+
+    private static bool TryReadBoolean(JObject json, out bool value, params string[] fieldNames)
+    {
+        value = false;
+        if (json == null || fieldNames == null) {
+            return false;
+        }
+
+        foreach (string fieldName in fieldNames) {
+            JToken token = json[fieldName];
+            if (token == null || token.Type == JTokenType.Null) {
+                continue;
+            }
+            if (token.Type == JTokenType.Boolean) {
+                value = token.ToObject<bool>();
+                return true;
+            }
+            if (bool.TryParse(token.ToString(), out value)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private string NormalizeOgsUrl(string value)
