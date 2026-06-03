@@ -18,6 +18,7 @@ public static class OgsConnectionConfig
     private const int FallbackGameStateSmokeReceiveMilliseconds = 10000;
     private const int FallbackActiveBotsReceiveMilliseconds = 10000;
     private const int FallbackBotGameStateReceiveMilliseconds = 20000;
+    private const int FallbackAutomatchReceiveMilliseconds = 300000;
     private const int FallbackDefaultBotGameBoardSize = 9;
     private const string FallbackDefaultBotGameRules = "japanese";
     private const string FallbackDefaultBotGameName = "Friendly Match";
@@ -37,6 +38,7 @@ public static class OgsConnectionConfig
     public static int GameStateSmokeReceiveMilliseconds => GetInt("gameStateSmokeReceiveMilliseconds", FallbackGameStateSmokeReceiveMilliseconds);
     public static int ActiveBotsReceiveMilliseconds => GetInt("activeBotsReceiveMilliseconds", FallbackActiveBotsReceiveMilliseconds);
     public static int BotGameStateReceiveMilliseconds => GetInt("botGameStateReceiveMilliseconds", FallbackBotGameStateReceiveMilliseconds);
+    public static int AutomatchReceiveMilliseconds => GetInt("automatchReceiveMilliseconds", FallbackAutomatchReceiveMilliseconds);
     public static int DefaultBotGameBoardSize => GetInt("defaultBotGameBoardSize", FallbackDefaultBotGameBoardSize);
     public static string DefaultBotGameRules => GetString("defaultBotGameRules", FallbackDefaultBotGameRules);
     public static string DefaultBotGameName => GetString("defaultBotGameName", FallbackDefaultBotGameName);

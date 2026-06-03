@@ -65,6 +65,15 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         return requestId;
     }
 
+    public static int ShowCancelableBlocking(string title, string content, Action onCancel, string cancelText = null)
+    {
+        int requestId = ++requestSequence;
+        pendingRequest = new ConfirmPopupRequest(requestId, title, content, null, cancelText, null, onCancel, false, false, true);
+        pendingUpdateRequest = null;
+        Global.Instance.uiManager.ShowPage<ConfirmPopup>();
+        return requestId;
+    }
+
     public static int ShowInput(
         string title,
         string content,
@@ -314,6 +323,9 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         }
 
         if (!showConfirmButton) {
+            if (showCancelButton) {
+                cancelRect.anchoredPosition = new Vector2(0f, defaultCancelButtonPosition.y);
+            }
             return;
         }
 

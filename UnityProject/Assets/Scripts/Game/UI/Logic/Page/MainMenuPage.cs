@@ -1,3 +1,4 @@
+using System.Threading;
 using UnityEngine;
 using XNClient.Logger;
 
@@ -111,10 +112,10 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
                 return;
             }
 
-            DuelSetupPopup.OpenForOgs(CreateOgsBotGameWithConfig);
+            DuelSetupPopup.OpenForOgs(StartOgsAutomatchWithConfig);
         }
         catch (System.Exception ex) {
-            XNLogger.LogError("OGS bot game start from main menu failed.", ("err", ex.Message));
+            XNLogger.LogError("OGS game start from main menu failed.", ("err", ex.Message));
             ConfirmPopup.CloseIfOpen(popupRequestId);
             ConfirmPopup.ShowTip("OGS 对战失败", ex.Message, null, "确定");
         }
@@ -149,7 +150,7 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
         binder.btn_ogs_game.interactable = visible && !isOgsGameStarting;
     }
 
-    private async void CreateOgsBotGameWithConfig(DuelSceneCreateParamas duelParams)
+    private async void StartOgsAutomatchWithConfig(DuelSceneCreateParamas duelParams)
     {
         if (isOgsGameStarting || duelParams == null) {
             return;
@@ -164,19 +165,29 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
 
         isOgsGameStarting = true;
         RefreshOgsGameButton(true);
-        OgsBotGameCreateParams createParams = BuildOgsBotGameCreateParams(duelParams);
-        int popupRequestId = ConfirmPopup.ShowBlocking(
+        OgsAutomatchCreateParams createParams = BuildOgsAutomatchCreateParams(duelParams);
+        bool canceledByUser = false;
+        var cancelSource = new CancellationTokenSource();
+        int popupRequestId = ConfirmPopup.ShowCancelableBlocking(
             "OGS 对战",
-            $"正在创建 OGS {createParams.boardSize} 路人机对局...");
+            "寻找对局中...",
+            () => {
+                canceledByUser = true;
+                cancelSource.Cancel();
+            },
+            "取消");
 
         try {
-            OgsBotGameStartResult result = await service.StartBotGameAsync(createParams);
+            OgsBotGameStartResult result = await service.StartAutomatchGameAsync(createParams, cancellationToken: cancelSource.Token);
             if (!result.success) {
+                if (canceledByUser) {
+                    return;
+                }
+
                 XNLogger.LogWarn(
-                    "OGS bot game start failed.",
+                    "OGS automatch game start failed.",
                     ("message", result.message),
-                    ("gameId", result.gameId.ToString()),
-                    ("botId", result.botId.ToString()));
+                    ("gameId", result.gameId.ToString()));
                 ConfirmPopup.CloseIfOpen(popupRequestId);
                 ConfirmPopup.ShowTip("OGS 对战失败", result.message, null, "确定");
                 return;
@@ -186,11 +197,12 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
             EnterOgsDuelScene(result, duelParams);
         }
         catch (System.Exception ex) {
-            XNLogger.LogError("OGS bot game start from setup failed.", ("err", ex.Message));
+            XNLogger.LogError("OGS automatch game start from setup failed.", ("err", ex.Message));
             ConfirmPopup.CloseIfOpen(popupRequestId);
             ConfirmPopup.ShowTip("OGS 对战失败", ex.Message, null, "确定");
         }
         finally {
+            cancelSource.Dispose();
             isOgsGameStarting = false;
             RefreshOgsGameButton(true);
         }
@@ -226,7 +238,7 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
         Global.Instance.sceneManager.EnterMainScene(SceneConfig.OGS_DUEL_SCENE_TYPE_ID, sceneCreateParams);
     }
 
-    private OgsBotGameCreateParams BuildOgsBotGameCreateParams(DuelSceneCreateParamas duelParams)
+    private OgsAutomatchCreateParams BuildOgsAutomatchCreateParams(DuelSceneCreateParamas duelParams)
     {
         ChessBoardDataType boardData = ChessBoardDataType.GetConfigData(duelParams.boardCfgId);
         DuelHoldTimeDataType holdTimeData = DuelHoldTimeDataType.GetConfigData(duelParams.holdTimeCfgId);
@@ -241,17 +253,13 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
         int byoyomiPeriods = byoyomiCountData != null ? byoyomiCountData.count : 0;
         int byoyomiPeriodSeconds = byoyomiTimeData != null ? byoyomiTimeData.seconds : 30;
         int handicap = handicapData != null ? handicapData.handicapCount : 0;
-        float komi = handicapData != null ? handicapData.komi : 7.5f;
 
-        return new OgsBotGameCreateParams(
+        return new OgsAutomatchCreateParams(
             boardSize,
             mainTimeSeconds,
             byoyomiPeriods,
             byoyomiPeriodSeconds,
-            handicap,
-            komi,
-            ResolveOgsChallengerColor(duelParams.playerSideCfgId),
-            OgsConnectionConfig.DefaultBotGameName);
+            handicap);
     }
 
     private string ResolveOgsChallengerColor(string playerSideCfgId)

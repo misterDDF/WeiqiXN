@@ -9170,7 +9170,7 @@ MonoBehaviour:
       elementType: 0
       target: {fileID: 8940267334462367306}
       property:
-        boolValue: 1
+        boolValue: 0
         anchorMin: {x: 0, y: 0}
         anchorMax: {x: 0, y: 0}
         anchoredPosition: {x: 0, y: 0}

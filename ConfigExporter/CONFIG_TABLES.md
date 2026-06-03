@@ -17,7 +17,7 @@
 | `tmp_sprite` | 定义 TextMesh Pro sprite 字符和 sprite asset 相关配置。 |
 | `ui_page` | 定义 UI 页面、弹窗、UI 上下文、加载方式和场景退出时是否自动关闭。 |
 | `lan_room_config` | 定义局域网房间运行参数，包括 UDP 广播端口、TCP 监听端口、连接超时、房间人数上限、广播间隔、读写缓冲区大小、心跳间隔、心跳超时和重连探测间隔；协议字符串由代码枚举约定生成，不放入配表。 |
-| `ogs_config` | 定义 OGS 运行时连接参数，包括 OAuth client id、REST/realtime 端点、OAuth scope、请求/接收超时和默认 9 路 bot 对局参数。 |
+| `ogs_config` | 定义 OGS 运行时连接参数，包括 OAuth client id、REST/realtime 端点、OAuth scope、请求/接收超时、automatch 接收超时和默认 bot smoke 对局参数。 |
 | `message` | 定义运行时 UI 展示文案，包括通用弹窗按钮、Loading 状态、局域网房间状态、对局 HUD 和操作反馈文案。 |
 
 新增或修改配置表时，应先修改 `xlsx/` 下的源表，再通过 `main.py` 导出 JSON 和 C# 数据类型，不直接手改 `DataJson/` 或 `DataType/` 下的生成物。

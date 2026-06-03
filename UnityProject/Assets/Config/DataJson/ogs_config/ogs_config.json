@@ -74,6 +74,11 @@
     "remark": "Bot game gamedata receive timeout in milliseconds",
     "value": "60000"
   },
+  "automatchReceiveMilliseconds": {
+    "key": "automatchReceiveMilliseconds",
+    "remark": "Automatch receive timeout in milliseconds",
+    "value": "300000"
+  },
   "defaultBotGameBoardSize": {
     "key": "defaultBotGameBoardSize",
     "remark": "Default OGS bot game board size",

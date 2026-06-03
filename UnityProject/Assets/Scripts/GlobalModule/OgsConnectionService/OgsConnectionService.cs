@@ -555,6 +555,106 @@ public sealed class OgsConnectionService : ModuleBase
         }
     }
 
+    public async Task<OgsBotGameStartResult> StartAutomatchGameAsync(
+        OgsAutomatchCreateParams createParams,
+        string websocketUrl = null,
+        CancellationToken cancellationToken = default(CancellationToken))
+    {
+        EnsureInitialized();
+        createParams = NormalizeAutomatchCreateParams(createParams);
+        websocketUrl = string.IsNullOrWhiteSpace(websocketUrl) ? OgsConnectionConfig.DefaultWebSocketUrl : websocketUrl.Trim();
+        if (string.IsNullOrWhiteSpace(websocketUrl)) {
+            return new OgsBotGameStartResult(false, "OGS websocket URL is empty.");
+        }
+
+        OgsConnectionResult accessResult = await EnsureUsableAccessTokenAsync(cancellationToken);
+        if (!accessResult.success) {
+            return new OgsBotGameStartResult(false, accessResult.message);
+        }
+
+        string accessToken;
+        lock (sessionLock) {
+            accessToken = session.accessToken;
+        }
+
+        string matchUuid = Guid.NewGuid().ToString("N");
+        int gameId = 0;
+        try {
+            string userJwt = await RequestRealtimeUserJwtAsync(accessToken, cancellationToken);
+            if (string.IsNullOrEmpty(userJwt)) {
+                return new OgsBotGameStartResult(false, "OGS ui config did not include user_jwt.");
+            }
+
+            using (var websocket = new ClientWebSocket()) {
+                await websocket.ConnectAsync(new Uri(websocketUrl.Trim()), cancellationToken);
+                await SendRealtimePayloadAsync(websocket, BuildRealtimeAuthenticatePayload(userJwt), cancellationToken);
+                await SendRealtimePayloadAsync(websocket, BuildAutomatchFindMatchPayload(createParams, matchUuid), cancellationToken);
+
+                OgsAutomatchStartSelection match;
+                try {
+                    match = await WaitForAutomatchStartAsync(
+                        websocket,
+                        matchUuid,
+                        OgsConnectionConfig.AutomatchReceiveMilliseconds,
+                        cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                    await TryCancelAutomatchAsync(websocket, matchUuid);
+                    return new OgsBotGameStartResult(false, "OGS automatch canceled.", isBotGame: false);
+                }
+
+                if (match.gameId <= 0) {
+                    await TryCancelAutomatchAsync(websocket, matchUuid);
+                    return new OgsBotGameStartResult(false, match.message, rawResponse: match.rawMessage);
+                }
+
+                gameId = match.gameId;
+                await SendRealtimePayloadAsync(websocket, BuildGameConnectPayload(gameId), cancellationToken);
+                OgsGameStateSmokeResult gameState = await WaitForGameDataAsync(
+                    websocket,
+                    gameId,
+                    OgsConnectionConfig.GameStateSmokeReceiveMilliseconds,
+                    cancellationToken);
+                if (!gameState.success) {
+                    XNLogger.LogWarn(
+                        "OGS automatch game found, but game data was not received.",
+                        ("gameId", gameId.ToString()),
+                        ("message", gameState.message),
+                        ("lastMessage", gameState.rawMessage),
+                        ("rawMatch", match.rawMessage));
+                    return new OgsBotGameStartResult(
+                        false,
+                        $"OGS automatch game found, but game data was not received: {gameState.message}",
+                        gameId: gameId,
+                        gameState: gameState,
+                        rawResponse: match.rawMessage,
+                        isBotGame: false);
+                }
+
+                XNLogger.LogInfo(
+                    "OGS automatch game started.",
+                    ("gameId", gameId.ToString()),
+                    ("requestedBoard", $"{createParams.boardSize}x{createParams.boardSize}"),
+                    ("speed", ResolveAutomatchSpeed(createParams.mainTimeSeconds)),
+                    ("system", ResolveAutomatchSystem(createParams)));
+                return new OgsBotGameStartResult(
+                    true,
+                    "OGS automatch game found and game data received.",
+                    gameId: gameId,
+                    gameState: gameState,
+                    rawResponse: match.rawMessage,
+                    isBotGame: false);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            return new OgsBotGameStartResult(false, "OGS automatch canceled.", gameId: gameId, isBotGame: false);
+        }
+        catch (Exception ex) {
+            XNLogger.LogError("OGS automatch start failed.", ("gameId", gameId.ToString()), ("err", ex.Message));
+            return new OgsBotGameStartResult(false, ex.Message, gameId: gameId, isBotGame: false);
+        }
+    }
+
     public async Task<OgsBotGameStartResult> StartOrLoadDefaultBotGameAsync(
         string websocketUrl = null,
         CancellationToken cancellationToken = default(CancellationToken))
@@ -982,6 +1082,55 @@ public sealed class OgsConnectionService : ModuleBase
         return payload.ToString(Newtonsoft.Json.Formatting.None);
     }
 
+    private static string BuildAutomatchFindMatchPayload(OgsAutomatchCreateParams createParams, string matchUuid)
+    {
+        createParams = NormalizeAutomatchCreateParams(createParams);
+        var payload = new JArray
+        {
+            "automatch/find_match",
+            new JObject
+            {
+                ["uuid"] = matchUuid,
+                ["size_speed_options"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["size"] = $"{createParams.boardSize}x{createParams.boardSize}",
+                        ["speed"] = ResolveAutomatchSpeed(createParams.mainTimeSeconds),
+                        ["system"] = ResolveAutomatchSystem(createParams),
+                    },
+                },
+                ["timestamp"] = GetUnixMilliseconds(),
+                ["lower_rank_diff"] = Math.Max(0, createParams.lowerRankDiff),
+                ["upper_rank_diff"] = Math.Max(0, createParams.upperRankDiff),
+                ["rules"] = new JObject
+                {
+                    ["condition"] = "required",
+                    ["value"] = OgsConnectionConfig.DefaultBotGameRules,
+                },
+                ["handicap"] = new JObject
+                {
+                    ["condition"] = "preferred",
+                    ["value"] = createParams.handicap > 0 ? "enabled" : "disabled",
+                },
+            },
+        };
+        return payload.ToString(Newtonsoft.Json.Formatting.None);
+    }
+
+    private static string BuildAutomatchCancelPayload(string matchUuid)
+    {
+        var payload = new JArray
+        {
+            "automatch/cancel",
+            new JObject
+            {
+                ["uuid"] = matchUuid ?? string.Empty,
+            },
+        };
+        return payload.ToString(Newtonsoft.Json.Formatting.None);
+    }
+
     private static OgsBotGameCreateParams NormalizeBotGameCreateParams(OgsBotGameCreateParams createParams)
     {
         createParams = createParams ?? OgsBotGameCreateParams.Default;
@@ -1003,6 +1152,26 @@ public sealed class OgsConnectionService : ModuleBase
             createParams.komi,
             challengerColor,
             gameName);
+    }
+
+    private static OgsAutomatchCreateParams NormalizeAutomatchCreateParams(OgsAutomatchCreateParams createParams)
+    {
+        createParams = createParams ?? OgsAutomatchCreateParams.Default;
+        int boardSize = NormalizeAutomatchBoardSize(createParams.boardSize);
+        int mainTimeSeconds = createParams.mainTimeSeconds > 0 ? createParams.mainTimeSeconds : OgsAutomatchCreateParams.Default.mainTimeSeconds;
+        int byoyomiPeriods = Math.Max(0, createParams.byoyomiPeriods);
+        int byoyomiPeriodSeconds = Math.Max(0, createParams.byoyomiPeriodSeconds);
+        int handicap = Math.Max(0, createParams.handicap);
+        int lowerRankDiff = Math.Max(0, createParams.lowerRankDiff);
+        int upperRankDiff = Math.Max(0, createParams.upperRankDiff);
+        return new OgsAutomatchCreateParams(
+            boardSize,
+            mainTimeSeconds,
+            byoyomiPeriods,
+            byoyomiPeriodSeconds,
+            handicap,
+            lowerRankDiff,
+            upperRankDiff);
     }
 
     private static JObject BuildBotChallengePayload(OgsBotGameCreateParams createParams)
@@ -1093,6 +1262,43 @@ public sealed class OgsConnectionService : ModuleBase
             return "white";
         }
         return "automatic";
+    }
+
+    private static int NormalizeAutomatchBoardSize(int boardSize)
+    {
+        if (boardSize == 9 || boardSize == 13 || boardSize == 19) {
+            return boardSize;
+        }
+
+        int fallback = OgsConnectionConfig.DefaultBotGameBoardSize;
+        return fallback == 9 || fallback == 13 || fallback == 19 ? fallback : 19;
+    }
+
+    private static string ResolveAutomatchSpeed(int mainTimeSeconds)
+    {
+        if (mainTimeSeconds > 0 && mainTimeSeconds <= 120) {
+            return "blitz";
+        }
+        if (mainTimeSeconds > 0 && mainTimeSeconds <= 600) {
+            return "rapid";
+        }
+
+        return "live";
+    }
+
+    private static string ResolveAutomatchSystem(OgsAutomatchCreateParams createParams)
+    {
+        if (createParams != null && createParams.byoyomiPeriods > 0 && createParams.byoyomiPeriodSeconds > 0) {
+            return "byoyomi";
+        }
+
+        return "fischer";
+    }
+
+    private static long GetUnixMilliseconds()
+    {
+        DateTime epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        return (long)(DateTime.UtcNow - epoch).TotalMilliseconds;
     }
 
     private static async Task SendRealtimePayloadAsync(ClientWebSocket websocket, string payload, CancellationToken cancellationToken)
@@ -1242,6 +1448,55 @@ public sealed class OgsConnectionService : ModuleBase
         return null;
     }
 
+    private static async Task<OgsAutomatchStartSelection> WaitForAutomatchStartAsync(
+        ClientWebSocket websocket,
+        string matchUuid,
+        int timeoutMilliseconds,
+        CancellationToken cancellationToken)
+    {
+        using (var receiveCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)) {
+            receiveCancellation.CancelAfter(Math.Max(1000, timeoutMilliseconds));
+            try {
+                while (websocket.State == WebSocketState.Open || websocket.State == WebSocketState.CloseReceived) {
+                    string message = await ReceiveRealtimeMessageAsync(websocket, receiveCancellation.Token);
+                    OgsAutomatchStartSelection match = TryParseAutomatchStartMessage(message, matchUuid);
+                    if (match.gameId > 0) {
+                        return match;
+                    }
+
+                    string cancelMessage = TryParseAutomatchCancelMessage(message, matchUuid);
+                    if (!string.IsNullOrEmpty(cancelMessage)) {
+                        return new OgsAutomatchStartSelection(0, cancelMessage, TrimForLog(message));
+                    }
+
+                    string errorMessage = TryParseRealtimeErrorMessage(message);
+                    if (!string.IsNullOrEmpty(errorMessage)) {
+                        return new OgsAutomatchStartSelection(0, errorMessage, TrimForLog(message));
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
+                return new OgsAutomatchStartSelection(0, "OGS automatch timed out.", string.Empty);
+            }
+        }
+
+        return new OgsAutomatchStartSelection(0, "OGS automatch websocket closed before a game was found.", string.Empty);
+    }
+
+    private static async Task TryCancelAutomatchAsync(ClientWebSocket websocket, string matchUuid)
+    {
+        if (websocket == null || websocket.State != WebSocketState.Open || string.IsNullOrWhiteSpace(matchUuid)) {
+            return;
+        }
+
+        try {
+            await SendRealtimePayloadAsync(websocket, BuildAutomatchCancelPayload(matchUuid), CancellationToken.None);
+        }
+        catch (Exception ex) {
+            XNLogger.LogWarn("OGS automatch cancel failed.", ("uuid", matchUuid), ("err", ex.Message));
+        }
+    }
+
     private static async Task<string> ReceiveRealtimeMessageAsync(ClientWebSocket websocket, CancellationToken cancellationToken)
     {
         byte[] buffer = new byte[8192];
@@ -1329,6 +1584,106 @@ public sealed class OgsConnectionService : ModuleBase
         }
 
         return envelope[1] as JObject;
+    }
+
+    private static OgsAutomatchStartSelection TryParseAutomatchStartMessage(string message, string matchUuid)
+    {
+        JArray envelope = TryParseArray(message);
+        if (envelope == null || envelope.Count < 2) {
+            return default(OgsAutomatchStartSelection);
+        }
+
+        string channel = envelope[0]?.ToString() ?? string.Empty;
+        JObject payload = envelope[1] as JObject;
+        if (payload == null) {
+            return default(OgsAutomatchStartSelection);
+        }
+
+        if (channel == "automatch/start") {
+            string payloadUuid = ReadFirstString(payload, "uuid");
+            if (!string.IsNullOrWhiteSpace(matchUuid) &&
+                !string.IsNullOrWhiteSpace(payloadUuid) &&
+                !string.Equals(matchUuid, payloadUuid, StringComparison.OrdinalIgnoreCase)) {
+                return default(OgsAutomatchStartSelection);
+            }
+
+            int gameId = ReadGameIdFromAutomatchPayload(payload);
+            return gameId > 0
+                ? new OgsAutomatchStartSelection(gameId, "OGS automatch game found.", TrimForLog(message))
+                : new OgsAutomatchStartSelection(0, "OGS automatch start did not include a game id.", TrimForLog(message));
+        }
+
+        if (channel == "active_game") {
+            int gameId = ReadGameIdFromAutomatchPayload(payload);
+            if (gameId > 0) {
+                return new OgsAutomatchStartSelection(gameId, "OGS active game found.", TrimForLog(message));
+            }
+        }
+
+        return default(OgsAutomatchStartSelection);
+    }
+
+    private static string TryParseAutomatchCancelMessage(string message, string matchUuid)
+    {
+        JArray envelope = TryParseArray(message);
+        if (envelope == null || envelope.Count < 2) {
+            return string.Empty;
+        }
+
+        string channel = envelope[0]?.ToString() ?? string.Empty;
+        if (channel != "automatch/cancel") {
+            return string.Empty;
+        }
+
+        JObject payload = envelope[1] as JObject;
+        string payloadUuid = ReadFirstString(payload, "uuid");
+        if (!string.IsNullOrWhiteSpace(matchUuid) &&
+            !string.IsNullOrWhiteSpace(payloadUuid) &&
+            !string.Equals(matchUuid, payloadUuid, StringComparison.OrdinalIgnoreCase)) {
+            return string.Empty;
+        }
+
+        string messageText = ReadFirstString(payload, "message", "reason", "error");
+        return string.IsNullOrEmpty(messageText)
+            ? "OGS automatch was canceled."
+            : $"OGS automatch was canceled: {TrimForLog(messageText)}";
+    }
+
+    private static string TryParseRealtimeErrorMessage(string message)
+    {
+        JArray envelope = TryParseArray(message);
+        if (envelope == null || envelope.Count < 2) {
+            return string.Empty;
+        }
+
+        string channel = envelope[0]?.ToString() ?? string.Empty;
+        if (!string.Equals(channel, "ERROR", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(channel, "error", StringComparison.OrdinalIgnoreCase)) {
+            return string.Empty;
+        }
+
+        return $"OGS realtime error: {TrimForLog(envelope[1]?.ToString(Newtonsoft.Json.Formatting.None) ?? string.Empty)}";
+    }
+
+    private static int ReadGameIdFromAutomatchPayload(JObject payload)
+    {
+        if (payload == null) {
+            return 0;
+        }
+
+        int gameId = ReadFirstInt(payload, "game_id", "gameId", "id");
+        if (gameId > 0) {
+            return gameId;
+        }
+
+        JObject game = payload["game"] as JObject;
+        gameId = ReadFirstInt(game, "id", "game_id", "gameId");
+        if (gameId > 0) {
+            return gameId;
+        }
+
+        JObject body = payload["body"] as JObject;
+        return ReadFirstInt(body, "game_id", "gameId", "id");
     }
 
     private static bool TryParseGameOfferRejectedMessage(JArray envelope, int gameId, out string message)
@@ -1887,6 +2242,20 @@ public sealed class OgsConnectionService : ModuleBase
             this.boardHeight = boardHeight;
             this.opponentIsBot = opponentIsBot;
             this.rawResponse = rawResponse ?? string.Empty;
+        }
+    }
+
+    private struct OgsAutomatchStartSelection
+    {
+        public readonly int gameId;
+        public readonly string message;
+        public readonly string rawMessage;
+
+        public OgsAutomatchStartSelection(int gameId, string message, string rawMessage)
+        {
+            this.gameId = gameId;
+            this.message = message ?? string.Empty;
+            this.rawMessage = rawMessage ?? string.Empty;
         }
     }
 }

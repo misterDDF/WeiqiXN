@@ -203,3 +203,39 @@ public sealed class OgsBotGameCreateParams
         "automatic",
         OgsConnectionConfig.DefaultBotGameName);
 }
+
+public sealed class OgsAutomatchCreateParams
+{
+    public readonly int boardSize;
+    public readonly int mainTimeSeconds;
+    public readonly int byoyomiPeriods;
+    public readonly int byoyomiPeriodSeconds;
+    public readonly int handicap;
+    public readonly int lowerRankDiff;
+    public readonly int upperRankDiff;
+
+    public OgsAutomatchCreateParams(
+        int boardSize,
+        int mainTimeSeconds,
+        int byoyomiPeriods,
+        int byoyomiPeriodSeconds,
+        int handicap,
+        int lowerRankDiff = 3,
+        int upperRankDiff = 3)
+    {
+        this.boardSize = boardSize;
+        this.mainTimeSeconds = mainTimeSeconds;
+        this.byoyomiPeriods = byoyomiPeriods;
+        this.byoyomiPeriodSeconds = byoyomiPeriodSeconds;
+        this.handicap = handicap;
+        this.lowerRankDiff = lowerRankDiff;
+        this.upperRankDiff = upperRankDiff;
+    }
+
+    public static OgsAutomatchCreateParams Default => new OgsAutomatchCreateParams(
+        OgsConnectionConfig.DefaultBotGameBoardSize,
+        600,
+        5,
+        30,
+        0);
+}
