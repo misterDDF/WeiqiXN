@@ -25,6 +25,16 @@ public sealed class OgsSession
     public DateTime expiresAtUtc;
     public string userId;
     public string username;
+    public string avatarUrl;
+    public string country;
+    public string registeredAt;
+    public string tags;
+    public string about;
+    public string ratingOverall;
+    public string ranking;
+    public string rating19;
+    public string rating13;
+    public string rating9;
 
     public bool HasAccessToken => !string.IsNullOrEmpty(accessToken);
 
@@ -43,6 +53,16 @@ public sealed class OgsSession
         expiresAtUtc = DateTime.MinValue;
         userId = string.Empty;
         username = string.Empty;
+        avatarUrl = string.Empty;
+        country = string.Empty;
+        registeredAt = string.Empty;
+        tags = string.Empty;
+        about = string.Empty;
+        ratingOverall = string.Empty;
+        ranking = string.Empty;
+        rating19 = string.Empty;
+        rating13 = string.Empty;
+        rating9 = string.Empty;
     }
 }
 

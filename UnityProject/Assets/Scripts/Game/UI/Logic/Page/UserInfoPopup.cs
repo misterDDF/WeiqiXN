@@ -1,5 +1,8 @@
+using System.Collections;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
+using UnityEngine.Networking;
 using XNClient.Logger;
 
 public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
@@ -13,6 +16,10 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
     private bool hasAppliedLayoutState;
     private bool lastPortraitLayout;
     private bool isOgsLoginRunning;
+    private bool isOgsProfileRefreshRunning;
+    private Coroutine ogsAvatarDownloadCoroutine;
+    private Sprite ogsAvatarSprite;
+    private string ogsAvatarSpriteUrl;
 
     public override string pageName => UIPage.GetPageName<UserInfoPopup>();
 
@@ -25,6 +32,15 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
         binder.btn_close.onClick.AddListener(OnClickBtnClose);
         binder.btn_edit_name.onClick.AddListener(OnClickBtnEditName);
         binder.btn_login_ogs.onClick.AddListener(OnClickBtnLoginOgs);
+        if (binder.btn_ogs_refresh != null) {
+            binder.btn_ogs_refresh.onClick.AddListener(OnClickBtnRefreshOgs);
+        }
+        if (binder.btn_ogs_logout != null) {
+            binder.btn_ogs_logout.onClick.AddListener(OnClickBtnLogoutOgs);
+        }
+        if (binder.btn_ogs_retry != null) {
+            binder.btn_ogs_retry.onClick.AddListener(OnClickBtnRefreshOgs);
+        }
         binder.btn_replay_prev.onClick.AddListener(OnClickBtnReplayPrev);
         binder.btn_replay_next.onClick.AddListener(OnClickBtnReplayNext);
     }
@@ -35,6 +51,7 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
 
         ApplyCurrentLayoutState(false);
         RefreshUserInfo();
+        RefreshOgsAccountFromSession();
         RefreshReplayItems();
         SetSaveTip(string.Empty);
     }
@@ -49,6 +66,7 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
     protected override void OnClose()
     {
         ClearReplayItemWidgets();
+        StopOgsAvatarDownload();
         base.OnClose();
     }
 
@@ -82,47 +100,46 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
     private async void OnClickBtnLoginOgs()
     {
         XNLogger.LogInfo("OGS login button clicked.");
-        if (isOgsLoginRunning) {
+        if (isOgsLoginRunning || isOgsProfileRefreshRunning) {
             return;
         }
 
         OgsConnectionService service = Global.Instance.ogsConnectionService;
         if (service == null) {
             SetSaveTip("OGS 登录服务不可用");
+            SetOgsError("OGS 登录服务不可用");
             return;
         }
 
         isOgsLoginRunning = true;
-        SetOgsLoginButtonInteractable(false);
+        SetOgsButtonsInteractable(false);
+        SetOgsState(UserInfoPopupUI.SrOgsAccountState.Loading);
+        SetText(binder.txt_ogs_loading, "正在打开 OGS 登录...");
         SetSaveTip("正在打开 OGS 登录...");
 
         try {
             OgsConnectionResult result = await service.LoginWithBrowserCallbackAsync();
             if (!result.success) {
                 SetSaveTip($"OGS 登录失败：{result.message}");
+                SetOgsError(result.message);
                 ConfirmPopup.ShowTip("OGS 登录失败", result.message, null, "确定");
                 return;
             }
 
             OgsSession session = service.Session;
             string ogsName = session.DisplayName;
-            if (!string.IsNullOrWhiteSpace(ogsName)) {
-                User.Instance.compUserInfo.Rename(ogsName);
-                User.Instance.Save();
-                Global.Instance.lanRoomService?.SyncLocalPlayerProfile();
-            }
-
-            RefreshUserInfo();
+            ApplyOgsSession(session);
             SetSaveTip(string.IsNullOrWhiteSpace(ogsName) ? "OGS 登录成功" : $"已登录 OGS：{ogsName}");
         }
         catch (System.Exception ex) {
             XNLogger.LogError("OGS login from user info popup failed.", ("err", ex.Message));
             SetSaveTip($"OGS 登录失败：{ex.Message}");
+            SetOgsError(ex.Message);
             ConfirmPopup.ShowTip("OGS 登录失败", ex.Message, null, "确定");
         }
         finally {
             isOgsLoginRunning = false;
-            SetOgsLoginButtonInteractable(true);
+            SetOgsButtonsInteractable(true);
         }
     }
 
@@ -144,10 +161,247 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
         }
     }
 
-    private void SetOgsLoginButtonInteractable(bool interactable)
+    private async void OnClickBtnRefreshOgs()
+    {
+        if (isOgsLoginRunning || isOgsProfileRefreshRunning) {
+            return;
+        }
+
+        OgsConnectionService service = Global.Instance.ogsConnectionService;
+        if (service == null) {
+            SetOgsError("OGS 登录服务不可用");
+            SetSaveTip("OGS 登录服务不可用");
+            return;
+        }
+
+        OgsSession session = service.Session;
+        if (session == null || (!session.HasAccessToken && !session.CanRefresh)) {
+            RefreshOgsAccountFromSession();
+            SetSaveTip("尚未登录 OGS");
+            return;
+        }
+
+        isOgsProfileRefreshRunning = true;
+        SetOgsButtonsInteractable(false);
+        SetOgsState(UserInfoPopupUI.SrOgsAccountState.Loading);
+        SetText(binder.txt_ogs_loading, "正在刷新 OGS 用户信息...");
+        SetSaveTip("正在刷新 OGS 用户信息...");
+
+        try {
+            if ((!session.HasAccessToken || session.IsExpired) && session.CanRefresh) {
+                OgsConnectionResult tokenResult = await service.RefreshTokenAsync(OgsConnectionConfig.DefaultClientId);
+                if (!tokenResult.success) {
+                    SetOgsError(tokenResult.message);
+                    SetSaveTip($"OGS 刷新失败：{tokenResult.message}");
+                    return;
+                }
+            }
+
+            OgsConnectionResult result = await service.RefreshCurrentUserAsync();
+            if (!result.success) {
+                SetOgsError(result.message);
+                SetSaveTip($"OGS 刷新失败：{result.message}");
+                return;
+            }
+
+            ApplyOgsSession(service.Session);
+            SetSaveTip("OGS 用户信息已刷新");
+        }
+        catch (System.Exception ex) {
+            XNLogger.LogError("Refresh OGS user info from user info popup failed.", ("err", ex.Message));
+            SetOgsError(ex.Message);
+            SetSaveTip($"OGS 刷新失败：{ex.Message}");
+        }
+        finally {
+            isOgsProfileRefreshRunning = false;
+            SetOgsButtonsInteractable(true);
+        }
+    }
+
+    private void OnClickBtnLogoutOgs()
+    {
+        OgsConnectionService service = Global.Instance.ogsConnectionService;
+        if (service == null) {
+            SetOgsError("OGS 登录服务不可用");
+            SetSaveTip("OGS 登录服务不可用");
+            return;
+        }
+
+        service.Logout();
+        RefreshOgsAccountFromSession();
+        SetSaveTip("已退出 OGS");
+    }
+
+    private void RefreshOgsAccountFromSession()
+    {
+        OgsConnectionService service = Global.Instance.ogsConnectionService;
+        if (service == null || !service.HasSession) {
+            ApplyOgsLoggedOut();
+            return;
+        }
+
+        ApplyOgsSession(service.Session);
+    }
+
+    private void ApplyOgsLoggedOut()
+    {
+        StopOgsAvatarDownload();
+        ClearOgsAvatar();
+        SetOgsState(UserInfoPopupUI.SrOgsAccountState.LoggedOut);
+        SetText(binder.txt_ogs_username, "尚未登录 OGS");
+        SetText(binder.txt_ogs_id, "OGS ID: --");
+        SetText(binder.txt_ogs_country, "地区: --");
+        SetText(binder.txt_ogs_registered, "注册: --");
+        SetText(binder.txt_ogs_tags, "标签: --");
+        SetText(binder.txt_ogs_about, "简介: --");
+        SetText(binder.txt_ogs_rating_overall, "综合: --");
+        SetText(binder.txt_ogs_ranking, "排名: --");
+        SetText(binder.txt_ogs_rating_19, "19路 --");
+        SetText(binder.txt_ogs_rating_13, "13路 --");
+        SetText(binder.txt_ogs_rating_9, "9路 --");
+        SetText(binder.txt_ogs_friend_summary, "登录后可使用 OGS 好友入口");
+    }
+
+    private void ApplyOgsSession(OgsSession session)
+    {
+        if (session == null || (!session.HasAccessToken && !session.CanRefresh)) {
+            ApplyOgsLoggedOut();
+            return;
+        }
+
+        SetOgsState(UserInfoPopupUI.SrOgsAccountState.LoggedIn);
+        SetText(binder.txt_ogs_username, DisplayValue(session.DisplayName, "OGS 用户"));
+        SetText(binder.txt_ogs_id, $"OGS ID: {DisplayValue(session.userId)}");
+        SetText(binder.txt_ogs_country, $"地区: {DisplayValue(session.country)}");
+        SetText(binder.txt_ogs_registered, $"注册: {DisplayValue(session.registeredAt)}");
+        SetText(binder.txt_ogs_tags, $"标签: {DisplayValue(session.tags)}");
+        SetText(binder.txt_ogs_about, $"简介: {DisplayValue(session.about)}");
+        SetText(binder.txt_ogs_rating_overall, $"综合: {DisplayValue(session.ratingOverall)}");
+        SetText(binder.txt_ogs_ranking, $"排名: {DisplayValue(session.ranking)}");
+        SetText(binder.txt_ogs_rating_19, $"19路 {DisplayValue(session.rating19)}");
+        SetText(binder.txt_ogs_rating_13, $"13路 {DisplayValue(session.rating13)}");
+        SetText(binder.txt_ogs_rating_9, $"9路 {DisplayValue(session.rating9)}");
+        SetText(binder.txt_ogs_friend_summary, "好友列表入口已预留");
+        StartOgsAvatarDownload(session.avatarUrl);
+    }
+
+    private void SetOgsError(string message)
+    {
+        StopOgsAvatarDownload();
+        ClearOgsAvatar();
+        SetText(binder.txt_ogs_error, string.IsNullOrWhiteSpace(message) ? "OGS 信息读取失败" : message);
+        SetOgsState(UserInfoPopupUI.SrOgsAccountState.Error);
+    }
+
+    private void SetOgsState(UserInfoPopupUI.SrOgsAccountState state)
+    {
+        if (binder.sr_ogs_account != null) {
+            binder.SetSrOgsAccountState(state, true);
+        }
+    }
+
+    private void SetOgsButtonsInteractable(bool interactable)
     {
         if (binder.btn_login_ogs != null) {
             binder.btn_login_ogs.interactable = interactable;
+        }
+        if (binder.btn_ogs_refresh != null) {
+            binder.btn_ogs_refresh.interactable = interactable;
+        }
+        if (binder.btn_ogs_logout != null) {
+            binder.btn_ogs_logout.interactable = interactable;
+        }
+        if (binder.btn_ogs_retry != null) {
+            binder.btn_ogs_retry.interactable = interactable;
+        }
+    }
+
+    private void StartOgsAvatarDownload(string avatarUrl)
+    {
+        if (string.IsNullOrWhiteSpace(avatarUrl)) {
+            StopOgsAvatarDownload();
+            ClearOgsAvatar();
+            return;
+        }
+
+        string safeUrl = avatarUrl.Trim();
+        if (safeUrl == ogsAvatarSpriteUrl && ogsAvatarSprite != null) {
+            return;
+        }
+
+        StopOgsAvatarDownload();
+        ogsAvatarSpriteUrl = safeUrl;
+        if (binder != null) {
+            ogsAvatarDownloadCoroutine = binder.StartCoroutine(DownloadOgsAvatar(safeUrl));
+        }
+    }
+
+    private IEnumerator DownloadOgsAvatar(string avatarUrl)
+    {
+        using (UnityWebRequest request = UnityWebRequestTexture.GetTexture(avatarUrl)) {
+            yield return request.SendWebRequest();
+
+            ogsAvatarDownloadCoroutine = null;
+            if (request.result != UnityWebRequest.Result.Success) {
+                XNLogger.LogWarn("Download OGS avatar failed.", ("url", avatarUrl), ("err", request.error ?? string.Empty));
+                yield break;
+            }
+
+            if (avatarUrl != ogsAvatarSpriteUrl || binder.img_ogs_avatar == null) {
+                yield break;
+            }
+
+            Texture2D texture = DownloadHandlerTexture.GetContent(request);
+            if (texture == null) {
+                yield break;
+            }
+
+            ClearOgsAvatar();
+            ogsAvatarSpriteUrl = avatarUrl;
+            ogsAvatarSprite = Sprite.Create(
+                texture,
+                new Rect(0f, 0f, texture.width, texture.height),
+                new Vector2(0.5f, 0.5f));
+            binder.img_ogs_avatar.sprite = ogsAvatarSprite;
+            binder.img_ogs_avatar.preserveAspect = true;
+            binder.img_ogs_avatar.color = Color.white;
+        }
+    }
+
+    private void StopOgsAvatarDownload()
+    {
+        if (ogsAvatarDownloadCoroutine != null && binder != null) {
+            binder.StopCoroutine(ogsAvatarDownloadCoroutine);
+            ogsAvatarDownloadCoroutine = null;
+        }
+    }
+
+    private void ClearOgsAvatar()
+    {
+        ogsAvatarSpriteUrl = string.Empty;
+        if (binder.img_ogs_avatar != null) {
+            binder.img_ogs_avatar.sprite = null;
+            binder.img_ogs_avatar.color = new Color(0.78f, 0.62f, 0.28f, 1f);
+        }
+
+        if (ogsAvatarSprite != null) {
+            if (ogsAvatarSprite.texture != null) {
+                UnityEngine.Object.Destroy(ogsAvatarSprite.texture);
+            }
+            UnityEngine.Object.Destroy(ogsAvatarSprite);
+            ogsAvatarSprite = null;
+        }
+    }
+
+    private static string DisplayValue(string value, string fallback = "--")
+    {
+        return string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+    }
+
+    private static void SetText(TextMeshProUGUI text, string value)
+    {
+        if (text != null) {
+            text.text = value ?? string.Empty;
         }
     }
 
@@ -167,8 +421,8 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
         hasAppliedLayoutState = true;
         lastPortraitLayout = isPortrait;
 
-        if (!force && replayItems.Count > 0) {
-            RefreshReplayPage();
+        if (!force) {
+            SetRecentReplaysSummary();
         }
     }
 
@@ -185,7 +439,27 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
         }
 
         replayPageIndex = 0;
-        RefreshReplayPage();
+        ClearReplayItemWidgets();
+        SetReplayEmptyVisible(false);
+        SetReplayPageText("0 / 0");
+        SetReplayButtonState(false, false);
+        SetRecentReplaysSummary();
+    }
+
+    private void SetRecentReplaysSummary()
+    {
+        if (binder.txt_recent_replays_summary == null) {
+            return;
+        }
+
+        if (replayLoadFailed) {
+            binder.txt_recent_replays_summary.text = "最近对局读取失败";
+            return;
+        }
+
+        binder.txt_recent_replays_summary.text = replayItems.Count <= 0
+            ? "暂无本地最近对局"
+            : $"共有 {replayItems.Count} 条本地最近对局";
     }
 
     private void RefreshReplayPage()
