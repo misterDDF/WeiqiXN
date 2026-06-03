@@ -2,21 +2,25 @@
   "10s": {
     "id": "10s",
     "displayName": "10秒",
-    "seconds": 10
+    "seconds": 10,
+    "ogsEnabled": true
   },
   "20s": {
     "id": "20s",
     "displayName": "20秒",
-    "seconds": 20
+    "seconds": 20,
+    "ogsEnabled": true
   },
   "30s": {
     "id": "30s",
     "displayName": "30秒",
-    "seconds": 30
+    "seconds": 30,
+    "ogsEnabled": true
   },
   "60s": {
     "id": "60s",
     "displayName": "60秒",
-    "seconds": 60
+    "seconds": 60,
+    "ogsEnabled": true
   }
 }

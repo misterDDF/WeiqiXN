@@ -43,6 +43,7 @@ public class DuelSetupPopupUI : UIBinderBase
 		Local = 0,
 		Ai = 1,
 		Lan = 2,
+		Ogs = 3,
 	}
 
 	public void SetSrPlatformState(SrPlatformState state, bool force = false)

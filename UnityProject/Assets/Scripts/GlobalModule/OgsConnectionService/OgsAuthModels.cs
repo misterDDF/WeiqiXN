@@ -161,3 +161,45 @@ public sealed class OgsBotGameStartResult
         this.isBotGame = isBotGame;
     }
 }
+
+public sealed class OgsBotGameCreateParams
+{
+    public readonly int boardSize;
+    public readonly int mainTimeSeconds;
+    public readonly int byoyomiPeriods;
+    public readonly int byoyomiPeriodSeconds;
+    public readonly int handicap;
+    public readonly float komi;
+    public readonly string challengerColor;
+    public readonly string gameName;
+
+    public OgsBotGameCreateParams(
+        int boardSize,
+        int mainTimeSeconds,
+        int byoyomiPeriods,
+        int byoyomiPeriodSeconds,
+        int handicap,
+        float komi,
+        string challengerColor,
+        string gameName = "")
+    {
+        this.boardSize = boardSize;
+        this.mainTimeSeconds = mainTimeSeconds;
+        this.byoyomiPeriods = byoyomiPeriods;
+        this.byoyomiPeriodSeconds = byoyomiPeriodSeconds;
+        this.handicap = handicap;
+        this.komi = komi;
+        this.challengerColor = challengerColor ?? string.Empty;
+        this.gameName = gameName ?? string.Empty;
+    }
+
+    public static OgsBotGameCreateParams Default => new OgsBotGameCreateParams(
+        OgsConnectionConfig.DefaultBotGameBoardSize,
+        600,
+        5,
+        30,
+        0,
+        7.5f,
+        "automatic",
+        OgsConnectionConfig.DefaultBotGameName);
+}

@@ -5,15 +5,25 @@ using TMPro;
 
 public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
 {
+    private enum SetupOpenMode
+    {
+        Local,
+        Ai,
+        Lan,
+        Ogs,
+    }
+
     public override string pageName => UIPage.GetPageName<DuelSetupPopup>();
     private const string InfiniteHoldTimeCfgId = "infinite";
     private const string ByoyomiOffCfgId = "off";
+    private const string DefaultOgsHoldTimeCfgId = "10m";
     private const string DefaultAiDifficultyCfgId = "k20_k18";
     private const string PlayerSideGuess = "guess";
     private const string PlayerSideBlack = "black";
     private const string PlayerSideWhite = "white";
 
     private static bool pendingOpenAiDuel;
+    private static SetupOpenMode pendingOpenMode = SetupOpenMode.Local;
     private static Action<DuelSceneCreateParamas> pendingConfirmHandler;
 
     private bool hasAppliedLayoutState;
@@ -25,6 +35,7 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     private string selectedByoyomiTimeCfgId = "30s";
     private string selectedPlayerSideCfgId = PlayerSideGuess;
     private string selectedHandicapCfgId = DuelHandicapPlacement.GetDefaultCfgId("9x9");
+    private SetupOpenMode setupMode;
     private bool isAiDuel;
     private Action<DuelSceneCreateParamas> confirmHandler;
     private DuelSetupPreferenceMode setupPreferenceMode;
@@ -36,6 +47,7 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     public static void Open(bool isAiDuel)
     {
         pendingOpenAiDuel = isAiDuel;
+        pendingOpenMode = isAiDuel ? SetupOpenMode.Ai : SetupOpenMode.Local;
         pendingConfirmHandler = null;
         Global.Instance.uiManager.ShowPage<DuelSetupPopup>();
     }
@@ -43,6 +55,15 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     public static void OpenForLanRoom(Action<DuelSceneCreateParamas> onConfirmed)
     {
         pendingOpenAiDuel = false;
+        pendingOpenMode = SetupOpenMode.Lan;
+        pendingConfirmHandler = onConfirmed;
+        Global.Instance.uiManager.ShowPage<DuelSetupPopup>();
+    }
+
+    public static void OpenForOgs(Action<DuelSceneCreateParamas> onConfirmed)
+    {
+        pendingOpenAiDuel = false;
+        pendingOpenMode = SetupOpenMode.Ogs;
         pendingConfirmHandler = onConfirmed;
         Global.Instance.uiManager.ShowPage<DuelSetupPopup>();
     }
@@ -70,7 +91,8 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
 
         ApplyCurrentLayoutState(false);
 
-        isAiDuel = pendingOpenAiDuel;
+        setupMode = pendingOpenMode;
+        isAiDuel = setupMode == SetupOpenMode.Ai || pendingOpenAiDuel;
         confirmHandler = pendingConfirmHandler;
         pendingConfirmHandler = null;
         setupPreferenceMode = ResolvePreferenceMode();
@@ -126,6 +148,7 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
             handicapCfgId = selectedHandicapCfgId,
             isAiDuel = isAiDuel,
             aiDifficultyCfgId = isAiDuel ? selectedAiDifficultyCfgId : string.Empty,
+            playerSideCfgId = selectedPlayerSideCfgId,
             localPlayerFlag = isAiDuel ? localPlayerFlag : 0,
             localPlayerProfile = User.Instance.compUserInfo.BuildProfileData(),
             lanHostPlayerFlag = IsLanRoomSetup() ? lanHostPlayerFlag : PlayerFlag.Player1,
@@ -217,6 +240,10 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
 
     private void SelectBoard(string boardCfgId)
     {
+        if (!CanUseBoardCfg(boardCfgId)) {
+            return;
+        }
+
         selectedBoardCfgId = boardCfgId;
         NormalizeHandicapSelection();
         RefreshHandicapDropdown();
@@ -228,6 +255,10 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
 
     private void SelectHoldTime(string holdTimeCfgId)
     {
+        if (!CanUseHoldTimeCfg(holdTimeCfgId)) {
+            return;
+        }
+
         selectedHoldTimeCfgId = holdTimeCfgId;
         NormalizeTimeControlSelection();
         RefreshSelectionState();
@@ -240,6 +271,9 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
             RefreshSelectionState();
             return;
         }
+        if (!CanUseByoyomiCountCfg(byoyomiCountCfgId)) {
+            return;
+        }
 
         selectedByoyomiCountCfgId = byoyomiCountCfgId;
         RefreshSelectionState();
@@ -250,6 +284,9 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         if (IsInfiniteHoldTimeSelected()) {
             selectedByoyomiCountCfgId = ByoyomiOffCfgId;
             RefreshSelectionState();
+            return;
+        }
+        if (!CanUseByoyomiTimeCfg(byoyomiTimeCfgId)) {
             return;
         }
 
@@ -278,19 +315,22 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
 
     private void NormalizeBoardSelection()
     {
-        if (ChessBoardDataType.GetConfigData(selectedBoardCfgId) == null) {
-            selectedBoardCfgId = "9x9";
+        if (!CanUseBoardCfg(selectedBoardCfgId)) {
+            selectedBoardCfgId = ResolveDefaultBoardCfgId();
         }
     }
 
     private void NormalizeHandicapSelection()
     {
         if (ShouldForceEvenGameHandicap()) {
-            selectedHandicapCfgId = DuelHandicapPlacement.GetDefaultCfgId(selectedBoardCfgId);
+            selectedHandicapCfgId = ResolveDefaultHandicapCfgId(selectedBoardCfgId);
             return;
         }
 
         selectedHandicapCfgId = DuelHandicapPlacement.GetValidCfgId(selectedHandicapCfgId, selectedBoardCfgId);
+        if (!CanUseHandicapCfg(selectedHandicapCfgId)) {
+            selectedHandicapCfgId = ResolveDefaultHandicapCfgId(selectedBoardCfgId);
+        }
     }
 
     private void NormalizeAiDifficultySelection()
@@ -310,21 +350,21 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
 
     private void NormalizeHoldTimeSelection()
     {
-        if (DuelHoldTimeDataType.GetConfigData(selectedHoldTimeCfgId) == null) {
-            selectedHoldTimeCfgId = InfiniteHoldTimeCfgId;
+        if (!CanUseHoldTimeCfg(selectedHoldTimeCfgId)) {
+            selectedHoldTimeCfgId = ResolveDefaultHoldTimeCfgId();
         }
     }
 
     private void NormalizeByoyomiCountSelection()
     {
-        if (DuelByoyomiCountDataType.GetConfigData(selectedByoyomiCountCfgId) == null) {
+        if (!CanUseByoyomiCountCfg(selectedByoyomiCountCfgId)) {
             selectedByoyomiCountCfgId = ByoyomiOffCfgId;
         }
     }
 
     private void NormalizeByoyomiTimeSelection()
     {
-        if (DuelByoyomiTimeDataType.GetConfigData(selectedByoyomiTimeCfgId) == null) {
+        if (!CanUseByoyomiTimeCfg(selectedByoyomiTimeCfgId)) {
             selectedByoyomiTimeCfgId = "30s";
         }
     }
@@ -334,29 +374,109 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         return selectedHoldTimeCfgId == InfiniteHoldTimeCfgId;
     }
 
+    private string ResolveDefaultBoardCfgId()
+    {
+        if (CanUseBoardCfg("9x9")) {
+            return "9x9";
+        }
+        if (CanUseBoardCfg("13x13")) {
+            return "13x13";
+        }
+        if (CanUseBoardCfg("19x19")) {
+            return "19x19";
+        }
+        return "9x9";
+    }
+
+    private string ResolveDefaultHoldTimeCfgId()
+    {
+        if (IsOgsSetup()) {
+            if (CanUseHoldTimeCfg(DefaultOgsHoldTimeCfgId)) {
+                return DefaultOgsHoldTimeCfgId;
+            }
+            if (CanUseHoldTimeCfg("5m")) {
+                return "5m";
+            }
+            if (CanUseHoldTimeCfg("2m")) {
+                return "2m";
+            }
+            if (CanUseHoldTimeCfg("20m")) {
+                return "20m";
+            }
+        }
+
+        return CanUseHoldTimeCfg(InfiniteHoldTimeCfgId) ? InfiniteHoldTimeCfgId : DefaultOgsHoldTimeCfgId;
+    }
+
+    private string ResolveDefaultHandicapCfgId(string boardCfgId)
+    {
+        string cfgId = DuelHandicapPlacement.GetDefaultCfgId(boardCfgId);
+        if (CanUseHandicapCfg(cfgId)) {
+            return cfgId;
+        }
+
+        foreach (string candidateCfgId in DuelHandicapPlacement.GetCfgIdsForBoard(boardCfgId)) {
+            if (CanUseHandicapCfg(candidateCfgId)) {
+                return candidateCfgId;
+            }
+        }
+
+        return cfgId;
+    }
+
+    private bool CanUseBoardCfg(string cfgId)
+    {
+        ChessBoardDataType data = ChessBoardDataType.GetConfigData(cfgId);
+        return data != null && (!IsOgsSetup() || data.ogsEnabled);
+    }
+
+    private bool CanUseHoldTimeCfg(string cfgId)
+    {
+        DuelHoldTimeDataType data = DuelHoldTimeDataType.GetConfigData(cfgId);
+        return data != null && (!IsOgsSetup() || data.ogsEnabled);
+    }
+
+    private bool CanUseByoyomiCountCfg(string cfgId)
+    {
+        DuelByoyomiCountDataType data = DuelByoyomiCountDataType.GetConfigData(cfgId);
+        return data != null && (!IsOgsSetup() || data.ogsEnabled);
+    }
+
+    private bool CanUseByoyomiTimeCfg(string cfgId)
+    {
+        DuelByoyomiTimeDataType data = DuelByoyomiTimeDataType.GetConfigData(cfgId);
+        return data != null && (!IsOgsSetup() || data.ogsEnabled);
+    }
+
+    private bool CanUseHandicapCfg(string cfgId)
+    {
+        DuelHandicapDataType data = DuelHandicapDataType.GetConfigData(cfgId);
+        return data != null && data.boardCfgId == selectedBoardCfgId && (!IsOgsSetup() || data.ogsEnabled);
+    }
+
     private void RefreshSelectionState()
     {
-        SetButtonInteractable(binder.btn_9x9, selectedBoardCfgId != "9x9");
-        SetButtonInteractable(binder.btn_13x13, selectedBoardCfgId != "13x13");
-        SetButtonInteractable(binder.btn_19x19, selectedBoardCfgId != "19x19");
+        SetButtonInteractable(binder.btn_9x9, CanUseBoardCfg("9x9") && selectedBoardCfgId != "9x9");
+        SetButtonInteractable(binder.btn_13x13, CanUseBoardCfg("13x13") && selectedBoardCfgId != "13x13");
+        SetButtonInteractable(binder.btn_19x19, CanUseBoardCfg("19x19") && selectedBoardCfgId != "19x19");
 
-        SetButtonInteractable(binder.btn_hold_time_2m, selectedHoldTimeCfgId != "2m");
-        SetButtonInteractable(binder.btn_hold_time_5m, selectedHoldTimeCfgId != "5m");
-        SetButtonInteractable(binder.btn_hold_time_10m, selectedHoldTimeCfgId != "10m");
-        SetButtonInteractable(binder.btn_hold_time_20m, selectedHoldTimeCfgId != "20m");
-        SetButtonInteractable(binder.btn_hold_time_infinite, !IsInfiniteHoldTimeSelected());
+        SetButtonInteractable(binder.btn_hold_time_2m, CanUseHoldTimeCfg("2m") && selectedHoldTimeCfgId != "2m");
+        SetButtonInteractable(binder.btn_hold_time_5m, CanUseHoldTimeCfg("5m") && selectedHoldTimeCfgId != "5m");
+        SetButtonInteractable(binder.btn_hold_time_10m, CanUseHoldTimeCfg("10m") && selectedHoldTimeCfgId != "10m");
+        SetButtonInteractable(binder.btn_hold_time_20m, CanUseHoldTimeCfg("20m") && selectedHoldTimeCfgId != "20m");
+        SetButtonInteractable(binder.btn_hold_time_infinite, CanUseHoldTimeCfg(InfiniteHoldTimeCfgId) && !IsInfiniteHoldTimeSelected());
 
         bool infiniteHoldTime = IsInfiniteHoldTimeSelected();
-        SetButtonInteractable(binder.btn_byoyomi_count_off, !infiniteHoldTime && selectedByoyomiCountCfgId != ByoyomiOffCfgId);
-        SetButtonInteractable(binder.btn_byoyomi_count_1, !infiniteHoldTime && selectedByoyomiCountCfgId != "1");
-        SetButtonInteractable(binder.btn_byoyomi_count_3, !infiniteHoldTime && selectedByoyomiCountCfgId != "3");
-        SetButtonInteractable(binder.btn_byoyomi_count_5, !infiniteHoldTime && selectedByoyomiCountCfgId != "5");
+        SetButtonInteractable(binder.btn_byoyomi_count_off, !infiniteHoldTime && CanUseByoyomiCountCfg(ByoyomiOffCfgId) && selectedByoyomiCountCfgId != ByoyomiOffCfgId);
+        SetButtonInteractable(binder.btn_byoyomi_count_1, !infiniteHoldTime && CanUseByoyomiCountCfg("1") && selectedByoyomiCountCfgId != "1");
+        SetButtonInteractable(binder.btn_byoyomi_count_3, !infiniteHoldTime && CanUseByoyomiCountCfg("3") && selectedByoyomiCountCfgId != "3");
+        SetButtonInteractable(binder.btn_byoyomi_count_5, !infiniteHoldTime && CanUseByoyomiCountCfg("5") && selectedByoyomiCountCfgId != "5");
 
         bool byoyomiEnabled = !infiniteHoldTime && selectedByoyomiCountCfgId != ByoyomiOffCfgId;
-        SetButtonInteractable(binder.btn_byoyomi_time_10s, byoyomiEnabled && selectedByoyomiTimeCfgId != "10s");
-        SetButtonInteractable(binder.btn_byoyomi_time_20s, byoyomiEnabled && selectedByoyomiTimeCfgId != "20s");
-        SetButtonInteractable(binder.btn_byoyomi_time_30s, byoyomiEnabled && selectedByoyomiTimeCfgId != "30s");
-        SetButtonInteractable(binder.btn_byoyomi_time_60s, byoyomiEnabled && selectedByoyomiTimeCfgId != "60s");
+        SetButtonInteractable(binder.btn_byoyomi_time_10s, byoyomiEnabled && CanUseByoyomiTimeCfg("10s") && selectedByoyomiTimeCfgId != "10s");
+        SetButtonInteractable(binder.btn_byoyomi_time_20s, byoyomiEnabled && CanUseByoyomiTimeCfg("20s") && selectedByoyomiTimeCfgId != "20s");
+        SetButtonInteractable(binder.btn_byoyomi_time_30s, byoyomiEnabled && CanUseByoyomiTimeCfg("30s") && selectedByoyomiTimeCfgId != "30s");
+        SetButtonInteractable(binder.btn_byoyomi_time_60s, byoyomiEnabled && CanUseByoyomiTimeCfg("60s") && selectedByoyomiTimeCfgId != "60s");
 
         binder.SetSrModeState(ResolveModeState());
         if (binder.dropdown_handicap != null) {
@@ -422,7 +542,14 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
 
         NormalizeHandicapSelection();
         handicapCfgIds.Clear();
-        handicapCfgIds.AddRange(DuelHandicapPlacement.GetCfgIdsForBoard(selectedBoardCfgId));
+        foreach (string cfgId in DuelHandicapPlacement.GetCfgIdsForBoard(selectedBoardCfgId)) {
+            if (CanUseHandicapCfg(cfgId)) {
+                handicapCfgIds.Add(cfgId);
+            }
+        }
+        if (handicapCfgIds.Count == 0) {
+            handicapCfgIds.Add(ResolveDefaultHandicapCfgId(selectedBoardCfgId));
+        }
 
         binder.dropdown_handicap.ClearOptions();
         List<TMP_Dropdown.OptionData> options = new List<TMP_Dropdown.OptionData>();
@@ -517,13 +644,16 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
 
     private bool ShouldShowPlayerColor()
     {
-        return isAiDuel || IsLanRoomSetup();
+        return isAiDuel || IsLanRoomSetup() || IsOgsSetup();
     }
 
     private DuelSetupPopupUI.SrModeState ResolveModeState()
     {
         if (IsLanRoomSetup()) {
             return DuelSetupPopupUI.SrModeState.Lan;
+        }
+        if (IsOgsSetup()) {
+            return DuelSetupPopupUI.SrModeState.Ogs;
         }
 
         return isAiDuel ? DuelSetupPopupUI.SrModeState.Ai : DuelSetupPopupUI.SrModeState.Local;
@@ -536,13 +666,21 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
 
     private bool IsLanRoomSetup()
     {
-        return confirmHandler != null;
+        return setupMode == SetupOpenMode.Lan;
+    }
+
+    private bool IsOgsSetup()
+    {
+        return setupMode == SetupOpenMode.Ogs;
     }
 
     private DuelSetupPreferenceMode ResolvePreferenceMode()
     {
         if (IsLanRoomSetup()) {
             return DuelSetupPreferenceMode.Lan;
+        }
+        if (IsOgsSetup()) {
+            return DuelSetupPreferenceMode.Ogs;
         }
 
         return isAiDuel ? DuelSetupPreferenceMode.Ai : DuelSetupPreferenceMode.Local;

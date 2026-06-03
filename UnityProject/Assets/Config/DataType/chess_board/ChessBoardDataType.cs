@@ -10,6 +10,7 @@ public class ChessBoardDataType
     public string id;  // id
     public int boardSize;  // 棋盘大小
     public float vcamYOffset;  // 相机y轴额外偏移
+    public bool ogsEnabled;  // OGS启用
 
     public static Dictionary<string, ChessBoardDataType> ChessBoardDict;
 
@@ -21,11 +22,11 @@ public class ChessBoardDataType
             if (jsonObj != null) {
                 foreach (var property in jsonObj.Properties()) {
                     try {
-                    var item = property.Value.ToObject<ChessBoardDataType>();
-                    ChessBoardDict[property.Name] = item;
-                }
+                        var item = property.Value.ToObject<ChessBoardDataType>();
+                        ChessBoardDict[property.Name] = item;
+                    }
                     catch (Exception ex) {
-                    XNLogger.LogError($"读表错误，跳过条目 {property.Name}: {ex.Message}");
+                        XNLogger.LogError($"读表错误，跳过条目 {property.Name}: {ex.Message}");
                     }
                 }
             }

@@ -10,6 +10,7 @@ public class DuelByoyomiCountDataType
     public string id;  // ID
     public string displayName;  // 显示名称
     public int count;  // 读秒次数
+    public bool ogsEnabled;  // OGS启用
 
     public static Dictionary<string, DuelByoyomiCountDataType> DuelByoyomiCountDict;
 

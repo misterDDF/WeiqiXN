@@ -2,21 +2,25 @@
   "off": {
     "id": "off",
     "displayName": "不读秒",
-    "count": 0
+    "count": 0,
+    "ogsEnabled": true
   },
   "1": {
     "id": "1",
     "displayName": "1次",
-    "count": 1
+    "count": 1,
+    "ogsEnabled": true
   },
   "3": {
     "id": "3",
     "displayName": "3次",
-    "count": 3
+    "count": 3,
+    "ogsEnabled": true
   },
   "5": {
     "id": "5",
     "displayName": "5次",
-    "count": 5
+    "count": 5,
+    "ogsEnabled": true
   }
 }

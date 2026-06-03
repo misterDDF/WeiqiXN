@@ -430,7 +430,16 @@ public sealed class OgsConnectionService : ModuleBase
         string websocketUrl = null,
         CancellationToken cancellationToken = default(CancellationToken))
     {
+        return await StartBotGameAsync(OgsBotGameCreateParams.Default, websocketUrl, cancellationToken);
+    }
+
+    public async Task<OgsBotGameStartResult> StartBotGameAsync(
+        OgsBotGameCreateParams createParams,
+        string websocketUrl = null,
+        CancellationToken cancellationToken = default(CancellationToken))
+    {
         EnsureInitialized();
+        createParams = NormalizeBotGameCreateParams(createParams);
         websocketUrl = string.IsNullOrWhiteSpace(websocketUrl) ? OgsConnectionConfig.DefaultWebSocketUrl : websocketUrl.Trim();
         if (string.IsNullOrWhiteSpace(websocketUrl)) {
             return new OgsBotGameStartResult(false, "OGS websocket URL is empty.");
@@ -461,12 +470,12 @@ public sealed class OgsConnectionService : ModuleBase
                     return new OgsBotGameStartResult(false, "OGS did not return any active bots.");
                 }
 
-                OgsBotSelection bot = SelectDefaultBot(activeBots);
+                OgsBotSelection bot = SelectBotForBoard(activeBots, createParams.boardSize);
                 if (bot.id <= 0) {
-                    return new OgsBotGameStartResult(false, "No active OGS bot accepted the default 9x9 settings.");
+                    return new OgsBotGameStartResult(false, $"No active OGS bot accepted the requested {createParams.boardSize}x{createParams.boardSize} settings.");
                 }
 
-                JObject challengePayload = BuildDefaultBotChallengePayload();
+                JObject challengePayload = BuildBotChallengePayload(createParams);
                 JObject challengeJson = await PostJsonAsync(
                     $"{apiBaseUrl}/api/v1/players/{bot.id}/challenge",
                     challengePayload,
@@ -521,6 +530,11 @@ public sealed class OgsConnectionService : ModuleBase
                     ("gameId", gameId.ToString()),
                     ("botId", bot.id.ToString()),
                     ("botName", bot.name),
+                    ("requestedBoard", $"{createParams.boardSize}x{createParams.boardSize}"),
+                    ("handicap", createParams.handicap.ToString()),
+                    ("mainTime", createParams.mainTimeSeconds.ToString()),
+                    ("byoyomiPeriods", createParams.byoyomiPeriods.ToString()),
+                    ("byoyomiPeriod", createParams.byoyomiPeriodSeconds.ToString()),
                     ("board", $"{gameState.boardWidth}x{gameState.boardHeight}"));
                 return new OgsBotGameStartResult(
                     true,
@@ -545,7 +559,7 @@ public sealed class OgsConnectionService : ModuleBase
         string websocketUrl = null,
         CancellationToken cancellationToken = default(CancellationToken))
     {
-        OgsBotGameStartResult activeGameResult = await TryLoadCurrentActiveGameAsync(websocketUrl, cancellationToken);
+        OgsBotGameStartResult activeGameResult = await LoadCurrentActiveGameAsync(websocketUrl, cancellationToken);
         if (activeGameResult != null) {
             return activeGameResult;
         }
@@ -553,9 +567,9 @@ public sealed class OgsConnectionService : ModuleBase
         return await StartDefaultBotGameAsync(websocketUrl, cancellationToken);
     }
 
-    private async Task<OgsBotGameStartResult> TryLoadCurrentActiveGameAsync(
-        string websocketUrl,
-        CancellationToken cancellationToken)
+    public async Task<OgsBotGameStartResult> LoadCurrentActiveGameAsync(
+        string websocketUrl = null,
+        CancellationToken cancellationToken = default(CancellationToken))
     {
         EnsureInitialized();
         websocketUrl = string.IsNullOrWhiteSpace(websocketUrl) ? OgsConnectionConfig.DefaultWebSocketUrl : websocketUrl.Trim();
@@ -968,47 +982,117 @@ public sealed class OgsConnectionService : ModuleBase
         return payload.ToString(Newtonsoft.Json.Formatting.None);
     }
 
-    private static JObject BuildDefaultBotChallengePayload()
+    private static OgsBotGameCreateParams NormalizeBotGameCreateParams(OgsBotGameCreateParams createParams)
     {
-        int boardSize = OgsConnectionConfig.DefaultBotGameBoardSize;
+        createParams = createParams ?? OgsBotGameCreateParams.Default;
+        int boardSize = createParams.boardSize > 0 ? createParams.boardSize : OgsConnectionConfig.DefaultBotGameBoardSize;
+        int mainTimeSeconds = createParams.mainTimeSeconds;
+        int byoyomiPeriods = Math.Max(0, createParams.byoyomiPeriods);
+        int byoyomiPeriodSeconds = Math.Max(0, createParams.byoyomiPeriodSeconds);
+        int handicap = Math.Max(0, createParams.handicap);
+        string challengerColor = NormalizeChallengerColor(createParams.challengerColor);
+        string gameName = string.IsNullOrWhiteSpace(createParams.gameName)
+            ? OgsConnectionConfig.DefaultBotGameName
+            : createParams.gameName.Trim();
+        return new OgsBotGameCreateParams(
+            boardSize,
+            mainTimeSeconds,
+            byoyomiPeriods,
+            byoyomiPeriodSeconds,
+            handicap,
+            createParams.komi,
+            challengerColor,
+            gameName);
+    }
+
+    private static JObject BuildBotChallengePayload(OgsBotGameCreateParams createParams)
+    {
+        createParams = NormalizeBotGameCreateParams(createParams);
+        JObject game = new JObject
+        {
+            ["name"] = createParams.gameName,
+            ["rules"] = OgsConnectionConfig.DefaultBotGameRules,
+            ["ranked"] = false,
+            ["width"] = createParams.boardSize,
+            ["height"] = createParams.boardSize,
+            ["handicap"] = createParams.handicap,
+            ["komi_auto"] = "custom",
+            ["komi"] = createParams.komi,
+            ["disable_analysis"] = false,
+            ["initial_state"] = JValue.CreateNull(),
+            ["private"] = false,
+            ["rengo"] = false,
+            ["rengo_casual_mode"] = true,
+            ["pause_on_weekends"] = false,
+        };
+
+        ApplyTimeControlPayload(game, createParams);
+
         return new JObject
         {
             ["initialized"] = false,
             ["min_ranking"] = -1000,
             ["max_ranking"] = 1000,
-            ["challenger_color"] = "automatic",
+            ["challenger_color"] = createParams.challengerColor,
             ["rengo_auto_start"] = 0,
-            ["game"] = new JObject
-            {
-                ["name"] = OgsConnectionConfig.DefaultBotGameName,
-                ["rules"] = OgsConnectionConfig.DefaultBotGameRules,
-                ["ranked"] = false,
-                ["width"] = boardSize,
-                ["height"] = boardSize,
-                ["handicap"] = 0,
-                ["komi_auto"] = "automatic",
-                ["disable_analysis"] = false,
-                ["initial_state"] = JValue.CreateNull(),
-                ["private"] = false,
-                ["rengo"] = false,
-                ["rengo_casual_mode"] = true,
-                ["time_control"] = "byoyomi",
-                ["time_control_parameters"] = new JObject
-                {
-                    ["main_time"] = 600,
-                    ["period_time"] = 30,
-                    ["periods"] = 5,
-                    ["periods_min"] = 1,
-                    ["periods_max"] = 300,
-                    ["pause_on_weekends"] = false,
-                    ["speed"] = "live",
-                    ["system"] = "byoyomi",
-                    ["time_control"] = "byoyomi",
-                },
-                ["pause_on_weekends"] = false,
-            },
+            ["game"] = game,
             ["aga_ranked"] = false,
         };
+    }
+
+    private static void ApplyTimeControlPayload(JObject game, OgsBotGameCreateParams createParams)
+    {
+        if (game == null) {
+            return;
+        }
+
+        if (createParams.mainTimeSeconds <= 0) {
+            game["time_control"] = "none";
+            game["time_control_parameters"] = new JObject
+            {
+                ["system"] = "none",
+                ["time_control"] = "none",
+            };
+            return;
+        }
+
+        if (createParams.byoyomiPeriods > 0 && createParams.byoyomiPeriodSeconds > 0) {
+            game["time_control"] = "byoyomi";
+            game["time_control_parameters"] = new JObject
+            {
+                ["main_time"] = createParams.mainTimeSeconds,
+                ["period_time"] = createParams.byoyomiPeriodSeconds,
+                ["periods"] = createParams.byoyomiPeriods,
+                ["periods_min"] = 1,
+                ["periods_max"] = 300,
+                ["pause_on_weekends"] = false,
+                ["speed"] = "live",
+                ["system"] = "byoyomi",
+                ["time_control"] = "byoyomi",
+            };
+            return;
+        }
+
+        game["time_control"] = "absolute";
+        game["time_control_parameters"] = new JObject
+        {
+            ["total_time"] = createParams.mainTimeSeconds,
+            ["pause_on_weekends"] = false,
+            ["speed"] = "live",
+            ["system"] = "absolute",
+            ["time_control"] = "absolute",
+        };
+    }
+
+    private static string NormalizeChallengerColor(string challengerColor)
+    {
+        if (string.Equals(challengerColor, "black", StringComparison.OrdinalIgnoreCase)) {
+            return "black";
+        }
+        if (string.Equals(challengerColor, "white", StringComparison.OrdinalIgnoreCase)) {
+            return "white";
+        }
+        return "automatic";
     }
 
     private static async Task SendRealtimePayloadAsync(ClientWebSocket websocket, string payload, CancellationToken cancellationToken)
@@ -1286,13 +1370,12 @@ public sealed class OgsConnectionService : ModuleBase
         return true;
     }
 
-    private static OgsBotSelection SelectDefaultBot(JObject activeBots)
+    private static OgsBotSelection SelectBotForBoard(JObject activeBots, int boardSize)
     {
         if (activeBots == null) {
             return default(OgsBotSelection);
         }
 
-        OgsBotSelection fallback = default(OgsBotSelection);
         foreach (JProperty property in activeBots.Properties()) {
             JObject botJson = property.Value as JObject;
             if (botJson == null) {
@@ -1306,25 +1389,22 @@ public sealed class OgsConnectionService : ModuleBase
 
             string botName = ReadFirstString(botJson, "username", "name");
             var candidate = new OgsBotSelection(botId, botName);
-            if (fallback.id <= 0) {
-                fallback = candidate;
-            }
-            if (CanBotPlayDefaultBoard(botJson["config"] as JObject)) {
+            if (CanBotPlayBoard(botJson["config"] as JObject, boardSize)) {
                 return candidate;
             }
         }
 
-        return fallback;
+        return default(OgsBotSelection);
     }
 
-    private static bool CanBotPlayDefaultBoard(JObject config)
+    private static bool CanBotPlayBoard(JObject config, int boardSize)
     {
         if (config == null) {
             return true;
         }
 
         JToken sizes = config["allowed_board_sizes"];
-        int boardSize = OgsConnectionConfig.DefaultBotGameBoardSize;
+        boardSize = boardSize > 0 ? boardSize : OgsConnectionConfig.DefaultBotGameBoardSize;
         if (sizes == null || sizes.Type == JTokenType.Null) {
             return true;
         }
@@ -1410,7 +1490,7 @@ public sealed class OgsConnectionService : ModuleBase
             if (width == defaultBoardSize) {
                 score += 10;
             }
-            if (opponentIsBot) {
+            if (!opponentIsBot) {
                 score += 100;
             }
 

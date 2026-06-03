@@ -5,7 +5,8 @@
     "displayName": "分先",
     "handicapCount": 0,
     "komi": 7.5,
-    "stonePoints": []
+    "stonePoints": [],
+    "ogsEnabled": true
   },
   "9x9_sen": {
     "id": "9x9_sen",
@@ -13,7 +14,8 @@
     "displayName": "让先",
     "handicapCount": 0,
     "komi": 0.5,
-    "stonePoints": []
+    "stonePoints": [],
+    "ogsEnabled": true
   },
   "9x9_2": {
     "id": "9x9_2",
@@ -24,7 +26,8 @@
     "stonePoints": [
       "C3",
       "G7"
-    ]
+    ],
+    "ogsEnabled": true
   },
   "9x9_3": {
     "id": "9x9_3",
@@ -36,7 +39,8 @@
       "C3",
       "G7",
       "G3"
-    ]
+    ],
+    "ogsEnabled": true
   },
   "9x9_4": {
     "id": "9x9_4",
@@ -49,7 +53,8 @@
       "G3",
       "C7",
       "G7"
-    ]
+    ],
+    "ogsEnabled": true
   },
   "9x9_5": {
     "id": "9x9_5",
@@ -63,7 +68,8 @@
       "C7",
       "G7",
       "E5"
-    ]
+    ],
+    "ogsEnabled": true
   },
   "13x13_0": {
     "id": "13x13_0",
@@ -71,7 +77,8 @@
     "displayName": "分先",
     "handicapCount": 0,
     "komi": 7.5,
-    "stonePoints": []
+    "stonePoints": [],
+    "ogsEnabled": true
   },
   "13x13_sen": {
     "id": "13x13_sen",
@@ -79,7 +86,8 @@
     "displayName": "让先",
     "handicapCount": 0,
     "komi": 0.5,
-    "stonePoints": []
+    "stonePoints": [],
+    "ogsEnabled": true
   },
   "13x13_2": {
     "id": "13x13_2",
@@ -90,7 +98,8 @@
     "stonePoints": [
       "D4",
       "K10"
-    ]
+    ],
+    "ogsEnabled": true
   },
   "13x13_3": {
     "id": "13x13_3",
@@ -102,7 +111,8 @@
       "D4",
       "K10",
       "K4"
-    ]
+    ],
+    "ogsEnabled": true
   },
   "13x13_4": {
     "id": "13x13_4",
@@ -115,7 +125,8 @@
       "K4",
       "D10",
       "K10"
-    ]
+    ],
+    "ogsEnabled": true
   },
   "13x13_5": {
     "id": "13x13_5",
@@ -129,7 +140,8 @@
       "D10",
       "K10",
       "G7"
-    ]
+    ],
+    "ogsEnabled": true
   },
   "13x13_6": {
     "id": "13x13_6",
@@ -144,7 +156,8 @@
       "K10",
       "D7",
       "K7"
-    ]
+    ],
+    "ogsEnabled": true
   },
   "13x13_7": {
     "id": "13x13_7",
@@ -160,7 +173,8 @@
       "D7",
       "K7",
       "G7"
-    ]
+    ],
+    "ogsEnabled": true
   },
   "13x13_8": {
     "id": "13x13_8",
@@ -177,7 +191,8 @@
       "K7",
       "G4",
       "G10"
-    ]
+    ],
+    "ogsEnabled": true
   },
   "13x13_9": {
     "id": "13x13_9",
@@ -195,7 +210,8 @@
       "D10",
       "G10",
       "K10"
-    ]
+    ],
+    "ogsEnabled": true
   },
   "19x19_0": {
     "id": "19x19_0",
@@ -203,7 +219,8 @@
     "displayName": "分先",
     "handicapCount": 0,
     "komi": 7.5,
-    "stonePoints": []
+    "stonePoints": [],
+    "ogsEnabled": true
   },
   "19x19_sen": {
     "id": "19x19_sen",
@@ -211,7 +228,8 @@
     "displayName": "让先",
     "handicapCount": 0,
     "komi": 0.5,
-    "stonePoints": []
+    "stonePoints": [],
+    "ogsEnabled": true
   },
   "19x19_2": {
     "id": "19x19_2",
@@ -222,7 +240,8 @@
     "stonePoints": [
       "D4",
       "Q16"
-    ]
+    ],
+    "ogsEnabled": true
   },
   "19x19_3": {
     "id": "19x19_3",
@@ -234,7 +253,8 @@
       "D4",
       "Q16",
       "Q4"
-    ]
+    ],
+    "ogsEnabled": true
   },
   "19x19_4": {
     "id": "19x19_4",
@@ -247,7 +267,8 @@
       "Q16",
       "Q4",
       "D16"
-    ]
+    ],
+    "ogsEnabled": true
   },
   "19x19_5": {
     "id": "19x19_5",
@@ -261,7 +282,8 @@
       "Q4",
       "D16",
       "K10"
-    ]
+    ],
+    "ogsEnabled": true
   },
   "19x19_6": {
     "id": "19x19_6",
@@ -276,7 +298,8 @@
       "D16",
       "D10",
       "Q10"
-    ]
+    ],
+    "ogsEnabled": true
   },
   "19x19_7": {
     "id": "19x19_7",
@@ -292,7 +315,8 @@
       "D10",
       "Q10",
       "K10"
-    ]
+    ],
+    "ogsEnabled": true
   },
   "19x19_8": {
     "id": "19x19_8",
@@ -309,7 +333,8 @@
       "Q10",
       "K4",
       "K16"
-    ]
+    ],
+    "ogsEnabled": true
   },
   "19x19_9": {
     "id": "19x19_9",
@@ -327,6 +352,7 @@
       "Q4",
       "Q10",
       "Q16"
-    ]
+    ],
+    "ogsEnabled": true
   }
 }

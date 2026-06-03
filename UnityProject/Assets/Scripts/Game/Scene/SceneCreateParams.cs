@@ -18,6 +18,7 @@ public class DuelSceneCreateParamas
     public string handicapCfgId;
     public bool isAiDuel;
     public string aiDifficultyCfgId;
+    public string playerSideCfgId;
     public PlayerFlag localPlayerFlag;
     public UserProfileData localPlayerProfile;
     public UserProfileData hostPlayerProfile;

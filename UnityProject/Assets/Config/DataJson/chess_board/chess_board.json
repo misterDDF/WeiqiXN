@@ -2,16 +2,19 @@
   "9x9": {
     "id": "9x9",
     "boardSize": 9,
-    "vcamYOffset": 30.0
+    "vcamYOffset": 30.0,
+    "ogsEnabled": true
   },
   "13x13": {
     "id": "13x13",
     "boardSize": 13,
-    "vcamYOffset": 30.0
+    "vcamYOffset": 30.0,
+    "ogsEnabled": true
   },
   "19x19": {
     "id": "19x19",
     "boardSize": 19,
-    "vcamYOffset": 30.0
+    "vcamYOffset": 30.0,
+    "ogsEnabled": true
   }
 }

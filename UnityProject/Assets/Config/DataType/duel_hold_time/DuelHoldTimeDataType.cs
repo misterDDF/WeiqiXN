@@ -11,6 +11,7 @@ public class DuelHoldTimeDataType
     public string displayName;  // 显示名称
     public int holdSeconds;  // 持有秒数
     public bool isInfinite;  // 是否无限时间
+    public bool ogsEnabled;  // OGS启用
 
     public static Dictionary<string, DuelHoldTimeDataType> DuelHoldTimeDict;
 
