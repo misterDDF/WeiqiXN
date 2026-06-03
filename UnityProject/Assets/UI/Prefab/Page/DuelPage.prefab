@@ -1840,7 +1840,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f28a108018fb125449938ff76ae2b4fd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  generatedTime: 639160028390770698
+  generatedTime: 639160833825076879
   panel_black_player: {fileID: 1068154284432567459}
   txt_black_title: {fileID: 1460954306276878054}
   txt_black_hold_time: {fileID: 1900806172981683340}
@@ -1874,7 +1874,7 @@ MonoBehaviour:
   btn_duel_ai_analysis: {fileID: 7787394791174824662}
   txt_black_player_name: {fileID: 5691433159028817089}
   txt_white_player_name: {fileID: 8390832797709189195}
-  panel_duel_ai_analysis: {fileID: 0}
+  panel_duel_ai_analysis: {fileID: 9037192633300585981}
 --- !u!1 &5019114511353546249
 GameObject:
   m_ObjectHideFlags: 0
