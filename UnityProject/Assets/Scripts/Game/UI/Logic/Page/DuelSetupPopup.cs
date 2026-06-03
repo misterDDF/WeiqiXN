@@ -358,16 +358,9 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         SetButtonInteractable(binder.btn_byoyomi_time_30s, byoyomiEnabled && selectedByoyomiTimeCfgId != "30s");
         SetButtonInteractable(binder.btn_byoyomi_time_60s, byoyomiEnabled && selectedByoyomiTimeCfgId != "60s");
 
-        bool showPlayerColor = ShouldShowPlayerColor();
-        if (binder.panel_player_color != null) {
-            binder.panel_player_color.SetActive(showPlayerColor);
-        }
+        binder.SetSrModeState(ResolveModeState());
         if (binder.dropdown_handicap != null) {
             binder.dropdown_handicap.interactable = !ShouldForceEvenGameHandicap();
-        }
-
-        if (binder.panel_ai_difficulty != null) {
-            binder.panel_ai_difficulty.SetActive(isAiDuel);
         }
     }
 
@@ -525,6 +518,15 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     private bool ShouldShowPlayerColor()
     {
         return isAiDuel || IsLanRoomSetup();
+    }
+
+    private DuelSetupPopupUI.SrModeState ResolveModeState()
+    {
+        if (IsLanRoomSetup()) {
+            return DuelSetupPopupUI.SrModeState.Lan;
+        }
+
+        return isAiDuel ? DuelSetupPopupUI.SrModeState.Ai : DuelSetupPopupUI.SrModeState.Local;
     }
 
     private bool ShouldForceEvenGameHandicap()

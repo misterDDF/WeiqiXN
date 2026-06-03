@@ -7,6 +7,7 @@ using UnityEngine.UI;
 public class DuelSetupPopupUI : UIBinderBase
 {
 	public StateRoot sr_platform;
+	public StateRoot sr_mode;
 	public Button btn_9x9;
 	public Button btn_13x13;
 	public Button btn_19x19;
@@ -37,10 +38,24 @@ public class DuelSetupPopupUI : UIBinderBase
 		Portrait = 1,
 	}
 
+	public enum SrModeState
+	{
+		Local = 0,
+		Ai = 1,
+		Lan = 2,
+	}
+
 	public void SetSrPlatformState(SrPlatformState state, bool force = false)
 	{
 		if (sr_platform != null) {
 			sr_platform.SetState((int)state, force);
+		}
+	}
+
+	public void SetSrModeState(SrModeState state, bool force = false)
+	{
+		if (sr_mode != null) {
+			sr_mode.SetState((int)state, force);
 		}
 	}
 }
