@@ -21,6 +21,16 @@ public static class OgsSessionStore
             session.scope = json["scope"]?.ToString() ?? string.Empty;
             session.userId = json["userId"]?.ToString() ?? string.Empty;
             session.username = json["username"]?.ToString() ?? string.Empty;
+            session.avatarUrl = json["avatarUrl"]?.ToString() ?? string.Empty;
+            session.country = json["country"]?.ToString() ?? string.Empty;
+            session.registeredAt = json["registeredAt"]?.ToString() ?? string.Empty;
+            session.tags = json["tags"]?.ToString() ?? string.Empty;
+            session.about = json["about"]?.ToString() ?? string.Empty;
+            session.ratingOverall = json["ratingOverall"]?.ToString() ?? string.Empty;
+            session.ranking = json["ranking"]?.ToString() ?? string.Empty;
+            session.rating19 = json["rating19"]?.ToString() ?? string.Empty;
+            session.rating13 = json["rating13"]?.ToString() ?? string.Empty;
+            session.rating9 = json["rating9"]?.ToString() ?? string.Empty;
 
             long expiresAtUnix = json["expiresAtUnix"]?.ToObject<long>() ?? 0L;
             session.expiresAtUtc = expiresAtUnix > 0
@@ -55,6 +65,16 @@ public static class OgsSessionStore
                 ["scope"] = session.scope ?? string.Empty,
                 ["userId"] = session.userId ?? string.Empty,
                 ["username"] = session.username ?? string.Empty,
+                ["avatarUrl"] = session.avatarUrl ?? string.Empty,
+                ["country"] = session.country ?? string.Empty,
+                ["registeredAt"] = session.registeredAt ?? string.Empty,
+                ["tags"] = session.tags ?? string.Empty,
+                ["about"] = session.about ?? string.Empty,
+                ["ratingOverall"] = session.ratingOverall ?? string.Empty,
+                ["ranking"] = session.ranking ?? string.Empty,
+                ["rating19"] = session.rating19 ?? string.Empty,
+                ["rating13"] = session.rating13 ?? string.Empty,
+                ["rating9"] = session.rating9 ?? string.Empty,
                 ["expiresAtUnix"] = session.expiresAtUtc == DateTime.MinValue
                     ? 0L
                     : new DateTimeOffset(session.expiresAtUtc).ToUnixTimeSeconds(),

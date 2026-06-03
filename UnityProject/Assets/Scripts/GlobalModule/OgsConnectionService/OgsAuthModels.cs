@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 public sealed class OgsAuthorizationRequest
 {
@@ -25,6 +26,16 @@ public sealed class OgsSession
     public DateTime expiresAtUtc;
     public string userId;
     public string username;
+    public string avatarUrl;
+    public string country;
+    public string registeredAt;
+    public string tags;
+    public string about;
+    public string ratingOverall;
+    public string ranking;
+    public string rating19;
+    public string rating13;
+    public string rating9;
 
     public bool HasAccessToken => !string.IsNullOrEmpty(accessToken);
 
@@ -43,6 +54,16 @@ public sealed class OgsSession
         expiresAtUtc = DateTime.MinValue;
         userId = string.Empty;
         username = string.Empty;
+        avatarUrl = string.Empty;
+        country = string.Empty;
+        registeredAt = string.Empty;
+        tags = string.Empty;
+        about = string.Empty;
+        ratingOverall = string.Empty;
+        ranking = string.Empty;
+        rating19 = string.Empty;
+        rating13 = string.Empty;
+        rating9 = string.Empty;
     }
 }
 
@@ -56,6 +77,31 @@ public sealed class OgsConnectionResult
         this.success = success;
         this.message = message ?? string.Empty;
     }
+}
+
+public sealed class OgsFriendListResult
+{
+    public readonly bool success;
+    public readonly string message;
+    public readonly List<OgsFriendListItem> friends;
+    public readonly int totalCount;
+
+    public OgsFriendListResult(bool success, string message, List<OgsFriendListItem> friends = null, int totalCount = 0)
+    {
+        this.success = success;
+        this.message = message ?? string.Empty;
+        this.friends = friends ?? new List<OgsFriendListItem>();
+        this.totalCount = totalCount;
+    }
+}
+
+public sealed class OgsFriendListItem
+{
+    public string userId;
+    public string username;
+    public string country;
+    public string ratingText;
+    public string statusText;
 }
 
 public sealed class OgsCallbackResult
