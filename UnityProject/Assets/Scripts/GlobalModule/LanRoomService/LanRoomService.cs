@@ -382,9 +382,28 @@ public partial class LanRoomService : ModuleBase
 
     public bool ConnectToRoom(LanRoomInfo room)
     {
+        LanRoomSessionState state = SessionState;
+        TcpClient activeClient = connectedClient;
+        if (state.role == LanRoomRole.Client && activeClient != null) {
+            if (lastRoomId == room.roomId) {
+                lastStatus = MessageText.Format("lan_room_connected", room.name);
+                return true;
+            }
+
+            lastStatus = state.GetDisplayText();
+            return false;
+        }
+
+        if (state.role == LanRoomRole.Host || (state.role != LanRoomRole.None && activeClient != null)) {
+            lastStatus = state.GetDisplayText();
+            return false;
+        }
+
         StopReconnectProbe();
-        CloseClient(connectedClient);
-        connectedClient = null;
+        CloseClient(activeClient);
+        if (ReferenceEquals(connectedClient, activeClient)) {
+            connectedClient = null;
+        }
         lastHostAddress = room.hostAddress;
         lastHostTcpPort = room.tcpPort;
         lastRoomId = room.roomId;
