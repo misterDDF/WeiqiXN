@@ -68,5 +68,12 @@
     "isPopup": true,
     "isLoadAsync": true,
     "closeOnSceneExit": true
+  },
+  "OgsFriendProfilePopup": {
+    "id": "OgsFriendProfilePopup",
+    "contextType": "General",
+    "isPopup": true,
+    "isLoadAsync": true,
+    "closeOnSceneExit": true
   }
 }

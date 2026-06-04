@@ -99,9 +99,17 @@ public sealed class OgsFriendListItem
 {
     public string userId;
     public string username;
+    public string avatarUrl;
     public string country;
     public string ratingText;
+    public string ratingOverall;
+    public string rankingText;
+    public string rating19;
+    public string rating13;
+    public string rating9;
     public string statusText;
+    public string registeredAt;
+    public string about;
 }
 
 public sealed class OgsCallbackResult

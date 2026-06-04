@@ -2226,9 +2226,20 @@ public sealed class OgsConnectionService : ModuleBase
         {
             userId = userId,
             username = username,
+            avatarUrl = ReadFirstString(userJson, "icon", "icon_url", "avatar", "avatar_url", "picture", "image", "image_url"),
             country = ReadFriendCountry(userJson),
             ratingText = BuildFriendRatingText(userJson),
+            ratingOverall = ReadRating(userJson["ratings"]?["overall"]) ??
+                ReadRating(userJson["rating"]) ??
+                ReadRating(userJson["ratings"]) ??
+                string.Empty,
+            rankingText = FormatNumericString(ReadFirstString(userJson, "ranking", "rank")),
+            rating19 = ReadRating(userJson["ratings"]?["19x19"]) ?? ReadRating(userJson["ratings"]?["19"]) ?? string.Empty,
+            rating13 = ReadRating(userJson["ratings"]?["13x13"]) ?? ReadRating(userJson["ratings"]?["13"]) ?? string.Empty,
+            rating9 = ReadRating(userJson["ratings"]?["9x9"]) ?? ReadRating(userJson["ratings"]?["9"]) ?? string.Empty,
             statusText = BuildFriendStatusText(userJson, wrapper),
+            registeredAt = ReadFirstString(userJson, "date_joined", "created", "created_at", "registered", "registered_at", "registration_date"),
+            about = ReadFirstString(userJson, "about", "bio", "biography", "description"),
         };
     }
 

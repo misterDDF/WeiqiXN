@@ -295,13 +295,7 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
             return;
         }
 
-        string username = string.IsNullOrWhiteSpace(item.username) ? "OGS 好友" : item.username.Trim();
-        string message =
-            $"OGS ID: {DisplayValue(item.userId)}\n" +
-            $"地区: {DisplayValue(item.country)}\n" +
-            $"等级: {DisplayValue(item.ratingText)}\n" +
-            $"状态: {DisplayValue(item.statusText)}";
-        ConfirmPopup.ShowTip(username, message, null, "确定");
+        OgsFriendProfilePopup.Show(item);
     }
 
     private bool ApplyCurrentLayoutState(bool force)
