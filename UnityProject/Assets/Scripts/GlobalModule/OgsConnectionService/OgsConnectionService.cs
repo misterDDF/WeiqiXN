@@ -13,6 +13,8 @@ using XNClient.Logger;
 
 public sealed class OgsConnectionService : ModuleBase
 {
+    private const int ChallengeGameDataPollMilliseconds = 1500;
+
     private object sessionLock;
     private OgsSession session;
     private string apiBaseUrl;
@@ -612,42 +614,15 @@ public sealed class OgsConnectionService : ModuleBase
                 ("challengeId", challengeId.ToString()),
                 ("gameId", gameId.ToString()));
 
-            if (gameId <= 0) {
-                gameId = await WaitForAcceptedChallengeGameIdAsync(challengeId, challengeUuid, accessToken, cancellationToken);
-            }
-
-            if (gameId <= 0) {
-                return new OgsBotGameStartResult(
-                    false,
-                    "OGS friend challenge did not return a game id.",
-                    challengeId: challengeId,
-                    challengeUuid: challengeUuid,
-                    rawResponse: TrimForLog(challengeJson?.ToString(Newtonsoft.Json.Formatting.None)),
-                    isBotGame: false);
-            }
-
-            OgsGameStateSmokeResult gameState = await TestReadonlyGameStateAsync(gameId, websocketUrl, cancellationToken);
-            if (!gameState.success) {
-                return new OgsBotGameStartResult(
-                    false,
-                    $"OGS friend challenge accepted, but game data was not received: {gameState.message}",
-                    challengeId: challengeId,
-                    challengeUuid: challengeUuid,
-                    gameId: gameId,
-                    gameState: gameState,
-                    rawResponse: TrimForLog(challengeJson?.ToString(Newtonsoft.Json.Formatting.None)),
-                    isBotGame: false);
-            }
-
-            return new OgsBotGameStartResult(
-                true,
+            return await WaitForAcceptedChallengeGameDataAsync(
+                challengeId,
+                challengeUuid,
+                gameId,
+                accessToken,
+                websocketUrl,
+                challengeJson,
                 "OGS friend challenge accepted and game data received.",
-                challengeId: challengeId,
-                challengeUuid: challengeUuid,
-                gameId: gameId,
-                gameState: gameState,
-                rawResponse: TrimForLog(challengeJson?.ToString(Newtonsoft.Json.Formatting.None)),
-                isBotGame: false);
+                cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
             if (challengeId > 0) {
@@ -727,47 +702,17 @@ public sealed class OgsConnectionService : ModuleBase
             if (gameId <= 0) {
                 gameId = invite.gameId;
             }
-            if (gameId <= 0) {
-                gameId = await WaitForAcceptedChallengeGameIdAsync(invite.challengeId, invite.challengeUuid, accessToken, cancellationToken);
-            }
-            if (gameId <= 0) {
-                return new OgsBotGameStartResult(
-                    false,
-                    "OGS accepted challenge did not return a game id.",
-                    invite.challengerId,
-                    invite.challengerName,
-                    invite.challengeId,
-                    invite.challengeUuid,
-                    rawResponse: TrimForLog(acceptJson?.ToString(Newtonsoft.Json.Formatting.None)),
-                    isBotGame: false);
-            }
-
-            OgsGameStateSmokeResult gameState = await TestReadonlyGameStateAsync(gameId, websocketUrl, cancellationToken);
-            if (!gameState.success) {
-                return new OgsBotGameStartResult(
-                    false,
-                    $"OGS challenge accepted, but game data was not received: {gameState.message}",
-                    invite.challengerId,
-                    invite.challengerName,
-                    invite.challengeId,
-                    invite.challengeUuid,
-                    gameId,
-                    gameState,
-                    TrimForLog(acceptJson?.ToString(Newtonsoft.Json.Formatting.None)),
-                    false);
-            }
-
-            return new OgsBotGameStartResult(
-                true,
-                "OGS challenge accepted and game data received.",
-                invite.challengerId,
-                invite.challengerName,
+            return await WaitForAcceptedChallengeGameDataAsync(
                 invite.challengeId,
                 invite.challengeUuid,
                 gameId,
-                gameState,
-                TrimForLog(acceptJson?.ToString(Newtonsoft.Json.Formatting.None)),
-                false);
+                accessToken,
+                websocketUrl,
+                acceptJson,
+                "OGS challenge accepted and game data received.",
+                cancellationToken,
+                invite.challengerId,
+                invite.challengerName);
         }
         catch (Exception ex) {
             XNLogger.LogError("OGS challenge accept failed.", ("challengeId", invite.challengeId.ToString()), ("err", ex.Message));
@@ -2346,25 +2291,130 @@ public sealed class OgsConnectionService : ModuleBase
         return ReadFirstInt(json["game"] as JObject, "id", "game_id");
     }
 
-    private async Task<int> WaitForAcceptedChallengeGameIdAsync(
+    private async Task<OgsBotGameStartResult> WaitForAcceptedChallengeGameDataAsync(
         int challengeId,
         string challengeUuid,
+        int gameId,
         string accessToken,
-        CancellationToken cancellationToken)
+        string websocketUrl,
+        JToken rawResponseToken,
+        string successMessage,
+        CancellationToken cancellationToken,
+        int opponentId = 0,
+        string opponentName = "")
     {
-        if (challengeId <= 0) {
-            return 0;
+        string rawResponse = TrimForLog(rawResponseToken?.ToString(Newtonsoft.Json.Formatting.None));
+        if (challengeId <= 0 && gameId <= 0) {
+            return new OgsBotGameStartResult(
+                false,
+                "OGS challenge did not return a challenge id or game id.",
+                opponentId,
+                opponentName,
+                challengeId,
+                challengeUuid,
+                gameId,
+                rawResponse: rawResponse,
+                isBotGame: false);
         }
 
         while (true) {
             cancellationToken.ThrowIfCancellationRequested();
-            int gameId = await TryReadAcceptedChallengeGameIdAsync(challengeId, accessToken, cancellationToken);
-            if (gameId > 0) {
-                return gameId;
+
+            if (gameId <= 0) {
+                gameId = await TryReadAcceptedChallengeGameIdAsync(challengeId, accessToken, cancellationToken);
             }
 
-            await Task.Delay(1500, cancellationToken);
+            if (gameId > 0) {
+                OgsGameStateSmokeResult gameState = await TryReadChallengeGameDataAsync(gameId, websocketUrl, cancellationToken);
+                if (gameState.success) {
+                    XNLogger.LogInfo(
+                        "OGS challenge game data received.",
+                        ("challengeId", challengeId.ToString()),
+                        ("gameId", gameId.ToString()));
+                    return new OgsBotGameStartResult(
+                        true,
+                        successMessage,
+                        opponentId,
+                        opponentName,
+                        challengeId,
+                        challengeUuid,
+                        gameId,
+                        gameState,
+                        rawResponse,
+                        false);
+                }
+
+                if (!IsTransientChallengeGameDataWait(gameState)) {
+                    return new OgsBotGameStartResult(
+                        false,
+                        gameState.message,
+                        opponentId,
+                        opponentName,
+                        challengeId,
+                        challengeUuid,
+                        gameId,
+                        gameState,
+                        rawResponse,
+                        false);
+                }
+            }
+
+            await Task.Delay(ChallengeGameDataPollMilliseconds, cancellationToken);
         }
+    }
+
+    private async Task<OgsGameStateSmokeResult> TryReadChallengeGameDataAsync(
+        int gameId,
+        string websocketUrl,
+        CancellationToken cancellationToken)
+    {
+        websocketUrl = string.IsNullOrWhiteSpace(websocketUrl) ? OgsConnectionConfig.DefaultWebSocketUrl : websocketUrl.Trim();
+        string accessToken;
+        lock (sessionLock) {
+            accessToken = session.accessToken;
+        }
+        if (string.IsNullOrEmpty(accessToken)) {
+            return new OgsGameStateSmokeResult(false, "OGS access token is empty.", gameId);
+        }
+        if (string.IsNullOrWhiteSpace(websocketUrl)) {
+            return new OgsGameStateSmokeResult(false, "OGS websocket URL is empty.", gameId);
+        }
+
+        try {
+            string userJwt = await RequestRealtimeUserJwtAsync(accessToken, cancellationToken);
+            if (string.IsNullOrEmpty(userJwt)) {
+                return new OgsGameStateSmokeResult(false, "OGS ui config did not include user_jwt.", gameId);
+            }
+
+            using (var websocket = new ClientWebSocket()) {
+                await websocket.ConnectAsync(new Uri(websocketUrl), cancellationToken);
+                await SendRealtimePayloadAsync(websocket, BuildRealtimeAuthenticatePayload(userJwt), cancellationToken);
+                await SendRealtimePayloadAsync(websocket, BuildGameConnectPayload(gameId), cancellationToken);
+                return await WaitForGameDataAsync(
+                    websocket,
+                    gameId,
+                    OgsConnectionConfig.GameStateSmokeReceiveMilliseconds,
+                    cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+            throw;
+        }
+        catch (Exception ex) {
+            XNLogger.LogWarn("OGS challenge game data probe failed.", ("gameId", gameId.ToString()), ("err", ex.Message));
+            return new OgsGameStateSmokeResult(false, ex.Message, gameId);
+        }
+    }
+
+    private static bool IsTransientChallengeGameDataWait(OgsGameStateSmokeResult gameState)
+    {
+        if (gameState == null) {
+            return true;
+        }
+
+        string message = gameState.message ?? string.Empty;
+        return message.IndexOf("Timed out waiting for OGS game data", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            message.IndexOf("OGS websocket closed before game data", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private async Task<int> TryReadAcceptedChallengeGameIdAsync(

@@ -297,7 +297,7 @@ public class OgsDuelSystem : SystemBase
         } else if (IsFinishedPhase()) {
             EndGameByOgsFinishedFallback(gameData);
         } else {
-            SyncTurnAndInputFromMoveCount(moves.Count);
+            SyncTurnAndInputFromMoveCount(moves.Count, ResolveOgsCurrentPlayerFlag(gameData));
         }
         XNLogger.LogInfo(
             "OGS game data applied.",
@@ -394,7 +394,7 @@ public class OgsDuelSystem : SystemBase
         }
 
         return initialStoneCount > 0 || handicapCount > 1
-            ? initialPlayerFlag.GetOpponentPlayerFlag()
+            ? PlayerFlag.Player2
             : initialPlayerFlag;
     }
 
@@ -544,24 +544,67 @@ public class OgsDuelSystem : SystemBase
 
     private PlayerFlag ResolveClockCurrentPlayerFlag(JObject clock)
     {
-        string currentPlayer = ReadFirstString(clock, "current_player", "currentPlayer", "current_player_id", "player_id");
-        if (TryResolvePlayerFlagFromText(currentPlayer, out PlayerFlag textFlag)) {
-            return textFlag;
-        }
-
-        if (int.TryParse(currentPlayer, out int currentPlayerId)) {
-            if (currentPlayerId == compOgsDuel.blackOgsUserId) {
-                return PlayerFlag.Player1;
-            }
-            if (currentPlayerId == compOgsDuel.whiteOgsUserId) {
-                return PlayerFlag.Player2;
-            }
+        if (TryResolveOgsCurrentPlayerFlag(clock, true, out PlayerFlag playerFlag)) {
+            return playerFlag;
         }
 
         Player currentTurnPlayer = scene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
         return currentTurnPlayer != null
             ? (PlayerFlag)currentTurnPlayer.playerFlag.value
             : 0;
+    }
+
+    private PlayerFlag ResolveOgsCurrentPlayerFlag(JObject gameData)
+    {
+        if (TryResolveOgsCurrentPlayerFlag(gameData, false, out PlayerFlag playerFlag)) {
+            return playerFlag;
+        }
+
+        if (TryResolveOgsCurrentPlayerFlag(gameData?["clock"] as JObject, true, out playerFlag)) {
+            return playerFlag;
+        }
+
+        return 0;
+    }
+
+    private bool TryResolveOgsCurrentPlayerFlag(JObject json, bool includeClockPlayerFields, out PlayerFlag playerFlag)
+    {
+        playerFlag = 0;
+        string currentPlayer = ReadFirstString(
+            json,
+            "current_player",
+            "currentPlayer",
+            "current_player_id",
+            "currentPlayerId",
+            "player_to_move",
+            "playerToMove",
+            "to_move",
+            "toMove",
+            "next_player",
+            "nextPlayer",
+            "next_player_id",
+            "nextPlayerId");
+        if (string.IsNullOrWhiteSpace(currentPlayer) && includeClockPlayerFields) {
+            currentPlayer = ReadFirstString(json, "player_id", "playerId");
+        }
+        if (TryResolvePlayerFlagFromText(currentPlayer, out playerFlag)) {
+            return true;
+        }
+
+        if (!int.TryParse(currentPlayer, out int currentPlayerId) || compOgsDuel == null) {
+            return false;
+        }
+
+        if (currentPlayerId == compOgsDuel.blackOgsUserId) {
+            playerFlag = PlayerFlag.Player1;
+            return true;
+        }
+        if (currentPlayerId == compOgsDuel.whiteOgsUserId) {
+            playerFlag = PlayerFlag.Player2;
+            return true;
+        }
+
+        return false;
     }
 
     private PlayerFlag ResolveOgsStartClockPlayerFlag()
@@ -1023,11 +1066,18 @@ public class OgsDuelSystem : SystemBase
 
     private void SyncTurnAndInputFromMoveCount(int moveCount)
     {
+        SyncTurnAndInputFromMoveCount(moveCount, 0);
+    }
+
+    private void SyncTurnAndInputFromMoveCount(int moveCount, PlayerFlag currentTurnPlayerFlag)
+    {
         if (compDuel == null) {
             return;
         }
 
-        PlayerFlag currentTurnPlayerFlag = ResolveCurrentTurnPlayerFlag(moveCount);
+        if (currentTurnPlayerFlag != PlayerFlag.Player1 && currentTurnPlayerFlag != PlayerFlag.Player2) {
+            currentTurnPlayerFlag = ResolveCurrentTurnPlayerFlag(moveCount);
+        }
         compDuel.curTurnPlayerGuid.value = currentTurnPlayerFlag == PlayerFlag.Player1
             ? compDuel.player1Guid.value
             : compDuel.player2Guid.value;
