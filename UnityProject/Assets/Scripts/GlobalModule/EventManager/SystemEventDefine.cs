@@ -377,6 +377,18 @@ public class OnSubmitOgsDuelTakeBackConfirm : SystemEventBase
     }
 }
 
+public class OnOgsFriendInvitationCountChanged : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnOgsFriendInvitationCountChanged>();
+
+    public int count;
+
+    public OnOgsFriendInvitationCountChanged(int count)
+    {
+        this.count = count;
+    }
+}
+
 public class OnApplyLanDuelMove : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnApplyLanDuelMove>();

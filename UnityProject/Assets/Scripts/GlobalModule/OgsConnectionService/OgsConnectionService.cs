@@ -17,6 +17,7 @@ public sealed class OgsConnectionService : ModuleBase
     private OgsSession session;
     private string apiBaseUrl;
     private bool sessionLoaded;
+    private int friendInvitationCount;
 
     public OgsConnectionService()
     {
@@ -449,12 +450,26 @@ public sealed class OgsConnectionService : ModuleBase
             JToken invitationJson = await GetJsonTokenAsync($"{apiBaseUrl}/api/v1/me/friends/invitations/", accessToken, cancellationToken);
             List<OgsFriendInvitationItem> invitations = ReadFriendInvitationItems(invitationJson);
             XNLogger.LogInfo("OGS friend invitations refreshed.", ("count", invitations.Count.ToString()));
+            EmitFriendInvitationCountChanged(invitations.Count);
             return new OgsFriendInvitationListResult(true, "OGS friend invitations refreshed.", invitations);
         }
         catch (Exception ex) {
             XNLogger.LogError("OGS friend invitations request failed.", ("err", ex.Message));
             return new OgsFriendInvitationListResult(false, ex.Message);
         }
+    }
+
+    public int FriendInvitationCount => Mathf.Max(0, friendInvitationCount);
+
+    public async Task<OgsFriendInvitationCountResult> RequestFriendInvitationCountAsync(
+        CancellationToken cancellationToken = default(CancellationToken))
+    {
+        OgsFriendInvitationListResult result = await RequestFriendInvitationsAsync(cancellationToken);
+        if (!result.success) {
+            return new OgsFriendInvitationCountResult(false, result.message);
+        }
+
+        return new OgsFriendInvitationCountResult(true, result.message, result.invitations?.Count ?? 0);
     }
 
     public async Task<OgsConnectionResult> RespondFriendInvitationAsync(
@@ -513,6 +528,13 @@ public sealed class OgsConnectionService : ModuleBase
         }
         OgsSessionStore.Clear();
         XNLogger.LogInfo("OGS session cleared.");
+        EmitFriendInvitationCountChanged(0);
+    }
+
+    public void EmitFriendInvitationCountChanged(int count)
+    {
+        friendInvitationCount = Mathf.Max(0, count);
+        Global.Instance?.eventManager?.EmitSystemEvent(new OnOgsFriendInvitationCountChanged(friendInvitationCount));
     }
 
     public async Task<OgsRealtimeSmokeResult> TestRealtimeAuthenticationAsync(

@@ -575,6 +575,7 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
         friendTotalCount = invitationItems.Count;
         pendingInvitationCount = invitationItems.Count;
         SetFriendRequestsButtonText();
+        service.EmitFriendInvitationCountChanged(pendingInvitationCount);
         RefreshPage();
         ConfirmPopup.ShowTip("好友申请", accept ? "已同意好友申请" : "已拒绝好友申请", null, "确定");
     }

@@ -47,6 +47,7 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
         if (binder.btn_open_recent_replays != null) {
             binder.btn_open_recent_replays.onClick.AddListener(OnClickBtnOpenRecentReplays);
         }
+        RegisterSystemEvent<OnOgsFriendInvitationCountChanged>(OnOgsFriendInvitationCountChanged);
         if (binder.btn_replay_prev != null) {
             binder.btn_replay_prev.onClick.AddListener(OnClickBtnReplayPrev);
         }
@@ -63,6 +64,7 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
         RefreshUserInfo();
         RefreshOgsAccountFromSession();
         RefreshReplayItems();
+        ApplyCurrentFriendInvitationBadge();
         SetSaveTip(string.Empty);
     }
 
@@ -334,6 +336,24 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
         if (binder.btn_ogs_retry != null) {
             binder.btn_ogs_retry.interactable = interactable;
         }
+    }
+
+    private void SetOgsFriendRedDotVisible(bool visible)
+    {
+        if (binder.red_dot_ogs_friends != null) {
+            binder.red_dot_ogs_friends.gameObject.SetActive(visible);
+        }
+    }
+
+    private void OnOgsFriendInvitationCountChanged(OnOgsFriendInvitationCountChanged evt)
+    {
+        SetOgsFriendRedDotVisible(evt != null && evt.count > 0);
+    }
+
+    private void ApplyCurrentFriendInvitationBadge()
+    {
+        OgsConnectionService service = Global.Instance.ogsConnectionService;
+        SetOgsFriendRedDotVisible(service != null && service.HasSession && service.FriendInvitationCount > 0);
     }
 
     private void StartOgsAvatarDownload(string avatarUrl)

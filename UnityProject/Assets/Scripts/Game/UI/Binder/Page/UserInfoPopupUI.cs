@@ -41,6 +41,7 @@ public class UserInfoPopupUI : UIBinderBase
 	public Button btn_ogs_retry;
 	public TextMeshProUGUI txt_ogs_friend_summary;
 	public Button btn_open_ogs_friends;
+	public RectTransform red_dot_ogs_friends;
 	public TextMeshProUGUI txt_recent_replays_summary;
 	public Button btn_open_recent_replays;
 

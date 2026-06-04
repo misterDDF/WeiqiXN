@@ -4,11 +4,15 @@ using XNClient.Logger;
 
 public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
 {
+    private const float FriendInvitationBadgeRefreshIntervalSeconds = 15f;
+
     public override string pageName => UIPage.GetPageName<MainMenuPage>();
     private bool hasAppliedLayoutState;
     private bool lastPortraitLayout;
     private bool lastOgsButtonVisible;
     private bool isOgsGameStarting;
+    private bool isFriendInvitationBadgeRefreshing;
+    private float nextFriendInvitationBadgeRefreshTime;
 
     protected override void OnLoaded()
     {
@@ -22,8 +26,10 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
         binder.btn_ogs_game.onClick.AddListener(OnClickBtnOgsGame);
         binder.btn_exit.onClick.AddListener(OnClickBtnExit);
         binder.btn_user_info.onClick.AddListener(OnClickBtnUserInfo);
+        RegisterSystemEvent<OnOgsFriendInvitationCountChanged>(OnOgsFriendInvitationCountChanged);
 
         RefreshOgsGameButton(true);
+        SetUserInfoRedDotVisible(false);
     }
 
     protected override void OnOpen()
@@ -32,6 +38,7 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
 
         ApplyCurrentLayoutState(false);
         RefreshOgsGameButton(false);
+        RefreshFriendInvitationBadge(true);
     }
 
     protected override void OnUpdate()
@@ -40,6 +47,9 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
 
         ApplyCurrentLayoutState(false);
         RefreshOgsGameButton(false);
+        if (Time.unscaledTime >= nextFriendInvitationBadgeRefreshTime) {
+            RefreshFriendInvitationBadge(false);
+        }
     }
 
     private void ApplyCurrentLayoutState(bool force)
@@ -148,6 +158,56 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
         }
 
         binder.btn_ogs_game.interactable = visible && !isOgsGameStarting;
+    }
+
+    private async void RefreshFriendInvitationBadge(bool force)
+    {
+        if (isFriendInvitationBadgeRefreshing) {
+            return;
+        }
+
+        nextFriendInvitationBadgeRefreshTime = Time.unscaledTime + FriendInvitationBadgeRefreshIntervalSeconds;
+        OgsConnectionService service = Global.Instance.ogsConnectionService;
+        if (service == null || !service.HasSession) {
+            SetUserInfoRedDotVisible(false);
+            service?.EmitFriendInvitationCountChanged(0);
+            return;
+        }
+
+        isFriendInvitationBadgeRefreshing = true;
+        try {
+            OgsFriendInvitationCountResult result = await service.RequestFriendInvitationCountAsync();
+            if (!result.success) {
+                if (force) {
+                    SetUserInfoRedDotVisible(false);
+                }
+                XNLogger.LogWarn("Refresh OGS friend invitation badge on main menu failed.", ("message", result.message));
+                return;
+            }
+
+        }
+        catch (System.Exception ex) {
+            if (force) {
+                SetUserInfoRedDotVisible(false);
+            }
+            XNLogger.LogWarn("Refresh OGS friend invitation badge on main menu exception.", ("err", ex.Message));
+        }
+        finally {
+            isFriendInvitationBadgeRefreshing = false;
+        }
+    }
+
+    private void SetUserInfoRedDotVisible(bool visible)
+    {
+        if (binder.red_dot_user_info != null) {
+            binder.red_dot_user_info.gameObject.SetActive(visible);
+        }
+    }
+
+    private void OnOgsFriendInvitationCountChanged(OnOgsFriendInvitationCountChanged evt)
+    {
+        SetUserInfoRedDotVisible(evt != null && evt.count > 0);
+        nextFriendInvitationBadgeRefreshTime = Time.unscaledTime + FriendInvitationBadgeRefreshIntervalSeconds;
     }
 
     private async void StartOgsAutomatchWithConfig(DuelSceneCreateParamas duelParams)
