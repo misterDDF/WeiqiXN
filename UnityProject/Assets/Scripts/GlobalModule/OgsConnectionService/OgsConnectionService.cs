@@ -2356,9 +2356,7 @@ public sealed class OgsConnectionService : ModuleBase
             return 0;
         }
 
-        long startedAt = GetUnixMilliseconds();
-        const int waitMilliseconds = 300000;
-        while (GetUnixMilliseconds() - startedAt < waitMilliseconds) {
+        while (true) {
             cancellationToken.ThrowIfCancellationRequested();
             int gameId = await TryReadAcceptedChallengeGameIdAsync(challengeId, accessToken, cancellationToken);
             if (gameId > 0) {
@@ -2367,8 +2365,6 @@ public sealed class OgsConnectionService : ModuleBase
 
             await Task.Delay(1500, cancellationToken);
         }
-
-        return 0;
     }
 
     private async Task<int> TryReadAcceptedChallengeGameIdAsync(
