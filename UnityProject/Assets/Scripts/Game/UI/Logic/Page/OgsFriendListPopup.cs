@@ -11,6 +11,8 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
     private const string FriendListButtonText = "好友列表";
     private const string FriendRequestsButtonText = "好友申请";
 
+    private static OgsFriendListPopup openedPopup;
+
     private readonly List<OgsFriendListItem> friendItems = new List<OgsFriendListItem>();
     private readonly List<OgsFriendInvitationItem> invitationItems = new List<OgsFriendInvitationItem>();
     private readonly List<OgsFriendItemWidget> itemWidgets = new List<OgsFriendItemWidget>();
@@ -31,6 +33,11 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
 
     private int CurrentItemCount => isInvitationMode ? invitationItems.Count : friendItems.Count;
 
+    public static void NotifyFriendDeleted()
+    {
+        openedPopup?.RefreshFriendList(false, false);
+    }
+
     protected override void OnLoaded()
     {
         base.OnLoaded();
@@ -50,6 +57,7 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
     {
         base.OnOpen();
 
+        openedPopup = this;
         isInvitationMode = false;
         ApplyCurrentLayoutState(false);
         nextAutoRefreshTime = Time.unscaledTime + AutoRefreshIntervalSeconds;
@@ -79,6 +87,9 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
 
     protected override void OnClose()
     {
+        if (openedPopup == this) {
+            openedPopup = null;
+        }
         refreshVersion += 1;
         isRefreshRunning = false;
         ClearItemWidgets();

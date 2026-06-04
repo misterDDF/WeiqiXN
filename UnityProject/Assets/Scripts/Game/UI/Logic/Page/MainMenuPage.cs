@@ -108,7 +108,7 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
 
             ConfirmPopup.CloseIfOpen(popupRequestId);
             if (activeGame != null) {
-                EnterOgsDuelScene(activeGame);
+                OgsDuelLaunchFlow.EnterOgsDuelScene(activeGame);
                 return;
             }
 
@@ -165,7 +165,7 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
 
         isOgsGameStarting = true;
         RefreshOgsGameButton(true);
-        OgsAutomatchCreateParams createParams = BuildOgsAutomatchCreateParams(duelParams);
+        OgsAutomatchCreateParams createParams = OgsDuelLaunchFlow.BuildAutomatchCreateParams(duelParams);
         bool canceledByUser = false;
         var cancelSource = new CancellationTokenSource();
         int popupRequestId = ConfirmPopup.ShowCancelableBlocking(
@@ -194,7 +194,7 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
             }
 
             ConfirmPopup.CloseIfOpen(popupRequestId);
-            EnterOgsDuelScene(result, duelParams);
+            OgsDuelLaunchFlow.EnterOgsDuelScene(result, duelParams);
         }
         catch (System.Exception ex) {
             XNLogger.LogError("OGS automatch game start from setup failed.", ("err", ex.Message));
@@ -205,73 +205,6 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
             cancelSource.Dispose();
             isOgsGameStarting = false;
             RefreshOgsGameButton(true);
-        }
-    }
-
-    private void EnterOgsDuelScene(OgsBotGameStartResult result, DuelSceneCreateParamas duelParams = null)
-    {
-        OgsGameStateSmokeResult gameState = result.gameState;
-        int boardSize = gameState != null && gameState.boardWidth > 0 && gameState.boardWidth == gameState.boardHeight
-            ? gameState.boardWidth
-            : OgsConnectionConfig.DefaultBotGameBoardSize;
-        string boardCfgId = $"{boardSize}x{boardSize}";
-        SceneCreateParams sceneCreateParams = new SceneCreateParams
-        {
-            duelSceneCreateParamas = duelParams ?? new DuelSceneCreateParamas
-            {
-                boardCfgId = boardCfgId,
-                holdTimeCfgId = "infinite",
-                byoyomiCountCfgId = "off",
-                byoyomiTimeCfgId = "30s",
-            },
-            ogsDuelSceneCreateParams = new OgsDuelSceneCreateParams
-            {
-                gameId = result.gameId,
-                boardSize = boardSize,
-                botId = result.botId,
-                botName = result.botName,
-                isBotGame = result.isBotGame,
-                challengeId = result.challengeId,
-                challengeUuid = result.challengeUuid,
-            },
-        };
-        Global.Instance.sceneManager.EnterMainScene(SceneConfig.OGS_DUEL_SCENE_TYPE_ID, sceneCreateParams);
-    }
-
-    private OgsAutomatchCreateParams BuildOgsAutomatchCreateParams(DuelSceneCreateParamas duelParams)
-    {
-        ChessBoardDataType boardData = ChessBoardDataType.GetConfigData(duelParams.boardCfgId);
-        DuelHoldTimeDataType holdTimeData = DuelHoldTimeDataType.GetConfigData(duelParams.holdTimeCfgId);
-        DuelByoyomiCountDataType byoyomiCountData = DuelByoyomiCountDataType.GetConfigData(duelParams.byoyomiCountCfgId);
-        DuelByoyomiTimeDataType byoyomiTimeData = DuelByoyomiTimeDataType.GetConfigData(duelParams.byoyomiTimeCfgId);
-        DuelHandicapDataType handicapData = DuelHandicapDataType.GetConfigData(duelParams.handicapCfgId);
-
-        int boardSize = boardData != null && boardData.boardSize > 0
-            ? boardData.boardSize
-            : OgsConnectionConfig.DefaultBotGameBoardSize;
-        int mainTimeSeconds = holdTimeData != null ? holdTimeData.holdSeconds : 600;
-        int byoyomiPeriods = byoyomiCountData != null ? byoyomiCountData.count : 0;
-        int byoyomiPeriodSeconds = byoyomiTimeData != null ? byoyomiTimeData.seconds : 30;
-        int handicap = handicapData != null ? handicapData.handicapCount : 0;
-
-        return new OgsAutomatchCreateParams(
-            boardSize,
-            mainTimeSeconds,
-            byoyomiPeriods,
-            byoyomiPeriodSeconds,
-            handicap);
-    }
-
-    private string ResolveOgsChallengerColor(string playerSideCfgId)
-    {
-        switch (playerSideCfgId) {
-            case "black":
-                return "black";
-            case "white":
-                return "white";
-            case "guess":
-            default:
-                return "automatic";
         }
     }
 }

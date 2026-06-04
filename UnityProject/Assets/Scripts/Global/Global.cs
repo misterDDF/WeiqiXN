@@ -66,6 +66,7 @@ public class Global
     public ReddotManager reddotManager;
     public LanRoomService lanRoomService;
     public OgsConnectionService ogsConnectionService;
+    public OgsChallengeInviteCoordinator ogsChallengeInviteCoordinator;
     public UIManager uiManager;
     public SceneManager sceneManager;
 
@@ -95,6 +96,9 @@ public class Global
 
         ogsConnectionService = new OgsConnectionService();
         moduleList.Add(ogsConnectionService);
+
+        ogsChallengeInviteCoordinator = new OgsChallengeInviteCoordinator();
+        moduleList.Add(ogsChallengeInviteCoordinator);
 
         startupState = StartupState.LoadingResources;
         TryFinishStartup();

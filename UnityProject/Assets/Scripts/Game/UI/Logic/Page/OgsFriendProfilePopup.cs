@@ -1,12 +1,19 @@
 using TMPro;
+using System.Threading;
 using UnityEngine;
 using UnityEngine.UI;
+using XNClient.Logger;
 
 public class OgsFriendProfilePopup : UIPageWithBinder<OgsFriendProfilePopupUI>
 {
     private static OgsFriendListItem pendingItem;
 
     private OgsFriendListItem currentItem;
+    private bool hasAppliedLayoutState;
+    private bool lastPortraitLayout;
+    private bool isDeletingFriend;
+    private bool isInvitingGame;
+    private CancellationTokenSource inviteCancellationTokenSource;
 
     public override string pageName => UIPage.GetPageName<OgsFriendProfilePopup>();
 
@@ -20,6 +27,7 @@ public class OgsFriendProfilePopup : UIPageWithBinder<OgsFriendProfilePopupUI>
     {
         base.OnLoaded();
 
+        ApplyCurrentLayoutState(true);
         AddButtonListener(binder.btn_close, OnClickClose);
         AddButtonListener(binder.btn_invite_game, OnClickInviteGame);
         AddButtonListener(binder.btn_delete_friend, OnClickDeleteFriend);
@@ -29,9 +37,17 @@ public class OgsFriendProfilePopup : UIPageWithBinder<OgsFriendProfilePopupUI>
     {
         base.OnOpen();
 
+        ApplyCurrentLayoutState(false);
         currentItem = pendingItem;
         pendingItem = null;
         ApplyData(currentItem);
+    }
+
+    protected override void OnUpdate()
+    {
+        base.OnUpdate();
+
+        ApplyCurrentLayoutState(false);
     }
 
     private void ApplyData(OgsFriendListItem item)
@@ -63,14 +79,180 @@ public class OgsFriendProfilePopup : UIPageWithBinder<OgsFriendProfilePopupUI>
 
     private void OnClickInviteGame()
     {
-        string username = DisplayValue(currentItem?.username, "该好友");
-        ConfirmPopup.ShowTip("邀请对局", $"暂未接入向 {username} 发起 OGS 邀请对局的接口。", null, "确定");
+        if (isInvitingGame) {
+            return;
+        }
+
+        if (!CanUseCurrentFriend(out string friendUserId, out string username)) {
+            return;
+        }
+
+        OgsConnectionService service = Global.Instance.ogsConnectionService;
+        if (service == null || !service.HasWriteSession) {
+            ConfirmPopup.ShowTip("邀请对局", "请先登录 OGS，并确认授权包含对局权限。", null, "确定");
+            return;
+        }
+
+        DuelSetupPopup.OpenForOgs(duelParams => StartFriendInvite(friendUserId, username, duelParams));
     }
 
     private void OnClickDeleteFriend()
     {
-        string username = DisplayValue(currentItem?.username, "该好友");
-        ConfirmPopup.ShowTip("删除好友", $"暂未接入从 OGS 好友列表删除 {username} 的接口。", null, "确定");
+        if (isDeletingFriend) {
+            return;
+        }
+
+        if (!CanUseCurrentFriend(out string friendUserId, out string username)) {
+            return;
+        }
+
+        ConfirmPopup.Show(
+            "删除好友",
+            $"确定从 OGS 好友列表删除 {username} 吗？",
+            () => DeleteFriendAsync(friendUserId, username),
+            null,
+            "删除",
+            "取消");
+    }
+
+    private async void DeleteFriendAsync(string friendUserId, string username)
+    {
+        if (isDeletingFriend) {
+            return;
+        }
+
+        OgsConnectionService service = Global.Instance.ogsConnectionService;
+        if (service == null || !service.HasWriteSession) {
+            ConfirmPopup.ShowTip("删除好友", "请先登录 OGS，并确认授权包含写入权限。", null, "确定");
+            return;
+        }
+
+        isDeletingFriend = true;
+        SetActionButtonsInteractable(false);
+        int popupRequestId = ConfirmPopup.ShowBlocking("删除好友", $"正在删除 {username}...");
+        try {
+            OgsConnectionResult result = await service.DeleteFriendAsync(friendUserId);
+            ConfirmPopup.CloseIfOpen(popupRequestId);
+            if (!result.success) {
+                ConfirmPopup.ShowTip("删除好友失败", result.message, null, "确定");
+                return;
+            }
+
+            ClosePage();
+            OgsFriendListPopup.NotifyFriendDeleted();
+            ConfirmPopup.ShowTip("删除好友", $"已删除 {username}。", null, "确定");
+        }
+        catch (System.Exception ex) {
+            XNLogger.LogError("Delete OGS friend from profile popup failed.", ("friendUserId", friendUserId), ("err", ex.Message));
+            ConfirmPopup.CloseIfOpen(popupRequestId);
+            ConfirmPopup.ShowTip("删除好友失败", ex.Message, null, "确定");
+        }
+        finally {
+            isDeletingFriend = false;
+            SetActionButtonsInteractable(true);
+        }
+    }
+
+    private async void StartFriendInvite(string friendUserId, string username, DuelSceneCreateParamas duelParams)
+    {
+        if (isInvitingGame || duelParams == null) {
+            return;
+        }
+
+        OgsConnectionService service = Global.Instance.ogsConnectionService;
+        if (service == null || !service.HasWriteSession) {
+            ConfirmPopup.ShowTip("邀请对局", "请先登录 OGS，并确认授权包含对局权限。", null, "确定");
+            return;
+        }
+
+        isInvitingGame = true;
+        SetActionButtonsInteractable(false);
+        bool canceledByUser = false;
+        inviteCancellationTokenSource = new CancellationTokenSource();
+        int popupRequestId = ConfirmPopup.ShowCancelableBlocking(
+            "邀请对局",
+            $"已向 {username} 发起邀请，等待对方接受...",
+            () => {
+                canceledByUser = true;
+                inviteCancellationTokenSource.Cancel();
+            },
+            "取消邀请");
+
+        try {
+            OgsFriendChallengeCreateParams createParams = OgsDuelLaunchFlow.BuildFriendChallengeCreateParams(
+                friendUserId,
+                duelParams,
+                "Friendly Match");
+            OgsBotGameStartResult result = await service.CreateFriendChallengeAsync(createParams, cancellationToken: inviteCancellationTokenSource.Token);
+            if (!result.success) {
+                if (canceledByUser) {
+                    return;
+                }
+
+                ConfirmPopup.CloseIfOpen(popupRequestId);
+                ConfirmPopup.ShowTip("邀请对局失败", result.message, null, "确定");
+                return;
+            }
+
+            ConfirmPopup.CloseIfOpen(popupRequestId);
+            ConfirmPopup.ShowBlocking("邀请对局", "对方已接受，正在进入棋局...");
+            OgsDuelLaunchFlow.EnterOgsDuelScene(result, duelParams);
+        }
+        catch (System.OperationCanceledException) when (inviteCancellationTokenSource != null && inviteCancellationTokenSource.IsCancellationRequested) {
+            ConfirmPopup.CloseIfOpen(popupRequestId);
+        }
+        catch (System.Exception ex) {
+            XNLogger.LogError("Start OGS friend challenge from profile popup failed.", ("friendUserId", friendUserId), ("err", ex.Message));
+            ConfirmPopup.CloseIfOpen(popupRequestId);
+            ConfirmPopup.ShowTip("邀请对局失败", ex.Message, null, "确定");
+        }
+        finally {
+            inviteCancellationTokenSource?.Dispose();
+            inviteCancellationTokenSource = null;
+            isInvitingGame = false;
+            SetActionButtonsInteractable(true);
+        }
+    }
+
+    private bool CanUseCurrentFriend(out string friendUserId, out string username)
+    {
+        friendUserId = DisplayValue(currentItem?.userId, string.Empty);
+        username = DisplayValue(currentItem?.username, "该好友");
+        if (string.IsNullOrWhiteSpace(friendUserId)) {
+            ConfirmPopup.ShowTip("OGS 好友", "该好友缺少 OGS ID，无法执行操作。", null, "确定");
+            return false;
+        }
+
+        return true;
+    }
+
+    private void SetActionButtonsInteractable(bool interactable)
+    {
+        if (binder.btn_invite_game != null) {
+            binder.btn_invite_game.interactable = interactable && !isDeletingFriend && !isInvitingGame;
+        }
+        if (binder.btn_delete_friend != null) {
+            binder.btn_delete_friend.interactable = interactable && !isDeletingFriend && !isInvitingGame;
+        }
+    }
+
+    private void ApplyCurrentLayoutState(bool force)
+    {
+        if (binder.sr_platform == null) {
+            return;
+        }
+
+        RectTransform layoutRoot = binder.panel_root != null ? binder.panel_root : rectTransform;
+        bool isPortrait = UIUtils.IsPortrait(layoutRoot);
+        if (!force && hasAppliedLayoutState && isPortrait == lastPortraitLayout) {
+            return;
+        }
+
+        binder.SetSrPlatformState(isPortrait
+            ? OgsFriendProfilePopupUI.SrPlatformState.Portrait
+            : OgsFriendProfilePopupUI.SrPlatformState.Landscape, force);
+        hasAppliedLayoutState = true;
+        lastPortraitLayout = isPortrait;
     }
 
     private static string DisplayValue(string value, string fallback = "--")
