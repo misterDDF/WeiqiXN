@@ -11,6 +11,7 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         Ai,
         Lan,
         Ogs,
+        OgsFriend,
     }
 
     public override string pageName => UIPage.GetPageName<DuelSetupPopup>();
@@ -64,6 +65,14 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     {
         pendingOpenAiDuel = false;
         pendingOpenMode = SetupOpenMode.Ogs;
+        pendingConfirmHandler = onConfirmed;
+        Global.Instance.uiManager.ShowPage<DuelSetupPopup>();
+    }
+
+    public static void OpenForOgsFriend(Action<DuelSceneCreateParamas> onConfirmed)
+    {
+        pendingOpenAiDuel = false;
+        pendingOpenMode = SetupOpenMode.OgsFriend;
         pendingConfirmHandler = onConfirmed;
         Global.Instance.uiManager.ShowPage<DuelSetupPopup>();
     }
@@ -390,7 +399,7 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
 
     private string ResolveDefaultHoldTimeCfgId()
     {
-        if (IsOgsSetup()) {
+        if (IsAnyOgsSetup()) {
             if (CanUseHoldTimeCfg(DefaultOgsHoldTimeCfgId)) {
                 return DefaultOgsHoldTimeCfgId;
             }
@@ -427,31 +436,40 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     private bool CanUseBoardCfg(string cfgId)
     {
         ChessBoardDataType data = ChessBoardDataType.GetConfigData(cfgId);
-        return data != null && (!IsOgsSetup() || data.ogsEnabled);
+        return data != null && (!IsAnyOgsSetup() || data.ogsEnabled);
     }
 
     private bool CanUseHoldTimeCfg(string cfgId)
     {
         DuelHoldTimeDataType data = DuelHoldTimeDataType.GetConfigData(cfgId);
-        return data != null && (!IsOgsSetup() || data.ogsEnabled);
+        return data != null && (!IsAnyOgsSetup() || data.ogsEnabled);
     }
 
     private bool CanUseByoyomiCountCfg(string cfgId)
     {
         DuelByoyomiCountDataType data = DuelByoyomiCountDataType.GetConfigData(cfgId);
-        return data != null && (!IsOgsSetup() || data.ogsEnabled);
+        return data != null && (!IsAnyOgsSetup() || data.ogsEnabled);
     }
 
     private bool CanUseByoyomiTimeCfg(string cfgId)
     {
         DuelByoyomiTimeDataType data = DuelByoyomiTimeDataType.GetConfigData(cfgId);
-        return data != null && (!IsOgsSetup() || data.ogsEnabled);
+        return data != null && (!IsAnyOgsSetup() || data.ogsEnabled);
     }
 
     private bool CanUseHandicapCfg(string cfgId)
     {
         DuelHandicapDataType data = DuelHandicapDataType.GetConfigData(cfgId);
-        return data != null && data.boardCfgId == selectedBoardCfgId && (!IsOgsSetup() || data.ogsEnabled);
+        if (data == null || data.boardCfgId != selectedBoardCfgId) {
+            return false;
+        }
+        if (IsOgsAutomatchSetup()) {
+            return cfgId == DuelHandicapPlacement.GetDefaultCfgId(selectedBoardCfgId) && data.ogsEnabled;
+        }
+        if (IsOgsFriendSetup()) {
+            return data.ogsFriendEnabled;
+        }
+        return true;
     }
 
     private void RefreshSelectionState()
@@ -644,7 +662,7 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
 
     private bool ShouldShowPlayerColor()
     {
-        return isAiDuel || IsLanRoomSetup() || IsOgsSetup();
+        return isAiDuel || IsLanRoomSetup() || IsAnyOgsSetup();
     }
 
     private DuelSetupPopupUI.SrModeState ResolveModeState()
@@ -652,7 +670,10 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         if (IsLanRoomSetup()) {
             return DuelSetupPopupUI.SrModeState.Lan;
         }
-        if (IsOgsSetup()) {
+        if (IsOgsFriendSetup()) {
+            return DuelSetupPopupUI.SrModeState.Lan;
+        }
+        if (IsOgsAutomatchSetup()) {
             return DuelSetupPopupUI.SrModeState.Ogs;
         }
 
@@ -661,6 +682,10 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
 
     private bool ShouldForceEvenGameHandicap()
     {
+        if (IsOgsAutomatchSetup()) {
+            return true;
+        }
+
         return ShouldShowPlayerColor() && selectedPlayerSideCfgId == PlayerSideGuess;
     }
 
@@ -669,9 +694,19 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         return setupMode == SetupOpenMode.Lan;
     }
 
-    private bool IsOgsSetup()
+    private bool IsOgsAutomatchSetup()
     {
         return setupMode == SetupOpenMode.Ogs;
+    }
+
+    private bool IsOgsFriendSetup()
+    {
+        return setupMode == SetupOpenMode.OgsFriend;
+    }
+
+    private bool IsAnyOgsSetup()
+    {
+        return IsOgsAutomatchSetup() || IsOgsFriendSetup();
     }
 
     private DuelSetupPreferenceMode ResolvePreferenceMode()
@@ -679,7 +714,10 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         if (IsLanRoomSetup()) {
             return DuelSetupPreferenceMode.Lan;
         }
-        if (IsOgsSetup()) {
+        if (IsOgsFriendSetup()) {
+            return DuelSetupPreferenceMode.OgsFriend;
+        }
+        if (IsOgsAutomatchSetup()) {
             return DuelSetupPreferenceMode.Ogs;
         }
 
