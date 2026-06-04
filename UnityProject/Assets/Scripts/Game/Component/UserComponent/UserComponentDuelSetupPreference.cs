@@ -4,6 +4,7 @@ public enum DuelSetupPreferenceMode
     Ai = 1,
     Lan = 2,
     Ogs = 3,
+    OgsFriend = 4,
 }
 
 public class UserComponentDuelSetupPreference : UserComponentBase
@@ -12,6 +13,7 @@ public class UserComponentDuelSetupPreference : UserComponentBase
     public DuelSetupModePreference aiDuel = new DuelSetupModePreference();
     public DuelSetupModePreference lanDuel = new DuelSetupModePreference();
     public DuelSetupModePreference ogsDuel = DuelSetupModePreference.CreateOgsDefault();
+    public DuelSetupModePreference ogsFriendDuel = DuelSetupModePreference.CreateOgsDefault();
 
     public UserComponentDuelSetupPreference(User owner) : base(owner)
     {
@@ -26,6 +28,8 @@ public class UserComponentDuelSetupPreference : UserComponentBase
                 return lanDuel;
             case DuelSetupPreferenceMode.Ogs:
                 return ogsDuel;
+            case DuelSetupPreferenceMode.OgsFriend:
+                return ogsFriendDuel;
             case DuelSetupPreferenceMode.Local:
             default:
                 return localDuel;

@@ -14,6 +14,7 @@ public class DuelHandicapDataType
     public float komi;  // 贴目
     public string[] stonePoints;  // 星位坐标
     public bool ogsEnabled;  // OGS启用
+    public bool ogsFriendEnabled;  // OGS好友启用
 
     public static Dictionary<string, DuelHandicapDataType> DuelHandicapDict;
 

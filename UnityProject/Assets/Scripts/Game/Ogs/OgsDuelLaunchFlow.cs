@@ -8,7 +8,7 @@ public static class OgsDuelLaunchFlow
             values.mainTimeSeconds,
             values.byoyomiPeriods,
             values.byoyomiPeriodSeconds,
-            values.handicap);
+            0);
     }
 
     public static OgsFriendChallengeCreateParams BuildFriendChallengeCreateParams(

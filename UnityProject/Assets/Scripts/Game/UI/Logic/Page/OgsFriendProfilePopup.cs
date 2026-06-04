@@ -93,7 +93,7 @@ public class OgsFriendProfilePopup : UIPageWithBinder<OgsFriendProfilePopupUI>
             return;
         }
 
-        DuelSetupPopup.OpenForOgs(duelParams => StartFriendInvite(friendUserId, username, duelParams));
+        DuelSetupPopup.OpenForOgsFriend(duelParams => StartFriendInvite(friendUserId, username, duelParams));
     }
 
     private void OnClickDeleteFriend()
