@@ -11,6 +11,8 @@ public class OgsFriendListPopupUI : UIBinderBase
     public StateRoot sr_ogs_friend_state;
     public Button btn_close;
     public Button btn_refresh;
+    public Button btn_add_friend;
+    public Button btn_friend_requests;
     public Button btn_retry;
     public Button btn_login;
     public Button btn_prev_page;

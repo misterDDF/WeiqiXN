@@ -8,19 +8,28 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
 {
     private const int MaxItemsPerPage = 6;
     private const float AutoRefreshIntervalSeconds = 5f;
+    private const string FriendListButtonText = "好友列表";
+    private const string FriendRequestsButtonText = "好友申请";
 
     private readonly List<OgsFriendListItem> friendItems = new List<OgsFriendListItem>();
+    private readonly List<OgsFriendInvitationItem> invitationItems = new List<OgsFriendInvitationItem>();
     private readonly List<OgsFriendItemWidget> itemWidgets = new List<OgsFriendItemWidget>();
     private int pageIndex;
     private int friendTotalCount;
+    private int pendingInvitationCount;
     private int lastItemsPerPage = -1;
     private float nextAutoRefreshTime;
     private int refreshVersion;
     private bool isRefreshRunning;
+    private bool isInvitationMode;
+    private bool isInvitationBadgeRunning;
+    private bool isFriendRequestRunning;
     private bool hasAppliedLayoutState;
     private bool lastPortraitLayout;
 
     public override string pageName => UIPage.GetPageName<OgsFriendListPopup>();
+
+    private int CurrentItemCount => isInvitationMode ? invitationItems.Count : friendItems.Count;
 
     protected override void OnLoaded()
     {
@@ -28,6 +37,9 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
 
         ApplyCurrentLayoutState(true);
         AddButtonListener(binder.btn_close, OnClickBtnClose);
+        AddButtonListener(binder.btn_refresh, OnClickBtnRetry);
+        AddButtonListener(binder.btn_add_friend, OnClickBtnAddFriend);
+        AddButtonListener(binder.btn_friend_requests, OnClickBtnFriendRequests);
         AddButtonListener(binder.btn_retry, OnClickBtnRetry);
         AddButtonListener(binder.btn_login, OnClickBtnLogin);
         AddButtonListener(binder.btn_prev_page, OnClickBtnPrevPage);
@@ -38,9 +50,12 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
     {
         base.OnOpen();
 
+        isInvitationMode = false;
         ApplyCurrentLayoutState(false);
         nextAutoRefreshTime = Time.unscaledTime + AutoRefreshIntervalSeconds;
-        RefreshFriendList();
+        SetFriendRequestsButtonText();
+        RefreshList();
+        RefreshInvitationBadge();
     }
 
     protected override void OnUpdate()
@@ -49,16 +64,16 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
 
         bool layoutChanged = ApplyCurrentLayoutState(false);
         int itemsPerPage = GetItemsPerPage();
-        if (layoutChanged && friendItems.Count > 0) {
+        if (layoutChanged && CurrentItemCount > 0) {
             if (itemsPerPage != lastItemsPerPage) {
-                RefreshFriendList(false, false);
+                RefreshList(false, false);
             } else {
                 RefreshPage();
             }
         }
         if (isVisible && Time.unscaledTime >= nextAutoRefreshTime) {
             nextAutoRefreshTime = Time.unscaledTime + AutoRefreshIntervalSeconds;
-            RefreshFriendList(false, friendItems.Count <= 0);
+            RefreshList(false, CurrentItemCount <= 0);
         }
     }
 
@@ -70,6 +85,15 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
         base.OnClose();
     }
 
+    private void RefreshList(bool resetPage = true, bool showLoading = true)
+    {
+        if (isInvitationMode) {
+            RefreshInvitationList(resetPage, showLoading);
+        } else {
+            RefreshFriendList(resetPage, showLoading);
+        }
+    }
+
     private async void RefreshFriendList(bool resetPage = true, bool showLoading = true)
     {
         if (isRefreshRunning) {
@@ -79,7 +103,9 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
         OgsConnectionService service = Global.Instance.ogsConnectionService;
         if (service == null || !service.HasSession) {
             friendItems.Clear();
+            invitationItems.Clear();
             friendTotalCount = 0;
+            pendingInvitationCount = 0;
             if (resetPage) {
                 pageIndex = 0;
             }
@@ -87,6 +113,7 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
             SetState(OgsFriendListPopupUI.SrOgsFriendState.NotLoggedIn);
             SetText(binder.txt_page, "0 / 0");
             SetPageButtons(false, false);
+            SetFriendRequestsButtonText();
             return;
         }
 
@@ -132,6 +159,7 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
             }
             friendTotalCount = Mathf.Max(result.totalCount, friendItems.Count);
             RefreshPage();
+            RefreshInvitationBadge();
         }
         catch (System.Exception ex) {
             XNLogger.LogError("Refresh OGS friend list from popup failed.", ("err", ex.Message));
@@ -155,6 +183,137 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
         }
     }
 
+    private async void RefreshInvitationList(bool resetPage = true, bool showLoading = true)
+    {
+        if (isRefreshRunning) {
+            return;
+        }
+
+        OgsConnectionService service = Global.Instance.ogsConnectionService;
+        if (service == null || !service.HasSession) {
+            friendItems.Clear();
+            invitationItems.Clear();
+            friendTotalCount = 0;
+            pendingInvitationCount = 0;
+            if (resetPage) {
+                pageIndex = 0;
+            }
+            ClearItemWidgets();
+            SetState(OgsFriendListPopupUI.SrOgsFriendState.NotLoggedIn);
+            SetText(binder.txt_page, "0 / 0");
+            SetPageButtons(false, false);
+            SetFriendRequestsButtonText();
+            return;
+        }
+
+        int currentVersion = ++refreshVersion;
+        isRefreshRunning = true;
+        if (resetPage) {
+            pageIndex = 0;
+        }
+        int itemsPerPage = GetItemsPerPage();
+        lastItemsPerPage = itemsPerPage;
+        if (showLoading) {
+            ClearItemWidgets();
+            SetText(binder.txt_loading, "正在读取 OGS 好友申请...");
+            SetState(OgsFriendListPopupUI.SrOgsFriendState.Loading);
+            SetPageButtons(false, false);
+        }
+
+        try {
+            OgsFriendInvitationListResult result = await service.RequestFriendInvitationsAsync();
+            if (currentVersion != refreshVersion) {
+                return;
+            }
+
+            if (!result.success) {
+                if (invitationItems.Count > 0 && !showLoading) {
+                    XNLogger.LogWarn("OGS friend invitation auto refresh failed, keeping current list.", ("message", result.message));
+                    return;
+                }
+
+                invitationItems.Clear();
+                friendTotalCount = 0;
+                ClearItemWidgets();
+                SetText(binder.txt_error, string.IsNullOrWhiteSpace(result.message) ? "OGS 好友申请读取失败" : result.message);
+                SetState(OgsFriendListPopupUI.SrOgsFriendState.Error);
+                SetText(binder.txt_page, "0 / 0");
+                SetPageButtons(false, false);
+                return;
+            }
+
+            invitationItems.Clear();
+            if (result.invitations != null) {
+                invitationItems.AddRange(result.invitations);
+            }
+            friendTotalCount = invitationItems.Count;
+            pendingInvitationCount = invitationItems.Count;
+            SetFriendRequestsButtonText();
+            RefreshPage();
+        }
+        catch (System.Exception ex) {
+            XNLogger.LogError("Refresh OGS friend invitation list from popup failed.", ("err", ex.Message));
+            if (currentVersion != refreshVersion) {
+                return;
+            }
+
+            invitationItems.Clear();
+            friendTotalCount = 0;
+            ClearItemWidgets();
+            SetText(binder.txt_error, ex.Message);
+            SetState(OgsFriendListPopupUI.SrOgsFriendState.Error);
+            SetText(binder.txt_page, "0 / 0");
+            SetPageButtons(false, false);
+        }
+        finally {
+            if (currentVersion == refreshVersion) {
+                isRefreshRunning = false;
+                nextAutoRefreshTime = Time.unscaledTime + AutoRefreshIntervalSeconds;
+            }
+        }
+    }
+
+    private async void RefreshInvitationBadge()
+    {
+        if (isInvitationMode || isInvitationBadgeRunning) {
+            return;
+        }
+
+        OgsConnectionService service = Global.Instance.ogsConnectionService;
+        if (service == null || !service.HasSession) {
+            invitationItems.Clear();
+            pendingInvitationCount = 0;
+            SetFriendRequestsButtonText();
+            return;
+        }
+
+        isInvitationBadgeRunning = true;
+        try {
+            OgsFriendInvitationListResult result = await service.RequestFriendInvitationsAsync();
+            if (isInvitationMode) {
+                return;
+            }
+
+            if (!result.success) {
+                XNLogger.LogWarn("OGS friend invitation badge refresh failed.", ("message", result.message));
+                return;
+            }
+
+            invitationItems.Clear();
+            if (result.invitations != null) {
+                invitationItems.AddRange(result.invitations);
+            }
+            pendingInvitationCount = invitationItems.Count;
+            SetFriendRequestsButtonText();
+        }
+        catch (System.Exception ex) {
+            XNLogger.LogWarn("Refresh OGS friend invitation badge failed.", ("err", ex.Message));
+        }
+        finally {
+            isInvitationBadgeRunning = false;
+        }
+    }
+
     private void RefreshPage()
     {
         ClearItemWidgets();
@@ -162,7 +321,7 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
         int itemsPerPage = GetItemsPerPage();
         int pageCount = GetPageCount(itemsPerPage);
         if (pageCount <= 0) {
-            SetText(binder.txt_empty, "暂无 OGS 好友");
+            SetText(binder.txt_empty, isInvitationMode ? "暂无 OGS 好友申请" : "暂无 OGS 好友");
             SetState(OgsFriendListPopupUI.SrOgsFriendState.Empty);
             SetText(binder.txt_page, "0 / 0");
             SetPageButtons(false, false);
@@ -170,19 +329,20 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
         }
 
         pageIndex = Mathf.Clamp(pageIndex, 0, pageCount - 1);
-        int endIndex = Mathf.Min(itemsPerPage, friendItems.Count);
-        for (int i = 0; i < endIndex; i++) {
+        int startIndex = isInvitationMode ? pageIndex * itemsPerPage : 0;
+        int endIndex = Mathf.Min(startIndex + itemsPerPage, CurrentItemCount);
+        for (int i = startIndex; i < endIndex; i++) {
             OgsFriendItemWidget itemWidget = CreateItemWidget();
             if (itemWidget == null) {
                 continue;
             }
 
-            itemWidget.SetData(friendItems[i], OnClickFriendItem);
+            itemWidget.SetData(GetDisplayItem(i), OnClickFriendItem);
             itemWidgets.Add(itemWidget);
         }
 
         if (itemWidgets.Count <= 0) {
-            SetText(binder.txt_error, "好友列表控件加载失败");
+            SetText(binder.txt_error, isInvitationMode ? "好友申请列表控件加载失败" : "好友列表控件加载失败");
             SetState(OgsFriendListPopupUI.SrOgsFriendState.Error);
             SetText(binder.txt_page, "0 / 0");
             SetPageButtons(false, false);
@@ -244,7 +404,7 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
 
     private int GetPageCount(int itemsPerPage)
     {
-        int totalCount = Mathf.Max(friendTotalCount, friendItems.Count);
+        int totalCount = Mathf.Max(friendTotalCount, CurrentItemCount);
         if (totalCount <= 0) {
             return 0;
         }
@@ -260,7 +420,37 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
 
     private void OnClickBtnRetry()
     {
-        RefreshFriendList();
+        RefreshList();
+    }
+
+    private void OnClickBtnAddFriend()
+    {
+        OgsConnectionService service = Global.Instance.ogsConnectionService;
+        if (service == null || !service.HasSession) {
+            ConfirmPopup.ShowTip("添加 OGS 好友", "请先登录 OGS。", null, "确定");
+            return;
+        }
+
+        ConfirmPopup.ShowInput(
+            "添加 OGS 好友",
+            "请输入对方 OGS ID",
+            string.Empty,
+            SendOgsFriendRequest,
+            null,
+            "发送",
+            "取消");
+    }
+
+    private void OnClickBtnFriendRequests()
+    {
+        isInvitationMode = !isInvitationMode;
+        pageIndex = 0;
+        if (isRefreshRunning) {
+            refreshVersion += 1;
+            isRefreshRunning = false;
+        }
+        SetFriendRequestsButtonText();
+        RefreshList();
     }
 
     private void OnClickBtnLogin()
@@ -276,7 +466,7 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
         }
 
         pageIndex -= 1;
-        RefreshFriendList(false);
+        RefreshList(false);
     }
 
     private void OnClickBtnNextPage()
@@ -286,7 +476,7 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
         }
 
         pageIndex += 1;
-        RefreshFriendList(false);
+        RefreshList(false);
     }
 
     private void OnClickFriendItem(OgsFriendListItem item)
@@ -295,7 +485,116 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
             return;
         }
 
+        if (isInvitationMode) {
+            OgsFriendInvitationItem invitation = FindInvitation(item);
+            if (invitation == null) {
+                return;
+            }
+
+            string inviteUsername = string.IsNullOrWhiteSpace(invitation.FromUsername) ? "OGS 用户" : invitation.FromUsername.Trim();
+            ConfirmPopup.Show(
+                "好友申请",
+                $"{inviteUsername}申请添加好友",
+                () => RespondInvitation(invitation, true),
+                () => RespondInvitation(invitation, false),
+                "同意",
+                "拒绝");
+            return;
+        }
+
         OgsFriendProfilePopup.Show(item);
+    }
+
+    private async void SendOgsFriendRequest(string rawPlayerId)
+    {
+        if (isFriendRequestRunning) {
+            return;
+        }
+
+        if (!int.TryParse((rawPlayerId ?? string.Empty).Trim(), out int playerId) || playerId <= 0) {
+            ConfirmPopup.ShowTip("添加 OGS 好友", "请输入有效的 OGS ID。", null, "确定");
+            return;
+        }
+
+        OgsConnectionService service = Global.Instance.ogsConnectionService;
+        if (service == null) {
+            ConfirmPopup.ShowTip("添加 OGS 好友", "OGS 服务不可用。", null, "确定");
+            return;
+        }
+
+        isFriendRequestRunning = true;
+        try {
+            OgsConnectionResult result = await service.SendFriendRequestAsync(playerId);
+            if (!result.success) {
+                ConfirmPopup.ShowTip("添加 OGS 好友失败", result.message, null, "确定");
+                return;
+            }
+
+            ConfirmPopup.ShowTip("添加 OGS 好友", "已发送好友申请", null, "确定");
+        }
+        catch (System.Exception ex) {
+            XNLogger.LogError("Send OGS friend request from friend popup failed.", ("err", ex.Message));
+            ConfirmPopup.ShowTip("添加 OGS 好友失败", ex.Message, null, "确定");
+        }
+        finally {
+            isFriendRequestRunning = false;
+        }
+    }
+
+    private async void RespondInvitation(OgsFriendInvitationItem invitation, bool accept)
+    {
+        if (invitation == null || !int.TryParse(invitation.FromUserId, out int fromUserId) || fromUserId <= 0) {
+            ConfirmPopup.ShowTip("好友申请", "好友申请用户 ID 无效。", null, "确定");
+            return;
+        }
+
+        OgsConnectionService service = Global.Instance.ogsConnectionService;
+        if (service == null) {
+            ConfirmPopup.ShowTip("好友申请", "OGS 服务不可用。", null, "确定");
+            return;
+        }
+
+        OgsConnectionResult result = await service.RespondFriendInvitationAsync(fromUserId, accept);
+        if (!result.success) {
+            ConfirmPopup.ShowTip("好友申请处理失败", result.message, null, "确定");
+            return;
+        }
+
+        invitationItems.Remove(invitation);
+        friendTotalCount = invitationItems.Count;
+        pendingInvitationCount = invitationItems.Count;
+        SetFriendRequestsButtonText();
+        RefreshPage();
+        ConfirmPopup.ShowTip("好友申请", accept ? "已同意好友申请" : "已拒绝好友申请", null, "确定");
+    }
+
+    private OgsFriendListItem GetDisplayItem(int index)
+    {
+        if (isInvitationMode) {
+            OgsFriendInvitationItem invitation = index >= 0 && index < invitationItems.Count ? invitationItems[index] : null;
+            OgsFriendListItem item = invitation?.fromUser;
+            if (item != null && string.IsNullOrWhiteSpace(item.statusText)) {
+                item.statusText = "待处理";
+            }
+            return item;
+        }
+
+        return index >= 0 && index < friendItems.Count ? friendItems[index] : null;
+    }
+
+    private OgsFriendInvitationItem FindInvitation(OgsFriendListItem item)
+    {
+        if (item == null) {
+            return null;
+        }
+
+        foreach (OgsFriendInvitationItem invitation in invitationItems) {
+            if (invitation?.fromUser == item) {
+                return invitation;
+            }
+        }
+
+        return null;
     }
 
     private bool ApplyCurrentLayoutState(bool force)
@@ -334,6 +633,25 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
         if (text != null) {
             text.text = value ?? string.Empty;
         }
+    }
+
+    private void SetFriendRequestsButtonText()
+    {
+        TextMeshProUGUI label = binder.btn_friend_requests != null
+            ? binder.btn_friend_requests.GetComponentInChildren<TextMeshProUGUI>(true)
+            : null;
+        if (label == null) {
+            return;
+        }
+
+        if (isInvitationMode) {
+            label.text = FriendListButtonText;
+            return;
+        }
+
+        label.text = pendingInvitationCount > 0
+            ? $"{FriendRequestsButtonText}({pendingInvitationCount})"
+            : FriendRequestsButtonText;
     }
 
     private static void SetInteractable(Button button, bool interactable)

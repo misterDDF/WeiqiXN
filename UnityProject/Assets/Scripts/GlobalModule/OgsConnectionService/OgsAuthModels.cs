@@ -112,6 +112,31 @@ public sealed class OgsFriendListItem
     public string about;
 }
 
+public sealed class OgsFriendInvitationListResult
+{
+    public readonly bool success;
+    public readonly string message;
+    public readonly List<OgsFriendInvitationItem> invitations;
+
+    public OgsFriendInvitationListResult(bool success, string message, List<OgsFriendInvitationItem> invitations = null)
+    {
+        this.success = success;
+        this.message = message ?? string.Empty;
+        this.invitations = invitations ?? new List<OgsFriendInvitationItem>();
+    }
+}
+
+public sealed class OgsFriendInvitationItem
+{
+    public OgsFriendListItem fromUser;
+    public string createdAt;
+    public bool accepted;
+
+    public string FromUserId => fromUser?.userId ?? string.Empty;
+
+    public string FromUsername => fromUser?.username ?? string.Empty;
+}
+
 public sealed class OgsCallbackResult
 {
     public readonly bool success;

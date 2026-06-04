@@ -362,6 +362,114 @@ public sealed class OgsConnectionService : ModuleBase
         }
     }
 
+    public async Task<OgsConnectionResult> SendFriendRequestAsync(
+        int playerId,
+        CancellationToken cancellationToken = default(CancellationToken))
+    {
+        EnsureInitialized();
+        if (playerId <= 0) {
+            return new OgsConnectionResult(false, "请输入有效的 OGS ID。");
+        }
+
+        OgsConnectionResult accessResult = await EnsureWritableAccessTokenAsync(cancellationToken);
+        if (!accessResult.success) {
+            return accessResult;
+        }
+
+        string accessToken;
+        lock (sessionLock) {
+            accessToken = session.accessToken;
+        }
+
+        try {
+            var payload = new JObject
+            {
+                ["player_id"] = playerId,
+            };
+            await PostJsonAsync($"{apiBaseUrl}/api/v1/me/friends/", payload, accessToken, cancellationToken);
+            XNLogger.LogInfo("OGS friend request sent.", ("playerId", playerId.ToString()));
+            return new OgsConnectionResult(true, "OGS friend request sent.");
+        }
+        catch (Exception ex) {
+            XNLogger.LogError("OGS friend request failed.", ("playerId", playerId.ToString()), ("err", ex.Message));
+            return new OgsConnectionResult(false, ex.Message);
+        }
+    }
+
+    public async Task<OgsFriendInvitationListResult> RequestFriendInvitationsAsync(
+        CancellationToken cancellationToken = default(CancellationToken))
+    {
+        EnsureInitialized();
+        OgsConnectionResult accessResult = await EnsureReadableAccessTokenAsync(cancellationToken);
+        if (!accessResult.success) {
+            return new OgsFriendInvitationListResult(false, accessResult.message);
+        }
+
+        string accessToken;
+        lock (sessionLock) {
+            accessToken = session.accessToken;
+        }
+
+        try {
+            JToken invitationJson = await GetJsonTokenAsync($"{apiBaseUrl}/api/v1/me/friends/invitations/", accessToken, cancellationToken);
+            List<OgsFriendInvitationItem> invitations = ReadFriendInvitationItems(invitationJson);
+            XNLogger.LogInfo("OGS friend invitations refreshed.", ("count", invitations.Count.ToString()));
+            return new OgsFriendInvitationListResult(true, "OGS friend invitations refreshed.", invitations);
+        }
+        catch (Exception ex) {
+            XNLogger.LogError("OGS friend invitations request failed.", ("err", ex.Message));
+            return new OgsFriendInvitationListResult(false, ex.Message);
+        }
+    }
+
+    public async Task<OgsConnectionResult> RespondFriendInvitationAsync(
+        int fromUserId,
+        bool accept,
+        bool notifyRequestor = false,
+        CancellationToken cancellationToken = default(CancellationToken))
+    {
+        EnsureInitialized();
+        if (fromUserId <= 0) {
+            return new OgsConnectionResult(false, "好友申请用户 ID 无效。");
+        }
+
+        OgsConnectionResult accessResult = await EnsureWritableAccessTokenAsync(cancellationToken);
+        if (!accessResult.success) {
+            return accessResult;
+        }
+
+        string accessToken;
+        lock (sessionLock) {
+            accessToken = session.accessToken;
+        }
+
+        try {
+            var payload = new JObject
+            {
+                ["from_user"] = fromUserId,
+            };
+            if (!accept) {
+                payload["delete"] = true;
+                payload["notify_requestor"] = notifyRequestor;
+            }
+
+            await PostJsonAsync($"{apiBaseUrl}/api/v1/me/friends/invitations/", payload, accessToken, cancellationToken);
+            XNLogger.LogInfo(
+                "OGS friend invitation responded.",
+                ("fromUserId", fromUserId.ToString()),
+                ("accept", accept.ToString()));
+            return new OgsConnectionResult(true, accept ? "OGS friend invitation accepted." : "OGS friend invitation declined.");
+        }
+        catch (Exception ex) {
+            XNLogger.LogError(
+                "OGS friend invitation response failed.",
+                ("fromUserId", fromUserId.ToString()),
+                ("accept", accept.ToString()),
+                ("err", ex.Message));
+            return new OgsConnectionResult(false, ex.Message);
+        }
+    }
+
     public void Logout()
     {
         EnsureInitialized();
@@ -834,7 +942,12 @@ public sealed class OgsConnectionService : ModuleBase
         }
     }
 
-    private async Task<OgsConnectionResult> EnsureUsableAccessTokenAsync(CancellationToken cancellationToken)
+    private Task<OgsConnectionResult> EnsureUsableAccessTokenAsync(CancellationToken cancellationToken)
+    {
+        return EnsureWritableAccessTokenAsync(cancellationToken);
+    }
+
+    private async Task<OgsConnectionResult> EnsureWritableAccessTokenAsync(CancellationToken cancellationToken)
     {
         string accessToken;
         bool isExpired;
@@ -848,7 +961,7 @@ public sealed class OgsConnectionService : ModuleBase
         }
 
         if (!string.IsNullOrEmpty(scope) && !ContainsScope(scope, "write")) {
-            return new OgsConnectionResult(false, "当前 OGS 授权缺少 write 权限，请重新登录 OGS 后再创建对局。");
+            return new OgsConnectionResult(false, "当前 OGS 授权缺少 write 权限，请重新登录 OGS。");
         }
 
         if (!string.IsNullOrEmpty(accessToken) && !isExpired) {
@@ -2088,6 +2201,31 @@ public sealed class OgsConnectionService : ModuleBase
         return 0;
     }
 
+    private static bool ReadFirstBool(JObject json, params string[] fieldNames)
+    {
+        if (json == null || fieldNames == null) {
+            return false;
+        }
+
+        foreach (string fieldName in fieldNames) {
+            JToken token = json[fieldName];
+            if (token == null || token.Type == JTokenType.Null) {
+                continue;
+            }
+            if (token.Type == JTokenType.Boolean) {
+                return token.Value<bool>();
+            }
+            if (bool.TryParse(token.ToString(), out bool value)) {
+                return value;
+            }
+            if (int.TryParse(token.ToString(), out int intValue)) {
+                return intValue != 0;
+            }
+        }
+
+        return false;
+    }
+
     private static string ReadPlayerName(JObject playerJson)
     {
         if (playerJson == null) {
@@ -2240,6 +2378,52 @@ public sealed class OgsConnectionService : ModuleBase
             statusText = BuildFriendStatusText(userJson, wrapper),
             registeredAt = ReadFirstString(userJson, "date_joined", "created", "created_at", "registered", "registered_at", "registration_date"),
             about = ReadFirstString(userJson, "about", "bio", "biography", "description"),
+        };
+    }
+
+    private static List<OgsFriendInvitationItem> ReadFriendInvitationItems(JToken root)
+    {
+        var result = new List<OgsFriendInvitationItem>();
+        JToken listToken = SelectFriendListToken(root);
+        if (listToken is JArray array) {
+            foreach (JToken token in array) {
+                OgsFriendInvitationItem item = ReadFriendInvitationItem(token);
+                if (item != null) {
+                    result.Add(item);
+                }
+            }
+            return result;
+        }
+
+        if (listToken is JObject obj) {
+            foreach (JProperty property in obj.Properties()) {
+                OgsFriendInvitationItem item = ReadFriendInvitationItem(property.Value);
+                if (item != null) {
+                    result.Add(item);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private static OgsFriendInvitationItem ReadFriendInvitationItem(JToken token)
+    {
+        JObject wrapper = token as JObject;
+        if (wrapper == null) {
+            return null;
+        }
+
+        OgsFriendListItem fromUser = ReadFriendListItem(wrapper["from_user"] ?? wrapper["user"] ?? wrapper["player"] ?? wrapper);
+        if (fromUser == null) {
+            return null;
+        }
+
+        return new OgsFriendInvitationItem
+        {
+            fromUser = fromUser,
+            createdAt = ReadFirstString(wrapper, "created", "created_at", "timestamp"),
+            accepted = ReadFirstBool(wrapper, "accepted"),
         };
     }
 
