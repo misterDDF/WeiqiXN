@@ -56,8 +56,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
+  m_Name:
+  m_EditorClassIdentifier:
   m_Material: {fileID: 0}
   m_Color: {r: 0.66, g: 0.59, b: 0.46, a: 0.34}
   m_RaycastTarget: 0
@@ -2821,6 +2821,8 @@ MonoBehaviour:
   nodeList:
   - name: panel_root
     value: {fileID: 4582007729529542511}
+  - name: sr_platform
+    value: {fileID: 2582442006388209963}
   - name: btn_close
     value: {fileID: 7723789538858680722}
   - name: img_avatar
@@ -2868,6 +2870,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   generatedTime: 0
   panel_root: {fileID: 4582007729529542511}
+  sr_platform: {fileID: 2582442006388209963}
   btn_close: {fileID: 7723789538858680722}
   img_avatar: {fileID: 3508993176694831437}
   txt_username: {fileID: 6481467827492443622}
@@ -3005,6 +3008,632 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls: []
+--- !u!1 &4278927228460140141
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 9116289461635731158}
+  - component: {fileID: 2582442006388209963}
+  m_Layer: 0
+  m_Name: sr_platform
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &9116289461635731158
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4278927228460140141}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4582007729529542511}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 100, y: 100}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &2582442006388209963
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4278927228460140141}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 06c666ab3b55ef1499a353ceefcd1c63, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  states:
+  - name: Landscape
+    elements:
+    - name: Window
+      elementType: 1
+      target: {fileID: 8410534317233350094}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 960, y: 620}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: Header
+      elementType: 1
+      target: {fileID: 2630133934992120354}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 1}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 0, y: 84}
+        pivot: {x: 0.5, y: 1}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: Title
+      elementType: 1
+      target: {fileID: 2608688836750816881}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0.5}
+        anchorMax: {x: 1, y: 0.5}
+        anchoredPosition: {x: 34, y: 0}
+        sizeDelta: {x: -112, y: 62}
+        pivot: {x: 0, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: Close
+      elementType: 1
+      target: {fileID: 7065137917505582254}
+      property:
+        boolValue: 1
+        anchorMin: {x: 1, y: 0.5}
+        anchorMax: {x: 1, y: 0.5}
+        anchoredPosition: {x: -44, y: 0}
+        sizeDelta: {x: 54, y: 54}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: Avatar
+      elementType: 1
+      target: {fileID: 1638607654981678453}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 1}
+        anchorMax: {x: 0, y: 1}
+        anchoredPosition: {x: 112, y: -162}
+        sizeDelta: {x: 116, y: 116}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: Username
+      elementType: 1
+      target: {fileID: 8954911386610724496}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 1}
+        anchorMax: {x: 0, y: 1}
+        anchoredPosition: {x: 190, y: -132}
+        sizeDelta: {x: 300, y: 46}
+        pivot: {x: 0, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: Status
+      elementType: 1
+      target: {fileID: 2255690274473759792}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 1}
+        anchorMax: {x: 0, y: 1}
+        anchoredPosition: {x: 190, y: -188}
+        sizeDelta: {x: 300, y: 36}
+        pivot: {x: 0, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: ProfileDivider
+      elementType: 1
+      target: {fileID: 8098468656511256441}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 1}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: 0, y: -250}
+        sizeDelta: {x: -64, y: 2}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: InfoRows
+      elementType: 1
+      target: {fileID: 5075095177648214382}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 1}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: 220, y: -112}
+        sizeDelta: {x: 520, y: 390}
+        pivot: {x: 0.5, y: 1}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: InfoRowsLayout
+      elementType: 2
+      target: {fileID: 1465549653821939176}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 0, y: 0}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 0, y: 0}
+        pivot: {x: 0, y: 0}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 8
+          m_Right: 8
+          m_Top: 6
+          m_Bottom: 6
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 1
+        childControlHeight: 1
+        childForceExpandWidth: 1
+        childForceExpandHeight: 0
+    - name: Note
+      elementType: 1
+      target: {fileID: 6833581850620437921}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0}
+        anchorMax: {x: 0.5, y: 0}
+        anchoredPosition: {x: 0, y: 112}
+        sizeDelta: {x: 840, y: 34}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: InviteGame
+      elementType: 1
+      target: {fileID: 6405861913662891041}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 0, y: 0}
+        anchoredPosition: {x: 170, y: 54}
+        sizeDelta: {x: 260, y: 56}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: DeleteFriend
+      elementType: 1
+      target: {fileID: 6545634998001255814}
+      property:
+        boolValue: 1
+        anchorMin: {x: 1, y: 0}
+        anchorMax: {x: 1, y: 0}
+        anchoredPosition: {x: -170, y: 54}
+        sizeDelta: {x: 260, y: 56}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+  - name: Portrait
+    elements:
+    - name: Window
+      elementType: 1
+      target: {fileID: 8410534317233350094}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0.5}
+        anchorMax: {x: 0.5, y: 0.5}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 640, y: 920}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: Header
+      elementType: 1
+      target: {fileID: 2630133934992120354}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 1}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 0, y: 96}
+        pivot: {x: 0.5, y: 1}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: Title
+      elementType: 1
+      target: {fileID: 2608688836750816881}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0.5}
+        anchorMax: {x: 1, y: 0.5}
+        anchoredPosition: {x: 34, y: 0}
+        sizeDelta: {x: -112, y: 62}
+        pivot: {x: 0, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: Close
+      elementType: 1
+      target: {fileID: 7065137917505582254}
+      property:
+        boolValue: 1
+        anchorMin: {x: 1, y: 0.5}
+        anchorMax: {x: 1, y: 0.5}
+        anchoredPosition: {x: -50, y: 0}
+        sizeDelta: {x: 64, y: 64}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: Avatar
+      elementType: 1
+      target: {fileID: 1638607654981678453}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 1}
+        anchorMax: {x: 0, y: 1}
+        anchoredPosition: {x: 94, y: -178}
+        sizeDelta: {x: 116, y: 116}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: Username
+      elementType: 1
+      target: {fileID: 8954911386610724496}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 1}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: 174, y: -150}
+        sizeDelta: {x: -174, y: 60}
+        pivot: {x: 0, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: Status
+      elementType: 1
+      target: {fileID: 2255690274473759792}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 1}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: 176, y: -206}
+        sizeDelta: {x: -40, y: 38}
+        pivot: {x: 0, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: ProfileDivider
+      elementType: 1
+      target: {fileID: 8098468656511256441}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 1}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: 32, y: -260}
+        sizeDelta: {x: -32, y: 2}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: InfoRows
+      elementType: 1
+      target: {fileID: 5075095177648214382}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 1}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: 0, y: -284}
+        sizeDelta: {x: -64, y: 390}
+        pivot: {x: 0.5, y: 1}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: InfoRowsLayout
+      elementType: 2
+      target: {fileID: 1465549653821939176}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 0, y: 0}
+        anchoredPosition: {x: 0, y: 0}
+        sizeDelta: {x: 0, y: 0}
+        pivot: {x: 0, y: 0}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 8
+          m_Right: 8
+          m_Top: 6
+          m_Bottom: 6
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 1
+        childControlHeight: 1
+        childForceExpandWidth: 1
+        childForceExpandHeight: 0
+    - name: Note
+      elementType: 1
+      target: {fileID: 6833581850620437921}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0}
+        anchorMax: {x: 0.5, y: 0}
+        anchoredPosition: {x: 0, y: 168}
+        sizeDelta: {x: 560, y: 38}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: InviteGame
+      elementType: 1
+      target: {fileID: 6405861913662891041}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 0, y: 0}
+        anchoredPosition: {x: 186, y: 78}
+        sizeDelta: {x: 280, y: 70}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: DeleteFriend
+      elementType: 1
+      target: {fileID: 6545634998001255814}
+      property:
+        boolValue: 1
+        anchorMin: {x: 1, y: 0}
+        anchorMax: {x: 1, y: 0}
+        anchoredPosition: {x: -186, y: 78}
+        sizeDelta: {x: 280, y: 70}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+  currentStateIndex: 1
 --- !u!1 &4381918556783731357
 GameObject:
   m_ObjectHideFlags: 0
@@ -4325,6 +4954,7 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
+  - {fileID: 9116289461635731158}
   - {fileID: 1988063111531573359}
   - {fileID: 8410534317233350094}
   m_Father: {fileID: 5539136510415492458}

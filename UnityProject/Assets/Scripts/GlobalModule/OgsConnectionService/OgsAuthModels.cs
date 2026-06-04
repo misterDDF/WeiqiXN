@@ -112,6 +112,34 @@ public sealed class OgsFriendListItem
     public string about;
 }
 
+public sealed class OgsChallengeInviteListResult
+{
+    public readonly bool success;
+    public readonly string message;
+    public readonly List<OgsChallengeInvite> invites;
+
+    public OgsChallengeInviteListResult(bool success, string message, List<OgsChallengeInvite> invites = null)
+    {
+        this.success = success;
+        this.message = message ?? string.Empty;
+        this.invites = invites ?? new List<OgsChallengeInvite>();
+    }
+}
+
+public sealed class OgsChallengeInvite
+{
+    public int challengeId;
+    public string challengeUuid;
+    public int gameId;
+    public int challengerId;
+    public string challengerName;
+    public int boardSize;
+    public string gameName;
+    public string rawResponse;
+
+    public string DisplayName => string.IsNullOrWhiteSpace(challengerName) ? $"OGS 玩家 {challengerId}" : challengerName;
+}
+
 public sealed class OgsCallbackResult
 {
     public readonly bool success;
@@ -256,6 +284,41 @@ public sealed class OgsBotGameCreateParams
         7.5f,
         "automatic",
         OgsConnectionConfig.DefaultBotGameName);
+}
+
+public sealed class OgsFriendChallengeCreateParams
+{
+    public readonly string friendUserId;
+    public readonly int boardSize;
+    public readonly int mainTimeSeconds;
+    public readonly int byoyomiPeriods;
+    public readonly int byoyomiPeriodSeconds;
+    public readonly int handicap;
+    public readonly float komi;
+    public readonly string challengerColor;
+    public readonly string gameName;
+
+    public OgsFriendChallengeCreateParams(
+        string friendUserId,
+        int boardSize,
+        int mainTimeSeconds,
+        int byoyomiPeriods,
+        int byoyomiPeriodSeconds,
+        int handicap,
+        float komi,
+        string challengerColor,
+        string gameName = "")
+    {
+        this.friendUserId = friendUserId ?? string.Empty;
+        this.boardSize = boardSize;
+        this.mainTimeSeconds = mainTimeSeconds;
+        this.byoyomiPeriods = byoyomiPeriods;
+        this.byoyomiPeriodSeconds = byoyomiPeriodSeconds;
+        this.handicap = handicap;
+        this.komi = komi;
+        this.challengerColor = challengerColor ?? string.Empty;
+        this.gameName = gameName ?? string.Empty;
+    }
 }
 
 public sealed class OgsAutomatchCreateParams

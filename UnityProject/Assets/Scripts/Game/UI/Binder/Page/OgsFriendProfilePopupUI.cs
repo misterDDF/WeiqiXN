@@ -7,6 +7,7 @@ using UnityEngine.UI;
 public class OgsFriendProfilePopupUI : UIBinderBase
 {
     public RectTransform panel_root;
+    public StateRoot sr_platform;
     public Button btn_close;
     public Image img_avatar;
     public TextMeshProUGUI txt_username;
@@ -23,4 +24,17 @@ public class OgsFriendProfilePopupUI : UIBinderBase
     public TextMeshProUGUI txt_note;
     public Button btn_invite_game;
     public Button btn_delete_friend;
+
+    public enum SrPlatformState
+    {
+        Landscape = 0,
+        Portrait = 1,
+    }
+
+    public void SetSrPlatformState(SrPlatformState state, bool force = false)
+    {
+        if (sr_platform != null) {
+            sr_platform.SetState((int)state, force);
+        }
+    }
 }

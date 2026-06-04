@@ -9,6 +9,8 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
     private const int MaxItemsPerPage = 6;
     private const float AutoRefreshIntervalSeconds = 5f;
 
+    private static OgsFriendListPopup openedPopup;
+
     private readonly List<OgsFriendListItem> friendItems = new List<OgsFriendListItem>();
     private readonly List<OgsFriendItemWidget> itemWidgets = new List<OgsFriendItemWidget>();
     private int pageIndex;
@@ -21,6 +23,11 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
     private bool lastPortraitLayout;
 
     public override string pageName => UIPage.GetPageName<OgsFriendListPopup>();
+
+    public static void NotifyFriendDeleted()
+    {
+        openedPopup?.RefreshFriendList(false, false);
+    }
 
     protected override void OnLoaded()
     {
@@ -38,6 +45,7 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
     {
         base.OnOpen();
 
+        openedPopup = this;
         ApplyCurrentLayoutState(false);
         nextAutoRefreshTime = Time.unscaledTime + AutoRefreshIntervalSeconds;
         RefreshFriendList();
@@ -64,6 +72,9 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
 
     protected override void OnClose()
     {
+        if (openedPopup == this) {
+            openedPopup = null;
+        }
         refreshVersion += 1;
         isRefreshRunning = false;
         ClearItemWidgets();
