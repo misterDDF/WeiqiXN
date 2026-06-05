@@ -10,6 +10,7 @@
 
 ## 未移除 Bug
 
+- 移动端点击 OGS 登录后的 OAuth 回跳仍待真机确认：Android/iOS 玩家包已改为让 OGS 回调 GitHub Pages HTTPS 中转页 `https://leo-zhang-git.github.io/weiqixn-oauth-redirect/ogs/callback/`，再由该静态页跳回 `weiqixn://ogs/callback` deep-link；仍待 GitHub Pages URL 可访问、OGS OAuth 应用后台登记该 HTTPS redirect URI，并在真机确认浏览器授权能回到应用。
 - OGS `free_handicap_placement=true` 的让子局仍需专项复测：已观察到让二子对局中，服务器把前两手黑方自由摆子放在 `moves` 内。当前坐标规则已确认 OGS y 直接映射本地 `RectCoordinates.z`，不是反向转换；已补充多形态玩家 id 解析、OGS verbose payload 日志、free handicap 同色开局手顺解析和 OGS/local `z=y` 直接坐标映射。普通已有真人 OGS 对局载入与非 bot 悔棋路径已通过用户复测，后续只保留 free-handicap 形态待专项确认。
 - `OgsFriendItemWidget.prefab` 在竖屏窄宽度下会让 `txt_rating` 与 `txt_status` 保持同排显示，导致段位/等级与在线状态文本重叠；当前已参考 `ReplayArchiveItemWidget` 将好友条目的昵称、OGS ID/国家、段位/等级、在线状态整理为上下四行文本列，并关闭自动换行改为截断显示，已通过 Unity `Assets/Refresh` 与 Console error 检查，仍待人工预览确认后移除此条目。
 - `RecentReplayListPopup.prefab` 的复盘列表内容状态节点曾是默认 100x100 居中布局，导致三条预览用 `ReplayArchiveItemWidget` 被压在页面中央且底部被翻页栏遮挡；当前已将 `Content` 状态节点恢复为铺满 `sr_recent_replay_state` 的 stretch 布局，并通过 Unity 刷新和 Console error 检查，仍待人工预览确认后移除此条目。

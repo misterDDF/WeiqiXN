@@ -14,6 +14,9 @@ using XNClient.Logger;
 public sealed class OgsConnectionService : ModuleBase
 {
     private const int ChallengeGameDataPollMilliseconds = 1500;
+    private const int BrowserLoginCallbackTimeoutMilliseconds = 120000;
+    private const string MobileOauthRedirectUri = "https://leo-zhang-git.github.io/weiqixn-oauth-redirect/ogs/callback/";
+    private const string MobileDeepLinkCallbackUri = "weiqixn://ogs/callback";
 
     private object sessionLock;
     private OgsSession session;
@@ -193,15 +196,18 @@ public sealed class OgsConnectionService : ModuleBase
         }
 
         string safeRedirectUri = string.IsNullOrWhiteSpace(redirectUri)
-            ? OgsConnectionConfig.DefaultRedirectUri
+            ? GetDefaultBrowserLoginRedirectUri()
             : redirectUri.Trim();
-        if (!CanUseLocalhostCallback(safeRedirectUri)) {
-            return new OgsConnectionResult(false, "OGS browser login currently requires a desktop localhost callback. Mobile login needs a deep-link callback implementation.");
+        bool useMobileCallback = CanUseMobileOauthRedirectUri(safeRedirectUri);
+        if (!useMobileCallback && !CanUseLocalhostCallback(safeRedirectUri)) {
+            return new OgsConnectionResult(false, $"OGS browser login redirect URI is not supported on this platform: {safeRedirectUri}");
         }
 
         try {
             OgsAuthorizationRequest request = CreateAuthorizationRequest(clientId, safeRedirectUri, scope);
-            Task<OgsCallbackResult> callbackTask = WaitForCallbackAsync(safeRedirectUri, request.state, cancellationToken);
+            Task<OgsCallbackResult> callbackTask = useMobileCallback
+                ? WaitForDeepLinkCallbackAsync(MobileDeepLinkCallbackUri, request.state, cancellationToken)
+                : WaitForCallbackAsync(safeRedirectUri, request.state, cancellationToken);
             Application.OpenURL(request.authorizationUrl);
             XNLogger.LogInfo("OGS authorization opened in browser.", ("redirectUri", safeRedirectUri));
 
@@ -1244,6 +1250,15 @@ public sealed class OgsConnectionService : ModuleBase
         return ReadFirstString(configJson, "user_jwt", "jwt");
     }
 
+    private static string GetDefaultBrowserLoginRedirectUri()
+    {
+#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
+        return MobileOauthRedirectUri;
+#else
+        return OgsConnectionConfig.DefaultRedirectUri;
+#endif
+    }
+
     private static bool CanUseLocalhostCallback(string redirectUri)
     {
         if (string.IsNullOrWhiteSpace(redirectUri)) {
@@ -1254,10 +1269,19 @@ public sealed class OgsConnectionService : ModuleBase
             return false;
         }
 
-#if UNITY_ANDROID && !UNITY_EDITOR
+#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
         return false;
 #else
         return true;
+#endif
+    }
+
+    private static bool CanUseMobileOauthRedirectUri(string redirectUri)
+    {
+#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
+        return string.Equals(redirectUri?.Trim(), MobileOauthRedirectUri, StringComparison.Ordinal);
+#else
+        return false;
 #endif
     }
 
@@ -1272,7 +1296,7 @@ public sealed class OgsConnectionService : ModuleBase
                 listener.Prefixes.Add(prefix);
                 listener.Start();
                 using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)) {
-                    timeout.CancelAfter(120000);
+                    timeout.CancelAfter(BrowserLoginCallbackTimeoutMilliseconds);
                     HttpListenerContext context = await WaitForContextAsync(listener, timeout.Token);
                     if (!IsExpectedCallbackPath(context.Request.Url, redirectUri)) {
                         WriteCallbackResponse(context, false);
@@ -1309,6 +1333,133 @@ public sealed class OgsConnectionService : ModuleBase
                 }
             }
         }
+    }
+
+    private static async Task<OgsCallbackResult> WaitForDeepLinkCallbackAsync(
+        string redirectUri,
+        string expectedState,
+        CancellationToken cancellationToken)
+    {
+        var completion = new TaskCompletionSource<OgsCallbackResult>();
+        Action<string> deepLinkHandler = url => {
+            OgsCallbackResult result = TryReadDeepLinkCallback(url, redirectUri, expectedState);
+            if (result != null) {
+                completion.TrySetResult(result);
+            }
+        };
+
+        Application.deepLinkActivated += deepLinkHandler;
+        try {
+            OgsCallbackResult startupResult = TryReadDeepLinkCallback(Application.absoluteURL, redirectUri, expectedState, false);
+            if (startupResult != null) {
+                return startupResult;
+            }
+
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)) {
+                timeout.CancelAfter(BrowserLoginCallbackTimeoutMilliseconds);
+                using (timeout.Token.Register(() => completion.TrySetResult(new OgsCallbackResult(false, "Timed out waiting for OGS mobile callback.")))) {
+                    return await completion.Task;
+                }
+            }
+        }
+        finally {
+            Application.deepLinkActivated -= deepLinkHandler;
+        }
+    }
+
+    private static OgsCallbackResult TryReadDeepLinkCallback(string url, string redirectUri, string expectedState, bool failOnStateMismatch = true)
+    {
+        if (string.IsNullOrWhiteSpace(url)) {
+            return null;
+        }
+        if (!Uri.TryCreate(url.Trim(), UriKind.Absolute, out Uri callbackUri)) {
+            return null;
+        }
+        if (!IsExpectedDeepLinkCallbackUri(callbackUri, redirectUri)) {
+            return null;
+        }
+
+        string code = ReadUriParameter(callbackUri, "code") ?? string.Empty;
+        string state = ReadUriParameter(callbackUri, "state") ?? string.Empty;
+        string error = ReadUriParameter(callbackUri, "error") ?? string.Empty;
+        if (!string.IsNullOrEmpty(error)) {
+            return new OgsCallbackResult(false, $"OGS authorization failed: {error}");
+        }
+        if (string.IsNullOrEmpty(code)) {
+            return new OgsCallbackResult(false, "OGS mobile callback did not include a code.");
+        }
+        if (!string.IsNullOrEmpty(expectedState) && state != expectedState) {
+            return failOnStateMismatch ? new OgsCallbackResult(false, "OGS callback state mismatch.") : null;
+        }
+
+        return new OgsCallbackResult(true, "OGS mobile callback received.", code);
+    }
+
+    private static bool IsExpectedDeepLinkCallbackUri(string callbackUri, string redirectUri)
+    {
+        if (string.IsNullOrWhiteSpace(callbackUri) || string.IsNullOrWhiteSpace(redirectUri)) {
+            return false;
+        }
+        if (!Uri.TryCreate(callbackUri.Trim(), UriKind.Absolute, out Uri parsedCallbackUri)) {
+            return false;
+        }
+
+        return IsExpectedDeepLinkCallbackUri(parsedCallbackUri, redirectUri);
+    }
+
+    private static bool IsExpectedDeepLinkCallbackUri(Uri callbackUri, string redirectUri)
+    {
+        if (callbackUri == null || string.IsNullOrWhiteSpace(redirectUri)) {
+            return false;
+        }
+        if (!Uri.TryCreate(redirectUri.Trim(), UriKind.Absolute, out Uri expectedUri)) {
+            return false;
+        }
+
+        string actualPath = NormalizeCallbackPath(callbackUri.AbsolutePath);
+        string expectedPath = NormalizeCallbackPath(expectedUri.AbsolutePath);
+        return string.Equals(callbackUri.Scheme, expectedUri.Scheme, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(callbackUri.Host, expectedUri.Host, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(actualPath, expectedPath, StringComparison.Ordinal);
+    }
+
+    private static string ReadUriParameter(Uri uri, string parameterName)
+    {
+        if (uri == null || string.IsNullOrEmpty(parameterName)) {
+            return string.Empty;
+        }
+
+        string value = ReadParameterFromDelimitedString(uri.Query, parameterName);
+        if (!string.IsNullOrEmpty(value)) {
+            return value;
+        }
+
+        return ReadParameterFromDelimitedString(uri.Fragment, parameterName);
+    }
+
+    private static string ReadParameterFromDelimitedString(string delimitedString, string parameterName)
+    {
+        if (string.IsNullOrEmpty(delimitedString)) {
+            return string.Empty;
+        }
+
+        string trimmed = delimitedString.TrimStart('?', '#');
+        string[] pairs = trimmed.Split('&');
+        foreach (string pair in pairs) {
+            if (string.IsNullOrEmpty(pair)) {
+                continue;
+            }
+
+            int equalsIndex = pair.IndexOf('=');
+            string key = equalsIndex >= 0 ? pair.Substring(0, equalsIndex) : pair;
+            string value = equalsIndex >= 0 ? pair.Substring(equalsIndex + 1) : string.Empty;
+            key = Uri.UnescapeDataString(key.Replace("+", " "));
+            if (string.Equals(key, parameterName, StringComparison.Ordinal)) {
+                return Uri.UnescapeDataString(value.Replace("+", " "));
+            }
+        }
+
+        return string.Empty;
     }
 
     private static Task<HttpListenerContext> WaitForContextAsync(HttpListener listener, CancellationToken cancellationToken)

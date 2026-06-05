@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.weiqixn.openclnativelibrary">
     <application>
         <uses-native-library android:name="libOpenCL.so" android:required="false" />
     </application>
