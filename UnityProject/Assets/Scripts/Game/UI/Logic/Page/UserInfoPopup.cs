@@ -1,13 +1,12 @@
-using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
-using UnityEngine.Networking;
 using XNClient.Logger;
 
 public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
 {
     private const int MaxReplayItemsPerPage = 7;
+    private static readonly Color OgsAvatarEmptyColor = new Color(0.78f, 0.62f, 0.28f, 1f);
 
     private readonly List<DuelReplayIndexItem> replayItems = new List<DuelReplayIndexItem>();
     private readonly List<ReplayArchiveItemWidget> replayItemWidgets = new List<ReplayArchiveItemWidget>();
@@ -17,9 +16,7 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
     private bool lastPortraitLayout;
     private bool isOgsLoginRunning;
     private bool isOgsProfileRefreshRunning;
-    private Coroutine ogsAvatarDownloadCoroutine;
-    private Sprite ogsAvatarSprite;
-    private string ogsAvatarSpriteUrl;
+    private RemoteImageView ogsAvatarImage;
 
     public override string pageName => UIPage.GetPageName<UserInfoPopup>();
 
@@ -28,6 +25,7 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
         base.OnLoaded();
 
         ApplyCurrentLayoutState(true);
+        ogsAvatarImage = new RemoteImageView(binder, binder.img_ogs_avatar, OgsAvatarEmptyColor);
 
         binder.btn_close.onClick.AddListener(OnClickBtnClose);
         binder.btn_edit_name.onClick.AddListener(OnClickBtnEditName);
@@ -78,7 +76,7 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
     protected override void OnClose()
     {
         ClearReplayItemWidgets();
-        StopOgsAvatarDownload();
+        ogsAvatarImage?.Clear();
         base.OnClose();
     }
 
@@ -267,8 +265,7 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
 
     private void ApplyOgsLoggedOut()
     {
-        StopOgsAvatarDownload();
-        ClearOgsAvatar();
+        ogsAvatarImage?.Clear();
         SetOgsState(UserInfoPopupUI.SrOgsAccountState.LoggedOut);
         SetText(binder.txt_ogs_username, "尚未登录 OGS");
         SetText(binder.txt_ogs_id, "OGS ID: --");
@@ -304,13 +301,12 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
         SetText(binder.txt_ogs_rating_13, $"13路 {DisplayValue(session.rating13)}");
         SetText(binder.txt_ogs_rating_9, $"9路 {DisplayValue(session.rating9)}");
         SetText(binder.txt_ogs_friend_summary, "好友列表入口已预留");
-        StartOgsAvatarDownload(session.avatarUrl);
+        ogsAvatarImage?.Load(session.avatarUrl);
     }
 
     private void SetOgsError(string message)
     {
-        StopOgsAvatarDownload();
-        ClearOgsAvatar();
+        ogsAvatarImage?.Clear();
         SetText(binder.txt_ogs_error, string.IsNullOrWhiteSpace(message) ? "OGS 信息读取失败" : message);
         SetOgsState(UserInfoPopupUI.SrOgsAccountState.Error);
     }
@@ -354,83 +350,6 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
     {
         OgsConnectionService service = Global.Instance.ogsConnectionService;
         SetOgsFriendRedDotVisible(service != null && service.HasSession && service.FriendInvitationCount > 0);
-    }
-
-    private void StartOgsAvatarDownload(string avatarUrl)
-    {
-        if (string.IsNullOrWhiteSpace(avatarUrl)) {
-            StopOgsAvatarDownload();
-            ClearOgsAvatar();
-            return;
-        }
-
-        string safeUrl = avatarUrl.Trim();
-        if (safeUrl == ogsAvatarSpriteUrl && ogsAvatarSprite != null) {
-            return;
-        }
-
-        StopOgsAvatarDownload();
-        ogsAvatarSpriteUrl = safeUrl;
-        if (binder != null) {
-            ogsAvatarDownloadCoroutine = binder.StartCoroutine(DownloadOgsAvatar(safeUrl));
-        }
-    }
-
-    private IEnumerator DownloadOgsAvatar(string avatarUrl)
-    {
-        using (UnityWebRequest request = UnityWebRequestTexture.GetTexture(avatarUrl)) {
-            yield return request.SendWebRequest();
-
-            ogsAvatarDownloadCoroutine = null;
-            if (request.result != UnityWebRequest.Result.Success) {
-                XNLogger.LogWarn("Download OGS avatar failed.", ("url", avatarUrl), ("err", request.error ?? string.Empty));
-                yield break;
-            }
-
-            if (avatarUrl != ogsAvatarSpriteUrl || binder.img_ogs_avatar == null) {
-                yield break;
-            }
-
-            Texture2D texture = DownloadHandlerTexture.GetContent(request);
-            if (texture == null) {
-                yield break;
-            }
-
-            ClearOgsAvatar();
-            ogsAvatarSpriteUrl = avatarUrl;
-            ogsAvatarSprite = Sprite.Create(
-                texture,
-                new Rect(0f, 0f, texture.width, texture.height),
-                new Vector2(0.5f, 0.5f));
-            binder.img_ogs_avatar.sprite = ogsAvatarSprite;
-            binder.img_ogs_avatar.preserveAspect = true;
-            binder.img_ogs_avatar.color = Color.white;
-        }
-    }
-
-    private void StopOgsAvatarDownload()
-    {
-        if (ogsAvatarDownloadCoroutine != null && binder != null) {
-            binder.StopCoroutine(ogsAvatarDownloadCoroutine);
-            ogsAvatarDownloadCoroutine = null;
-        }
-    }
-
-    private void ClearOgsAvatar()
-    {
-        ogsAvatarSpriteUrl = string.Empty;
-        if (binder.img_ogs_avatar != null) {
-            binder.img_ogs_avatar.sprite = null;
-            binder.img_ogs_avatar.color = new Color(0.78f, 0.62f, 0.28f, 1f);
-        }
-
-        if (ogsAvatarSprite != null) {
-            if (ogsAvatarSprite.texture != null) {
-                UnityEngine.Object.Destroy(ogsAvatarSprite.texture);
-            }
-            UnityEngine.Object.Destroy(ogsAvatarSprite);
-            ogsAvatarSprite = null;
-        }
     }
 
     private static string DisplayValue(string value, string fallback = "--")

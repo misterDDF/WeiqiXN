@@ -7,8 +7,11 @@ public class OgsFriendItemWidget : UIWidgetWithBinder<OgsFriendItemWidgetUI>
     public const float ItemHeight = 86f;
     public const float ItemSpacing = 8f;
 
+    private static readonly Color AvatarEmptyColor = new Color(0.78f, 0.62f, 0.28f, 1f);
+
     private OgsFriendListItem item;
     private Action<OgsFriendListItem> clickHandler;
+    private RemoteImageView avatarImage;
 
     public override string widgetName => UIWidget.GetWidgetName<OgsFriendItemWidget>();
 
@@ -22,10 +25,14 @@ public class OgsFriendItemWidget : UIWidgetWithBinder<OgsFriendItemWidgetUI>
         if (binder.btn_profile != null) {
             binder.btn_profile.onClick.AddListener(OnClickItem);
         }
+        avatarImage = new RemoteImageView(binder, binder.img_avatar, AvatarEmptyColor);
     }
 
     protected override void OnClose()
     {
+        avatarImage?.Clear();
+        avatarImage = null;
+
         if (binder != null) {
             if (binder.btn_item != null) {
                 binder.btn_item.onClick.RemoveListener(OnClickItem);
@@ -49,6 +56,8 @@ public class OgsFriendItemWidget : UIWidgetWithBinder<OgsFriendItemWidgetUI>
         SetText(binder.txt_meta, BuildMeta(data));
         SetText(binder.txt_rating, Display(data?.ratingText, "段位/等级未知"));
         SetText(binder.txt_status, Display(data?.statusText, "状态未知"));
+
+        avatarImage?.Load(data?.avatarUrl);
 
         LayoutElement layoutElement = gameObject != null ? gameObject.GetComponent<LayoutElement>() : null;
         if (layoutElement != null) {

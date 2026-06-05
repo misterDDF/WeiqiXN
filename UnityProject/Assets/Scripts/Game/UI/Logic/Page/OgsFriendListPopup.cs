@@ -339,6 +339,7 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
             return;
         }
 
+        SetState(OgsFriendListPopupUI.SrOgsFriendState.Content);
         pageIndex = Mathf.Clamp(pageIndex, 0, pageCount - 1);
         int startIndex = isInvitationMode ? pageIndex * itemsPerPage : 0;
         int endIndex = Mathf.Min(startIndex + itemsPerPage, CurrentItemCount);
@@ -359,8 +360,6 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
             SetPageButtons(false, false);
             return;
         }
-
-        SetState(OgsFriendListPopupUI.SrOgsFriendState.Content);
         SetText(binder.txt_page, $"{pageIndex + 1} / {pageCount}");
         SetPageButtons(pageIndex > 0, pageIndex < pageCount - 1);
     }

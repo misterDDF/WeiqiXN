@@ -7,6 +7,7 @@ using XNClient.Logger;
 public class OgsFriendProfilePopup : UIPageWithBinder<OgsFriendProfilePopupUI>
 {
     private static OgsFriendListItem pendingItem;
+    private static readonly Color AvatarEmptyColor = new Color(0.78f, 0.62f, 0.28f, 1f);
 
     private OgsFriendListItem currentItem;
     private bool hasAppliedLayoutState;
@@ -14,6 +15,7 @@ public class OgsFriendProfilePopup : UIPageWithBinder<OgsFriendProfilePopupUI>
     private bool isDeletingFriend;
     private bool isInvitingGame;
     private CancellationTokenSource inviteCancellationTokenSource;
+    private RemoteImageView avatarImage;
 
     public override string pageName => UIPage.GetPageName<OgsFriendProfilePopup>();
 
@@ -31,6 +33,7 @@ public class OgsFriendProfilePopup : UIPageWithBinder<OgsFriendProfilePopupUI>
         AddButtonListener(binder.btn_close, OnClickClose);
         AddButtonListener(binder.btn_invite_game, OnClickInviteGame);
         AddButtonListener(binder.btn_delete_friend, OnClickDeleteFriend);
+        avatarImage = new RemoteImageView(binder, binder.img_avatar, AvatarEmptyColor);
     }
 
     protected override void OnOpen()
@@ -41,6 +44,12 @@ public class OgsFriendProfilePopup : UIPageWithBinder<OgsFriendProfilePopupUI>
         currentItem = pendingItem;
         pendingItem = null;
         ApplyData(currentItem);
+    }
+
+    protected override void OnClose()
+    {
+        avatarImage?.Clear();
+        base.OnClose();
     }
 
     protected override void OnUpdate()
@@ -67,9 +76,7 @@ public class OgsFriendProfilePopup : UIPageWithBinder<OgsFriendProfilePopupUI>
         SetText(binder.txt_about, $"简介: {DisplayValue(item?.about)}");
         SetText(binder.txt_note, "资料来自 OGS，部分字段可能为空");
 
-        if (binder.img_avatar != null) {
-            binder.img_avatar.color = new Color(0.78f, 0.62f, 0.28f, 1f);
-        }
+        avatarImage?.Load(item?.avatarUrl);
     }
 
     private void OnClickClose()

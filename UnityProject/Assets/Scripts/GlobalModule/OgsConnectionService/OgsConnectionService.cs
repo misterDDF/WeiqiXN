@@ -297,7 +297,7 @@ public sealed class OgsConnectionService : ModuleBase
             lock (sessionLock) {
                 session.userId = currentUser.userId ?? string.Empty;
                 session.username = currentUser.username ?? string.Empty;
-                session.avatarUrl = NormalizeOgsUrl(currentUser.avatarUrl);
+                session.avatarUrl = NormalizeOgsUrl(currentUser.avatarUrl, apiBaseUrl);
                 session.country = currentUser.country ?? string.Empty;
                 session.registeredAt = currentUser.registeredAt ?? string.Empty;
                 session.tags = currentUser.tags ?? string.Empty;
@@ -355,7 +355,7 @@ public sealed class OgsConnectionService : ModuleBase
             pageSize = Mathf.Clamp(pageSize, 1, 100);
             string url = $"{apiBaseUrl}/api/v1/me/friends/?page={page}&page_size={pageSize}";
             JToken friendJson = await GetJsonTokenAsync(url, accessToken, cancellationToken);
-            List<OgsFriendListItem> friends = ReadFriendListItems(friendJson);
+            List<OgsFriendListItem> friends = ReadFriendListItems(friendJson, apiBaseUrl);
             int totalCount = ReadFriendListTotalCount(friendJson, friends.Count);
             XNLogger.LogInfo(
                 "OGS friend list refreshed.",
@@ -456,7 +456,7 @@ public sealed class OgsConnectionService : ModuleBase
 
         try {
             JToken invitationJson = await GetJsonTokenAsync($"{apiBaseUrl}/api/v1/me/friends/invitations/", accessToken, cancellationToken);
-            List<OgsFriendInvitationItem> invitations = ReadFriendInvitationItems(invitationJson);
+            List<OgsFriendInvitationItem> invitations = ReadFriendInvitationItems(invitationJson, apiBaseUrl);
             XNLogger.LogInfo("OGS friend invitations refreshed.", ("count", invitations.Count.ToString()));
             EmitFriendInvitationCountChanged(invitations.Count);
             return new OgsFriendInvitationListResult(true, "OGS friend invitations refreshed.", invitations);
@@ -3020,13 +3020,13 @@ public sealed class OgsConnectionService : ModuleBase
         return defaultValue;
     }
 
-    private static List<OgsFriendListItem> ReadFriendListItems(JToken root)
+    private static List<OgsFriendListItem> ReadFriendListItems(JToken root, string baseUrl)
     {
         var result = new List<OgsFriendListItem>();
         JToken listToken = SelectFriendListToken(root);
         if (listToken is JArray array) {
             foreach (JToken token in array) {
-                OgsFriendListItem item = ReadFriendListItem(token);
+                OgsFriendListItem item = ReadFriendListItem(token, baseUrl);
                 if (item != null) {
                     result.Add(item);
                 }
@@ -3036,7 +3036,7 @@ public sealed class OgsConnectionService : ModuleBase
 
         if (listToken is JObject obj) {
             foreach (JProperty property in obj.Properties()) {
-                OgsFriendListItem item = ReadFriendListItem(property.Value);
+                OgsFriendListItem item = ReadFriendListItem(property.Value, baseUrl);
                 if (item != null) {
                     result.Add(item);
                 }
@@ -3076,7 +3076,7 @@ public sealed class OgsConnectionService : ModuleBase
         return null;
     }
 
-    private static OgsFriendListItem ReadFriendListItem(JToken token)
+    private static OgsFriendListItem ReadFriendListItem(JToken token, string baseUrl)
     {
         JObject wrapper = token as JObject;
         JObject userJson = SelectFriendUserJson(wrapper);
@@ -3094,7 +3094,7 @@ public sealed class OgsConnectionService : ModuleBase
         {
             userId = userId,
             username = username,
-            avatarUrl = ReadFirstString(userJson, "icon", "icon_url", "avatar", "avatar_url", "picture", "image", "image_url"),
+            avatarUrl = NormalizeOgsUrl(ReadFirstUrlString(userJson, "icon", "icon_url", "avatar", "avatar_url", "picture", "image", "image_url"), baseUrl),
             country = ReadFriendCountry(userJson),
             ratingText = BuildFriendRatingText(userJson),
             ratingOverall = ReadRating(userJson["ratings"]?["overall"]) ??
@@ -3111,13 +3111,13 @@ public sealed class OgsConnectionService : ModuleBase
         };
     }
 
-    private static List<OgsFriendInvitationItem> ReadFriendInvitationItems(JToken root)
+    private static List<OgsFriendInvitationItem> ReadFriendInvitationItems(JToken root, string baseUrl)
     {
         var result = new List<OgsFriendInvitationItem>();
         JToken listToken = SelectFriendListToken(root);
         if (listToken is JArray array) {
             foreach (JToken token in array) {
-                OgsFriendInvitationItem item = ReadFriendInvitationItem(token);
+                OgsFriendInvitationItem item = ReadFriendInvitationItem(token, baseUrl);
                 if (item != null) {
                     result.Add(item);
                 }
@@ -3127,7 +3127,7 @@ public sealed class OgsConnectionService : ModuleBase
 
         if (listToken is JObject obj) {
             foreach (JProperty property in obj.Properties()) {
-                OgsFriendInvitationItem item = ReadFriendInvitationItem(property.Value);
+                OgsFriendInvitationItem item = ReadFriendInvitationItem(property.Value, baseUrl);
                 if (item != null) {
                     result.Add(item);
                 }
@@ -3137,14 +3137,14 @@ public sealed class OgsConnectionService : ModuleBase
         return result;
     }
 
-    private static OgsFriendInvitationItem ReadFriendInvitationItem(JToken token)
+    private static OgsFriendInvitationItem ReadFriendInvitationItem(JToken token, string baseUrl)
     {
         JObject wrapper = token as JObject;
         if (wrapper == null) {
             return null;
         }
 
-        OgsFriendListItem fromUser = ReadFriendListItem(wrapper["from_user"] ?? wrapper["user"] ?? wrapper["player"] ?? wrapper);
+        OgsFriendListItem fromUser = ReadFriendListItem(wrapper["from_user"] ?? wrapper["user"] ?? wrapper["player"] ?? wrapper, baseUrl);
         if (fromUser == null) {
             return null;
         }
@@ -3267,27 +3267,72 @@ public sealed class OgsConnectionService : ModuleBase
         return false;
     }
 
-    private string NormalizeOgsUrl(string value)
+    private static string ReadFirstUrlString(JObject json, params string[] fieldNames)
+    {
+        if (json == null || fieldNames == null) {
+            return string.Empty;
+        }
+
+        foreach (string fieldName in fieldNames) {
+            string value = ReadUrlToken(json[fieldName]);
+            if (!string.IsNullOrWhiteSpace(value)) {
+                return value;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static string ReadUrlToken(JToken token)
+    {
+        if (token == null || token.Type == JTokenType.Null) {
+            return string.Empty;
+        }
+
+        if (token.Type == JTokenType.String || token.Type == JTokenType.Uri) {
+            return token.ToString();
+        }
+
+        if (token is JObject obj) {
+            return ReadFirstUrlString(obj, "url", "href", "src", "source", "uri", "icon", "avatar", "image");
+        }
+
+        if (token is JArray array) {
+            foreach (JToken item in array) {
+                string value = ReadUrlToken(item);
+                if (!string.IsNullOrWhiteSpace(value)) {
+                    return value;
+                }
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static string NormalizeOgsUrl(string value, string baseUrl)
     {
         if (string.IsNullOrWhiteSpace(value)) {
             return string.Empty;
         }
 
         string trimmed = value.Trim();
-        if (trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-            trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
+        if (Uri.TryCreate(trimmed, UriKind.Absolute, out _)) {
             return trimmed;
         }
+
+        string safeBaseUrl = string.IsNullOrWhiteSpace(baseUrl)
+            ? OgsConnectionConfig.DefaultApiBaseUrl
+            : baseUrl.Trim().TrimEnd('/');
 
         if (trimmed.StartsWith("//", StringComparison.Ordinal)) {
             return $"https:{trimmed}";
         }
 
         if (trimmed.StartsWith("/", StringComparison.Ordinal)) {
-            return $"{apiBaseUrl}{trimmed}";
+            return $"{safeBaseUrl}{trimmed}";
         }
 
-        return trimmed;
+        return $"{safeBaseUrl}/{trimmed}";
     }
 
     private static void ReadCurrentUserFields(JObject json, OgsCurrentUserFields fields)
@@ -3303,7 +3348,7 @@ public sealed class OgsConnectionService : ModuleBase
             fields.username = ReadFirstString(json, "preferred_username", "username", "name", "display_name");
         }
         if (string.IsNullOrEmpty(fields.avatarUrl)) {
-            fields.avatarUrl = ReadFirstString(json, "icon", "icon_url", "avatar", "avatar_url", "picture", "image", "image_url");
+            fields.avatarUrl = ReadFirstUrlString(json, "icon", "icon_url", "avatar", "avatar_url", "picture", "image", "image_url");
         }
         if (string.IsNullOrEmpty(fields.country)) {
             fields.country = ReadFirstString(json["country"] as JObject, "code", "name");
