@@ -63,6 +63,7 @@ public class AssetBundleGenerator
         PlayerSettings.SetScriptingBackend(BuildTargetGroup.Standalone, ScriptingImplementation.IL2CPP);
         PlayerSettings.SetIl2CppCompilerConfiguration(BuildTargetGroup.Standalone, Il2CppCompilerConfiguration.Master);
         PlayerSettings.SetStackTraceLogType(LogType.Log, StackTraceLogType.ScriptOnly);
+        AppIconTool.EnsureAppIconApplied();
 
         string buildOutputPath = Path.GetFullPath(BuildConfig.BUILD_PATH_WINDOWS);
         BuildOptions buildOptions = BuildPlayerOptions(development);
@@ -110,6 +111,7 @@ public class AssetBundleGenerator
         PlayerSettings.allowedAutorotateToLandscapeRight = false;
         PlayerSettings.SetStackTraceLogType(LogType.Log, StackTraceLogType.ScriptOnly);
         EditorUserBuildSettings.buildAppBundle = false;
+        AppIconTool.EnsureAppIconApplied();
 
         string buildOutputPath = Path.GetFullPath(BuildConfig.BUILD_PATH_ANDROID);
         BuildOptions buildOptions = BuildPlayerOptions(development);
