@@ -190,6 +190,11 @@ public class OgsFriendProfilePopup : UIPageWithBinder<OgsFriendProfilePopupUI>
                 }
 
                 ConfirmPopup.CloseIfOpen(popupRequestId);
+                if (string.Equals(result.message, OgsConnectionService.FriendChallengeDeclinedMessage, System.StringComparison.Ordinal)) {
+                    ConfirmPopup.ShowTip("邀请被拒绝", OgsConnectionService.FriendChallengeDeclinedMessage, null, "确定");
+                    return;
+                }
+
                 ConfirmPopup.ShowTip("邀请对局失败", result.message, null, "确定");
                 return;
             }

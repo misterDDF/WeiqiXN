@@ -13,6 +13,8 @@ using XNClient.Logger;
 
 public sealed class OgsConnectionService : ModuleBase
 {
+    public const string FriendChallengeDeclinedMessage = "对方已拒绝邀请。";
+
     private const int ChallengeGameDataPollMilliseconds = 1500;
     private const int BrowserLoginCallbackTimeoutMilliseconds = 120000;
     private const string MobileOauthRedirectUri = "https://leo-zhang-git.github.io/weiqixn-oauth-redirect/ogs/callback/";
@@ -679,13 +681,35 @@ public sealed class OgsConnectionService : ModuleBase
         }
 
         string accessToken;
+        string userId;
         lock (sessionLock) {
             accessToken = session.accessToken;
+            userId = session.userId;
+        }
+
+        if (string.IsNullOrWhiteSpace(userId)) {
+            OgsConnectionResult userResult = await RefreshCurrentUserAsync(cancellationToken);
+            if (!userResult.success) {
+                return new OgsChallengeInviteListResult(false, userResult.message);
+            }
+
+            lock (sessionLock) {
+                accessToken = session.accessToken;
+                userId = session.userId;
+            }
+        }
+
+        if (!int.TryParse(userId, out int localUserId) || localUserId <= 0) {
+            return new OgsChallengeInviteListResult(false, "OGS current user id is empty.");
         }
 
         try {
-            JToken invitesJson = await GetJsonTokenAsync($"{apiBaseUrl}/api/v1/me/challenges/invites/", accessToken, cancellationToken);
-            List<OgsChallengeInvite> invites = ReadChallengeInvites(invitesJson);
+            JToken invitesJson = await GetJsonTokenAsync($"{apiBaseUrl}/api/v1/me/challenges/?page_size=30", accessToken, cancellationToken);
+            List<OgsChallengeInvite> invites = ReadChallengeInvites(invitesJson, localUserId);
+            XNLogger.LogInfo(
+                "OGS incoming challenge invites refreshed.",
+                ("count", invites.Count.ToString()),
+                ("response", DescribeChallengeInviteResponse(invitesJson)));
             return new OgsChallengeInviteListResult(true, "OGS incoming challenge invites refreshed.", invites);
         }
         catch (Exception ex) {
@@ -2494,7 +2518,21 @@ public sealed class OgsConnectionService : ModuleBase
             cancellationToken.ThrowIfCancellationRequested();
 
             if (gameId <= 0) {
-                gameId = await TryReadAcceptedChallengeGameIdAsync(challengeId, accessToken, cancellationToken);
+                OgsChallengeGameIdProbeResult probeResult = await TryReadAcceptedChallengeGameIdAsync(challengeId, accessToken, cancellationToken);
+                if (probeResult.challengeUnavailable) {
+                    return new OgsBotGameStartResult(
+                        false,
+                        FriendChallengeDeclinedMessage,
+                        opponentId,
+                        opponentName,
+                        challengeId,
+                        challengeUuid,
+                        gameId,
+                        rawResponse: rawResponse,
+                        isBotGame: false);
+                }
+
+                gameId = probeResult.gameId;
             }
 
             if (gameId > 0) {
@@ -2518,9 +2556,12 @@ public sealed class OgsConnectionService : ModuleBase
                 }
 
                 if (!IsTransientChallengeGameDataWait(gameState)) {
+                    string failureMessage = IsChallengeRejectedMessage(gameState.message)
+                        ? FriendChallengeDeclinedMessage
+                        : gameState.message;
                     return new OgsBotGameStartResult(
                         false,
-                        gameState.message,
+                        failureMessage,
                         opponentId,
                         opponentName,
                         challengeId,
@@ -2590,7 +2631,13 @@ public sealed class OgsConnectionService : ModuleBase
             message.IndexOf("OGS websocket closed before game data", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
-    private async Task<int> TryReadAcceptedChallengeGameIdAsync(
+    private static bool IsChallengeRejectedMessage(string message)
+    {
+        return !string.IsNullOrWhiteSpace(message) &&
+            message.IndexOf("rejected", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private async Task<OgsChallengeGameIdProbeResult> TryReadAcceptedChallengeGameIdAsync(
         int challengeId,
         string accessToken,
         CancellationToken cancellationToken)
@@ -2599,14 +2646,37 @@ public sealed class OgsConnectionService : ModuleBase
             JToken challengeJson = await GetJsonTokenAsync($"{apiBaseUrl}/api/v1/me/challenges/{challengeId}/", accessToken, cancellationToken);
             int gameId = ReadGameIdFromChallengeResponse(challengeJson as JObject);
             if (gameId > 0) {
-                return gameId;
+                return OgsChallengeGameIdProbeResult.GameFound(gameId);
             }
         }
         catch (Exception ex) {
+            if (IsOgsHttpStatus(ex, 404, 410)) {
+                XNLogger.LogInfo("OGS challenge no longer exists.", ("challengeId", challengeId.ToString()));
+                return OgsChallengeGameIdProbeResult.Unavailable(FriendChallengeDeclinedMessage);
+            }
+
             XNLogger.LogWarn("OGS challenge game id probe failed.", ("challengeId", challengeId.ToString()), ("err", ex.Message));
         }
 
-        return 0;
+        return OgsChallengeGameIdProbeResult.Pending;
+    }
+
+    private static bool IsOgsHttpStatus(Exception ex, params int[] statusCodes)
+    {
+        if (ex == null || statusCodes == null || statusCodes.Length <= 0) {
+            return false;
+        }
+
+        string message = ex.Message ?? string.Empty;
+        foreach (int statusCode in statusCodes) {
+            if (message.IndexOf($"OGS GET failed: {statusCode} ", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                message.IndexOf($"OGS DELETE failed: {statusCode} ", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                message.IndexOf($"OGS POST failed: {statusCode} ", StringComparison.OrdinalIgnoreCase) >= 0) {
+                return true;
+            }
+        }
+
+        return IsOgsHttpStatus(ex.InnerException, statusCodes);
     }
 
     private static int ReadChallengeId(JObject json)
@@ -2623,13 +2693,13 @@ public sealed class OgsConnectionService : ModuleBase
         return ReadFirstInt(json["challenge"] as JObject, "id", "challenge_id");
     }
 
-    private static List<OgsChallengeInvite> ReadChallengeInvites(JToken root)
+    private static List<OgsChallengeInvite> ReadChallengeInvites(JToken root, int localUserId)
     {
         var result = new List<OgsChallengeInvite>();
         JToken listToken = SelectChallengeInviteListToken(root);
         if (listToken is JArray array) {
             foreach (JToken token in array) {
-                OgsChallengeInvite invite = ReadChallengeInvite(token);
+                OgsChallengeInvite invite = ReadChallengeInvite(token, localUserId);
                 if (invite != null && invite.challengeId > 0) {
                     result.Add(invite);
                 }
@@ -2639,7 +2709,7 @@ public sealed class OgsConnectionService : ModuleBase
 
         if (listToken is JObject obj) {
             foreach (JProperty property in obj.Properties()) {
-                OgsChallengeInvite invite = ReadChallengeInvite(property.Value);
+                OgsChallengeInvite invite = ReadChallengeInvite(property.Value, localUserId);
                 if (invite != null && invite.challengeId > 0) {
                     result.Add(invite);
                 }
@@ -2669,7 +2739,49 @@ public sealed class OgsConnectionService : ModuleBase
         return null;
     }
 
-    private static OgsChallengeInvite ReadChallengeInvite(JToken token)
+    private static string DescribeChallengeInviteResponse(JToken root)
+    {
+        if (root == null) {
+            return "null";
+        }
+
+        if (root is JArray rootArray) {
+            return $"array count={rootArray.Count}";
+        }
+
+        if (root is JObject rootObject) {
+            JToken listToken = SelectChallengeInviteListToken(root);
+            int listCount = -1;
+            if (listToken is JArray listArray) {
+                listCount = listArray.Count;
+            } else if (listToken is JObject listObject) {
+                listCount = listObject.Count;
+            }
+
+            return $"object keys={DescribeObjectKeys(rootObject)} listType={listToken?.Type.ToString() ?? "null"} listCount={listCount}";
+        }
+
+        return root.Type.ToString();
+    }
+
+    private static string DescribeObjectKeys(JObject obj)
+    {
+        if (obj == null) {
+            return string.Empty;
+        }
+
+        var names = new List<string>();
+        foreach (JProperty property in obj.Properties()) {
+            names.Add(property.Name);
+            if (names.Count >= 8) {
+                break;
+            }
+        }
+
+        return string.Join(",", names);
+    }
+
+    private static OgsChallengeInvite ReadChallengeInvite(JToken token, int localUserId)
     {
         JObject wrapper = token as JObject;
         if (wrapper == null) {
@@ -2700,6 +2812,20 @@ public sealed class OgsConnectionService : ModuleBase
             "user_id",
             "player_id");
 
+        JToken challengedToken = challengeJson["challenged"] ??
+            challengeJson["challenged_player"] ??
+            challengeJson["recipient"] ??
+            challengeJson["opponent"];
+        int challengedId = ReadPlayerId(
+            challengedToken,
+            challengeJson,
+            "challenged_id",
+            "recipient_id",
+            "opponent_id");
+        if (localUserId > 0 && challengedId != localUserId) {
+            return null;
+        }
+
         JObject gameJson = challengeJson["game"] as JObject;
         int boardSize = ReadFirstInt(gameJson, "width", "board_width", "size");
         if (boardSize <= 0) {
@@ -2713,6 +2839,7 @@ public sealed class OgsConnectionService : ModuleBase
             gameId = ReadGameIdFromChallengeResponse(challengeJson),
             challengerId = challengerId,
             challengerName = ReadPlayerName(challengerJson),
+            challengedId = challengedId,
             boardSize = boardSize,
             gameName = ReadFirstString(gameJson, "name", "game_name"),
             rawResponse = TrimForLog(wrapper.ToString(Newtonsoft.Json.Formatting.None)),
@@ -3622,6 +3749,32 @@ public sealed class OgsConnectionService : ModuleBase
             this.gameId = gameId;
             this.message = message ?? string.Empty;
             this.rawMessage = rawMessage ?? string.Empty;
+        }
+    }
+
+    private sealed class OgsChallengeGameIdProbeResult
+    {
+        public static readonly OgsChallengeGameIdProbeResult Pending = new OgsChallengeGameIdProbeResult(0, false, string.Empty);
+
+        public readonly int gameId;
+        public readonly bool challengeUnavailable;
+        public readonly string message;
+
+        private OgsChallengeGameIdProbeResult(int gameId, bool challengeUnavailable, string message)
+        {
+            this.gameId = gameId;
+            this.challengeUnavailable = challengeUnavailable;
+            this.message = message ?? string.Empty;
+        }
+
+        public static OgsChallengeGameIdProbeResult GameFound(int gameId)
+        {
+            return new OgsChallengeGameIdProbeResult(gameId, false, string.Empty);
+        }
+
+        public static OgsChallengeGameIdProbeResult Unavailable(string message)
+        {
+            return new OgsChallengeGameIdProbeResult(0, true, message);
         }
     }
 }

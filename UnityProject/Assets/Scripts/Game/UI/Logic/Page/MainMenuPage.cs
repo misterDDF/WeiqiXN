@@ -39,6 +39,7 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
         ApplyCurrentLayoutState(false);
         RefreshOgsGameButton(false);
         RefreshFriendInvitationBadge(true);
+        Global.Instance.ogsChallengeInviteCoordinator?.RequestImmediatePoll();
     }
 
     protected override void OnUpdate()

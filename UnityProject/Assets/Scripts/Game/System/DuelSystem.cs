@@ -508,6 +508,36 @@ public class DuelSystem : SystemBase
         ApplyAcceptedDuelResign(loserFlag);
     }
 
+    public bool SubmitLocalInterruptResign()
+    {
+        var compDuel = scene.GetComponent<SceneComponentDuel>();
+        if (compDuel == null || compDuel.duelFSM == null || !compDuel.duelFSM.isActivated) {
+            return false;
+        }
+
+        if (compDuel.duelFSM.curState == null || compDuel.duelFSM.curState.stateName == DuelStateDefine.STATE_GAME_END) {
+            return false;
+        }
+
+        PlayerFlag localPlayerFlag = DuelUtils.GetValidPlayerFlag((PlayerFlag)compDuel.localPlayerFlag.value);
+        if (localPlayerFlag == 0) {
+            return false;
+        }
+
+        if (compDuel.isLanDuel.value) {
+            bool submitted = Global.Instance.lanRoomService != null
+                && Global.Instance.lanRoomService.SubmitLocalInterruptResign(localPlayerFlag);
+            if (!submitted) {
+                XNLogger.LogWarn("LAN duel interrupt resign submit failed.", ("localPlayerFlag", localPlayerFlag.ToString()));
+            }
+            ApplyAcceptedDuelResign(localPlayerFlag);
+            return submitted;
+        }
+
+        ApplyAcceptedDuelResign(localPlayerFlag);
+        return true;
+    }
+
     private void OnRequestDuelTakeBack(OnRequestDuelTakeBack evt)
     {
         var compDuel = scene.GetComponent<SceneComponentDuel>();

@@ -172,6 +172,7 @@ public sealed class OgsChallengeInvite
     public int gameId;
     public int challengerId;
     public string challengerName;
+    public int challengedId;
     public int boardSize;
     public string gameName;
     public string rawResponse;

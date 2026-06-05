@@ -565,6 +565,16 @@ public partial class LanRoomService : ModuleBase
 
     public bool SubmitLocalResign(PlayerFlag loserFlag)
     {
+        return SubmitLocalResignInternal(loserFlag, false);
+    }
+
+    public bool SubmitLocalInterruptResign(PlayerFlag loserFlag)
+    {
+        return SubmitLocalResignInternal(loserFlag, true);
+    }
+
+    private bool SubmitLocalResignInternal(PlayerFlag loserFlag, bool acceptImmediatelyWhenHost)
+    {
         if (IsReconnectWaiting) {
             return false;
         }
@@ -578,7 +588,11 @@ public partial class LanRoomService : ModuleBase
 
         LanDuelResignMessage resign = new LanDuelResignMessage(actionId, loserFlag);
         if (role == LanRoomRole.Host) {
-            EnqueueSubmittedResign(resign);
+            if (acceptImmediatelyWhenHost) {
+                BroadcastAcceptedResign(resign);
+            } else {
+                EnqueueSubmittedResign(resign);
+            }
             return true;
         }
 

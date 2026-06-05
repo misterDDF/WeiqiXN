@@ -236,6 +236,15 @@ public class OgsDuelSystem : SystemBase
         return CanSubmitOgsCommand();
     }
 
+    public async Task<bool> SubmitInterruptResignAsync()
+    {
+        if (compDuel == null || compOgsDuel == null || compDuel.localPlayerFlag.value == 0 || IsFinishedPhase()) {
+            return false;
+        }
+
+        return await SubmitResignAsync();
+    }
+
     public bool CanSubmitTakeBack()
     {
         return CanSubmitOgsCommand()
@@ -946,11 +955,11 @@ public class OgsDuelSystem : SystemBase
         }
     }
 
-    private async Task SubmitResignAsync()
+    private async Task<bool> SubmitResignAsync()
     {
         if (realtimeSession == null || !realtimeSession.IsOpen || compOgsDuel == null) {
             SetError("OGS realtime session is not connected.");
-            return;
+            return false;
         }
 
         try {
@@ -958,11 +967,13 @@ public class OgsDuelSystem : SystemBase
             SyncInputAuthority();
             await realtimeSession.SendResignAsync(cancellationTokenSource.Token);
             XNLogger.LogInfo("OGS resign submitted.", ("gameId", compOgsDuel.gameId.ToString()));
+            return true;
         }
         catch (Exception ex) {
             compOgsDuel.isSubmitting = false;
             SetError(ex.Message);
             XNLogger.LogError("OGS resign submit failed.", ("gameId", compOgsDuel.gameId.ToString()), ("err", ex.Message));
+            return false;
         }
         finally {
             SyncInputAuthority();

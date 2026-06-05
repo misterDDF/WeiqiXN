@@ -151,6 +151,7 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
             OgsSession session = service.Session;
             string ogsName = session.DisplayName;
             ApplyOgsSession(session);
+            Global.Instance.ogsChallengeInviteCoordinator?.RequestImmediatePoll();
             SetSaveTip(string.IsNullOrWhiteSpace(ogsName) ? "OGS 登录成功" : $"已登录 OGS：{ogsName}");
         }
         catch (System.Exception ex) {
@@ -227,6 +228,7 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
             }
 
             ApplyOgsSession(service.Session);
+            Global.Instance.ogsChallengeInviteCoordinator?.RequestImmediatePoll();
             SetSaveTip("OGS 用户信息已刷新");
         }
         catch (System.Exception ex) {
@@ -263,6 +265,7 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
         }
 
         ApplyOgsSession(service.Session);
+        Global.Instance.ogsChallengeInviteCoordinator?.RequestImmediatePoll();
     }
 
     private void ApplyOgsLoggedOut()
