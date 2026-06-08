@@ -1,0 +1,5 @@
+interface:
+  display_name: "Fix Canvas Prefab Preview"
+  short_description: "Fix Unity UI prefab preview Canvas issues"
+  default_prompt: "Use $fix-canvas-prefab-preview to diagnose and fix a Unity UI prefab preview that shows Canvas (environment)."
+
