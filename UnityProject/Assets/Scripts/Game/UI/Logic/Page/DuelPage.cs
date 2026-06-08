@@ -35,6 +35,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         RegisterSystemEvent<OnLanDuelScoreResultConfirmRequest>(OnLanDuelScoreResultConfirmRequest);
         RegisterSystemEvent<OnLanDuelTakeBackConfirmRequest>(OnLanDuelTakeBackConfirmRequest);
         RegisterSystemEvent<OnOgsDuelTakeBackConfirmRequest>(OnOgsDuelTakeBackConfirmRequest);
+        RegisterSystemEvent<OnOgsStoneRemovalStateChanged>(OnOgsStoneRemovalStateChanged);
         RegisterSystemEvent<OnLanRoomPeerLeft>(OnLanRoomPeerLeft);
         RegisterSystemEvent<OnLanRoomReconnectWaiting>(OnLanRoomReconnectWaiting);
         RegisterSystemEvent<OnLanRoomReconnected>(OnLanRoomReconnected);
@@ -237,6 +238,11 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         );
     }
 
+    public void OnOgsStoneRemovalStateChanged(OnOgsStoneRemovalStateChanged evt)
+    {
+        RefreshDuelHud();
+    }
+
     public void OnLanRoomPeerLeft(OnLanRoomPeerLeft evt)
     {
         ClosePendingScorePopup();
@@ -275,6 +281,17 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
+        if (mainScene is OgsDuelScene ogsScene) {
+            OgsDuelSystem ogsDuelSystem = ogsScene.GetSystem<OgsDuelSystem>();
+            if (ogsDuelSystem != null && ogsDuelSystem.IsInStoneRemovalPhase()) {
+                SceneComponentChessBoard compChessBoard = mainScene.GetComponent<SceneComponentChessBoard>();
+                if (TryGetBoardClickCoords(mainScene, compChessBoard, out RectCoordinates stoneRemovalCoords)) {
+                    EmitSystemEvent(new OnSubmitOgsRemovedStoneToggle(stoneRemovalCoords));
+                }
+                return;
+            }
+        }
+
         DuelInputAuthorityState inputState = GetCurrentInputState(mainScene, compDuel);
         if (boardInput.TryGetMoveCoords(inputState, out RectCoordinates coords)) {
             if (mainScene is OgsDuelScene) {
@@ -313,6 +330,12 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
     public void OnClickBtnOwnership()
     {
+        OgsDuelSystem ogsDuelSystem = GetOgsDuelSystem();
+        if (ogsDuelSystem != null && ogsDuelSystem.IsInStoneRemovalPhase()) {
+            EmitSystemEvent(new OnSubmitOgsRemovedStonesAccept());
+            return;
+        }
+
         if (hudView.IsOwnershipVisible) {
             EmitSystemEvent(new OnRequestClearDuelOwnership());
             return;
@@ -330,6 +353,12 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     public void OnClickBtnPass()
     {
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
+        OgsDuelSystem ogsDuelSystem = GetOgsDuelSystem(mainScene);
+        if (ogsDuelSystem != null && ogsDuelSystem.IsInStoneRemovalPhase()) {
+            EmitSystemEvent(new OnSubmitOgsRemovedStonesReject());
+            return;
+        }
+
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
         DuelInputAuthorityState inputState = GetCurrentInputState(mainScene, compDuel);
         if (compDuel == null || !inputState.CanSubmitMove) {
@@ -631,13 +660,54 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         return UIUtils.IsPointerOverUI();
     }
 
+    private bool TryGetBoardClickCoords(SceneBase mainScene, SceneComponentChessBoard compChessBoard, out RectCoordinates coords)
+    {
+        coords = null;
+        if (mainScene == null || compChessBoard?.chessBoardGrid == null) {
+            return false;
+        }
+
+        Ray mouseRay = Global.Instance.uiManager.uiCamera.ScreenPointToRay(Input.mousePosition);
+        if (!Physics.Raycast(mouseRay.origin, mouseRay.direction, out RaycastHit hitInfo, 500)) {
+            return false;
+        }
+
+        Transform gridTransform = compChessBoard.chessBoardGrid.transform;
+        Vector3 localHitPoint = gridTransform.InverseTransformPoint(hitInfo.point);
+        float cellSideLength = ChessBoardConfig.rectCellSideLength;
+        float boardSideLength = compChessBoard.chessBoardGrid.gridSize * cellSideLength;
+        if (localHitPoint.x < 0f || localHitPoint.x > boardSideLength || localHitPoint.z < 0f || localHitPoint.z > boardSideLength) {
+            return false;
+        }
+
+        int nearestCellX = Mathf.RoundToInt(localHitPoint.x / cellSideLength - 0.5f);
+        int nearestCellZ = compChessBoard.chessBoardGrid.gridSize - 1 - Mathf.RoundToInt(localHitPoint.z / cellSideLength - 0.5f);
+        int maxCellIndex = Mathf.Max(compChessBoard.chessBoardGrid.gridSize - 1, 0);
+        nearestCellX = Mathf.Clamp(nearestCellX, 0, maxCellIndex);
+        nearestCellZ = Mathf.Clamp(nearestCellZ, 0, maxCellIndex);
+        coords = new RectCoordinates(nearestCellX, nearestCellZ);
+        return true;
+    }
+
     private DuelInputAuthorityState GetCurrentInputState(SceneBase mainScene, SceneComponentDuel compDuel)
     {
         if (mainScene is OgsDuelScene) {
-            OgsDuelSystem ogsDuelSystem = mainScene.GetSystem<OgsDuelSystem>();
+            OgsDuelSystem ogsDuelSystem = GetOgsDuelSystem(mainScene);
             return ogsDuelSystem != null ? ogsDuelSystem.GetInputState() : default;
         }
 
         return DuelInputAuthority.GetLocalState(mainScene, compDuel);
+    }
+
+    private OgsDuelSystem GetOgsDuelSystem()
+    {
+        return GetOgsDuelSystem(Global.Instance.sceneManager.mainScene);
+    }
+
+    private OgsDuelSystem GetOgsDuelSystem(SceneBase mainScene)
+    {
+        return mainScene is OgsDuelScene
+            ? mainScene.GetSystem<OgsDuelSystem>()
+            : null;
     }
 }

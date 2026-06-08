@@ -10,19 +10,31 @@ public static class DuelOwnershipQueryService
 
     public static async Task<DuelOwnershipQueryResult> QueryOwnershipAsync(SceneBase scene, string requestIdPrefix, bool allowCachedResult)
     {
+        return await QueryOwnershipAsync(scene, requestIdPrefix, allowCachedResult, null);
+    }
+
+    public static async Task<DuelOwnershipQueryResult> QueryOwnershipAsync(
+        SceneBase scene,
+        string requestIdPrefix,
+        bool allowCachedResult,
+        System.Collections.Generic.IEnumerable<int> excludedStonePosIndexes)
+    {
         if (scene == null) {
             XNLogger.LogError("Duel ownership query failed, scene is empty.");
             return null;
         }
 
         SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
-        if (allowCachedResult && TryBuildCachedResult(compDuel, out DuelOwnershipQueryResult cachedResult)) {
+        bool hasExcludedStones = excludedStonePosIndexes != null;
+        if (!hasExcludedStones && allowCachedResult && TryBuildCachedResult(compDuel, out DuelOwnershipQueryResult cachedResult)) {
             return cachedResult;
         }
 
         try {
             string requestId = $"{requestIdPrefix}-{DateTime.UtcNow.Ticks}";
-            JObject query = KataGoPositionJsonBuilder.BuildOwnershipAnalysisJson(scene, requestId);
+            JObject query = hasExcludedStones
+                ? KataGoPositionJsonBuilder.BuildOwnershipAnalysisJsonWithCurrentBoardSnapshot(scene, requestId, excludedStonePosIndexes)
+                : KataGoPositionJsonBuilder.BuildOwnershipAnalysisJson(scene, requestId);
             JArray ownership = await KataGoBootstrap.AnalyzeOwnershipAsync(query);
             if (ownership == null) {
                 XNLogger.LogWarn("Duel ownership query failed, ownership result is empty.", ("requestId", requestId));
@@ -30,7 +42,9 @@ public static class DuelOwnershipQueryService
             }
 
             DuelOwnershipScore score = CalculateOwnershipScore(ownership, query);
-            compDuel?.CacheOwnershipScore(score, ownership);
+            if (!hasExcludedStones) {
+                compDuel?.CacheOwnershipScore(score, ownership);
+            }
             return new DuelOwnershipQueryResult
             {
                 ownership = ownership,

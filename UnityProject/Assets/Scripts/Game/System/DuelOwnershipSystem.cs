@@ -7,6 +7,8 @@ public class DuelOwnershipSystem : SystemBase
 
     private bool isAnalyzing;
     private int requestVersion;
+    private bool hasQueuedRequest;
+    private System.Collections.Generic.HashSet<int> queuedExcludedStonePosIndexes;
 
     public DuelOwnershipSystem(SceneBase scene) : base(scene)
     {
@@ -47,17 +49,21 @@ public class DuelOwnershipSystem : SystemBase
     private async void OnRequestDuelOwnership(OnRequestDuelOwnership evt)
     {
         if (isAnalyzing) {
-            XNLogger.LogWarn("Duel ownership analyze skipped, request is already running.");
+            QueueOwnershipRequest(evt);
             return;
         }
 
-            isAnalyzing = true;
-            try {
-                requestVersion += 1;
-                int currentRequestVersion = requestVersion;
-                ClearOwnershipOverlay();
+        isAnalyzing = true;
+        try {
+            requestVersion += 1;
+            int currentRequestVersion = requestVersion;
+            ClearOwnershipOverlay();
 
-            DuelOwnershipQueryResult queryResult = await DuelOwnershipQueryService.QueryOwnershipAsync(scene, "duel-ownership", true);
+            DuelOwnershipQueryResult queryResult = await DuelOwnershipQueryService.QueryOwnershipAsync(
+                scene,
+                "duel-ownership",
+                evt == null || evt.excludedStonePosIndexes == null,
+                evt?.excludedStonePosIndexes);
             if (currentRequestVersion != requestVersion) {
                 return;
             }
@@ -86,11 +92,34 @@ public class DuelOwnershipSystem : SystemBase
         }
         finally {
             isAnalyzing = false;
+            RunQueuedOwnershipRequestIfNeeded();
         }
+    }
+
+    private void QueueOwnershipRequest(OnRequestDuelOwnership evt)
+    {
+        hasQueuedRequest = true;
+        queuedExcludedStonePosIndexes = evt?.excludedStonePosIndexes != null
+            ? new System.Collections.Generic.HashSet<int>(evt.excludedStonePosIndexes)
+            : null;
+    }
+
+    private void RunQueuedOwnershipRequestIfNeeded()
+    {
+        if (!hasQueuedRequest) {
+            return;
+        }
+
+        System.Collections.Generic.HashSet<int> excludedStonePosIndexes = queuedExcludedStonePosIndexes;
+        hasQueuedRequest = false;
+        queuedExcludedStonePosIndexes = null;
+        OnRequestDuelOwnership(new OnRequestDuelOwnership(excludedStonePosIndexes));
     }
 
     private void ClearOwnershipAndNotify()
     {
+        hasQueuedRequest = false;
+        queuedExcludedStonePosIndexes = null;
         InvalidateOwnershipRequest();
         ClearOwnershipOverlay();
         scene.EmitSystemEvent(new OnClearDuelOwnership());

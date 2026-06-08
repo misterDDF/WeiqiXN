@@ -113,6 +113,50 @@ public sealed class OgsRealtimeGameSession : IDisposable
         await SendPayloadAsync(payload.ToString(Newtonsoft.Json.Formatting.None), cancellationToken);
     }
 
+    public async Task SendRemovedStonesSetAsync(string stones, bool removed, bool strictSekiMode, CancellationToken cancellationToken = default(CancellationToken))
+    {
+        var payload = new JArray
+        {
+            "game/removed_stones/set",
+            new JObject
+            {
+                ["game_id"] = gameId,
+                ["stones"] = stones ?? string.Empty,
+                ["removed"] = removed,
+                ["strict_seki_mode"] = strictSekiMode,
+            },
+        };
+        await SendPayloadAsync(payload.ToString(Newtonsoft.Json.Formatting.None), cancellationToken);
+    }
+
+    public async Task SendRemovedStonesAcceptAsync(string stones, bool strictSekiMode, CancellationToken cancellationToken = default(CancellationToken))
+    {
+        var payload = new JArray
+        {
+            "game/removed_stones/accept",
+            new JObject
+            {
+                ["game_id"] = gameId,
+                ["stones"] = stones ?? string.Empty,
+                ["strict_seki_mode"] = strictSekiMode,
+            },
+        };
+        await SendPayloadAsync(payload.ToString(Newtonsoft.Json.Formatting.None), cancellationToken);
+    }
+
+    public async Task SendRemovedStonesRejectAsync(CancellationToken cancellationToken = default(CancellationToken))
+    {
+        var payload = new JArray
+        {
+            "game/removed_stones/reject",
+            new JObject
+            {
+                ["game_id"] = gameId,
+            },
+        };
+        await SendPayloadAsync(payload.ToString(Newtonsoft.Json.Formatting.None), cancellationToken);
+    }
+
     public async Task DisconnectAsync(CancellationToken cancellationToken = default(CancellationToken))
     {
         if (isDisposed) {
@@ -241,6 +285,10 @@ public sealed class OgsRealtimeGameSession : IDisposable
             messageQueue.Enqueue(new OgsRealtimeGameMessage(OgsRealtimeGameMessageType.UndoCanceled, channel, payload));
         } else if (channel == $"game/{gameId}/undo_requested") {
             messageQueue.Enqueue(new OgsRealtimeGameMessage(OgsRealtimeGameMessageType.UndoRequested, channel, payload));
+        } else if (channel == $"game/{gameId}/removed_stones") {
+            messageQueue.Enqueue(new OgsRealtimeGameMessage(OgsRealtimeGameMessageType.RemovedStones, channel, payload));
+        } else if (channel == $"game/{gameId}/removed_stones_accepted") {
+            messageQueue.Enqueue(new OgsRealtimeGameMessage(OgsRealtimeGameMessageType.RemovedStonesAccepted, channel, payload));
         } else if (channel == $"game/{gameId}/error") {
             messageQueue.Enqueue(new OgsRealtimeGameMessage(OgsRealtimeGameMessageType.Error, channel, payload, payload?.ToString(Newtonsoft.Json.Formatting.None) ?? string.Empty));
         } else if (channel.StartsWith($"game/{gameId}/", StringComparison.Ordinal)) {

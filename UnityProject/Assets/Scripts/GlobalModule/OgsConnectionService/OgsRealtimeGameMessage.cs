@@ -9,6 +9,8 @@ public enum OgsRealtimeGameMessageType
     UndoAccepted,
     UndoCanceled,
     UndoRequested,
+    RemovedStones,
+    RemovedStonesAccepted,
     Error,
     Closed,
 }

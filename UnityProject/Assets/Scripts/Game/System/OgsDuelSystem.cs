@@ -50,6 +50,9 @@ public class OgsDuelSystem : SystemBase
         scene.RegisterSystemEvent<OnSubmitOgsDuelResign>(OnSubmitOgsDuelResign);
         scene.RegisterSystemEvent<OnSubmitOgsDuelTakeBack>(OnSubmitOgsDuelTakeBack);
         scene.RegisterSystemEvent<OnSubmitOgsDuelTakeBackConfirm>(OnSubmitOgsDuelTakeBackConfirm);
+        scene.RegisterSystemEvent<OnSubmitOgsRemovedStoneToggle>(OnSubmitOgsRemovedStoneToggle);
+        scene.RegisterSystemEvent<OnSubmitOgsRemovedStonesAccept>(OnSubmitOgsRemovedStonesAccept);
+        scene.RegisterSystemEvent<OnSubmitOgsRemovedStonesReject>(OnSubmitOgsRemovedStonesReject);
 
         InitFromSceneParams();
         InitPlayers();
@@ -218,6 +221,12 @@ public class OgsDuelSystem : SystemBase
             case OgsRealtimeGameMessageType.UndoRequested:
                 ApplyUndoRequested(message.payload);
                 break;
+            case OgsRealtimeGameMessageType.RemovedStones:
+                ApplyRemovedStones(message.payload);
+                break;
+            case OgsRealtimeGameMessageType.RemovedStonesAccepted:
+                ApplyRemovedStonesAccepted(message.payload);
+                break;
             case OgsRealtimeGameMessageType.Error:
                 SetError(message.message);
                 break;
@@ -254,6 +263,42 @@ public class OgsDuelSystem : SystemBase
             && !IsStoneRemovalPhase();
     }
 
+    public bool IsInStoneRemovalPhase()
+    {
+        return IsStoneRemovalPhase();
+    }
+
+    public bool CanSubmitStoneRemovalCommand()
+    {
+        return CanSubmitBaseOgsCommand()
+            && IsStoneRemovalPhase()
+            && !compOgsDuel.isSubmittingRemovedStones
+            && compDuel.localPlayerFlag.value != 0;
+    }
+
+    public bool IsRemovedStone(RectCoordinates coords)
+    {
+        if (compChessBoard == null || coords == null || compOgsDuel == null) {
+            return false;
+        }
+
+        int posIndex = compChessBoard.GetPosIndexByCoords(coords);
+        return posIndex >= 0 && compOgsDuel.removedStonePosIndexes.Contains(posIndex);
+    }
+
+    public int GetStoneRemovalCountdownSeconds()
+    {
+        if (compDuel == null || compDuel.localPlayerFlag.value == 0) {
+            return -1;
+        }
+
+        Player player = GetPlayerByFlag((PlayerFlag)compDuel.localPlayerFlag.value);
+        ComponentDuelInfo duelInfo = player?.GetComponent<ComponentDuelInfo>();
+        return duelInfo != null && !duelInfo.isInfiniteTime.value
+            ? Math.Max(0, duelInfo.turnLeftTimes.value)
+            : -1;
+    }
+
     private void ApplyGameData(JObject gameData)
     {
         if (gameData == null || compOgsDuel == null || compDuel == null || compChessBoard == null || chessBoardSystem == null) {
@@ -273,6 +318,7 @@ public class OgsDuelSystem : SystemBase
             compOgsDuel.phase = phase;
         }
         ApplyClock(gameData["clock"] as JObject);
+        ApplyStoneRemovalData(gameData);
         if (!TryResolveOgsInitialStones(gameData, out List<OgsDuelInitialStone> initialStones)) {
             SetError("OGS game data initial stones could not be parsed.");
             return;
@@ -299,6 +345,11 @@ public class OgsDuelSystem : SystemBase
         if (!RebuildBoardFromMoves(acceptedInitialStones, acceptedMoves)) {
             SetError("OGS game data board state could not be applied.");
             return;
+        }
+        RefreshStoneRemovalVisuals();
+        if (IsStoneRemovalPhase()) {
+            RequestStoneRemovalOwnershipPreview();
+            scene.EmitSystemEvent(new OnOgsStoneRemovalStateChanged());
         }
         compOgsDuel.acceptedMoveCount = moves.Count;
         compOgsDuel.isSubmitting = false;
@@ -449,6 +500,7 @@ public class OgsDuelSystem : SystemBase
 
         compOgsDuel.phase = phase ?? string.Empty;
         if (IsFinishedPhase()) {
+            ClearStoneRemovalState(false);
             JObject gameData = compOgsDuel.lastGameData as JObject;
             if (TryBuildOgsScoreResult(gameData, out DuelScoreResult scoreResult)) {
                 EndGameByOgsScore(scoreResult, gameData);
@@ -456,6 +508,13 @@ public class OgsDuelSystem : SystemBase
                 EndGameByOgsFinishedFallback(gameData);
             }
         } else {
+            if (!IsStoneRemovalPhase()) {
+                ClearStoneRemovalState(true);
+            } else {
+                RefreshStoneRemovalVisuals();
+                RequestStoneRemovalOwnershipPreview();
+                scene.EmitSystemEvent(new OnOgsStoneRemovalStateChanged());
+            }
             SyncInputAuthority();
         }
     }
@@ -697,6 +756,336 @@ public class OgsDuelSystem : SystemBase
     private static int CeilRemainingSeconds(double seconds)
     {
         return Math.Max(0, (int)Math.Ceiling(seconds));
+    }
+
+    private void ApplyStoneRemovalData(JObject gameData)
+    {
+        if (gameData == null || compOgsDuel == null || !IsStoneRemovalPhase()) {
+            return;
+        }
+
+        JToken removedToken = ReadFirstToken(
+            gameData,
+            "removed_stones",
+            "removedStones",
+            "removed",
+            "stones");
+        if (removedToken == null) {
+            return;
+        }
+
+        if (TryReadRemovedStoneSet(removedToken, out HashSet<int> removedSet, out string stonesText)) {
+            SetRemovedStoneSet(removedSet, stonesText);
+        }
+    }
+
+    private void ApplyRemovedStones(JToken payload)
+    {
+        if (compOgsDuel == null || compChessBoard == null) {
+            return;
+        }
+
+        bool isFullReplacement = false;
+        bool removed = true;
+        JToken stonesToken = payload;
+        bool strictSekiMode = compOgsDuel.strictSekiMode;
+        if (payload is JObject obj) {
+            strictSekiMode = ReadFirstBool(obj, strictSekiMode, "strict_seki_mode", "strictSekiMode");
+            if (TryReadFullRemovedStoneToken(obj, out JToken fullToken)) {
+                isFullReplacement = true;
+                stonesToken = fullToken;
+            } else {
+                stonesToken = ReadFirstToken(obj, "stones", "stone", "removed", "removed_stones", "removedStones") ?? payload;
+                removed = ReadFirstBool(obj, true, "removed", "is_removed", "isRemoved");
+            }
+        }
+
+        if (!TryReadRemovedStoneSet(stonesToken, out HashSet<int> changedSet, out string stonesText)) {
+            XNLogger.LogWarn(
+                "OGS removed stones payload could not be parsed.",
+                ("gameId", compOgsDuel.gameId.ToString()),
+                ("payload", payload?.ToString(Newtonsoft.Json.Formatting.None) ?? string.Empty));
+            return;
+        }
+
+        compOgsDuel.strictSekiMode = strictSekiMode;
+        if (isFullReplacement || payload is JArray || payload?.Type == JTokenType.String) {
+            SetRemovedStoneSet(changedSet, stonesText);
+        } else {
+            foreach (int posIndex in changedSet) {
+                if (removed) {
+                    compOgsDuel.removedStonePosIndexes.Add(posIndex);
+                } else {
+                    compOgsDuel.removedStonePosIndexes.Remove(posIndex);
+                }
+            }
+            compOgsDuel.removedStones = BuildRemovedStoneString(compOgsDuel.removedStonePosIndexes);
+            ResetRemovedStoneAcceptancesIfNeeded();
+        }
+
+        RefreshStoneRemovalVisuals();
+        RequestStoneRemovalOwnershipPreview();
+        scene.EmitSystemEvent(new OnOgsStoneRemovalStateChanged());
+    }
+
+    private void ApplyRemovedStonesAccepted(JToken payload)
+    {
+        if (compOgsDuel == null) {
+            return;
+        }
+
+        string stones = ReadRemovedStonesText(payload);
+        bool strictSekiMode = payload is JObject obj
+            ? ReadFirstBool(obj, compOgsDuel.strictSekiMode, "strict_seki_mode", "strictSekiMode")
+            : compOgsDuel.strictSekiMode;
+        int playerId = ReadOgsPlayerId(payload);
+        bool isLocal = playerId > 0 && playerId == compOgsDuel.localOgsUserId;
+        bool isOpponent = playerId > 0 && playerId != compOgsDuel.localOgsUserId;
+        if (playerId <= 0) {
+            isLocal = true;
+        }
+
+        compOgsDuel.strictSekiMode = strictSekiMode;
+        string normalizedStones = NormalizeRemovedStonesText(stones);
+        if (isLocal) {
+            compOgsDuel.localRemovedStonesAccepted = true;
+            compOgsDuel.localAcceptedRemovedStones = normalizedStones;
+        }
+        if (isOpponent) {
+            compOgsDuel.opponentRemovedStonesAccepted = true;
+            compOgsDuel.opponentAcceptedRemovedStones = normalizedStones;
+        }
+
+        scene.EmitSystemEvent(new OnOgsStoneRemovalStateChanged());
+    }
+
+    private void SetRemovedStoneSet(HashSet<int> removedSet, string stonesText)
+    {
+        if (compOgsDuel == null) {
+            return;
+        }
+
+        compOgsDuel.removedStonePosIndexes.Clear();
+        if (removedSet != null) {
+            foreach (int posIndex in removedSet) {
+                compOgsDuel.removedStonePosIndexes.Add(posIndex);
+            }
+        }
+        compOgsDuel.removedStones = string.IsNullOrWhiteSpace(stonesText)
+            ? BuildRemovedStoneString(compOgsDuel.removedStonePosIndexes)
+            : NormalizeRemovedStonesText(stonesText);
+        ResetRemovedStoneAcceptancesIfNeeded();
+    }
+
+    private void ClearStoneRemovalState(bool emitChanged)
+    {
+        if (compOgsDuel == null) {
+            return;
+        }
+
+        bool hadState = compOgsDuel.removedStonePosIndexes.Count > 0 ||
+            compOgsDuel.localRemovedStonesAccepted ||
+            compOgsDuel.opponentRemovedStonesAccepted;
+        compOgsDuel.removedStonePosIndexes.Clear();
+        compOgsDuel.removedStones = string.Empty;
+        compOgsDuel.localRemovedStonesAccepted = false;
+        compOgsDuel.opponentRemovedStonesAccepted = false;
+        compOgsDuel.localAcceptedRemovedStones = string.Empty;
+        compOgsDuel.opponentAcceptedRemovedStones = string.Empty;
+        compOgsDuel.isSubmittingRemovedStones = false;
+        RefreshStoneRemovalVisuals();
+        scene.EmitSystemEvent(new OnRequestClearDuelOwnership());
+        if (emitChanged && hadState) {
+            scene.EmitSystemEvent(new OnOgsStoneRemovalStateChanged());
+        }
+    }
+
+    private void RefreshStoneRemovalVisuals()
+    {
+        compChessBoard?.GetStoneViewCache().ApplyRemovedStoneVisuals(compOgsDuel?.removedStonePosIndexes);
+    }
+
+    private void RequestStoneRemovalOwnershipPreview()
+    {
+        if (!IsStoneRemovalPhase()) {
+            return;
+        }
+
+        scene.EmitSystemEvent(new OnRequestDuelOwnership(compOgsDuel?.removedStonePosIndexes));
+    }
+
+    private void ResetRemovedStoneAcceptancesIfNeeded()
+    {
+        if (compOgsDuel == null) {
+            return;
+        }
+
+        string current = NormalizeRemovedStonesText(compOgsDuel.removedStones);
+        if (compOgsDuel.localRemovedStonesAccepted &&
+            !string.Equals(NormalizeRemovedStonesText(compOgsDuel.localAcceptedRemovedStones), current, StringComparison.Ordinal)) {
+            compOgsDuel.localRemovedStonesAccepted = false;
+            compOgsDuel.localAcceptedRemovedStones = string.Empty;
+        }
+        if (compOgsDuel.opponentRemovedStonesAccepted &&
+            !string.Equals(NormalizeRemovedStonesText(compOgsDuel.opponentAcceptedRemovedStones), current, StringComparison.Ordinal)) {
+            compOgsDuel.opponentRemovedStonesAccepted = false;
+            compOgsDuel.opponentAcceptedRemovedStones = string.Empty;
+        }
+    }
+
+    private bool TryCollectStoneGroup(RectCoordinates startCoords, out HashSet<int> group)
+    {
+        group = new HashSet<int>();
+        if (compChessBoard == null || startCoords == null) {
+            return false;
+        }
+
+        int startPosIndex = compChessBoard.GetPosIndexByCoords(startCoords);
+        if (startPosIndex < 0 ||
+            !compChessBoard.chessInfoDict.TryGetValue(startPosIndex.ToString(), out ChessInfo startInfo) ||
+            startInfo == null) {
+            return false;
+        }
+
+        PlayerFlag playerFlag = (PlayerFlag)startInfo.chessFlag.value;
+        if (playerFlag != PlayerFlag.Player1 && playerFlag != PlayerFlag.Player2) {
+            return false;
+        }
+
+        Queue<int> pending = new Queue<int>();
+        pending.Enqueue(startPosIndex);
+        group.Add(startPosIndex);
+        while (pending.Count > 0) {
+            int posIndex = pending.Dequeue();
+            RectCoordinates coords = compChessBoard.GetCoordsByPosIndex(posIndex);
+            AddGroupNeighbor(coords.x - 1, coords.z, playerFlag, group, pending);
+            AddGroupNeighbor(coords.x + 1, coords.z, playerFlag, group, pending);
+            AddGroupNeighbor(coords.x, coords.z - 1, playerFlag, group, pending);
+            AddGroupNeighbor(coords.x, coords.z + 1, playerFlag, group, pending);
+        }
+        return group.Count > 0;
+    }
+
+    private void AddGroupNeighbor(int x, int z, PlayerFlag playerFlag, HashSet<int> group, Queue<int> pending)
+    {
+        RectCoordinates coords = new RectCoordinates(x, z);
+        int posIndex = compChessBoard.GetPosIndexByCoords(coords);
+        if (posIndex < 0 || group.Contains(posIndex)) {
+            return;
+        }
+
+        if (!compChessBoard.chessInfoDict.TryGetValue(posIndex.ToString(), out ChessInfo chessInfo) ||
+            chessInfo == null ||
+            (PlayerFlag)chessInfo.chessFlag.value != playerFlag) {
+            return;
+        }
+
+        group.Add(posIndex);
+        pending.Enqueue(posIndex);
+    }
+
+    private bool TryReadRemovedStoneSet(JToken token, out HashSet<int> removedSet, out string stonesText)
+    {
+        removedSet = new HashSet<int>();
+        stonesText = ReadRemovedStonesText(token);
+        if (string.IsNullOrEmpty(stonesText)) {
+            return true;
+        }
+
+        if (!OgsPackedMoveCodec.TryParseStoneString(stonesText, compOgsDuel.boardSize, out List<RectCoordinates> coordsList)) {
+            return false;
+        }
+
+        foreach (RectCoordinates coords in coordsList) {
+            int posIndex = compChessBoard.GetPosIndexByCoords(coords);
+            if (posIndex >= 0) {
+                removedSet.Add(posIndex);
+            }
+        }
+        return true;
+    }
+
+    private string ReadRemovedStonesText(JToken token)
+    {
+        if (token == null || token.Type == JTokenType.Null) {
+            return string.Empty;
+        }
+
+        if (token.Type == JTokenType.String || token.Type == JTokenType.Integer) {
+            return token.ToString();
+        }
+
+        if (token is JObject obj) {
+            return ReadFirstString(obj, "stones", "stone", "removed_stones", "removedStones", "removed");
+        }
+
+        if (token is JArray array) {
+            List<string> stones = new List<string>();
+            foreach (JToken item in array) {
+                string value = ReadRemovedStonesText(item);
+                if (!string.IsNullOrWhiteSpace(value)) {
+                    stones.Add(value);
+                }
+            }
+            return string.Concat(stones);
+        }
+
+        return string.Empty;
+    }
+
+    private static bool TryReadFullRemovedStoneToken(JObject obj, out JToken token)
+    {
+        token = null;
+        if (obj == null) {
+            return false;
+        }
+
+        foreach (string fieldName in new[] { "removed_stones", "removedStones", "all_removed_stones", "allRemovedStones" }) {
+            if (obj.TryGetValue(fieldName, out token)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int ReadOgsPlayerId(JToken token)
+    {
+        if (token is JObject obj) {
+            int id = ReadFirstInt(obj, 0, "player_id", "playerId", "user_id", "userId", "player", "user");
+            if (id > 0) {
+                return id;
+            }
+            id = ReadFirstInt(obj["player"] as JObject, 0, "id", "user_id", "player_id");
+            if (id > 0) {
+                return id;
+            }
+            return ReadFirstInt(obj["user"] as JObject, 0, "id", "user_id", "player_id");
+        }
+        return 0;
+    }
+
+    private string BuildRemovedStoneString(IEnumerable<int> posIndexes)
+    {
+        if (compChessBoard == null || posIndexes == null) {
+            return string.Empty;
+        }
+
+        List<RectCoordinates> coordsList = new List<RectCoordinates>();
+        foreach (int posIndex in posIndexes) {
+            coordsList.Add(compChessBoard.GetCoordsByPosIndex(posIndex));
+        }
+        return NormalizeRemovedStonesText(OgsPackedMoveCodec.EncodeStoneString(coordsList));
+    }
+
+    private string NormalizeRemovedStonesText(string stones)
+    {
+        if (string.IsNullOrWhiteSpace(stones)) {
+            return string.Empty;
+        }
+
+        return OgsPackedMoveCodec.TryParseStoneString(stones, compOgsDuel?.boardSize ?? 19, out List<RectCoordinates> coordsList)
+            ? OgsPackedMoveCodec.EncodeStoneString(coordsList)
+            : stones.Trim();
     }
 
     private void ApplyUndoAccepted(JToken payload)
@@ -955,6 +1344,43 @@ public class OgsDuelSystem : SystemBase
         await SubmitUndoConfirmAsync(evt.accepted);
     }
 
+    private async void OnSubmitOgsRemovedStoneToggle(OnSubmitOgsRemovedStoneToggle evt)
+    {
+        if (evt == null || evt.coords == null || !CanSubmitStoneRemovalCommand()) {
+            return;
+        }
+
+        if (!TryCollectStoneGroup(evt.coords, out HashSet<int> group)) {
+            return;
+        }
+
+        bool shouldRemove = !compOgsDuel.removedStonePosIndexes.Contains(compChessBoard.GetPosIndexByCoords(evt.coords));
+        string stones = BuildRemovedStoneString(group);
+        if (string.IsNullOrEmpty(stones)) {
+            return;
+        }
+
+        await SubmitRemovedStonesSetAsync(stones, shouldRemove);
+    }
+
+    private async void OnSubmitOgsRemovedStonesAccept(OnSubmitOgsRemovedStonesAccept evt)
+    {
+        if (!CanSubmitStoneRemovalCommand()) {
+            return;
+        }
+
+        await SubmitRemovedStonesAcceptAsync();
+    }
+
+    private async void OnSubmitOgsRemovedStonesReject(OnSubmitOgsRemovedStonesReject evt)
+    {
+        if (!CanSubmitStoneRemovalCommand()) {
+            return;
+        }
+
+        await SubmitRemovedStonesRejectAsync();
+    }
+
     private async Task SubmitMoveAsync(string packedMove)
     {
         if (realtimeSession == null || !realtimeSession.IsOpen || compOgsDuel == null) {
@@ -1035,6 +1461,85 @@ public class OgsDuelSystem : SystemBase
         }
     }
 
+    private async Task SubmitRemovedStonesSetAsync(string stones, bool removed)
+    {
+        if (realtimeSession == null || !realtimeSession.IsOpen || compOgsDuel == null) {
+            SetError("OGS realtime session is not connected.");
+            return;
+        }
+
+        try {
+            compOgsDuel.isSubmittingRemovedStones = true;
+            scene.EmitSystemEvent(new OnOgsStoneRemovalStateChanged());
+            await realtimeSession.SendRemovedStonesSetAsync(stones, removed, compOgsDuel.strictSekiMode, cancellationTokenSource.Token);
+            XNLogger.LogInfo(
+                "OGS removed stones set submitted.",
+                ("gameId", compOgsDuel.gameId.ToString()),
+                ("stones", stones),
+                ("removed", removed.ToString()));
+        }
+        catch (Exception ex) {
+            SetError(ex.Message);
+            XNLogger.LogError("OGS removed stones set failed.", ("gameId", compOgsDuel.gameId.ToString()), ("err", ex.Message));
+        }
+        finally {
+            compOgsDuel.isSubmittingRemovedStones = false;
+            scene.EmitSystemEvent(new OnOgsStoneRemovalStateChanged());
+            SyncInputAuthority();
+        }
+    }
+
+    private async Task SubmitRemovedStonesAcceptAsync()
+    {
+        if (realtimeSession == null || !realtimeSession.IsOpen || compOgsDuel == null) {
+            SetError("OGS realtime session is not connected.");
+            return;
+        }
+
+        try {
+            compOgsDuel.isSubmittingRemovedStones = true;
+            scene.EmitSystemEvent(new OnOgsStoneRemovalStateChanged());
+            string stones = NormalizeRemovedStonesText(compOgsDuel.removedStones);
+            await realtimeSession.SendRemovedStonesAcceptAsync(stones, compOgsDuel.strictSekiMode, cancellationTokenSource.Token);
+            compOgsDuel.localRemovedStonesAccepted = true;
+            compOgsDuel.localAcceptedRemovedStones = stones;
+            XNLogger.LogInfo("OGS removed stones accepted.", ("gameId", compOgsDuel.gameId.ToString()), ("stones", stones));
+        }
+        catch (Exception ex) {
+            SetError(ex.Message);
+            XNLogger.LogError("OGS removed stones accept failed.", ("gameId", compOgsDuel.gameId.ToString()), ("err", ex.Message));
+        }
+        finally {
+            compOgsDuel.isSubmittingRemovedStones = false;
+            scene.EmitSystemEvent(new OnOgsStoneRemovalStateChanged());
+            SyncInputAuthority();
+        }
+    }
+
+    private async Task SubmitRemovedStonesRejectAsync()
+    {
+        if (realtimeSession == null || !realtimeSession.IsOpen || compOgsDuel == null) {
+            SetError("OGS realtime session is not connected.");
+            return;
+        }
+
+        try {
+            compOgsDuel.isSubmittingRemovedStones = true;
+            scene.EmitSystemEvent(new OnOgsStoneRemovalStateChanged());
+            await realtimeSession.SendRemovedStonesRejectAsync(cancellationTokenSource.Token);
+            XNLogger.LogInfo("OGS removed stones rejected.", ("gameId", compOgsDuel.gameId.ToString()));
+        }
+        catch (Exception ex) {
+            SetError(ex.Message);
+            XNLogger.LogError("OGS removed stones reject failed.", ("gameId", compOgsDuel.gameId.ToString()), ("err", ex.Message));
+        }
+        finally {
+            compOgsDuel.isSubmittingRemovedStones = false;
+            scene.EmitSystemEvent(new OnOgsStoneRemovalStateChanged());
+            SyncInputAuthority();
+        }
+    }
+
     private async Task SubmitUndoConfirmAsync(bool accepted)
     {
         if (realtimeSession == null || !realtimeSession.IsOpen || compOgsDuel == null) {
@@ -1091,11 +1596,21 @@ public class OgsDuelSystem : SystemBase
 
     private bool CanSubmitOgsCommand()
     {
-        if (compDuel == null || compOgsDuel == null || !compOgsDuel.isConnected || compOgsDuel.isSubmitting || IsFinishedPhase() || IsPausedPhase()) {
+        if (!CanSubmitBaseOgsCommand()) {
             return false;
         }
 
         return compDuel.localPlayerFlag.value != 0;
+    }
+
+    private bool CanSubmitBaseOgsCommand()
+    {
+        return compDuel != null
+            && compOgsDuel != null
+            && compOgsDuel.isConnected
+            && !compOgsDuel.isSubmitting
+            && !IsFinishedPhase()
+            && !IsPausedPhase();
     }
 
     private void SyncTurnAndInputFromMoveCount(int moveCount)

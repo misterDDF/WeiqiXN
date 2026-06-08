@@ -91,6 +91,18 @@ public static class KataGoPositionJsonBuilder
         return query;
     }
 
+    public static JObject BuildOwnershipAnalysisJsonWithCurrentBoardSnapshot(
+        SceneBase scene,
+        string requestId,
+        IEnumerable<int> excludedStonePosIndexes,
+        int maxVisits = DefaultMaxVisits)
+    {
+        JObject query = BuildBaseAnalysisJson(scene, requestId, maxVisits);
+        query["initialStones"] = BuildInitialStonesArray(scene, excludedStonePosIndexes);
+        query["moves"] = new JArray();
+        return query;
+    }
+
     public static string ToKataGoColor(PlayerFlag playerFlag)
     {
         switch (playerFlag) {
@@ -222,6 +234,11 @@ public static class KataGoPositionJsonBuilder
 
     private static JArray BuildInitialStonesArray(SceneBase scene)
     {
+        return BuildInitialStonesArray(scene, null);
+    }
+
+    private static JArray BuildInitialStonesArray(SceneBase scene, IEnumerable<int> excludedStonePosIndexes)
+    {
         JArray initialStones = new JArray();
         SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
         if (compChessBoard == null) {
@@ -229,6 +246,9 @@ public static class KataGoPositionJsonBuilder
         }
 
         int boardSize = GetBoardSize(scene);
+        HashSet<int> excluded = excludedStonePosIndexes != null
+            ? new HashSet<int>(excludedStonePosIndexes)
+            : null;
         List<int> sortedPosIndexes = new List<int>();
         foreach (string posKey in compChessBoard.chessInfoDict.Keys) {
             if (int.TryParse(posKey, out int posIndex)) {
@@ -238,6 +258,10 @@ public static class KataGoPositionJsonBuilder
         sortedPosIndexes.Sort();
 
         foreach (int posIndex in sortedPosIndexes) {
+            if (excluded != null && excluded.Contains(posIndex)) {
+                continue;
+            }
+
             if (!compChessBoard.chessInfoDict.TryGetValue(posIndex.ToString(), out ChessInfo chessInfo) || chessInfo == null) {
                 continue;
             }

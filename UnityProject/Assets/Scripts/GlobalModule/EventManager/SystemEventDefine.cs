@@ -60,6 +60,19 @@ public class OnExitMainScene : SystemEventBase
 public class OnRequestDuelOwnership : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnRequestDuelOwnership>();
+
+    public System.Collections.Generic.HashSet<int> excludedStonePosIndexes;
+
+    public OnRequestDuelOwnership()
+    {
+    }
+
+    public OnRequestDuelOwnership(System.Collections.Generic.IEnumerable<int> excludedStonePosIndexes)
+    {
+        this.excludedStonePosIndexes = excludedStonePosIndexes != null
+            ? new System.Collections.Generic.HashSet<int>(excludedStonePosIndexes)
+            : null;
+    }
 }
 
 public class OnRequestClearDuelOwnership : SystemEventBase
@@ -375,6 +388,33 @@ public class OnSubmitOgsDuelTakeBackConfirm : SystemEventBase
     {
         this.accepted = accepted;
     }
+}
+
+public class OnSubmitOgsRemovedStoneToggle : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnSubmitOgsRemovedStoneToggle>();
+
+    public RectCoordinates coords;
+
+    public OnSubmitOgsRemovedStoneToggle(RectCoordinates coords)
+    {
+        this.coords = coords;
+    }
+}
+
+public class OnSubmitOgsRemovedStonesAccept : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnSubmitOgsRemovedStonesAccept>();
+}
+
+public class OnSubmitOgsRemovedStonesReject : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnSubmitOgsRemovedStonesReject>();
+}
+
+public class OnOgsStoneRemovalStateChanged : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnOgsStoneRemovalStateChanged>();
 }
 
 public class OnOgsFriendInvitationCountChanged : SystemEventBase

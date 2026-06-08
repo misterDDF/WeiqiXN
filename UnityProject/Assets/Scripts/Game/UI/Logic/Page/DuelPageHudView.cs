@@ -91,7 +91,7 @@ public class DuelPageHudView
 
     public void OnDuelPassAccepted(OnDuelPassAccepted evt)
     {
-        if (evt.consecutivePassCount >= 2) {
+        if (evt.consecutivePassCount >= 2 && !(Global.Instance.sceneManager.mainScene is OgsDuelScene)) {
             ShowActionNotice(MessageText.Get("duel_pass_consecutive_scoring"));
             return;
         }
@@ -279,9 +279,11 @@ public class DuelPageHudView
     {
         bool isOgsDuel = mainScene is OgsDuelScene;
         OgsDuelSystem ogsDuelSystem = isOgsDuel ? mainScene?.GetSystem<OgsDuelSystem>() : null;
+        bool isOgsStoneRemoval = ogsDuelSystem != null && ogsDuelSystem.IsInStoneRemovalPhase();
         bool canSubmitMove = isOgsDuel
             ? ogsDuelSystem != null && ogsDuelSystem.GetInputState().CanSubmitMove
             : DuelInputAuthority.GetLocalState(mainScene, compDuel).CanSubmitMove;
+        bool canSubmitStoneRemovalCommand = ogsDuelSystem != null && ogsDuelSystem.CanSubmitStoneRemovalCommand();
         bool isLanDuel = compDuel != null && compDuel.isLanDuel.value;
         bool isGameEnd = compDuel?.duelFSM?.curState != null && compDuel.duelFSM.curState.stateName == DuelStateDefine.STATE_GAME_END;
         bool canRequestScore = !isOgsDuel && compDuel != null && !compDuel.isScoring && !isGameEnd && canSubmitMove;
@@ -301,8 +303,14 @@ public class DuelPageHudView
         }
         SetButtonInteractable(binder.btn_duel_ai_analysis, canAiAnalysis);
         RefreshAiAnalysisButtonSelection(showAiAnalysis && hasAiAnalysisRender);
-        SetButtonInteractable(binder.btn_duel_ownership, true);
-        SetButtonInteractable(binder.btn_duel_pass, canSubmitMove);
+        if (isOgsStoneRemoval) {
+            RefreshOgsStoneRemovalButtons(ogsDuelSystem, canSubmitStoneRemovalCommand);
+        } else {
+            SetOwnershipActive(IsOwnershipVisible);
+            SetButtonText(binder.btn_duel_pass, "虚手");
+            SetButtonInteractable(binder.btn_duel_ownership, true);
+            SetButtonInteractable(binder.btn_duel_pass, canSubmitMove);
+        }
         SetButtonInteractable(binder.btn_settings_request_score, canRequestScore);
         SetButtonInteractable(binder.btn_settings_take_back, canTakeBack);
         SetResignButtonVisible(canResign);
@@ -425,6 +433,20 @@ public class DuelPageHudView
         }
     }
 
+    private void RefreshOgsStoneRemovalButtons(OgsDuelSystem ogsDuelSystem, bool canSubmitStoneRemovalCommand)
+    {
+        int countdownSeconds = ogsDuelSystem != null ? ogsDuelSystem.GetStoneRemovalCountdownSeconds() : -1;
+        string countdownText = countdownSeconds >= 0 ? $" {FormatSeconds(countdownSeconds, false)}" : string.Empty;
+        SceneComponentOgsDuel compOgsDuel = Global.Instance.sceneManager.mainScene?.GetComponent<SceneComponentOgsDuel>();
+        bool waitingForOpponent = compOgsDuel != null && compOgsDuel.localRemovedStonesAccepted;
+        SetText(binder.txt_duel_ownership_button, waitingForOpponent
+            ? $"等待对方确认{countdownText}"
+            : $"确认死子{countdownText}");
+        SetButtonText(binder.btn_duel_pass, "不接受");
+        SetButtonInteractable(binder.btn_duel_ownership, canSubmitStoneRemovalCommand && !waitingForOpponent);
+        SetButtonInteractable(binder.btn_duel_pass, canSubmitStoneRemovalCommand);
+    }
+
     private void RefreshAiAnalysisButtonSelection(bool selected)
     {
         if (binder.btn_duel_ai_analysis == null || EventSystem.current == null) {
@@ -450,6 +472,14 @@ public class DuelPageHudView
         SetText(binder.txt_duel_ownership_button, isActive
             ? MessageText.Get("common_close")
             : MessageText.Get("duel_ownership_button"));
+    }
+
+    private void SetButtonText(Button button, string value)
+    {
+        TextMeshProUGUI text = button != null
+            ? button.GetComponentInChildren<TextMeshProUGUI>(true)
+            : null;
+        SetText(text, value);
     }
 
     private void SetText(TextMeshProUGUI text, string value)

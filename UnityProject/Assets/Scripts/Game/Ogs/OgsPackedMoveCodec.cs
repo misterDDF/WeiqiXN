@@ -22,6 +22,45 @@ public static class OgsPackedMoveCodec
         return EncodeCoordinate(coords.x) + EncodeCoordinate(coords.z);
     }
 
+    public static string EncodeStoneString(IEnumerable<RectCoordinates> coordsList)
+    {
+        if (coordsList == null) {
+            return string.Empty;
+        }
+
+        List<string> stones = new List<string>();
+        foreach (RectCoordinates coords in coordsList) {
+            if (coords == null) {
+                continue;
+            }
+
+            stones.Add(Encode(coords));
+        }
+        stones.Sort(StringComparer.Ordinal);
+        return string.Concat(stones);
+    }
+
+    public static bool TryParseStoneString(string stonesText, int boardSize, out List<RectCoordinates> coordsList)
+    {
+        coordsList = new List<RectCoordinates>();
+        if (string.IsNullOrWhiteSpace(stonesText)) {
+            return true;
+        }
+
+        string trimmed = stonesText.Trim();
+        string[] parts = trimmed.IndexOfAny(new[] { ' ', ',', ';' }) >= 0
+            ? trimmed.Split(new[] { ' ', ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+            : SplitPackedStoneString(trimmed);
+
+        foreach (string part in parts) {
+            if (!TryParseInitialStonePoint(part, boardSize, out RectCoordinates coords)) {
+                return false;
+            }
+            coordsList.Add(coords);
+        }
+        return true;
+    }
+
     public static bool TryParseMoves(JToken movesToken, int boardSize, out List<OgsDuelMove> moves)
     {
         return TryParseMoves(movesToken, boardSize, PlayerFlag.Player1, out moves);
@@ -367,6 +406,19 @@ public static class OgsPackedMoveCodec
         }
 
         return KataGoPositionJsonBuilder.TryParseKataGoPoint(trimmed, boardSize, out coords);
+    }
+
+    private static string[] SplitPackedStoneString(string stonesText)
+    {
+        if (string.IsNullOrEmpty(stonesText)) {
+            return Array.Empty<string>();
+        }
+
+        List<string> parts = new List<string>();
+        for (int index = 0; index + 1 < stonesText.Length; index += 2) {
+            parts.Add(stonesText.Substring(index, 2));
+        }
+        return parts.ToArray();
     }
 
     private static OgsDuelInitialStone BuildInitialStone(int x, int y, int boardSize, PlayerFlag playerFlag)

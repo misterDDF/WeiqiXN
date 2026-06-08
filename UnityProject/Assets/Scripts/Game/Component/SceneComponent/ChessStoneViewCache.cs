@@ -27,6 +27,8 @@ public class ChessStoneViewCache
     private readonly Dictionary<string, bool> loadingAnimatePlacementByViewKey = new Dictionary<string, bool>();
     private Material latestMoveMarkerOnBlackStoneMaterial;
     private Material latestMoveMarkerOnWhiteStoneMaterial;
+    private Material blackRemovedStonePreviewMaterial;
+    private Material whiteRemovedStonePreviewMaterial;
     private bool isDestroyed;
 
     public ChessStoneViewCache(SceneBase scene, SceneComponentChessBoard compChessBoard)
@@ -57,6 +59,7 @@ public class ChessStoneViewCache
             stoneView.Bind(posIndex, playerFlag, animatePlacement && !wasVisible);
             visibleStoneViews[posIndex] = stoneView;
             ApplyPendingMarkerToView(posIndex, stoneView);
+            ApplyRemovedVisualToView(posIndex, stoneView);
             return;
         }
 
@@ -164,6 +167,16 @@ public class ChessStoneViewCache
         }
     }
 
+    public void SetRemovedStonePreviewMaterials(Material blackPreviewMaterial, Material whitePreviewMaterial)
+    {
+        blackRemovedStonePreviewMaterial = blackPreviewMaterial;
+        whiteRemovedStonePreviewMaterial = whitePreviewMaterial;
+
+        foreach (KeyValuePair<int, ChessStoneView> kvp in visibleStoneViews) {
+            ApplyRemovedPreviewMaterialToView(kvp.Key, kvp.Value);
+        }
+    }
+
     public void ClearStoneMarkers()
     {
         pendingStoneMarkers.Clear();
@@ -204,6 +217,19 @@ public class ChessStoneViewCache
             pendingStoneMarkers[kvp.Key] = kvp.Value;
             if (visibleStoneViews.TryGetValue(kvp.Key, out ChessStoneView stoneView) && stoneView != null) {
                 stoneView.SetMarker(kvp.Value);
+            }
+        }
+    }
+
+    public void ApplyRemovedStoneVisuals(IEnumerable<int> removedStonePosIndexes)
+    {
+        HashSet<int> removed = removedStonePosIndexes != null
+            ? new HashSet<int>(removedStonePosIndexes)
+            : new HashSet<int>();
+
+        foreach (KeyValuePair<int, ChessStoneView> kvp in visibleStoneViews) {
+            if (kvp.Value != null) {
+                kvp.Value.SetRemovedVisual(removed.Contains(kvp.Key));
             }
         }
     }
@@ -327,10 +353,12 @@ public class ChessStoneViewCache
             go.SetActive(shouldShow);
             ChessStoneView stoneView = EnsureStoneView(go);
             stoneView.SetLatestMoveMarkerMaterials(latestMoveMarkerOnBlackStoneMaterial, latestMoveMarkerOnWhiteStoneMaterial);
+            ApplyRemovedPreviewMaterialToView(posIndex, stoneView);
             if (shouldShow) {
                 stoneView.Bind(posIndex, playerFlag, shouldAnimatePlacement);
                 visibleStoneViews[posIndex] = stoneView;
                 ApplyPendingMarkerToView(posIndex, stoneView);
+                ApplyRemovedVisualToView(posIndex, stoneView);
             } else {
                 stoneView.Unbind();
             }
@@ -349,6 +377,24 @@ public class ChessStoneViewCache
 
         stoneView.SetLatestMoveMarkerMaterials(latestMoveMarkerOnBlackStoneMaterial, latestMoveMarkerOnWhiteStoneMaterial);
         return stoneView;
+    }
+
+    private void ApplyRemovedPreviewMaterialToView(int posIndex, ChessStoneView stoneView)
+    {
+        if (stoneView == null || !visibleStoneFlags.TryGetValue(posIndex, out PlayerFlag playerFlag)) {
+            return;
+        }
+
+        stoneView.SetRemovedStonePreviewMaterial(playerFlag == PlayerFlag.Player1
+            ? blackRemovedStonePreviewMaterial
+            : whiteRemovedStonePreviewMaterial);
+    }
+
+    private void ApplyRemovedVisualToView(int posIndex, ChessStoneView stoneView)
+    {
+        ApplyRemovedPreviewMaterialToView(posIndex, stoneView);
+        SceneComponentOgsDuel compOgsDuel = scene.GetComponent<SceneComponentOgsDuel>();
+        stoneView?.SetRemovedVisual(compOgsDuel != null && compOgsDuel.removedStonePosIndexes.Contains(posIndex));
     }
 
     private void ApplyPendingMarkerToView(int posIndex, ChessStoneView stoneView)

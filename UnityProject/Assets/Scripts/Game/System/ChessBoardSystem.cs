@@ -626,11 +626,34 @@ public class ChessBoardSystem : SystemBase
         Material whiteMaterial = LoadRuntimeMaterial(WhiteMaterialConfigId);
         Material latestMoveOnBlackStoneMaterial = LoadRuntimeMaterial(LatestMoveOnBlackStoneMaterialConfigId);
         Material latestMoveOnWhiteStoneMaterial = LoadRuntimeMaterial(LatestMoveOnWhiteStoneMaterialConfigId);
+        Material blackPreviewMaterial = LoadPreviewStoneMaterial(PlayerFlag.Player1);
+        Material whitePreviewMaterial = LoadPreviewStoneMaterial(PlayerFlag.Player2);
         rectGrid.SetBoardMaterials(blackMaterial, whiteMaterial);
         rectGrid.SetLatestMoveMarkerMaterials(latestMoveOnBlackStoneMaterial, latestMoveOnWhiteStoneMaterial);
 
         SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
-        compChessBoard?.GetStoneViewCache().SetLatestMoveMarkerMaterials(latestMoveOnBlackStoneMaterial, latestMoveOnWhiteStoneMaterial);
+        ChessStoneViewCache stoneViewCache = compChessBoard?.GetStoneViewCache();
+        stoneViewCache?.SetLatestMoveMarkerMaterials(latestMoveOnBlackStoneMaterial, latestMoveOnWhiteStoneMaterial);
+        stoneViewCache?.SetRemovedStonePreviewMaterials(blackPreviewMaterial, whitePreviewMaterial);
+    }
+
+    private Material LoadPreviewStoneMaterial(PlayerFlag playerFlag)
+    {
+        string prefabTypeId = DuelUtils.GetPreviewGamePrefabTypeIdWithPlayerFlag(playerFlag);
+        GamePrefabDataType gamePrefabCfg = GamePrefabDataType.GetConfigData(prefabTypeId);
+        if (gamePrefabCfg == null || string.IsNullOrEmpty(gamePrefabCfg.resPath)) {
+            XNLogger.LogError("Preview stone prefab config missing.", ("playerFlag", playerFlag.ToString()));
+            return null;
+        }
+
+        GameObject previewPrefab = Global.Instance.resourceManager.LoadAsset<GameObject>(gamePrefabCfg.resPath);
+        Renderer renderer = previewPrefab != null ? previewPrefab.GetComponentInChildren<Renderer>(true) : null;
+        if (renderer == null) {
+            XNLogger.LogError("Preview stone material load failed.", ("prefab", gamePrefabCfg.resPath));
+            return null;
+        }
+
+        return renderer.sharedMaterial;
     }
 
     private Material LoadRuntimeMaterial(string configId)

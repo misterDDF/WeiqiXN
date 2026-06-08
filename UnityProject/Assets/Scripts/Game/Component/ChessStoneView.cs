@@ -25,11 +25,18 @@ public class ChessStoneView : MonoBehaviour
     private Coroutine placementAnimationCoroutine;
     private Material latestMoveMarkerOnBlackStoneMaterial;
     private Material latestMoveMarkerOnWhiteStoneMaterial;
+    private Material removedStonePreviewMaterial;
+    private readonly Dictionary<Renderer, Material[]> originalRendererMaterials = new Dictionary<Renderer, Material[]>();
 
     public void SetLatestMoveMarkerMaterials(Material onBlackStoneMaterial, Material onWhiteStoneMaterial)
     {
         latestMoveMarkerOnBlackStoneMaterial = onBlackStoneMaterial;
         latestMoveMarkerOnWhiteStoneMaterial = onWhiteStoneMaterial;
+    }
+
+    public void SetRemovedStonePreviewMaterial(Material previewMaterial)
+    {
+        removedStonePreviewMaterial = previewMaterial;
     }
 
     public void Bind(int posIndex, PlayerFlag playerFlag, bool waitForPlacementAnimation)
@@ -42,6 +49,7 @@ public class ChessStoneView : MonoBehaviour
             bindVersion += 1;
             ClearMarkerVisual();
             pendingMarker = default;
+            SetRemovedVisual(false);
         }
 
         placementAnimationDone = !waitForPlacementAnimation;
@@ -60,6 +68,7 @@ public class ChessStoneView : MonoBehaviour
         pendingMarker = default;
         StopPlacementAnimationWait();
         ClearMarkerVisual();
+        SetRemovedVisual(false);
     }
 
     public void SetMarker(StoneMarkerIntent marker)
@@ -81,6 +90,45 @@ public class ChessStoneView : MonoBehaviour
     {
         pendingMarker = default;
         ClearMarkerVisual();
+    }
+
+    public void SetRemovedVisual(bool removed)
+    {
+        Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
+        if (!removed) {
+            foreach (Renderer renderer in renderers) {
+                if (renderer != null && originalRendererMaterials.TryGetValue(renderer, out Material[] materials)) {
+                    renderer.sharedMaterials = materials;
+                }
+            }
+            originalRendererMaterials.Clear();
+            return;
+        }
+
+        if (removedStonePreviewMaterial == null) {
+            return;
+        }
+
+        foreach (Renderer renderer in renderers) {
+            if (renderer == null) {
+                continue;
+            }
+
+            if (!originalRendererMaterials.ContainsKey(renderer)) {
+                originalRendererMaterials[renderer] = renderer.sharedMaterials;
+            }
+
+            Material[] materials = renderer.sharedMaterials;
+            if (materials == null || materials.Length == 0) {
+                continue;
+            }
+
+            Material[] previewMaterials = new Material[materials.Length];
+            for (int i = 0; i < previewMaterials.Length; i++) {
+                previewMaterials[i] = removedStonePreviewMaterial;
+            }
+            renderer.sharedMaterials = previewMaterials;
+        }
     }
 
     public void NotifyPlacementAnimationComplete()
@@ -296,5 +344,6 @@ public class ChessStoneView : MonoBehaviour
     {
         StopPlacementAnimationWait();
         ClearMarkerVisual();
+        SetRemovedVisual(false);
     }
 }

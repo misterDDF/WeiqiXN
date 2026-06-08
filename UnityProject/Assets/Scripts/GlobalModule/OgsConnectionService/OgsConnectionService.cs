@@ -443,7 +443,8 @@ public sealed class OgsConnectionService : ModuleBase
     }
 
     public async Task<OgsFriendInvitationListResult> RequestFriendInvitationsAsync(
-        CancellationToken cancellationToken = default(CancellationToken))
+        CancellationToken cancellationToken = default(CancellationToken),
+        bool logError = true)
     {
         EnsureInitialized();
         OgsConnectionResult accessResult = await EnsureReadableAccessTokenAsync(cancellationToken);
@@ -464,7 +465,11 @@ public sealed class OgsConnectionService : ModuleBase
             return new OgsFriendInvitationListResult(true, "OGS friend invitations refreshed.", invitations);
         }
         catch (Exception ex) {
-            XNLogger.LogError("OGS friend invitations request failed.", ("err", ex.Message));
+            if (logError) {
+                XNLogger.LogError("OGS friend invitations request failed.", ("err", ex.Message));
+            } else {
+                XNLogger.LogWarn("OGS friend invitations request failed.", ("err", ex.Message));
+            }
             return new OgsFriendInvitationListResult(false, ex.Message);
         }
     }
@@ -474,7 +479,7 @@ public sealed class OgsConnectionService : ModuleBase
     public async Task<OgsFriendInvitationCountResult> RequestFriendInvitationCountAsync(
         CancellationToken cancellationToken = default(CancellationToken))
     {
-        OgsFriendInvitationListResult result = await RequestFriendInvitationsAsync(cancellationToken);
+        OgsFriendInvitationListResult result = await RequestFriendInvitationsAsync(cancellationToken, false);
         if (!result.success) {
             return new OgsFriendInvitationCountResult(false, result.message);
         }

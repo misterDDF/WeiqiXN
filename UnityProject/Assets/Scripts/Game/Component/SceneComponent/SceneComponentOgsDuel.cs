@@ -1,4 +1,5 @@
 using Newtonsoft.Json.Linq;
+using System.Collections.Generic;
 
 public class SceneComponentOgsDuel : SceneComponentBase
 {
@@ -24,6 +25,14 @@ public class SceneComponentOgsDuel : SceneComponentBase
     public string lastError = string.Empty;
     public JToken lastGameData;
     public JArray kataGoInitialStones = new JArray();
+    public HashSet<int> removedStonePosIndexes = new HashSet<int>();
+    public string removedStones = string.Empty;
+    public bool strictSekiMode;
+    public bool localRemovedStonesAccepted;
+    public bool opponentRemovedStonesAccepted;
+    public string localAcceptedRemovedStones = string.Empty;
+    public string opponentAcceptedRemovedStones = string.Empty;
+    public bool isSubmittingRemovedStones;
 
     public SceneComponentOgsDuel(SceneBase scene) : base(scene)
     {
