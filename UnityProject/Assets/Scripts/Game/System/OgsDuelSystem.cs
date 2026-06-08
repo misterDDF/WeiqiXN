@@ -295,6 +295,7 @@ public class OgsDuelSystem : SystemBase
         acceptedInitialStones.AddRange(initialStones);
         acceptedMoves.Clear();
         acceptedMoves.AddRange(moves);
+        compOgsDuel.kataGoInitialStones = BuildKataGoInitialStones(initialStones);
         if (!RebuildBoardFromMoves(acceptedInitialStones, acceptedMoves)) {
             SetError("OGS game data board state could not be applied.");
             return;
@@ -848,6 +849,28 @@ public class OgsDuelSystem : SystemBase
         chessInfo.chessFlag.value = (int)stone.playerFlag;
         compChessBoard.chessInfoDict.SetValue(posIndex.ToString(), chessInfo);
         return true;
+    }
+
+    private JArray BuildKataGoInitialStones(List<OgsDuelInitialStone> initialStones)
+    {
+        JArray stones = new JArray();
+        if (initialStones == null || compOgsDuel == null) {
+            return stones;
+        }
+
+        foreach (OgsDuelInitialStone stone in initialStones) {
+            if (stone == null || stone.coords == null || stone.playerFlag == 0) {
+                continue;
+            }
+
+            string color = KataGoPositionJsonBuilder.ToKataGoColor(stone.playerFlag);
+            if (string.IsNullOrEmpty(color)) {
+                continue;
+            }
+
+            stones.Add(new JArray(color, KataGoPositionJsonBuilder.ToKataGoPoint(stone.coords, compOgsDuel.boardSize)));
+        }
+        return stones;
     }
 
     private bool ApplyAcceptedMove(OgsDuelMove move, bool emitAcceptedEvent)

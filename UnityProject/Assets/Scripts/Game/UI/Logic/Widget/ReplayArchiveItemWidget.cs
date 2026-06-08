@@ -129,6 +129,8 @@ public class ReplayArchiveItemWidget : UIWidgetWithBinder<ReplayArchiveItemWidge
                 return "电脑对局";
             case "lan":
                 return "局域网";
+            case "ogs":
+                return "OGS 对局";
             case "local":
                 return "本地对局";
             default:

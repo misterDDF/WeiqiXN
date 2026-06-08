@@ -7,7 +7,7 @@ public class DuelReplayArchiveSystem : SystemBase
 {
     public override string systemName => GetSystemName<DuelReplayArchiveSystem>();
 
-    public DuelReplayArchiveSystem(DuelScene scene) : base(scene)
+    public DuelReplayArchiveSystem(SceneBase scene) : base(scene)
     {
 
     }
@@ -54,9 +54,8 @@ public class DuelReplayArchiveSystem : SystemBase
 
     private bool WriteReplayArchive(bool isCompleted)
     {
-        var duelScene = scene as DuelScene;
         SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
-        if (duelScene == null || compDuel == null) {
+        if (compDuel == null) {
             return false;
         }
 
@@ -65,20 +64,19 @@ public class DuelReplayArchiveSystem : SystemBase
             return false;
         }
 
-        EnsureReplayIdentity(compDuel);
         bool isArchived = moveCount >= DuelReplayIndexFile.MinArchivedMoveCount;
-        if (isCompleted && !isArchived) {
-            DuelReplayIndexFile.Remove(compDuel.replayGameId.value);
-            DeleteReplayDraft(compDuel.replayGameId.value);
+        if (!isArchived) {
+            RemoveReplayDraftIfExists(compDuel);
             return true;
         }
 
+        EnsureReplayIdentity(compDuel);
         string gameId = compDuel.replayGameId.value;
         string recordPath = GameSaveConfig.GetReplayDuelRecordPath(gameId);
         string saveInfoPath = GameSaveConfig.GetReplayDuelSaveInfoPath(gameId);
         string scenePath = GameSaveConfig.GetReplayDuelScenePath(gameId);
 
-        if (!KataGoDuelRecordFile.Save(duelScene, recordPath)) {
+        if (!KataGoDuelRecordFile.Save(scene, recordPath)) {
             XNLogger.LogError("Duel replay archive record save failed.", ("gameId", gameId), ("filePath", recordPath));
             return false;
         }
@@ -88,13 +86,13 @@ public class DuelReplayArchiveSystem : SystemBase
         }
 
         JObject saveInfoJson = DuelSaveInfoFile.BuildSaveInfoJson(
-            duelScene,
+            scene,
             -1,
             isArchived,
             isCompleted,
             compDuel.replayArchivedAtUtc.value);
         if (!DuelSaveInfoFile.Save(
-            duelScene,
+            scene,
             saveInfoPath,
             -1,
             isArchived,
@@ -156,5 +154,15 @@ public class DuelReplayArchiveSystem : SystemBase
             XNLogger.LogError("Duel replay draft delete failed.", ("gameId", gameId), ("err", ex.Message));
         }
 #endif
+    }
+
+    private void RemoveReplayDraftIfExists(SceneComponentDuel compDuel)
+    {
+        if (compDuel == null || string.IsNullOrEmpty(compDuel.replayGameId.value)) {
+            return;
+        }
+
+        DuelReplayIndexFile.Remove(compDuel.replayGameId.value);
+        DeleteReplayDraft(compDuel.replayGameId.value);
     }
 }

@@ -27,6 +27,7 @@ public class OgsDuelScene : SceneBase
         AddSystem(new DuelOwnershipSystem(this));
         AddSystem(new DuelGameEndCameraSystem(this));
         AddSystem(new OgsDuelSystem(this));
+        AddSystem(new DuelReplayArchiveSystem(this));
 
         Global.Instance.uiManager.ShowPage<DuelPage>();
     }

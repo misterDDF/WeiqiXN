@@ -12,11 +12,11 @@ public static class KataGoPositionJsonBuilder
     private const float DefaultKomi = 7.5f;
     private const int DefaultMaxVisits = 16;
 
-    public static JObject BuildAnalysisJsonWithMoveHistory(DuelScene duelScene, string requestId, int maxVisits = DefaultMaxVisits)
+    public static JObject BuildAnalysisJsonWithMoveHistory(SceneBase scene, string requestId, int maxVisits = DefaultMaxVisits)
     {
-        JObject query = BuildBaseAnalysisJson(duelScene, requestId, maxVisits);
-        query["initialStones"] = BuildConfiguredInitialStonesArray(duelScene);
-        query["moves"] = BuildMovesArray(duelScene);
+        JObject query = BuildBaseAnalysisJson(scene, requestId, maxVisits);
+        query["initialStones"] = BuildConfiguredInitialStonesArray(scene);
+        query["moves"] = BuildMovesArray(scene);
         return query;
     }
 
@@ -179,14 +179,21 @@ public static class KataGoPositionJsonBuilder
         return DuelMoveHistory.BuildKataGoMovesArray(compDuel.kataGoMoves);
     }
 
-    private static JArray BuildConfiguredInitialStonesArray(DuelScene duelScene)
+    private static JArray BuildConfiguredInitialStonesArray(SceneBase scene)
     {
-        SceneComponentDuel compDuel = duelScene.GetComponent<SceneComponentDuel>();
+        SceneComponentOgsDuel compOgsDuel = scene.GetComponent<SceneComponentOgsDuel>();
+        if (compOgsDuel != null) {
+            return compOgsDuel.kataGoInitialStones != null
+                ? new JArray(compOgsDuel.kataGoInitialStones)
+                : new JArray();
+        }
+
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
         if (compDuel == null || !DuelHandicapPlacement.HasHandicap(compDuel.handicapCfgId.value)) {
             return new JArray();
         }
 
-        return DuelHandicapPlacement.BuildInitialStonesArray(compDuel.handicapCfgId.value, GetBoardSize(duelScene));
+        return DuelHandicapPlacement.BuildInitialStonesArray(compDuel.handicapCfgId.value, GetBoardSize(scene));
     }
 
     private static JArray BuildReplayInitialStonesArray(ReplayScene replayScene)

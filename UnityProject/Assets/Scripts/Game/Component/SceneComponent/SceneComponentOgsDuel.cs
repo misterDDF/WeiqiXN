@@ -23,6 +23,7 @@ public class SceneComponentOgsDuel : SceneComponentBase
     public bool isSubmitting;
     public string lastError = string.Empty;
     public JToken lastGameData;
+    public JArray kataGoInitialStones = new JArray();
 
     public SceneComponentOgsDuel(SceneBase scene) : base(scene)
     {

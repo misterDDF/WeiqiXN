@@ -7,7 +7,7 @@ using XNClient.Logger;
 
 public static class DuelReplayIndexFile
 {
-    public const int MinArchivedMoveCount = 16;
+    public const int MinArchivedMoveCount = 11;
 
     public static bool TryLoadItems(out List<DuelReplayIndexItem> items)
     {

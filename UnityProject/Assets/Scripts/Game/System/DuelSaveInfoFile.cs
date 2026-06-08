@@ -8,7 +8,7 @@ using XNClient.Logger;
 public static class DuelSaveInfoFile
 {
     public static bool Save(
-        DuelScene duelScene,
+        SceneBase scene,
         string filePath,
         int saveSlotIndex,
         bool isArchived = false,
@@ -25,7 +25,7 @@ public static class DuelSaveInfoFile
                 Directory.CreateDirectory(dirPath);
             }
 
-            JObject saveInfoJson = BuildSaveInfoJson(duelScene, saveSlotIndex, isArchived, isCompleted, archivedAtUtc);
+            JObject saveInfoJson = BuildSaveInfoJson(scene, saveSlotIndex, isArchived, isCompleted, archivedAtUtc);
             File.WriteAllText(filePath, saveInfoJson.ToString());
             XNLogger.LogInfo("Duel save info save success.", ("filePath", filePath));
             return true;
@@ -38,14 +38,15 @@ public static class DuelSaveInfoFile
     }
 
     public static JObject BuildSaveInfoJson(
-        DuelScene duelScene,
+        SceneBase scene,
         int saveSlotIndex,
         bool isArchived = false,
         bool isCompleted = false,
         string archivedAtUtc = null)
     {
-        SceneComponentChessBoard compChessBoard = duelScene.GetComponent<SceneComponentChessBoard>();
-        SceneComponentDuel compDuel = duelScene.GetComponent<SceneComponentDuel>();
+        SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
+        SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
+        SceneComponentOgsDuel compOgsDuel = scene.GetComponent<SceneComponentOgsDuel>();
 
         string boardCfgId = compChessBoard?.boardCfgId.value ?? string.Empty;
         ChessBoardDataType chessBoardData = !string.IsNullOrEmpty(boardCfgId) ? ChessBoardDataType.GetConfigData(boardCfgId) : null;
@@ -79,7 +80,7 @@ public static class DuelSaveInfoFile
             ["moveCount"] = moveCount,
             ["isCompleted"] = completed,
             ["isArchived"] = isArchived,
-            ["sourceType"] = GetSourceType(compDuel),
+            ["sourceType"] = GetSourceType(compDuel, compOgsDuel),
             ["winnerFlag"] = winnerFlag,
             ["finalScore"] = BuildFinalScoreText(compDuel, winnerFlag),
             ["resultType"] = resultType,
@@ -174,8 +175,12 @@ public static class DuelSaveInfoFile
             compDuel.duelFSM.curState.stateName == DuelStateDefine.STATE_GAME_END;
     }
 
-    private static string GetSourceType(SceneComponentDuel compDuel)
+    private static string GetSourceType(SceneComponentDuel compDuel, SceneComponentOgsDuel compOgsDuel)
     {
+        if (compOgsDuel != null) {
+            return "ogs";
+        }
+
         if (compDuel == null) {
             return string.Empty;
         }

@@ -10,10 +10,10 @@ public static class KataGoDuelRecordFile
     public const float Komi = 7.5f;
     public const int DefaultMaxVisits = 16;
 
-    public static JObject BuildRecordJson(DuelScene duelScene, string requestId = "duel-record")
+    public static JObject BuildRecordJson(SceneBase scene, string requestId = "duel-record")
     {
         JObject recordJson = KataGoPositionJsonBuilder.BuildAnalysisJsonWithMoveHistory(
-            duelScene,
+            scene,
             requestId,
             DefaultMaxVisits
         );
@@ -23,7 +23,7 @@ public static class KataGoDuelRecordFile
         return recordJson;
     }
 
-    public static bool Save(DuelScene duelScene, string filePath)
+    public static bool Save(SceneBase scene, string filePath)
     {
 #if UNITY_WEBGL && !UNITY_EDITOR
         XNLogger.LogWarn("KataGo duel record save is skipped on WebGL platform.", ("filePath", filePath));
@@ -35,7 +35,7 @@ public static class KataGoDuelRecordFile
                 Directory.CreateDirectory(dirPath);
             }
 
-            JObject recordJson = BuildRecordJson(duelScene);
+            JObject recordJson = BuildRecordJson(scene);
             File.WriteAllText(filePath, recordJson.ToString());
             XNLogger.LogInfo("KataGo duel record save success.", ("filePath", filePath));
             return true;
