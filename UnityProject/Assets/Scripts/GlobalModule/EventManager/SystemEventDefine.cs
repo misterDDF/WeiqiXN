@@ -62,16 +62,20 @@ public class OnRequestDuelOwnership : SystemEventBase
     public override string GetEventType() => GetEventType<OnRequestDuelOwnership>();
 
     public System.Collections.Generic.HashSet<int> excludedStonePosIndexes;
+    public bool showResultPanel = true;
 
     public OnRequestDuelOwnership()
     {
     }
 
-    public OnRequestDuelOwnership(System.Collections.Generic.IEnumerable<int> excludedStonePosIndexes)
+    public OnRequestDuelOwnership(
+        System.Collections.Generic.IEnumerable<int> excludedStonePosIndexes,
+        bool showResultPanel = true)
     {
         this.excludedStonePosIndexes = excludedStonePosIndexes != null
             ? new System.Collections.Generic.HashSet<int>(excludedStonePosIndexes)
             : null;
+        this.showResultPanel = showResultPanel;
     }
 }
 
@@ -290,11 +294,13 @@ public class OnDuelOwnershipResult : SystemEventBase
     public float blackPoints;
     public float whitePoints;
     public float komi;
-    public OnDuelOwnershipResult(float blackPoints, float whitePoints, float komi)
+    public bool showResultPanel;
+    public OnDuelOwnershipResult(float blackPoints, float whitePoints, float komi, bool showResultPanel = true)
     {
         this.blackPoints = blackPoints;
         this.whitePoints = whitePoints;
         this.komi = komi;
+        this.showResultPanel = showResultPanel;
     }
 }
 

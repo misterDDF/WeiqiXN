@@ -19,6 +19,7 @@ public class DuelPageUI : UIBinderBase
 	public Button btn_duel_settings;
 	public Button btn_duel_ownership;
 	public TextMeshProUGUI txt_duel_ownership_button;
+	public TextMeshProUGUI txt_duel_stone_removal_countdown;
 	public Button btn_duel_pass;
 	public GameObject panel_duel_ownership_result;
 	public TextMeshProUGUI txt_ownership_black_points;

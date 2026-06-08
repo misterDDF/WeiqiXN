@@ -25,10 +25,13 @@ public class OgsDuelSystem : SystemBase
     private int pendingUndoRequesterOgsUserId;
     private bool hasOgsClock;
     private bool hasOgsStartClock;
+    private bool hasOgsStoneRemovalClock;
     private float ogsClockBaseLocalTime;
+    private float ogsStoneRemovalClockBaseLocalTime;
     private PlayerFlag ogsClockCurrentPlayerFlag;
     private PlayerFlag ogsStartClockPlayerFlag;
     private int ogsStartClockBaseLeftSeconds;
+    private int ogsStoneRemovalClockBaseLeftSeconds;
     private OgsClockPlayerTime ogsBlackClock = OgsClockPlayerTime.Empty;
     private OgsClockPlayerTime ogsWhiteClock = OgsClockPlayerTime.Empty;
 
@@ -288,15 +291,12 @@ public class OgsDuelSystem : SystemBase
 
     public int GetStoneRemovalCountdownSeconds()
     {
-        if (compDuel == null || compDuel.localPlayerFlag.value == 0) {
+        if (!IsStoneRemovalPhase() || !hasOgsStoneRemovalClock) {
             return -1;
         }
 
-        Player player = GetPlayerByFlag((PlayerFlag)compDuel.localPlayerFlag.value);
-        ComponentDuelInfo duelInfo = player?.GetComponent<ComponentDuelInfo>();
-        return duelInfo != null && !duelInfo.isInfiniteTime.value
-            ? Math.Max(0, duelInfo.turnLeftTimes.value)
-            : -1;
+        float elapsedSeconds = Math.Max(0f, UnityEngine.Time.unscaledTime - ogsStoneRemovalClockBaseLocalTime);
+        return CeilRemainingSeconds(ogsStoneRemovalClockBaseLeftSeconds - elapsedSeconds);
     }
 
     private void ApplyGameData(JObject gameData)
@@ -530,8 +530,11 @@ public class OgsDuelSystem : SystemBase
         ogsClockCurrentPlayerFlag = ResolveClockCurrentPlayerFlag(clock);
         hasOgsStartClock = ReadFirstBool(clock, false, "start_mode", "startMode") &&
             TryReadOgsStartClockLeftSeconds(clock, out ogsStartClockBaseLeftSeconds);
+        hasOgsStoneRemovalClock = IsStoneRemovalPhase() &&
+            TryReadOgsStoneRemovalClockLeftSeconds(clock, out ogsStoneRemovalClockBaseLeftSeconds);
         ogsStartClockPlayerFlag = ResolveOgsStartClockPlayerFlag();
         ogsClockBaseLocalTime = UnityEngine.Time.unscaledTime;
+        ogsStoneRemovalClockBaseLocalTime = UnityEngine.Time.unscaledTime;
         hasOgsClock = true;
 
         bool hasByoyomi = !hasOgsStartClock && (ogsBlackClock.HasByoyomi || ogsWhiteClock.HasByoyomi);
@@ -693,9 +696,20 @@ public class OgsDuelSystem : SystemBase
             return OgsClockPlayerTime.Empty;
         }
 
-        double thinkingTime = ReadFirstDouble(playerClock, 0d, "thinking_time", "thinkingTime", "main_time", "mainTime", "time");
+        double thinkingTime = ReadOgsClockDurationSeconds(playerClock);
+        if (thinkingTime <= 0d) {
+            thinkingTime = ReadFirstDouble(playerClock, 0d, "thinking_time", "thinkingTime", "main_time", "mainTime", "time");
+        }
         int byoyomiLeftCount = Math.Max(0, ReadFirstInt(playerClock, 0, "periods", "periods_left", "periodsLeft"));
-        int byoyomiLeftSeconds = CeilRemainingSeconds(ReadFirstDouble(playerClock, 0d, "period_time", "periodTime", "byoyomi_time", "byoyomiTime"));
+        int byoyomiLeftSeconds = CeilRemainingSeconds(ReadFirstDouble(
+            playerClock,
+            0d,
+            "period_time",
+            "periodTime",
+            "byoyomi_time",
+            "byoyomiTime",
+            "current_period_time",
+            "currentPeriodTime"));
         bool isInByoyomi = ReadFirstBool(playerClock, false, "is_in_byoyomi", "isInByoyomi", "in_byoyomi", "inByoyomi") ||
             (thinkingTime <= 0d && (byoyomiLeftCount > 0 || byoyomiLeftSeconds > 0));
         int holdLeftSeconds = isInByoyomi ? 0 : CeilRemainingSeconds(thinkingTime);
@@ -734,6 +748,93 @@ public class OgsDuelSystem : SystemBase
         return true;
     }
 
+    private static bool TryReadOgsStoneRemovalClockLeftSeconds(JObject clock, out int leftSeconds)
+    {
+        leftSeconds = 0;
+        if (clock == null) {
+            return false;
+        }
+
+        double directSeconds = ReadOgsClockMillisecondsAsSeconds(
+            clock,
+            "stone_removal_time_left",
+            "stoneRemovalTimeLeft");
+        if (directSeconds >= 0d) {
+            leftSeconds = CeilRemainingSeconds(directSeconds);
+            return true;
+        }
+
+        double expirationMillis = ReadOgsUnixMillis(
+            clock,
+            "stone_removal_expiration",
+            "stoneRemovalExpiration",
+            "stone_removal_expires_at",
+            "stoneRemovalExpiresAt");
+        if (expirationMillis <= 0d && IsOgsStoneRemovalClockPause(clock)) {
+            expirationMillis = ReadOgsUnixMillis(clock, "expiration", "expires_at", "expiresAt");
+        }
+        if (expirationMillis <= 0d) {
+            return false;
+        }
+
+        double nowMillis = ReadOgsUnixMillis(clock, "now", "server_time", "serverTime", "current_time", "currentTime");
+        if (nowMillis <= 0d) {
+            nowMillis = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        }
+
+        leftSeconds = CeilRemainingSeconds((expirationMillis - nowMillis) / 1000d);
+        return true;
+    }
+
+    private static bool IsOgsStoneRemovalClockPause(JObject clock)
+    {
+        if (clock == null) {
+            return false;
+        }
+
+        if (HasOgsTruthyField(clock["pause_state"] as JObject, "stone_removal", "stoneRemoval", "stone-removal")) {
+            return true;
+        }
+
+        JObject pause = clock["pause"] as JObject;
+        if (HasOgsTruthyField(pause?["pause_control"] as JObject, "stone-removal", "stone_removal", "stoneRemoval")) {
+            return true;
+        }
+
+        return HasOgsTruthyField(clock["pause_control"] as JObject, "stone-removal", "stone_removal", "stoneRemoval");
+    }
+
+    private static bool HasOgsTruthyField(JObject json, params string[] fieldNames)
+    {
+        if (json == null || fieldNames == null) {
+            return false;
+        }
+
+        foreach (string fieldName in fieldNames) {
+            JToken token = json[fieldName];
+            if (token == null || token.Type == JTokenType.Null) {
+                continue;
+            }
+
+            if (token.Type == JTokenType.Boolean) {
+                return token.Value<bool>();
+            }
+
+            string value = token.ToString();
+            if (string.IsNullOrWhiteSpace(value)) {
+                continue;
+            }
+
+            if (bool.TryParse(value, out bool boolValue)) {
+                return boolValue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
     private static double ReadOgsUnixMillis(JObject json, params string[] fieldNames)
     {
         double value = ReadFirstDouble(json, 0d, fieldNames);
@@ -751,6 +852,22 @@ public class OgsDuelSystem : SystemBase
         }
 
         return ReadFirstDouble(json, 0d, "time_left", "timeLeft");
+    }
+
+    private static double ReadOgsClockDurationSeconds(JObject json, params string[] fieldNames)
+    {
+        double value = ReadFirstDouble(json, -1d, fieldNames);
+        if (value < 0d) {
+            return -1d;
+        }
+
+        return value > 10000d ? value / 1000d : value;
+    }
+
+    private static double ReadOgsClockMillisecondsAsSeconds(JObject json, params string[] fieldNames)
+    {
+        double value = ReadFirstDouble(json, -1d, fieldNames);
+        return value < 0d ? -1d : value / 1000d;
     }
 
     private static int CeilRemainingSeconds(double seconds)
@@ -893,6 +1010,7 @@ public class OgsDuelSystem : SystemBase
         compOgsDuel.localAcceptedRemovedStones = string.Empty;
         compOgsDuel.opponentAcceptedRemovedStones = string.Empty;
         compOgsDuel.isSubmittingRemovedStones = false;
+        hasOgsStoneRemovalClock = false;
         RefreshStoneRemovalVisuals();
         scene.EmitSystemEvent(new OnRequestClearDuelOwnership());
         if (emitChanged && hadState) {
@@ -911,7 +1029,7 @@ public class OgsDuelSystem : SystemBase
             return;
         }
 
-        scene.EmitSystemEvent(new OnRequestDuelOwnership(compOgsDuel?.removedStonePosIndexes));
+        scene.EmitSystemEvent(new OnRequestDuelOwnership(compOgsDuel?.removedStonePosIndexes, false));
     }
 
     private void ResetRemovedStoneAcceptancesIfNeeded()

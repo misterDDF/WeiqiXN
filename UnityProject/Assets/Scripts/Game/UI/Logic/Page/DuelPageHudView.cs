@@ -24,6 +24,7 @@ public class DuelPageHudView
         SetSettingsPanelVisible(false);
         SetOwnershipActive(false);
         SetOwnershipResultPanelVisible(false);
+        SetStoneRemovalCountdownVisible(false);
         SetGameEndResultPanelVisible(false);
         SetActionNoticeVisible(false);
     }
@@ -72,7 +73,7 @@ public class DuelPageHudView
         SetText(binder.txt_ownership_black_points, MessageText.Format("duel_ownership_black_points", FormatPointCount(evt.blackPoints)));
         SetText(binder.txt_ownership_white_points, MessageText.Format(GetOwnershipWhitePointsMessageKey(), FormatPointCount(evt.whitePoints)));
         SetOwnershipActive(true);
-        SetOwnershipResultPanelVisible(true);
+        SetOwnershipResultPanelVisible(evt == null || evt.showResultPanel);
     }
 
     public void ClearOwnership()
@@ -306,6 +307,7 @@ public class DuelPageHudView
         if (isOgsStoneRemoval) {
             RefreshOgsStoneRemovalButtons(ogsDuelSystem, canSubmitStoneRemovalCommand);
         } else {
+            SetStoneRemovalCountdownVisible(false);
             SetOwnershipActive(IsOwnershipVisible);
             SetButtonText(binder.btn_duel_pass, "虚手");
             SetButtonInteractable(binder.btn_duel_ownership, true);
@@ -436,12 +438,12 @@ public class DuelPageHudView
     private void RefreshOgsStoneRemovalButtons(OgsDuelSystem ogsDuelSystem, bool canSubmitStoneRemovalCommand)
     {
         int countdownSeconds = ogsDuelSystem != null ? ogsDuelSystem.GetStoneRemovalCountdownSeconds() : -1;
-        string countdownText = countdownSeconds >= 0 ? $" {FormatSeconds(countdownSeconds, false)}" : string.Empty;
         SceneComponentOgsDuel compOgsDuel = Global.Instance.sceneManager.mainScene?.GetComponent<SceneComponentOgsDuel>();
         bool waitingForOpponent = compOgsDuel != null && compOgsDuel.localRemovedStonesAccepted;
         SetText(binder.txt_duel_ownership_button, waitingForOpponent
-            ? $"等待对方确认{countdownText}"
-            : $"确认死子{countdownText}");
+            ? "等待对方确认"
+            : "确认死子");
+        SetStoneRemovalCountdownText(countdownSeconds >= 0 ? FormatSeconds(countdownSeconds, false) : "--:--");
         SetButtonText(binder.btn_duel_pass, "不接受");
         SetButtonInteractable(binder.btn_duel_ownership, canSubmitStoneRemovalCommand && !waitingForOpponent);
         SetButtonInteractable(binder.btn_duel_pass, canSubmitStoneRemovalCommand);
@@ -472,6 +474,19 @@ public class DuelPageHudView
         SetText(binder.txt_duel_ownership_button, isActive
             ? MessageText.Get("common_close")
             : MessageText.Get("duel_ownership_button"));
+    }
+
+    private void SetStoneRemovalCountdownText(string value)
+    {
+        SetText(binder.txt_duel_stone_removal_countdown, value);
+        SetStoneRemovalCountdownVisible(true);
+    }
+
+    private void SetStoneRemovalCountdownVisible(bool isVisible)
+    {
+        if (binder.txt_duel_stone_removal_countdown != null) {
+            binder.txt_duel_stone_removal_countdown.gameObject.SetActive(isVisible);
+        }
     }
 
     private void SetButtonText(Button button, string value)

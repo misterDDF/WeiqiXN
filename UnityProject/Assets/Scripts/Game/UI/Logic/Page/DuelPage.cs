@@ -355,7 +355,14 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
         OgsDuelSystem ogsDuelSystem = GetOgsDuelSystem(mainScene);
         if (ogsDuelSystem != null && ogsDuelSystem.IsInStoneRemovalPhase()) {
-            EmitSystemEvent(new OnSubmitOgsRemovedStonesReject());
+            ConfirmPopup.Show(
+                "拒绝数子",
+                "您确定拒绝数子并返回对局吗？",
+                () => EmitSystemEvent(new OnSubmitOgsRemovedStonesReject()),
+                null,
+                "确认",
+                "取消"
+            );
             return;
         }
 

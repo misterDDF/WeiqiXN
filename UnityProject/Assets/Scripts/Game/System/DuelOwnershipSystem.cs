@@ -9,6 +9,7 @@ public class DuelOwnershipSystem : SystemBase
     private int requestVersion;
     private bool hasQueuedRequest;
     private System.Collections.Generic.HashSet<int> queuedExcludedStonePosIndexes;
+    private bool queuedShowResultPanel;
 
     public DuelOwnershipSystem(SceneBase scene) : base(scene)
     {
@@ -83,7 +84,8 @@ public class DuelOwnershipSystem : SystemBase
             scene.EmitSystemEvent(new OnDuelOwnershipResult(
                 queryResult.score.blackPoints,
                 queryResult.score.whitePoints,
-                queryResult.score.komi
+                queryResult.score.komi,
+                evt == null || evt.showResultPanel
             ));
         }
         catch (Exception ex) {
@@ -102,6 +104,7 @@ public class DuelOwnershipSystem : SystemBase
         queuedExcludedStonePosIndexes = evt?.excludedStonePosIndexes != null
             ? new System.Collections.Generic.HashSet<int>(evt.excludedStonePosIndexes)
             : null;
+        queuedShowResultPanel = evt == null || evt.showResultPanel;
     }
 
     private void RunQueuedOwnershipRequestIfNeeded()
@@ -111,15 +114,18 @@ public class DuelOwnershipSystem : SystemBase
         }
 
         System.Collections.Generic.HashSet<int> excludedStonePosIndexes = queuedExcludedStonePosIndexes;
+        bool showResultPanel = queuedShowResultPanel;
         hasQueuedRequest = false;
         queuedExcludedStonePosIndexes = null;
-        OnRequestDuelOwnership(new OnRequestDuelOwnership(excludedStonePosIndexes));
+        queuedShowResultPanel = true;
+        OnRequestDuelOwnership(new OnRequestDuelOwnership(excludedStonePosIndexes, showResultPanel));
     }
 
     private void ClearOwnershipAndNotify()
     {
         hasQueuedRequest = false;
         queuedExcludedStonePosIndexes = null;
+        queuedShowResultPanel = true;
         InvalidateOwnershipRequest();
         ClearOwnershipOverlay();
         scene.EmitSystemEvent(new OnClearDuelOwnership());
