@@ -13,6 +13,7 @@ public static class GameAudio
     private const float StonePlaceMinInterval = 0.055f;
     private const float StoneCaptureMinInterval = 0.12f;
     private const float CaptureSuppressPlaceDuration = 0.10f;
+    private const float DuelVoiceVolume = 0.78f;
 
     private static readonly string[] StonePlaceClipPaths = {
         "Audio/SFX/StonePlace/StonePlace_Sabaki_00.mp3",
@@ -25,13 +26,44 @@ public static class GameAudio
     private const string StoneSingleCaptureClipPath = "Audio/SFX/Capture/Capture_Single.mp3";
     private const string StoneMultiCaptureClipPath = "Audio/SFX/Capture/Capture_Multi.mp3";
 
+    private static readonly string[] DuelVoiceClipPaths = {
+        "Audio/Voice/OgsPreview/GameStarted.wav",
+        "Audio/Voice/OgsPreview/StartCounting.wav",
+        "Audio/Voice/OgsPreview/Byoyomi.wav",
+        "Audio/Voice/OgsPreview/Overtime.wav",
+        "Audio/Voice/OgsPreview/PeriodsLeft5.wav",
+        "Audio/Voice/OgsPreview/PeriodsLeft4.wav",
+        "Audio/Voice/OgsPreview/PeriodsLeft3.wav",
+        "Audio/Voice/OgsPreview/PeriodsLeft2.wav",
+        "Audio/Voice/OgsPreview/LastPeriod.wav",
+        "Audio/Voice/OgsPreview/Countdown10.wav",
+        "Audio/Voice/OgsPreview/Countdown09.wav",
+        "Audio/Voice/OgsPreview/Countdown08.wav",
+        "Audio/Voice/OgsPreview/Countdown07.wav",
+        "Audio/Voice/OgsPreview/Countdown06.wav",
+        "Audio/Voice/OgsPreview/Countdown05.wav",
+        "Audio/Voice/OgsPreview/Countdown04.wav",
+        "Audio/Voice/OgsPreview/Countdown03.wav",
+        "Audio/Voice/OgsPreview/Countdown02.wav",
+        "Audio/Voice/OgsPreview/Countdown01.wav",
+        "Audio/Voice/OgsPreview/RemoveDeadStones.wav",
+        "Audio/Voice/OgsPreview/Pass.wav",
+        "Audio/Voice/OgsPreview/BlackWins.wav",
+        "Audio/Voice/OgsPreview/WhiteWins.wav",
+        "Audio/Voice/OgsPreview/Tie.wav",
+        "Audio/Voice/OgsPreview/YouHaveWon.wav",
+    };
+
     private static GameObject audioRoot;
     private static AudioSource bgmSource;
     private static AudioSource sfxSource;
+    private static AudioSource voiceSource;
     private static string currentBgmPath;
     private static AudioClip[] stonePlaceClips;
     private static AudioClip stoneSingleCaptureClip;
     private static AudioClip stoneMultiCaptureClip;
+    private static readonly System.Collections.Generic.Dictionary<DuelVoiceCue, AudioClip> duelVoiceClips =
+        new System.Collections.Generic.Dictionary<DuelVoiceCue, AudioClip>();
     private static float lastStonePlaceTime = -999f;
     private static float lastStoneCaptureTime = -999f;
     private static int lastStonePlaceClipIndex = -1;
@@ -44,6 +76,26 @@ public static class GameAudio
     public static void PlayDuelBgm()
     {
         PlayBgm(DuelBgmPath, DuelBgmVolume);
+    }
+
+    public static void PlayDuelVoice(DuelVoiceCue cue)
+    {
+        EnsureAudioRoot();
+        AudioClip clip = LoadDuelVoiceClip(cue);
+        if (clip == null) {
+            return;
+        }
+
+        voiceSource.Stop();
+        voiceSource.clip = clip;
+        voiceSource.volume = DuelVoiceVolume;
+        voiceSource.pitch = 1f;
+        voiceSource.Play();
+    }
+
+    public static bool IsDuelVoicePlaying()
+    {
+        return voiceSource != null && voiceSource.isPlaying;
     }
 
     public static void PlayStonePlace()
@@ -138,6 +190,25 @@ public static class GameAudio
         return stoneSingleCaptureClip;
     }
 
+    private static AudioClip LoadDuelVoiceClip(DuelVoiceCue cue)
+    {
+        if (duelVoiceClips.TryGetValue(cue, out AudioClip cachedClip)) {
+            return cachedClip;
+        }
+
+        int clipIndex = (int)cue;
+        if (clipIndex < 0 || clipIndex >= DuelVoiceClipPaths.Length) {
+            XNLogger.LogError("Duel voice cue is invalid.", ("cue", cue.ToString()));
+            return null;
+        }
+
+        AudioClip clip = LoadAudioClip(DuelVoiceClipPaths[clipIndex]);
+        if (clip != null) {
+            duelVoiceClips[cue] = clip;
+        }
+        return clip;
+    }
+
     private static AudioClip[] LoadAudioClips(string[] clipPaths)
     {
         var clips = new System.Collections.Generic.List<AudioClip>();
@@ -187,7 +258,7 @@ public static class GameAudio
 
     private static void EnsureAudioRoot()
     {
-        if (audioRoot != null && bgmSource != null && sfxSource != null) {
+        if (audioRoot != null && bgmSource != null && sfxSource != null && voiceSource != null) {
             return;
         }
 
@@ -201,5 +272,38 @@ public static class GameAudio
         sfxSource = audioRoot.AddComponent<AudioSource>();
         sfxSource.playOnAwake = false;
         sfxSource.spatialBlend = 0f;
+
+        voiceSource = audioRoot.AddComponent<AudioSource>();
+        voiceSource.playOnAwake = false;
+        voiceSource.spatialBlend = 0f;
     }
+}
+
+public enum DuelVoiceCue
+{
+    GameStarted,
+    StartCounting,
+    Byoyomi,
+    Overtime,
+    PeriodsLeft5,
+    PeriodsLeft4,
+    PeriodsLeft3,
+    PeriodsLeft2,
+    LastPeriod,
+    Countdown10,
+    Countdown09,
+    Countdown08,
+    Countdown07,
+    Countdown06,
+    Countdown05,
+    Countdown04,
+    Countdown03,
+    Countdown02,
+    Countdown01,
+    RemoveDeadStones,
+    Pass,
+    BlackWins,
+    WhiteWins,
+    Tie,
+    YouHaveWon,
 }

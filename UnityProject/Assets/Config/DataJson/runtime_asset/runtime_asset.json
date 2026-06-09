@@ -70,5 +70,155 @@
     "assetType": "AudioClip",
     "resPath": "Audio/BGM/Active/HappyMomentsPianoFull.ogg",
     "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_game_started": {
+    "id": "audio_voice_ogs_preview_game_started",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/GameStarted.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_start_counting": {
+    "id": "audio_voice_ogs_preview_start_counting",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/StartCounting.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_byoyomi": {
+    "id": "audio_voice_ogs_preview_byoyomi",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/Byoyomi.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_overtime": {
+    "id": "audio_voice_ogs_preview_overtime",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/Overtime.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_periods_left_5": {
+    "id": "audio_voice_ogs_preview_periods_left_5",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/PeriodsLeft5.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_periods_left_4": {
+    "id": "audio_voice_ogs_preview_periods_left_4",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/PeriodsLeft4.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_periods_left_3": {
+    "id": "audio_voice_ogs_preview_periods_left_3",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/PeriodsLeft3.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_periods_left_2": {
+    "id": "audio_voice_ogs_preview_periods_left_2",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/PeriodsLeft2.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_last_period": {
+    "id": "audio_voice_ogs_preview_last_period",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/LastPeriod.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_countdown_10": {
+    "id": "audio_voice_ogs_preview_countdown_10",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/Countdown10.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_countdown_09": {
+    "id": "audio_voice_ogs_preview_countdown_09",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/Countdown09.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_countdown_08": {
+    "id": "audio_voice_ogs_preview_countdown_08",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/Countdown08.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_countdown_07": {
+    "id": "audio_voice_ogs_preview_countdown_07",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/Countdown07.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_countdown_06": {
+    "id": "audio_voice_ogs_preview_countdown_06",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/Countdown06.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_countdown_05": {
+    "id": "audio_voice_ogs_preview_countdown_05",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/Countdown05.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_countdown_04": {
+    "id": "audio_voice_ogs_preview_countdown_04",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/Countdown04.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_countdown_03": {
+    "id": "audio_voice_ogs_preview_countdown_03",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/Countdown03.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_countdown_02": {
+    "id": "audio_voice_ogs_preview_countdown_02",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/Countdown02.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_countdown_01": {
+    "id": "audio_voice_ogs_preview_countdown_01",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/Countdown01.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_remove_dead_stones": {
+    "id": "audio_voice_ogs_preview_remove_dead_stones",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/RemoveDeadStones.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_pass": {
+    "id": "audio_voice_ogs_preview_pass",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/Pass.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_black_wins": {
+    "id": "audio_voice_ogs_preview_black_wins",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/BlackWins.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_white_wins": {
+    "id": "audio_voice_ogs_preview_white_wins",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/WhiteWins.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_tie": {
+    "id": "audio_voice_ogs_preview_tie",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/Tie.wav",
+    "bundleName": "runtime_asset"
+  },
+  "audio_voice_ogs_preview_you_have_won": {
+    "id": "audio_voice_ogs_preview_you_have_won",
+    "assetType": "AudioClip",
+    "resPath": "Audio/Voice/OgsPreview/YouHaveWon.wav",
+    "bundleName": "runtime_asset"
   }
 }
