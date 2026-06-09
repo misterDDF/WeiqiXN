@@ -13,9 +13,10 @@ public class ChessBoardSystem : SystemBase
     private const string WhiteMaterialConfigId = "chess_board_white_material";
     private const string LatestMoveOnBlackStoneMaterialConfigId = "chess_board_latest_move_on_black_stone_material";
     private const string LatestMoveOnWhiteStoneMaterialConfigId = "chess_board_latest_move_on_white_stone_material";
-    private const float DuelPerspectiveFov = 30f;
-    private const float DuelPerspectiveTiltFactor = 0.16f;
-    private const float DuelPerspectiveFramePaddingFactor = 1.08f;
+    private const float DuelOrthographicCameraDistance = 30f;
+    private const float DuelOrthographicFramePaddingFactor = 1.08f;
+    private const float DuelPortraitOrthographicFramePaddingFactor = 1f;
+    private const float DuelPortraitBoardScreenUpOffsetFactor = 0.1f;
     private const float ReplayCameraHorizontalOffsetFactor = 0.6f;
     private const float ReplayCameraHorizontalSpareUseFactor = 0.85f;
 
@@ -690,7 +691,7 @@ public class ChessBoardSystem : SystemBase
         }
 
         Transform duelVCamTransform = compChessBoard.duelVCam.transform;
-        Vector3 viewDir = new Vector3(0f, -1f, -DuelPerspectiveTiltFactor).normalized;
+        Vector3 viewDir = Vector3.down;
         duelVCamTransform.rotation = Quaternion.LookRotation(viewDir, Vector3.forward);
 
         float aspect = Camera.main != null ? Camera.main.aspect : 16f / 9f;
@@ -700,21 +701,37 @@ public class ChessBoardSystem : SystemBase
             extraYOffset = chessBoardData.vcamYOffset;
         }
 
+        bool fillPortraitBoardWidth = ShouldFillPortraitBoardWidth(aspect);
         LensSettings lens = compChessBoard.duelVCam.m_Lens;
-        float halfHeightByBoard = Mathf.Max(gridBound.extents.z, aspect > 0f ? gridBound.extents.x / aspect : gridBound.extents.z);
-        lens.FieldOfView = DuelPerspectiveFov;
-        lens.ModeOverride = LensSettings.OverrideModes.Perspective;
+        float orthographicSize = fillPortraitBoardWidth && aspect > 0f
+            ? gridBound.extents.x / aspect
+            : Mathf.Max(gridBound.extents.z, aspect > 0f ? gridBound.extents.x / aspect : gridBound.extents.z);
+        float framePaddingFactor = fillPortraitBoardWidth ? DuelPortraitOrthographicFramePaddingFactor : DuelOrthographicFramePaddingFactor;
+        orthographicSize *= framePaddingFactor;
+        lens.OrthographicSize = orthographicSize;
+        lens.ModeOverride = LensSettings.OverrideModes.Orthographic;
         compChessBoard.duelVCam.m_Lens = lens;
 
-        float halfVerticalFovRad = lens.FieldOfView * 0.5f * Mathf.Deg2Rad;
-        float boardDistance = halfHeightByBoard / Mathf.Tan(halfVerticalFovRad);
-        float cameraDistance = boardDistance * DuelPerspectiveFramePaddingFactor + Mathf.Max(extraYOffset, 0f);
+        float cameraDistance = Mathf.Max(extraYOffset, DuelOrthographicCameraDistance);
         Vector3 cameraPosition = gridBound.center - viewDir * cameraDistance;
+        if (ShouldApplyPortraitBoardUpOffset(aspect)) {
+            cameraPosition += Vector3.back * orthographicSize * DuelPortraitBoardScreenUpOffsetFactor;
+        }
         if (ShouldApplyReplayCameraHorizontalOffset(aspect)) {
-            cameraPosition += Vector3.right * GetReplayCameraHorizontalOffset(gridBound, cameraDistance, halfVerticalFovRad, aspect);
+            cameraPosition += Vector3.right * GetReplayCameraHorizontalOffset(gridBound, orthographicSize, aspect);
         }
 
         duelVCamTransform.position = cameraPosition;
+    }
+
+    private bool ShouldFillPortraitBoardWidth(float aspect)
+    {
+        return IsPortraitAspect(aspect);
+    }
+
+    private bool ShouldApplyPortraitBoardUpOffset(float aspect)
+    {
+        return !(scene is ReplayScene) && IsPortraitAspect(aspect);
     }
 
     private bool ShouldApplyReplayCameraHorizontalOffset(float aspect)
@@ -727,13 +744,13 @@ public class ChessBoardSystem : SystemBase
         return aspect > 0f && UIUtils.IsPortrait(new Rect(0f, 0f, aspect, 1f));
     }
 
-    private float GetReplayCameraHorizontalOffset(Bounds gridBound, float cameraDistance, float halfVerticalFovRad, float aspect)
+    private float GetReplayCameraHorizontalOffset(Bounds gridBound, float orthographicSize, float aspect)
     {
         if (aspect <= 0f) {
             return 0f;
         }
 
-        float horizontalHalfFrame = Mathf.Tan(halfVerticalFovRad) * cameraDistance * aspect;
+        float horizontalHalfFrame = orthographicSize * aspect;
         float horizontalSpare = Mathf.Max(horizontalHalfFrame - gridBound.extents.x, 0f);
         float desiredOffset = gridBound.extents.x * ReplayCameraHorizontalOffsetFactor;
         return Mathf.Min(desiredOffset, horizontalSpare * ReplayCameraHorizontalSpareUseFactor);

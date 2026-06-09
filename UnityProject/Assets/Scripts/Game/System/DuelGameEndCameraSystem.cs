@@ -1,3 +1,4 @@
+using Cinemachine;
 using UnityEngine;
 
 public class DuelGameEndCameraSystem : SystemBase
@@ -9,11 +10,15 @@ public class DuelGameEndCameraSystem : SystemBase
     private const float RestoreCameraTransitionSeconds = 0.35f;
 
     private bool hasNormalCameraPosition;
+    private bool hasNormalOrthographicSize;
     private bool isAnimating;
     private bool isGameEndCameraActive;
     private Vector3 normalCameraPosition;
+    private float normalOrthographicSize;
     private Vector3 animationStartPosition;
     private Vector3 animationTargetPosition;
+    private float animationStartOrthographicSize;
+    private float animationTargetOrthographicSize;
     private float animationElapsedSeconds;
     private float animationDurationSeconds;
 
@@ -52,14 +57,17 @@ public class DuelGameEndCameraSystem : SystemBase
 
     private void CaptureNormalCameraPosition()
     {
-        Transform cameraTransform = GetDuelCameraTransform();
-        if (cameraTransform == null) {
+        CinemachineVirtualCamera duelCamera = GetDuelCamera();
+        if (duelCamera == null) {
             hasNormalCameraPosition = false;
+            hasNormalOrthographicSize = false;
             return;
         }
 
-        normalCameraPosition = cameraTransform.position;
+        normalCameraPosition = duelCamera.transform.position;
+        normalOrthographicSize = duelCamera.m_Lens.OrthographicSize;
         hasNormalCameraPosition = true;
+        hasNormalOrthographicSize = true;
     }
 
     private void StartGameEndCameraAnimation()
@@ -68,9 +76,9 @@ public class DuelGameEndCameraSystem : SystemBase
             CaptureNormalCameraPosition();
         }
 
-        Transform cameraTransform = GetDuelCameraTransform();
+        CinemachineVirtualCamera duelCamera = GetDuelCamera();
         Bounds? gridBounds = GetGridBounds();
-        if (cameraTransform == null || !hasNormalCameraPosition || !gridBounds.HasValue) {
+        if (duelCamera == null || !hasNormalCameraPosition || !gridBounds.HasValue) {
             return;
         }
 
@@ -81,7 +89,15 @@ public class DuelGameEndCameraSystem : SystemBase
         }
 
         Vector3 targetPosition = boardCenter + cameraOffset * GameEndCameraDistanceFactor;
-        StartAnimation(cameraTransform.position, targetPosition, GameEndCameraTransitionSeconds);
+        float targetOrthographicSize = hasNormalOrthographicSize
+            ? normalOrthographicSize * GameEndCameraDistanceFactor
+            : duelCamera.m_Lens.OrthographicSize;
+        StartAnimation(
+            duelCamera.transform.position,
+            targetPosition,
+            duelCamera.m_Lens.OrthographicSize,
+            targetOrthographicSize,
+            GameEndCameraTransitionSeconds);
         isGameEndCameraActive = true;
     }
 
@@ -91,19 +107,34 @@ public class DuelGameEndCameraSystem : SystemBase
             return;
         }
 
-        Transform cameraTransform = GetDuelCameraTransform();
-        if (cameraTransform == null || !hasNormalCameraPosition) {
+        CinemachineVirtualCamera duelCamera = GetDuelCamera();
+        if (duelCamera == null || !hasNormalCameraPosition) {
             return;
         }
 
-        StartAnimation(cameraTransform.position, normalCameraPosition, RestoreCameraTransitionSeconds);
+        float targetOrthographicSize = hasNormalOrthographicSize
+            ? normalOrthographicSize
+            : duelCamera.m_Lens.OrthographicSize;
+        StartAnimation(
+            duelCamera.transform.position,
+            normalCameraPosition,
+            duelCamera.m_Lens.OrthographicSize,
+            targetOrthographicSize,
+            RestoreCameraTransitionSeconds);
         isGameEndCameraActive = false;
     }
 
-    private void StartAnimation(Vector3 startPosition, Vector3 targetPosition, float durationSeconds)
+    private void StartAnimation(
+        Vector3 startPosition,
+        Vector3 targetPosition,
+        float startOrthographicSize,
+        float targetOrthographicSize,
+        float durationSeconds)
     {
         animationStartPosition = startPosition;
         animationTargetPosition = targetPosition;
+        animationStartOrthographicSize = startOrthographicSize;
+        animationTargetOrthographicSize = targetOrthographicSize;
         animationDurationSeconds = Mathf.Max(durationSeconds, 0.01f);
         animationElapsedSeconds = 0f;
         isAnimating = true;
@@ -115,8 +146,8 @@ public class DuelGameEndCameraSystem : SystemBase
             return;
         }
 
-        Transform cameraTransform = GetDuelCameraTransform();
-        if (cameraTransform == null) {
+        CinemachineVirtualCamera duelCamera = GetDuelCamera();
+        if (duelCamera == null) {
             isAnimating = false;
             return;
         }
@@ -124,18 +155,31 @@ public class DuelGameEndCameraSystem : SystemBase
         animationElapsedSeconds += Time.unscaledDeltaTime;
         float t = Mathf.Clamp01(animationElapsedSeconds / animationDurationSeconds);
         float easedT = t * t * (3f - 2f * t);
-        cameraTransform.position = Vector3.Lerp(animationStartPosition, animationTargetPosition, easedT);
+        duelCamera.transform.position = Vector3.Lerp(animationStartPosition, animationTargetPosition, easedT);
+        ApplyOrthographicSize(duelCamera, Mathf.Lerp(animationStartOrthographicSize, animationTargetOrthographicSize, easedT));
 
         if (t >= 1f) {
-            cameraTransform.position = animationTargetPosition;
+            duelCamera.transform.position = animationTargetPosition;
+            ApplyOrthographicSize(duelCamera, animationTargetOrthographicSize);
             isAnimating = false;
         }
     }
 
-    private Transform GetDuelCameraTransform()
+    private void ApplyOrthographicSize(CinemachineVirtualCamera duelCamera, float orthographicSize)
+    {
+        if (duelCamera == null) {
+            return;
+        }
+
+        LensSettings lens = duelCamera.m_Lens;
+        lens.OrthographicSize = orthographicSize;
+        duelCamera.m_Lens = lens;
+    }
+
+    private CinemachineVirtualCamera GetDuelCamera()
     {
         SceneComponentChessBoard compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
-        return compChessBoard?.duelVCam != null ? compChessBoard.duelVCam.transform : null;
+        return compChessBoard?.duelVCam;
     }
 
     private Bounds? GetGridBounds()
