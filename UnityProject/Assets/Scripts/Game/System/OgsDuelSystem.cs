@@ -114,6 +114,8 @@ public class OgsDuelSystem : SystemBase
         compOgsDuel.challengeUuid = ogsParams.challengeUuid ?? string.Empty;
         compOgsDuel.firstMovePlayerFlag = PlayerFlag.Player1;
         compOgsDuel.ogsHandicapCount = 0;
+        compOgsDuel.komi = 7.5f;
+        compOgsDuel.hasKomi = false;
         compOgsDuel.initialStoneCount = 0;
         compOgsDuel.openingSameColorMoveCount = 0;
 
@@ -319,6 +321,7 @@ public class OgsDuelSystem : SystemBase
         }
         ApplyClock(gameData["clock"] as JObject);
         ApplyStoneRemovalData(gameData);
+        ApplyOgsKomi(gameData);
         if (!TryResolveOgsInitialStones(gameData, out List<OgsDuelInitialStone> initialStones)) {
             SetError("OGS game data initial stones could not be parsed.");
             return;
@@ -445,6 +448,26 @@ public class OgsDuelSystem : SystemBase
         }
 
         return true;
+    }
+
+    private void ApplyOgsKomi(JObject gameData)
+    {
+        if (gameData == null || compOgsDuel == null) {
+            return;
+        }
+
+        JToken komiToken = ReadFirstToken(gameData, "komi");
+        if (komiToken == null) {
+            JObject payload = GetOgsTerminalPayload(gameData);
+            if (payload != gameData) {
+                komiToken = ReadFirstToken(payload, "komi");
+            }
+        }
+
+        if (komiToken != null && float.TryParse(komiToken.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out float komi)) {
+            compOgsDuel.komi = komi;
+            compOgsDuel.hasKomi = true;
+        }
     }
 
     private PlayerFlag ResolveOgsFirstMovePlayerFlag(JObject gameData, int handicapCount, int initialStoneCount)

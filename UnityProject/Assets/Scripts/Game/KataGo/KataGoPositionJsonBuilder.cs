@@ -162,9 +162,7 @@ public static class KataGoPositionJsonBuilder
     {
         int boardSize = GetBoardSize(scene);
         SceneComponentDuel compDuel = scene.GetComponent<SceneComponentDuel>();
-        float komi = compDuel != null
-            ? DuelHandicapPlacement.GetKomi(compDuel.handicapCfgId.value)
-            : DefaultKomi;
+        float komi = ResolveAnalysisKomi(scene, compDuel);
 
         JObject query = new JObject
         {
@@ -179,6 +177,18 @@ public static class KataGoPositionJsonBuilder
         };
 
         return query;
+    }
+
+    private static float ResolveAnalysisKomi(SceneBase scene, SceneComponentDuel compDuel)
+    {
+        SceneComponentOgsDuel compOgsDuel = scene.GetComponent<SceneComponentOgsDuel>();
+        if (compOgsDuel != null && compOgsDuel.hasKomi) {
+            return compOgsDuel.komi;
+        }
+
+        return compDuel != null
+            ? DuelHandicapPlacement.GetKomi(compDuel.handicapCfgId.value)
+            : DefaultKomi;
     }
 
     private static JArray BuildMovesArray(SceneBase scene)

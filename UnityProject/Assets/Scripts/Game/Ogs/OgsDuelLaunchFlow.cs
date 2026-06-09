@@ -24,7 +24,7 @@ public static class OgsDuelLaunchFlow
             values.byoyomiPeriods,
             values.byoyomiPeriodSeconds,
             values.handicap,
-            7.5f,
+            values.komi,
             ResolveChallengerColor(duelParams?.playerSideCfgId),
             gameName);
     }
@@ -80,6 +80,7 @@ public static class OgsDuelLaunchFlow
             byoyomiPeriods = byoyomiCountData != null ? byoyomiCountData.count : 0,
             byoyomiPeriodSeconds = byoyomiTimeData != null ? byoyomiTimeData.seconds : 30,
             handicap = handicapData != null ? handicapData.handicapCount : 0,
+            komi = handicapData != null ? handicapData.komi : 7.5f,
         };
     }
 
@@ -103,5 +104,6 @@ public static class OgsDuelLaunchFlow
         public int byoyomiPeriods;
         public int byoyomiPeriodSeconds;
         public int handicap;
+        public float komi;
     }
 }

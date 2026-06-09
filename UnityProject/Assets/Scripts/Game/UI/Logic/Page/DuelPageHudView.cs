@@ -132,6 +132,19 @@ public class DuelPageHudView
 
     private string GetOwnershipWhitePointsMessageKey()
     {
+        SceneComponentOgsDuel compOgsDuel = Global.Instance.sceneManager.mainScene?.GetComponent<SceneComponentOgsDuel>();
+        if (compOgsDuel != null) {
+            if (compOgsDuel.ogsHandicapCount > 1 || compOgsDuel.initialStoneCount > 0 || compOgsDuel.openingSameColorMoveCount > 0) {
+                return "duel_ownership_white_points_handicap";
+            }
+
+            if (compOgsDuel.hasKomi && Mathf.Approximately(compOgsDuel.komi, 0.5f)) {
+                return "duel_ownership_white_points_sen";
+            }
+
+            return "duel_ownership_white_points";
+        }
+
         string handicapCfgId = GetCurrentHandicapCfgId();
         if (DuelHandicapPlacement.IsSen(handicapCfgId)) {
             return "duel_ownership_white_points_sen";

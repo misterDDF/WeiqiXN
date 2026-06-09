@@ -16,6 +16,8 @@ public class SceneComponentOgsDuel : SceneComponentBase
     public string phase = string.Empty;
     public PlayerFlag firstMovePlayerFlag = PlayerFlag.Player1;
     public int ogsHandicapCount;
+    public float komi = 7.5f;
+    public bool hasKomi;
     public int initialStoneCount;
     public int openingSameColorMoveCount;
     public int acceptedMoveCount;
