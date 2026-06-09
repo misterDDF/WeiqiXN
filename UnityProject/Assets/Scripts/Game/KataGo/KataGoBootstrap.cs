@@ -43,6 +43,7 @@ public static class KataGoBootstrap
 #if UNITY_ANDROID && !UNITY_EDITOR
     private const int AndroidAnalyzePollMs = 250;
     private const int DefaultAndroidAnalyzeBackgroundGraceMs = 300000;
+    private const string AndroidOpenClTuningAttemptMarkerFileName = "weiqixn_opencl_tuning_attempt.marker";
 #endif
     private static readonly int[] SmokeTestBoardSizes = { 9, 13, 19 };
     private static readonly float[] SmokeTestBoardProgressWeights = { 0.90f, 0.05f, 0.05f };
@@ -672,24 +673,41 @@ public static class KataGoBootstrap
 #if UNITY_ANDROID && !UNITY_EDITOR
     private static KataGoPaths[] ResolveAndroidNativeCandidatePaths(PlatformConfig platformConfig)
     {
+        KataGoPaths cpuPaths = ResolveAndroidNativePaths(platformConfig, AndroidNativeCpuEngineName, platformConfig.androidNativeCpuLibraryName, CpuSmokeTestTimeoutMs, true);
         if (!platformConfig.androidPreferOpenCl) {
             return new[]
             {
-                ResolveAndroidNativePaths(platformConfig, AndroidNativeCpuEngineName, platformConfig.androidNativeCpuLibraryName, CpuSmokeTestTimeoutMs, true),
+                cpuPaths,
             };
         }
 
+        KataGoPaths openClPaths = ResolveAndroidNativePaths(platformConfig, AndroidNativeOpenClEngineName, platformConfig.androidNativeOpenClLibraryName, AndroidOpenClSmokeTestTimeoutMs, false);
         if (!platformConfig.androidAllowCpuFallback) {
             return new[] 
             {
-                ResolveAndroidNativePaths(platformConfig, AndroidNativeOpenClEngineName, platformConfig.androidNativeOpenClLibraryName, AndroidOpenClSmokeTestTimeoutMs, false),
+                openClPaths,
+            };
+        }
+
+        if (ShouldSkipAndroidOpenClCandidate(openClPaths, out string skipReason)) {
+            XNLogger.LogWarn(
+                "Android OpenCL candidate skipped, falling back to CPU.",
+                ("reason", skipReason),
+                ("engine", openClPaths.engineName),
+                ("cpuEngine", cpuPaths.engineName),
+                ("workingDirectory", openClPaths.workingDirectory),
+                ("deviceModel", SystemInfo.deviceModel),
+                ("graphicsDeviceName", SystemInfo.graphicsDeviceName));
+            return new[]
+            {
+                cpuPaths,
             };
         }
 
         return new[]
         {
-            ResolveAndroidNativePaths(platformConfig, AndroidNativeOpenClEngineName, platformConfig.androidNativeOpenClLibraryName, AndroidOpenClSmokeTestTimeoutMs, false),
-            ResolveAndroidNativePaths(platformConfig, AndroidNativeCpuEngineName, platformConfig.androidNativeCpuLibraryName, CpuSmokeTestTimeoutMs, true),
+            openClPaths,
+            cpuPaths,
         };
     }
 
@@ -715,6 +733,192 @@ public static class KataGoBootstrap
             isNative = true,
             skipNativeLibraryFileCheck = true,
         };
+    }
+
+    private static bool ShouldSkipAndroidOpenClCandidate(KataGoPaths paths, out string reason)
+    {
+        if (IsKnownAndroidOpenClTuningCrashDevice(out reason)) {
+            return true;
+        }
+
+        if (HasAndroidOpenClTuningAttemptMarker(paths) && !HasAndroidOpenClTuningCache(paths)) {
+            reason = "previous OpenCL tuning attempt exited before cache was generated";
+            return true;
+        }
+
+        reason = string.Empty;
+        return false;
+    }
+
+    private static bool IsKnownAndroidOpenClTuningCrashDevice(out string reason)
+    {
+        string hardware = GetAndroidBuildField("HARDWARE");
+        string board = GetAndroidBuildField("BOARD");
+        string device = GetAndroidBuildField("DEVICE");
+        string model = GetAndroidBuildField("MODEL");
+        string socManufacturer = GetAndroidBuildField("SOC_MANUFACTURER");
+        string socModel = GetAndroidBuildField("SOC_MODEL");
+        string graphicsDeviceName = SystemInfo.graphicsDeviceName ?? string.Empty;
+        if (IsLikelyMediaTekDimensityIdentity(hardware)
+            || IsLikelyMediaTekDimensityIdentity(board)
+            || IsLikelyMediaTekDimensityIdentity(device)
+            || IsLikelyMediaTekDimensityIdentity(model)
+            || IsLikelyMediaTekDimensityIdentity(socModel)) {
+            reason = $"known unstable OpenCL tuning device hardware={hardware} board={board} device={device} model={model} socManufacturer={socManufacturer} socModel={socModel} graphics={graphicsDeviceName}";
+            return true;
+        }
+
+        reason = string.Empty;
+        return false;
+    }
+
+    private static string GetAndroidBuildField(string fieldName)
+    {
+        try {
+            using (AndroidJavaClass build = new AndroidJavaClass("android.os.Build")) {
+                return build.GetStatic<string>(fieldName) ?? string.Empty;
+            }
+        }
+        catch (Exception) {
+            return string.Empty;
+        }
+    }
+
+    private static bool IsLikelyMediaTekDimensityIdentity(string value)
+    {
+        if (ContainsIgnoreCase(value, "dimensity")) {
+            return true;
+        }
+
+        string normalized = NormalizeAndroidBuildIdentity(value);
+        return normalized.Contains("mt68")
+            || normalized.Contains("mt69")
+            || normalized.Contains("k68")
+            || normalized.Contains("k69");
+    }
+
+    private static string NormalizeAndroidBuildIdentity(string value)
+    {
+        if (string.IsNullOrEmpty(value)) {
+            return string.Empty;
+        }
+
+        char[] chars = new char[value.Length];
+        int count = 0;
+        for (int i = 0; i < value.Length; i++) {
+            char c = value[i];
+            if (char.IsLetterOrDigit(c)) {
+                chars[count++] = char.ToLowerInvariant(c);
+            }
+        }
+
+        return count == chars.Length
+            ? new string(chars)
+            : new string(chars, 0, count);
+    }
+
+    private static bool ContainsIgnoreCase(string value, string expected)
+    {
+        return !string.IsNullOrEmpty(value)
+            && !string.IsNullOrEmpty(expected)
+            && value.IndexOf(expected, StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static void MarkAndroidOpenClTuningAttempt(KataGoPaths paths)
+    {
+        if (!IsAndroidOpenClEngine(paths)) {
+            return;
+        }
+
+        if (HasAndroidOpenClTuningCache(paths)) {
+            ClearAndroidOpenClTuningAttemptMarker(paths);
+            return;
+        }
+
+        try {
+            string markerPath = GetAndroidOpenClTuningAttemptMarkerPath(paths);
+            Directory.CreateDirectory(Path.GetDirectoryName(markerPath));
+            string marker = string.Join(
+                Environment.NewLine,
+                $"timeUtc={DateTime.UtcNow:O}",
+                $"engine={paths.engineName}",
+                $"configPath={paths.configPath}",
+                $"modelPath={paths.modelPath}",
+                $"workingDirectory={paths.workingDirectory}",
+                $"deviceModel={SystemInfo.deviceModel}",
+                $"graphicsDeviceName={SystemInfo.graphicsDeviceName}",
+                $"hardware={GetAndroidBuildField("HARDWARE")}",
+                $"board={GetAndroidBuildField("BOARD")}",
+                $"device={GetAndroidBuildField("DEVICE")}",
+                $"socManufacturer={GetAndroidBuildField("SOC_MANUFACTURER")}",
+                $"socModel={GetAndroidBuildField("SOC_MODEL")}");
+            File.WriteAllText(markerPath, marker);
+            XNLogger.LogWarn(
+                "Android OpenCL tuning attempt marker written.",
+                ("markerPath", markerPath),
+                ("engine", paths.engineName));
+        }
+        catch (Exception ex) {
+            XNLogger.LogWarn(
+                "Android OpenCL tuning attempt marker write failed.",
+                ("errType", ex.GetType().Name),
+                ("err", ex.Message),
+                ("engine", paths.engineName));
+        }
+    }
+
+    private static void ClearAndroidOpenClTuningAttemptMarker(KataGoPaths paths)
+    {
+        if (!IsAndroidOpenClEngine(paths)) {
+            return;
+        }
+
+        try {
+            string markerPath = GetAndroidOpenClTuningAttemptMarkerPath(paths);
+            if (File.Exists(markerPath)) {
+                File.Delete(markerPath);
+                XNLogger.LogInfo("Android OpenCL tuning attempt marker cleared.", ("markerPath", markerPath));
+            }
+        }
+        catch (Exception ex) {
+            XNLogger.LogWarn(
+                "Android OpenCL tuning attempt marker clear failed.",
+                ("errType", ex.GetType().Name),
+                ("err", ex.Message),
+                ("engine", paths.engineName));
+        }
+    }
+
+    private static bool HasAndroidOpenClTuningAttemptMarker(KataGoPaths paths)
+    {
+        try {
+            return File.Exists(GetAndroidOpenClTuningAttemptMarkerPath(paths));
+        }
+        catch (Exception) {
+            return false;
+        }
+    }
+
+    private static bool HasAndroidOpenClTuningCache(KataGoPaths paths)
+    {
+        try {
+            string tuningDirectory = GetAndroidOpenClTuningDirectory(paths);
+            return Directory.Exists(tuningDirectory)
+                && Directory.GetFiles(tuningDirectory, "tune*.txt", SearchOption.TopDirectoryOnly).Length > 0;
+        }
+        catch (Exception) {
+            return false;
+        }
+    }
+
+    private static string GetAndroidOpenClTuningAttemptMarkerPath(KataGoPaths paths)
+    {
+        return Path.Combine(GetAndroidOpenClTuningDirectory(paths), AndroidOpenClTuningAttemptMarkerFileName);
+    }
+
+    private static string GetAndroidOpenClTuningDirectory(KataGoPaths paths)
+    {
+        return Path.Combine(paths.workingDirectory, "KataGoData", "opencltuning");
     }
 
 #endif
@@ -1311,7 +1515,13 @@ public static class KataGoBootstrap
                 false,
                 paths.engineName);
 
+#if UNITY_ANDROID && !UNITY_EDITOR
+            MarkAndroidOpenClTuningAttempt(paths);
+#endif
             RunNativeSmokeTest(paths, progressStart, progressEnd, cancellationToken);
+#if UNITY_ANDROID && !UNITY_EDITOR
+            ClearAndroidOpenClTuningAttemptMarker(paths);
+#endif
             return true;
         }
         catch (OperationCanceledException) {
@@ -1321,6 +1531,11 @@ public static class KataGoBootstrap
         }
         catch (Exception ex) {
             StopNativeEngine();
+#if UNITY_ANDROID && !UNITY_EDITOR
+            if (IsAndroidOpenClEngine(paths) && HasAndroidOpenClTuningCache(paths)) {
+                ClearAndroidOpenClTuningAttemptMarker(paths);
+            }
+#endif
             SetStartupStatus(
                 MessageText.Get("katago_warmup_status"),
                 MessageText.Format("katago_engine_unavailable_next", paths.engineName),
@@ -1909,6 +2124,11 @@ public static class KataGoBootstrap
         return paths.isNative
             && (string.Equals(paths.engineName, AndroidNativeOpenClEngineName, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(paths.engineName, AndroidNativeCpuEngineName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsAndroidOpenClEngine(KataGoPaths paths)
+    {
+        return IsAndroidNativeEngine(paths) && IsOpenClEngine(paths);
     }
 #endif
 
