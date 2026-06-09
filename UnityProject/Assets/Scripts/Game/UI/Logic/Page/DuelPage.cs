@@ -14,6 +14,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     private int pendingTakeBackMoveCount;
     private int pendingTakeBackRemoveCount;
     private string pendingTakeBackTurnPlayerGuid;
+    private bool isMoveConfirmPopupOpen;
 
     protected override void OnLoaded()
     {
@@ -65,6 +66,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
         DuelInputAuthorityState inputState = GetCurrentInputState(mainScene, compDuel);
         boardInput.Refresh(mainScene, compDuel, inputState, hudView.IsSettingsPanelVisible());
+        RefreshPortraitMoveConfirmation(mainScene, compDuel, inputState);
 
         if (Input.GetKeyDown(KeyCode.Mouse0) && !IsPointerOverUI()) {
             OnMouse0Down();
@@ -76,6 +78,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         ClosePendingScorePopup();
         ClosePendingTakeBackPopup();
         CloseReconnectWaitingPopup();
+        CloseMoveConfirmPopup();
         boardInput.Dispose();
         base.OnClose();
     }
@@ -294,6 +297,11 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         DuelInputAuthorityState inputState = GetCurrentInputState(mainScene, compDuel);
         if (boardInput.TryGetMoveCoords(inputState, out RectCoordinates coords)) {
+            if (ShouldUsePortraitMoveConfirm(mainScene, compDuel, inputState)) {
+                BeginOrUpdateMoveConfirmation(mainScene, compDuel, inputState);
+                return;
+            }
+
             if (mainScene is OgsDuelScene) {
                 EmitSystemEvent(new OnSubmitOgsDuelMove(coords));
                 return;
@@ -647,6 +655,94 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         ConfirmPopup.CloseIfOpen(reconnectWaitingPopupRequestId);
         reconnectWaitingPopupRequestId = 0;
+    }
+
+    private void RefreshPortraitMoveConfirmation(SceneBase mainScene, SceneComponentDuel compDuel, DuelInputAuthorityState inputState)
+    {
+        if (!isMoveConfirmPopupOpen) {
+            return;
+        }
+
+        if (!ShouldUsePortraitMoveConfirm(mainScene, compDuel, inputState) || hudView.IsSettingsPanelVisible()) {
+            CloseMoveConfirmPopup();
+            return;
+        }
+
+        if (!boardInput.IsPendingMoveActive) {
+            CloseMoveConfirmPopup();
+            return;
+        }
+
+        if (Input.GetKey(KeyCode.Mouse0) && !IsPointerOverUI()) {
+            boardInput.TryBeginOrUpdatePendingMove(mainScene, compDuel, inputState);
+        }
+    }
+
+    private bool BeginOrUpdateMoveConfirmation(SceneBase mainScene, SceneComponentDuel compDuel, DuelInputAuthorityState inputState)
+    {
+        if (!boardInput.TryBeginOrUpdatePendingMove(mainScene, compDuel, inputState)) {
+            return false;
+        }
+
+        isMoveConfirmPopupOpen = true;
+        DuelMoveConfirmPopup.Show(
+            ConfirmPortraitMove,
+            CancelPortraitMove,
+            AdjustPortraitMove);
+        return true;
+    }
+
+    private void ConfirmPortraitMove()
+    {
+        SceneBase mainScene = Global.Instance.sceneManager.mainScene;
+        SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
+        DuelInputAuthorityState inputState = GetCurrentInputState(mainScene, compDuel);
+        if (!boardInput.TryGetPendingMoveCoords(inputState, out RectCoordinates coords)) {
+            CancelPortraitMove();
+            return;
+        }
+
+        isMoveConfirmPopupOpen = false;
+        boardInput.ClearPendingMove();
+        if (mainScene is OgsDuelScene) {
+            EmitSystemEvent(new OnSubmitOgsDuelMove(coords));
+            return;
+        }
+
+        EmitSystemEvent(new OnSubmitDuelMove(coords, inputState.localInputPlayerFlag));
+    }
+
+    private void CancelPortraitMove()
+    {
+        isMoveConfirmPopupOpen = false;
+        boardInput.ClearPendingMove();
+    }
+
+    private void AdjustPortraitMove(int offsetX, int offsetZ)
+    {
+        SceneBase mainScene = Global.Instance.sceneManager.mainScene;
+        SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
+        DuelInputAuthorityState inputState = GetCurrentInputState(mainScene, compDuel);
+        boardInput.TryMovePendingMove(mainScene, compDuel, inputState, offsetX, offsetZ);
+    }
+
+    private void CloseMoveConfirmPopup()
+    {
+        if (!isMoveConfirmPopupOpen) {
+            return;
+        }
+
+        isMoveConfirmPopupOpen = false;
+        boardInput.ClearPendingMove();
+        Global.Instance.uiManager.TryClosePage<DuelMoveConfirmPopup>();
+    }
+
+    private bool ShouldUsePortraitMoveConfirm(SceneBase mainScene, SceneComponentDuel compDuel, DuelInputAuthorityState inputState)
+    {
+        return mainScene != null
+            && compDuel != null
+            && inputState.CanSubmitMove
+            && UIUtils.IsPortrait(rectTransform);
     }
 
     private DuelScoreResult BuildScoreResult(LanDuelScoreResultMessage result)

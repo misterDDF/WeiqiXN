@@ -9,16 +9,20 @@ public class DuelPageBoardInputController
     private GameObject aimChessPreview;
     private GameObject stoneRemovalHoverMarker;
     private readonly RectCoordinates aimCoords = new RectCoordinates(-1, -1);
+    private readonly RectCoordinates pendingMoveCoords = new RectCoordinates(-1, -1);
     private readonly RectCoordinates stoneRemovalHoverCoords = new RectCoordinates(-1, -1);
     private PlayerFlag aimChessPreviewPlayerFlag;
+    private bool isPendingMoveActive;
+
+    public bool IsPendingMoveActive => isPendingMoveActive;
 
     public void Refresh(SceneBase mainScene, SceneComponentDuel compDuel, DuelInputAuthorityState inputState, bool blockInput)
     {
-        aimCoords.SetValue(-1, -1);
         stoneRemovalHoverCoords.SetValue(-1, -1);
         if (!blockInput && mainScene is OgsDuelScene ogsScene) {
             OgsDuelSystem ogsDuelSystem = ogsScene.GetSystem<OgsDuelSystem>();
             if (ogsDuelSystem != null && ogsDuelSystem.IsInStoneRemovalPhase()) {
+                ClearPendingMove();
                 SetAimChessPreviewActive(false);
                 RefreshStoneRemovalHover(mainScene, ogsDuelSystem);
                 return;
@@ -26,6 +30,14 @@ public class DuelPageBoardInputController
         }
 
         SetStoneRemovalHoverMarkerActive(false);
+        if (isPendingMoveActive) {
+            if (blockInput || !inputState.CanSubmitMove || !IsPendingMoveStillLegal(mainScene, compDuel, inputState.localInputPlayerFlag)) {
+                ClearPendingMove();
+            }
+            return;
+        }
+
+        aimCoords.SetValue(-1, -1);
         if (blockInput || IsPointerOverUI() || !inputState.CanSubmitMove) {
             SetAimChessPreviewActive(false);
             return;
@@ -47,6 +59,60 @@ public class DuelPageBoardInputController
 
         coords = aimCoords.Clone();
         return true;
+    }
+
+    public bool TryBeginOrUpdatePendingMove(SceneBase mainScene, SceneComponentDuel compDuel, DuelInputAuthorityState inputState)
+    {
+        if (!inputState.CanSubmitMove) {
+            return false;
+        }
+
+        if (!TryResolveLegalMoveAtPointer(mainScene, compDuel, inputState.localInputPlayerFlag, out RectCoordinates coords, out Vector3 worldPosition)) {
+            return false;
+        }
+
+        SetPendingMove(inputState.localInputPlayerFlag, coords, worldPosition);
+        return true;
+    }
+
+    public bool TryMovePendingMove(SceneBase mainScene, SceneComponentDuel compDuel, DuelInputAuthorityState inputState, int offsetX, int offsetZ)
+    {
+        if (!isPendingMoveActive || !inputState.CanSubmitMove) {
+            return false;
+        }
+
+        SceneComponentChessBoard compChessBoard = mainScene?.GetComponent<SceneComponentChessBoard>();
+        if (compChessBoard?.chessBoardGrid == null) {
+            return false;
+        }
+
+        int maxCellIndex = Mathf.Max(compChessBoard.chessBoardGrid.gridSize - 1, 0);
+        int x = Mathf.Clamp(pendingMoveCoords.x + offsetX, 0, maxCellIndex);
+        int z = Mathf.Clamp(pendingMoveCoords.z + offsetZ, 0, maxCellIndex);
+        return TrySetPendingMoveCoords(compChessBoard, compDuel, inputState.localInputPlayerFlag, new RectCoordinates(x, z));
+    }
+
+    public bool TryGetPendingMoveCoords(DuelInputAuthorityState inputState, out RectCoordinates coords)
+    {
+        coords = null;
+        if (!isPendingMoveActive || !inputState.CanSubmitMove) {
+            return false;
+        }
+
+        if (pendingMoveCoords.x < 0 || pendingMoveCoords.z < 0) {
+            return false;
+        }
+
+        coords = pendingMoveCoords.Clone();
+        return true;
+    }
+
+    public void ClearPendingMove()
+    {
+        isPendingMoveActive = false;
+        pendingMoveCoords.SetValue(-1, -1);
+        aimCoords.SetValue(-1, -1);
+        SetAimChessPreviewActive(false);
     }
 
     public bool TryGetStoneRemovalCoords(out RectCoordinates coords)
@@ -74,42 +140,7 @@ public class DuelPageBoardInputController
 
     private void RefreshAimChessPreview(SceneBase mainScene, SceneComponentDuel compDuel, PlayerFlag playerFlag)
     {
-        if (mainScene == null || compDuel == null) {
-            SetAimChessPreviewActive(false);
-            return;
-        }
-
-        Ray mouseRay = Global.Instance.uiManager.uiCamera.ScreenPointToRay(Input.mousePosition);
-        if (!Physics.Raycast(mouseRay.origin, mouseRay.direction, out RaycastHit hitInfo, 500)) {
-            SetAimChessPreviewActive(false);
-            return;
-        }
-
-        SceneComponentChessBoard compChessBoard = mainScene.GetComponent<SceneComponentChessBoard>();
-        if (compChessBoard?.chessBoardGrid == null) {
-            SetAimChessPreviewActive(false);
-            return;
-        }
-
-        Transform gridTransform = compChessBoard.chessBoardGrid.transform;
-        Vector3 localHitPoint = gridTransform.InverseTransformPoint(hitInfo.point);
-        float cellSideLength = ChessBoardConfig.rectCellSideLength;
-        float boardSideLength = compChessBoard.chessBoardGrid.gridSize * cellSideLength;
-        if (localHitPoint.x < 0f || localHitPoint.x > boardSideLength || localHitPoint.z < 0f || localHitPoint.z > boardSideLength) {
-            SetAimChessPreviewActive(false);
-            return;
-        }
-
-        int nearestCellX = Mathf.RoundToInt(localHitPoint.x / cellSideLength - 0.5f);
-        int nearestCellZ = compChessBoard.chessBoardGrid.gridSize - 1 - Mathf.RoundToInt(localHitPoint.z / cellSideLength - 0.5f);
-
-        int maxCellIndex = Mathf.Max(compChessBoard.chessBoardGrid.gridSize - 1, 0);
-        nearestCellX = Mathf.Clamp(nearestCellX, 0, maxCellIndex);
-        nearestCellZ = Mathf.Clamp(nearestCellZ, 0, maxCellIndex);
-
-        RectCoordinates nearestCoords = new RectCoordinates(nearestCellX, nearestCellZ);
-        int posIndex = compChessBoard.GetPosIndexByCoords(nearestCoords);
-        if (posIndex < 0 || !DuelMoveRule.CheckMoveLegal(compChessBoard, playerFlag, nearestCoords)) {
+        if (!TryResolveLegalMoveAtPointer(mainScene, compDuel, playerFlag, out RectCoordinates nearestCoords, out Vector3 worldPosition)) {
             SetAimChessPreviewActive(false);
             return;
         }
@@ -119,10 +150,36 @@ public class DuelPageBoardInputController
             return;
         }
 
-        Vector3 nearestCellCenterLocalPos = compChessBoard.chessBoardGrid.GetCellCenterLocalPosition(nearestCellX, nearestCellZ);
-        aimChessPreview.transform.position = gridTransform.TransformPoint(nearestCellCenterLocalPos);
+        aimChessPreview.transform.position = worldPosition;
         aimCoords.SetValue(nearestCoords.x, nearestCoords.z);
         SetAimChessPreviewActive(true);
+    }
+
+    private bool TryResolveLegalMoveAtPointer(
+        SceneBase mainScene,
+        SceneComponentDuel compDuel,
+        PlayerFlag playerFlag,
+        out RectCoordinates coords,
+        out Vector3 worldPosition)
+    {
+        coords = null;
+        worldPosition = Vector3.zero;
+        if (mainScene == null || compDuel == null) {
+            return false;
+        }
+
+        if (!TryGetBoardHitCoords(mainScene, out SceneComponentChessBoard compChessBoard, out RectCoordinates nearestCoords, out Vector3 localPosition)) {
+            return false;
+        }
+
+        int posIndex = compChessBoard.GetPosIndexByCoords(nearestCoords);
+        if (posIndex < 0 || !DuelMoveRule.CheckMoveLegal(compChessBoard, playerFlag, nearestCoords)) {
+            return false;
+        }
+
+        coords = nearestCoords;
+        worldPosition = compChessBoard.chessBoardGrid.transform.TransformPoint(localPosition);
+        return true;
     }
 
     private void RefreshStoneRemovalHover(SceneBase mainScene, OgsDuelSystem ogsDuelSystem)
@@ -192,6 +249,42 @@ public class DuelPageBoardInputController
         coords = new RectCoordinates(nearestCellX, nearestCellZ);
         nearestCellCenterLocalPos = compChessBoard.chessBoardGrid.GetCellCenterLocalPosition(nearestCellX, nearestCellZ);
         return true;
+    }
+
+    private void SetPendingMove(PlayerFlag playerFlag, RectCoordinates coords, Vector3 worldPosition)
+    {
+        EnsureAimChessPreview(playerFlag);
+        if (aimChessPreview == null) {
+            return;
+        }
+
+        pendingMoveCoords.SetValue(coords.x, coords.z);
+        aimCoords.SetValue(coords.x, coords.z);
+        aimChessPreview.transform.position = worldPosition;
+        SetAimChessPreviewActive(true);
+        isPendingMoveActive = true;
+    }
+
+    private bool TrySetPendingMoveCoords(SceneComponentChessBoard compChessBoard, SceneComponentDuel compDuel, PlayerFlag playerFlag, RectCoordinates coords)
+    {
+        if (compChessBoard?.chessBoardGrid == null || compDuel == null || coords == null) {
+            return false;
+        }
+
+        int posIndex = compChessBoard.GetPosIndexByCoords(coords);
+        if (posIndex < 0 || !DuelMoveRule.CheckMoveLegal(compChessBoard, playerFlag, coords)) {
+            return false;
+        }
+
+        Vector3 localPosition = compChessBoard.chessBoardGrid.GetCellCenterLocalPosition(coords.x, coords.z);
+        SetPendingMove(playerFlag, coords, compChessBoard.chessBoardGrid.transform.TransformPoint(localPosition));
+        return true;
+    }
+
+    private bool IsPendingMoveStillLegal(SceneBase mainScene, SceneComponentDuel compDuel, PlayerFlag playerFlag)
+    {
+        SceneComponentChessBoard compChessBoard = mainScene?.GetComponent<SceneComponentChessBoard>();
+        return TrySetPendingMoveCoords(compChessBoard, compDuel, playerFlag, pendingMoveCoords);
     }
 
     private void EnsureAimChessPreview(PlayerFlag playerFlag)

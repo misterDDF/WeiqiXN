@@ -48,6 +48,13 @@
     "isLoadAsync": true,
     "closeOnSceneExit": true
   },
+  "DuelMoveConfirmPopup": {
+    "id": "DuelMoveConfirmPopup",
+    "contextType": "Header",
+    "isPopup": true,
+    "isLoadAsync": true,
+    "closeOnSceneExit": true
+  },
   "ConfirmPopup": {
     "id": "ConfirmPopup",
     "contextType": "TopMost",
