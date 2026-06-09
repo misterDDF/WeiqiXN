@@ -1,0 +1,4 @@
+interface:
+  display_name: "APK Install"
+  short_description: "Install APK to all Android devices."
+  default_prompt: "Install the current WeiqiXN APK to all connected Android devices and launch it after install."
