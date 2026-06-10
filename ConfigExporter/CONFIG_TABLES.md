@@ -5,10 +5,11 @@
 | 配置表 | 主要功能 |
 | --- | --- |
 | `chess_board` | 定义棋盘规格和棋盘相关表现参数，当前包含 `9x9`、`13x13`、`19x19`；`ogsEnabled` 控制该棋盘是否出现在 OGS 对局设置中。 |
-| `duel_hold_time` | 定义对局保留时间选项，例如 2 分钟、5 分钟、无限时间等；`ogsEnabled` 控制该持有时间是否出现在 OGS 对局设置中。 |
-| `duel_byoyomi_count` | 定义读秒次数选项，包含关闭读秒和若干读秒次数；`ogsEnabled` 控制该读秒次数是否出现在 OGS 对局设置中。 |
-| `duel_byoyomi_time` | 定义单次读秒时长选项；`ogsEnabled` 控制该读秒时长是否出现在 OGS 对局设置中。 |
+| `duel_hold_time` | 定义对局保留时间选项，例如 2 分钟、5 分钟、无限时间等；`ogsEnabled` 控制该持有时间是否出现在 OGS 好友邀请的自定义时间设置中，OGS 自动匹配改由 `ogs_automatch_time_option` 单独配置。 |
+| `duel_byoyomi_count` | 定义读秒次数选项，包含关闭读秒和若干读秒次数；`ogsEnabled` 控制该读秒次数是否出现在 OGS 好友邀请的自定义时间设置中，OGS 自动匹配改由 `ogs_automatch_time_option` 单独配置。 |
+| `duel_byoyomi_time` | 定义单次读秒时长选项；`ogsEnabled` 控制该读秒时长是否出现在 OGS 好友邀请的自定义时间设置中，OGS 自动匹配改由 `ogs_automatch_time_option` 单独配置。 |
 | `duel_handicap` | 定义不同棋盘规格下的分先、让先、让子选项，包含贴目和预摆星位坐标；`ogsEnabled` 控制该让子选项是否可用于 OGS 自动匹配配置边界，`ogsFriendEnabled` 控制该让子选项是否出现在 OGS 好友邀请设置中。 |
+| `ogs_automatch_time_option` | 定义 OGS 自动匹配在不同棋盘规格下的单下拉时间选项，并映射到 OGS automatch 接口实际接受的 `speed` 和 `system`；每个棋盘规格对应 Web 端实时匹配的 3 个速度 x 2 个计时系统，共 6 个选项。 |
 | `duel_ai_difficulty` | 定义电脑对局难度、KataGo Human SL profile、human policy 使用权重、KataGo 分析参数、不同棋盘尺寸的实时预算和动态预算阈值。 |
 | `replay_config` | 定义复盘界面运行参数项；每行一个参数，当前包含 AI 分析开关、KataGo 访问次数、推荐点数量和胜率显示范围。 |
 | `game_prefab` | 定义运行时可按配置 id 加载的游戏预制体路径。 |
