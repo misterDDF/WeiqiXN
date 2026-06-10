@@ -28,6 +28,10 @@ public sealed class OgsConnectionService : ModuleBase
     private bool sessionLoaded;
     private int friendInvitationCount;
     private OgsFriendDataRequestCache friendDataRequestCache;
+    private readonly object friendListDisplayCacheLock = new object();
+    private List<OgsFriendListItem> cachedFriendListItems;
+    private int cachedFriendListTotalCount;
+    private bool hasCachedFriendList;
     private OgsRealtimeConnection realtimeConnection;
 
     public OgsConnectionService()
@@ -125,13 +129,13 @@ public sealed class OgsConnectionService : ModuleBase
         EnsureInitialized();
         if (string.IsNullOrWhiteSpace(baseUrl)) {
             apiBaseUrl = OgsConnectionConfig.DefaultApiBaseUrl;
-            friendDataRequestCache?.Clear();
+            ClearFriendDataCaches();
             RestartRealtimeConnectionIfNeeded();
             return;
         }
 
         apiBaseUrl = baseUrl.Trim().TrimEnd('/');
-        friendDataRequestCache?.Clear();
+        ClearFriendDataCaches();
         RestartRealtimeConnectionIfNeeded();
     }
 
@@ -206,7 +210,7 @@ public sealed class OgsConnectionService : ModuleBase
             }
 
             OgsSessionStore.Save(session);
-            friendDataRequestCache?.Clear();
+            ClearFriendDataCaches();
             StartRealtimeConnection();
             XNLogger.LogInfo("OGS login succeeded.", ("userId", session.userId ?? string.Empty), ("username", session.username ?? string.Empty));
             return new OgsConnectionResult(true, "OGS login succeeded.");
@@ -409,6 +413,9 @@ public sealed class OgsConnectionService : ModuleBase
             List<OgsFriendListItem> friends = IsPagedFriendListResponse(friendJson)
                 ? allFriends
                 : SliceFriendList(allFriends, page, pageSize);
+            if (page == 1) {
+                UpdateCachedFriendList(friends, totalCount);
+            }
             XNLogger.LogInfo(
                 "OGS friend list refreshed.",
                 ("page", page.ToString()),
@@ -514,7 +521,7 @@ public sealed class OgsConnectionService : ModuleBase
                 ["player_id"] = playerId,
             };
             await PostJsonAsync($"{apiBaseUrl}/api/v1/me/friends/", payload, accessToken, cancellationToken);
-            friendDataRequestCache?.Clear();
+            ClearFriendDataCaches();
             XNLogger.LogInfo("OGS friend request sent.", ("playerId", playerId.ToString()));
             return new OgsConnectionResult(true, "OGS friend request sent.");
         }
@@ -550,7 +557,7 @@ public sealed class OgsConnectionService : ModuleBase
                 ["delete"] = true,
             };
             await PostJsonTokenAsync($"{apiBaseUrl}/api/v1/me/friends/", payload, accessToken, cancellationToken);
-            friendDataRequestCache?.Clear();
+            ClearFriendDataCaches();
             XNLogger.LogInfo("OGS friend deleted.", ("friendUserId", friendUserId.Trim()));
             return new OgsConnectionResult(true, "OGS friend deleted.");
         }
@@ -637,7 +644,7 @@ public sealed class OgsConnectionService : ModuleBase
             }
 
             await PostJsonAsync($"{apiBaseUrl}/api/v1/me/friends/invitations/", payload, accessToken, cancellationToken);
-            friendDataRequestCache?.Clear();
+            ClearFriendDataCaches();
             XNLogger.LogInfo(
                 "OGS friend invitation responded.",
                 ("fromUserId", fromUserId.ToString()),
@@ -661,11 +668,52 @@ public sealed class OgsConnectionService : ModuleBase
         lock (sessionLock) {
             session.Clear();
         }
-        friendDataRequestCache?.Clear();
+        ClearFriendDataCaches();
         realtimeConnection?.ClearUserStates();
         OgsSessionStore.Clear();
         XNLogger.LogInfo("OGS session cleared.");
         EmitFriendInvitationCountChanged(0);
+    }
+
+    public bool TryGetCachedFriendList(out OgsFriendListResult result)
+    {
+        EnsureInitialized();
+        result = null;
+        if (!HasSession) {
+            return false;
+        }
+
+        lock (friendListDisplayCacheLock) {
+            if (!hasCachedFriendList) {
+                return false;
+            }
+
+            result = new OgsFriendListResult(
+                true,
+                "OGS cached friend list.",
+                CloneFriendItems(cachedFriendListItems),
+                cachedFriendListTotalCount);
+            return true;
+        }
+    }
+
+    private void UpdateCachedFriendList(List<OgsFriendListItem> friends, int totalCount)
+    {
+        lock (friendListDisplayCacheLock) {
+            cachedFriendListItems = CloneFriendItems(friends);
+            cachedFriendListTotalCount = Mathf.Max(totalCount, cachedFriendListItems.Count);
+            hasCachedFriendList = true;
+        }
+    }
+
+    private void ClearFriendDataCaches()
+    {
+        friendDataRequestCache?.Clear();
+        lock (friendListDisplayCacheLock) {
+            cachedFriendListItems = null;
+            cachedFriendListTotalCount = 0;
+            hasCachedFriendList = false;
+        }
     }
 
     public void EmitFriendInvitationCountChanged(int count)
@@ -3662,6 +3710,23 @@ public sealed class OgsConnectionService : ModuleBase
             registeredAt = source.registeredAt,
             about = source.about,
         };
+    }
+
+    private static List<OgsFriendListItem> CloneFriendItems(List<OgsFriendListItem> source)
+    {
+        var result = new List<OgsFriendListItem>();
+        if (source == null) {
+            return result;
+        }
+
+        for (int i = 0; i < source.Count; i++) {
+            OgsFriendListItem item = CloneFriendItem(source[i]);
+            if (item != null) {
+                result.Add(item);
+            }
+        }
+
+        return result;
     }
 
     private static void MergeFriendItem(OgsFriendListItem target, OgsFriendListItem source)

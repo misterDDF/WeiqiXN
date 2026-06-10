@@ -25,6 +25,7 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
     private bool isInvitationMode;
     private bool isInvitationBadgeRunning;
     private bool isFriendRequestRunning;
+    private bool isShowingCachedFriendList;
     private bool hasAppliedLayoutState;
     private bool lastPortraitLayout;
 
@@ -61,7 +62,11 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
         ApplyCurrentLayoutState(false);
         nextAutoRefreshTime = Time.unscaledTime + AutoRefreshIntervalSeconds;
         SetFriendRequestsButtonText();
-        RefreshList();
+        if (TryShowCachedFriendList()) {
+            RefreshFriendList(false, false);
+        } else {
+            RefreshList();
+        }
         RefreshInvitationBadge();
     }
 
@@ -91,6 +96,7 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
         }
         refreshVersion += 1;
         isRefreshRunning = false;
+        isShowingCachedFriendList = false;
         ClearItemWidgets();
         base.OnClose();
     }
@@ -116,6 +122,7 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
             invitationItems.Clear();
             friendTotalCount = 0;
             pendingInvitationCount = 0;
+            isShowingCachedFriendList = false;
             if (resetPage) {
                 pageIndex = 0;
             }
@@ -148,13 +155,14 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
             }
 
             if (!result.success) {
-                if (friendItems.Count > 0 && !showLoading) {
+                if (!showLoading && (friendItems.Count > 0 || isShowingCachedFriendList)) {
                     XNLogger.LogWarn("OGS friend auto refresh failed, keeping current list.", ("message", result.message));
                     return;
                 }
 
                 friendItems.Clear();
                 friendTotalCount = 0;
+                isShowingCachedFriendList = false;
                 ClearItemWidgets();
                 SetText(binder.txt_error, string.IsNullOrWhiteSpace(result.message) ? "OGS 好友列表读取失败" : result.message);
                 SetState(OgsFriendListPopupUI.SrOgsFriendState.Error);
@@ -168,6 +176,7 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
                 friendItems.AddRange(result.friends);
             }
             friendTotalCount = Mathf.Max(result.totalCount, friendItems.Count);
+            isShowingCachedFriendList = false;
             RefreshPage();
             RefreshInvitationBadge();
         }
@@ -177,8 +186,14 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
                 return;
             }
 
+            if (!showLoading && (friendItems.Count > 0 || isShowingCachedFriendList)) {
+                XNLogger.LogWarn("OGS friend auto refresh threw, keeping current list.", ("err", ex.Message));
+                return;
+            }
+
             friendItems.Clear();
             friendTotalCount = 0;
+            isShowingCachedFriendList = false;
             ClearItemWidgets();
             SetText(binder.txt_error, ex.Message);
             SetState(OgsFriendListPopupUI.SrOgsFriendState.Error);
@@ -205,6 +220,7 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
             invitationItems.Clear();
             friendTotalCount = 0;
             pendingInvitationCount = 0;
+            isShowingCachedFriendList = false;
             if (resetPage) {
                 pageIndex = 0;
             }
@@ -371,6 +387,31 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
         SetText(binder.txt_page, $"{pageIndex + 1} / {pageCount}");
         SetPageButtons(pageIndex > 0, pageIndex < pageCount - 1);
     }
+
+    private bool TryShowCachedFriendList()
+    {
+        OgsConnectionService service = Global.Instance.ogsConnectionService;
+        if (service == null || !service.HasSession) {
+            return false;
+        }
+
+        if (!service.TryGetCachedFriendList(out OgsFriendListResult result) || result == null || !result.success) {
+            return false;
+        }
+
+        friendItems.Clear();
+        if (result.friends != null) {
+            friendItems.AddRange(result.friends);
+        }
+
+        pageIndex = 0;
+        friendTotalCount = Mathf.Max(result.totalCount, friendItems.Count);
+        lastItemsPerPage = GetItemsPerPage();
+        isShowingCachedFriendList = true;
+        RefreshPage();
+        return true;
+    }
+
     private OgsFriendItemWidget CreateItemWidget()
     {
         if (binder.content_friend_list == null) {
@@ -451,6 +492,7 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
     private void OnClickBtnFriendRequests()
     {
         isInvitationMode = !isInvitationMode;
+        isShowingCachedFriendList = false;
         pageIndex = 0;
         if (isRefreshRunning) {
             refreshVersion += 1;
