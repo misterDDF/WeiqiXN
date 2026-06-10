@@ -1162,7 +1162,7 @@ public sealed class OgsConnectionService : ModuleBase
                     "OGS automatch game started.",
                     ("gameId", gameId.ToString()),
                     ("requestedBoard", $"{createParams.boardSize}x{createParams.boardSize}"),
-                    ("speed", ResolveAutomatchSpeed(createParams.mainTimeSeconds)),
+                    ("speed", ResolveAutomatchSpeed(createParams)),
                     ("system", ResolveAutomatchSystem(createParams)));
                 return new OgsBotGameStartResult(
                     true,
@@ -1837,7 +1837,7 @@ public sealed class OgsConnectionService : ModuleBase
                     new JObject
                     {
                         ["size"] = $"{createParams.boardSize}x{createParams.boardSize}",
-                        ["speed"] = ResolveAutomatchSpeed(createParams.mainTimeSeconds),
+                        ["speed"] = ResolveAutomatchSpeed(createParams),
                         ["system"] = ResolveAutomatchSystem(createParams),
                     },
                 },
@@ -1939,6 +1939,8 @@ public sealed class OgsConnectionService : ModuleBase
         int byoyomiPeriods = Math.Max(0, createParams.byoyomiPeriods);
         int byoyomiPeriodSeconds = Math.Max(0, createParams.byoyomiPeriodSeconds);
         int handicap = Math.Max(0, createParams.handicap);
+        string speed = NormalizeAutomatchSpeed(createParams.speed, mainTimeSeconds);
+        string system = NormalizeAutomatchSystem(createParams.system, byoyomiPeriods, byoyomiPeriodSeconds);
         int lowerRankDiff = Math.Max(0, createParams.lowerRankDiff);
         int upperRankDiff = Math.Max(0, createParams.upperRankDiff);
         return new OgsAutomatchCreateParams(
@@ -1947,6 +1949,8 @@ public sealed class OgsConnectionService : ModuleBase
             byoyomiPeriods,
             byoyomiPeriodSeconds,
             handicap,
+            speed,
+            system,
             lowerRankDiff,
             upperRankDiff);
     }
@@ -2066,8 +2070,24 @@ public sealed class OgsConnectionService : ModuleBase
         return fallback == 9 || fallback == 13 || fallback == 19 ? fallback : 19;
     }
 
-    private static string ResolveAutomatchSpeed(int mainTimeSeconds)
+    private static string ResolveAutomatchSpeed(OgsAutomatchCreateParams createParams)
     {
+        return createParams != null
+            ? NormalizeAutomatchSpeed(createParams.speed, createParams.mainTimeSeconds)
+            : OgsAutomatchCreateParams.Default.speed;
+    }
+
+    private static string NormalizeAutomatchSpeed(string speed, int mainTimeSeconds)
+    {
+        if (string.Equals(speed, "blitz", StringComparison.OrdinalIgnoreCase)) {
+            return "blitz";
+        }
+        if (string.Equals(speed, "rapid", StringComparison.OrdinalIgnoreCase)) {
+            return "rapid";
+        }
+        if (string.Equals(speed, "live", StringComparison.OrdinalIgnoreCase)) {
+            return "live";
+        }
         if (mainTimeSeconds > 0 && mainTimeSeconds <= 120) {
             return "blitz";
         }
@@ -2080,7 +2100,20 @@ public sealed class OgsConnectionService : ModuleBase
 
     private static string ResolveAutomatchSystem(OgsAutomatchCreateParams createParams)
     {
-        if (createParams != null && createParams.byoyomiPeriods > 0 && createParams.byoyomiPeriodSeconds > 0) {
+        return createParams != null
+            ? NormalizeAutomatchSystem(createParams.system, createParams.byoyomiPeriods, createParams.byoyomiPeriodSeconds)
+            : OgsAutomatchCreateParams.Default.system;
+    }
+
+    private static string NormalizeAutomatchSystem(string system, int byoyomiPeriods, int byoyomiPeriodSeconds)
+    {
+        if (string.Equals(system, "byoyomi", StringComparison.OrdinalIgnoreCase)) {
+            return "byoyomi";
+        }
+        if (string.Equals(system, "fischer", StringComparison.OrdinalIgnoreCase)) {
+            return "fischer";
+        }
+        if (byoyomiPeriods > 0 && byoyomiPeriodSeconds > 0) {
             return "byoyomi";
         }
 

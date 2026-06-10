@@ -1,4 +1,5 @@
 using UnityEngine.UI;
+using UnityEngine;
 using System;
 using System.Collections.Generic;
 using TMPro;
@@ -44,6 +45,11 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     private readonly List<string> aiDifficultyCfgIds = new List<string>();
     private readonly List<string> playerSideCfgIds = new List<string> { PlayerSideGuess, PlayerSideBlack, PlayerSideWhite };
     private readonly List<string> handicapCfgIds = new List<string>();
+    private readonly List<string> holdTimeCfgIds = new List<string>();
+    private readonly List<string> byoyomiCountCfgIds = new List<string>();
+    private readonly List<string> byoyomiTimeCfgIds = new List<string>();
+    private readonly List<string> ogsAutomatchTimeOptionCfgIds = new List<string>();
+    private bool isRefreshingTimeDropdowns;
 
     public static void Open(bool isAiDuel)
     {
@@ -86,7 +92,7 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         AddButtonListener(binder.btn_9x9, () => SelectBoard("9x9"));
         AddButtonListener(binder.btn_13x13, () => SelectBoard("13x13"));
         AddButtonListener(binder.btn_19x19, () => SelectBoard("19x19"));
-        BindTimeControlButtons();
+        BindTimeControlDropdowns();
         BindPlayerColorDropdown();
         BindHandicapDropdown();
         BindAiDifficultyDropdown();
@@ -107,6 +113,7 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         setupPreferenceMode = ResolvePreferenceMode();
         LoadPreference();
         NormalizeSetupSelection();
+        RefreshTimeControlDropdowns();
         RefreshPlayerColorDropdown();
         RefreshHandicapDropdown();
         RefreshAiDifficultyDropdown();
@@ -184,23 +191,20 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         ClosePage();
     }
 
-    private void BindTimeControlButtons()
+    private void BindTimeControlDropdowns()
     {
-        AddButtonListener(binder.btn_hold_time_2m, () => SelectHoldTime("2m"));
-        AddButtonListener(binder.btn_hold_time_5m, () => SelectHoldTime("5m"));
-        AddButtonListener(binder.btn_hold_time_10m, () => SelectHoldTime("10m"));
-        AddButtonListener(binder.btn_hold_time_20m, () => SelectHoldTime("20m"));
-        AddButtonListener(binder.btn_hold_time_infinite, () => SelectHoldTime("infinite"));
-
-        AddButtonListener(binder.btn_byoyomi_count_off, () => SelectByoyomiCount("off"));
-        AddButtonListener(binder.btn_byoyomi_count_1, () => SelectByoyomiCount("1"));
-        AddButtonListener(binder.btn_byoyomi_count_3, () => SelectByoyomiCount("3"));
-        AddButtonListener(binder.btn_byoyomi_count_5, () => SelectByoyomiCount("5"));
-
-        AddButtonListener(binder.btn_byoyomi_time_10s, () => SelectByoyomiTime("10s"));
-        AddButtonListener(binder.btn_byoyomi_time_20s, () => SelectByoyomiTime("20s"));
-        AddButtonListener(binder.btn_byoyomi_time_30s, () => SelectByoyomiTime("30s"));
-        AddButtonListener(binder.btn_byoyomi_time_60s, () => SelectByoyomiTime("60s"));
+        if (binder.dropdown_ogs_time_option != null) {
+            binder.dropdown_ogs_time_option.onValueChanged.AddListener(OnOgsTimeOptionDropdownValueChanged);
+        }
+        if (binder.dropdown_hold_time != null) {
+            binder.dropdown_hold_time.onValueChanged.AddListener(OnHoldTimeDropdownValueChanged);
+        }
+        if (binder.dropdown_byoyomi_count != null) {
+            binder.dropdown_byoyomi_count.onValueChanged.AddListener(OnByoyomiCountDropdownValueChanged);
+        }
+        if (binder.dropdown_byoyomi_time != null) {
+            binder.dropdown_byoyomi_time.onValueChanged.AddListener(OnByoyomiTimeDropdownValueChanged);
+        }
     }
 
     private void ApplyCurrentLayoutState(bool force)
@@ -254,6 +258,8 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         }
 
         selectedBoardCfgId = boardCfgId;
+        NormalizeTimeControlSelection();
+        RefreshTimeControlDropdowns();
         NormalizeHandicapSelection();
         RefreshHandicapDropdown();
         RefreshSelectionState();
@@ -270,6 +276,7 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
 
         selectedHoldTimeCfgId = holdTimeCfgId;
         NormalizeTimeControlSelection();
+        RefreshTimeControlDropdowns();
         RefreshSelectionState();
     }
 
@@ -285,6 +292,8 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         }
 
         selectedByoyomiCountCfgId = byoyomiCountCfgId;
+        NormalizeTimeControlSelection();
+        RefreshTimeControlDropdowns();
         RefreshSelectionState();
     }
 
@@ -300,11 +309,18 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         }
 
         selectedByoyomiTimeCfgId = byoyomiTimeCfgId;
+        NormalizeTimeControlSelection();
+        RefreshTimeControlDropdowns();
         RefreshSelectionState();
     }
 
     private void NormalizeTimeControlSelection()
     {
+        if (IsOgsAutomatchSetup()) {
+            NormalizeOgsAutomatchTimeSelection();
+            return;
+        }
+
         if (IsInfiniteHoldTimeSelected()) {
             selectedByoyomiCountCfgId = ByoyomiOffCfgId;
         }
@@ -442,19 +458,55 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     private bool CanUseHoldTimeCfg(string cfgId)
     {
         DuelHoldTimeDataType data = DuelHoldTimeDataType.GetConfigData(cfgId);
-        return data != null && (!IsAnyOgsSetup() || data.ogsEnabled);
+        if (data == null) {
+            return false;
+        }
+        if (IsOgsAutomatchSetup()) {
+            foreach (OgsAutomatchTimeOptionDataType option in GetOgsAutomatchTimeOptionsForBoard(selectedBoardCfgId)) {
+                if (option.holdTimeCfgId == cfgId) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        return !IsAnyOgsSetup() || data.ogsEnabled;
     }
 
     private bool CanUseByoyomiCountCfg(string cfgId)
     {
         DuelByoyomiCountDataType data = DuelByoyomiCountDataType.GetConfigData(cfgId);
-        return data != null && (!IsAnyOgsSetup() || data.ogsEnabled);
+        if (data == null) {
+            return false;
+        }
+        if (IsOgsAutomatchSetup()) {
+            foreach (OgsAutomatchTimeOptionDataType option in GetOgsAutomatchTimeOptionsForBoard(selectedBoardCfgId)) {
+                if (option.byoyomiCountCfgId == cfgId) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        return !IsAnyOgsSetup() || data.ogsEnabled;
     }
 
     private bool CanUseByoyomiTimeCfg(string cfgId)
     {
         DuelByoyomiTimeDataType data = DuelByoyomiTimeDataType.GetConfigData(cfgId);
-        return data != null && (!IsAnyOgsSetup() || data.ogsEnabled);
+        if (data == null) {
+            return false;
+        }
+        if (IsOgsAutomatchSetup()) {
+            foreach (OgsAutomatchTimeOptionDataType option in GetOgsAutomatchTimeOptionsForBoard(selectedBoardCfgId)) {
+                if (option.byoyomiTimeCfgId == cfgId) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        return !IsAnyOgsSetup() || data.ogsEnabled;
     }
 
     private bool CanUseHandicapCfg(string cfgId)
@@ -472,29 +524,322 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         return true;
     }
 
+    private void RefreshTimeControlDropdowns()
+    {
+        isRefreshingTimeDropdowns = true;
+        try {
+            if (IsOgsAutomatchSetup()) {
+                RefreshOgsAutomatchTimeOptionDropdown();
+            }
+            else {
+                RefreshStandardTimeDropdowns();
+            }
+        }
+        finally {
+            isRefreshingTimeDropdowns = false;
+        }
+    }
+
+    private void RefreshStandardTimeDropdowns()
+    {
+        FillStandardHoldTimeOptions();
+        if (!holdTimeCfgIds.Contains(selectedHoldTimeCfgId)) {
+            selectedHoldTimeCfgId = ResolveDefaultHoldTimeCfgId();
+        }
+
+        FillStandardByoyomiCountOptions();
+        if (!byoyomiCountCfgIds.Contains(selectedByoyomiCountCfgId)) {
+            selectedByoyomiCountCfgId = ByoyomiOffCfgId;
+        }
+
+        FillStandardByoyomiTimeOptions();
+        if (!byoyomiTimeCfgIds.Contains(selectedByoyomiTimeCfgId)) {
+            selectedByoyomiTimeCfgId = byoyomiTimeCfgIds.Count > 0 ? byoyomiTimeCfgIds[0] : "30s";
+        }
+
+        RefreshDropdownOptions(binder.dropdown_hold_time, holdTimeCfgIds, selectedHoldTimeCfgId, GetHoldTimeDisplayName);
+        RefreshDropdownOptions(binder.dropdown_byoyomi_count, byoyomiCountCfgIds, selectedByoyomiCountCfgId, GetByoyomiCountDisplayName);
+        RefreshDropdownOptions(binder.dropdown_byoyomi_time, byoyomiTimeCfgIds, selectedByoyomiTimeCfgId, GetByoyomiTimeDisplayName);
+    }
+
+    private void RefreshOgsAutomatchTimeOptionDropdown()
+    {
+        NormalizeOgsAutomatchTimeSelection();
+        List<OgsAutomatchTimeOptionDataType> boardOptions = GetOgsAutomatchTimeOptionsForBoard(selectedBoardCfgId);
+
+        ogsAutomatchTimeOptionCfgIds.Clear();
+        foreach (OgsAutomatchTimeOptionDataType option in boardOptions) {
+            AddUnique(ogsAutomatchTimeOptionCfgIds, option.id);
+        }
+
+        OgsAutomatchTimeOptionDataType selectedOption = FindOgsAutomatchTimeOption(
+            selectedBoardCfgId,
+            selectedHoldTimeCfgId,
+            selectedByoyomiCountCfgId,
+            selectedByoyomiTimeCfgId);
+        if (selectedOption == null) {
+            selectedOption = ResolveDefaultOgsAutomatchTimeOption(selectedBoardCfgId);
+        }
+        if (selectedOption != null) {
+            ApplyOgsAutomatchTimeOption(selectedOption);
+        }
+
+        string selectedOptionCfgId = selectedOption != null ? selectedOption.id : string.Empty;
+        RefreshDropdownOptions(binder.dropdown_ogs_time_option, ogsAutomatchTimeOptionCfgIds, selectedOptionCfgId, GetOgsAutomatchTimeOptionDisplayName);
+    }
+
+    private void FillStandardHoldTimeOptions()
+    {
+        holdTimeCfgIds.Clear();
+        DuelHoldTimeDataType.GetConfigData(string.Empty);
+        if (DuelHoldTimeDataType.DuelHoldTimeDict == null) {
+            return;
+        }
+
+        List<DuelHoldTimeDataType> options = new List<DuelHoldTimeDataType>();
+        foreach (DuelHoldTimeDataType data in DuelHoldTimeDataType.DuelHoldTimeDict.Values) {
+            if (data != null && CanUseHoldTimeCfg(data.id)) {
+                options.Add(data);
+            }
+        }
+        options.Sort(CompareHoldTimeData);
+        foreach (DuelHoldTimeDataType data in options) {
+            holdTimeCfgIds.Add(data.id);
+        }
+    }
+
+    private void FillStandardByoyomiCountOptions()
+    {
+        byoyomiCountCfgIds.Clear();
+        DuelByoyomiCountDataType.GetConfigData(string.Empty);
+        if (DuelByoyomiCountDataType.DuelByoyomiCountDict == null) {
+            return;
+        }
+
+        List<DuelByoyomiCountDataType> options = new List<DuelByoyomiCountDataType>();
+        foreach (DuelByoyomiCountDataType data in DuelByoyomiCountDataType.DuelByoyomiCountDict.Values) {
+            if (data != null && CanUseByoyomiCountCfg(data.id)) {
+                options.Add(data);
+            }
+        }
+        options.Sort((a, b) => a.count.CompareTo(b.count));
+        foreach (DuelByoyomiCountDataType data in options) {
+            byoyomiCountCfgIds.Add(data.id);
+        }
+    }
+
+    private void FillStandardByoyomiTimeOptions()
+    {
+        byoyomiTimeCfgIds.Clear();
+        DuelByoyomiTimeDataType.GetConfigData(string.Empty);
+        if (DuelByoyomiTimeDataType.DuelByoyomiTimeDict == null) {
+            return;
+        }
+
+        List<DuelByoyomiTimeDataType> options = new List<DuelByoyomiTimeDataType>();
+        foreach (DuelByoyomiTimeDataType data in DuelByoyomiTimeDataType.DuelByoyomiTimeDict.Values) {
+            if (data != null && CanUseByoyomiTimeCfg(data.id)) {
+                options.Add(data);
+            }
+        }
+        options.Sort((a, b) => a.seconds.CompareTo(b.seconds));
+        foreach (DuelByoyomiTimeDataType data in options) {
+            byoyomiTimeCfgIds.Add(data.id);
+        }
+    }
+
+    private void NormalizeOgsAutomatchTimeSelection()
+    {
+        if (FindOgsAutomatchTimeOption(
+                selectedBoardCfgId,
+                selectedHoldTimeCfgId,
+                selectedByoyomiCountCfgId,
+                selectedByoyomiTimeCfgId) != null) {
+            return;
+        }
+
+        OgsAutomatchTimeOptionDataType defaultOption = ResolveNearestOgsAutomatchTimeOption();
+        if (defaultOption == null) {
+            defaultOption = ResolveDefaultOgsAutomatchTimeOption(selectedBoardCfgId);
+        }
+        if (defaultOption == null) {
+            return;
+        }
+
+        selectedHoldTimeCfgId = defaultOption.holdTimeCfgId;
+        selectedByoyomiCountCfgId = defaultOption.byoyomiCountCfgId;
+        selectedByoyomiTimeCfgId = defaultOption.byoyomiTimeCfgId;
+    }
+
+    private void SelectOgsAutomatchTimeOption(string optionCfgId)
+    {
+        OgsAutomatchTimeOptionDataType option = OgsAutomatchTimeOptionDataType.GetConfigData(optionCfgId);
+        if (option == null || !option.enabled || option.boardCfgId != selectedBoardCfgId) {
+            return;
+        }
+
+        ApplyOgsAutomatchTimeOption(option);
+        RefreshTimeControlDropdowns();
+        RefreshSelectionState();
+    }
+
+    private void ApplyOgsAutomatchTimeOption(OgsAutomatchTimeOptionDataType option)
+    {
+        if (option == null) {
+            return;
+        }
+
+        selectedHoldTimeCfgId = option.holdTimeCfgId;
+        selectedByoyomiCountCfgId = option.byoyomiCountCfgId;
+        selectedByoyomiTimeCfgId = option.byoyomiTimeCfgId;
+    }
+
+    private OgsAutomatchTimeOptionDataType ResolveNearestOgsAutomatchTimeOption()
+    {
+        OgsAutomatchTimeOptionDataType holdAndCountMatch = null;
+        OgsAutomatchTimeOptionDataType holdMatch = null;
+        foreach (OgsAutomatchTimeOptionDataType option in GetOgsAutomatchTimeOptionsForBoard(selectedBoardCfgId)) {
+            if (option.holdTimeCfgId != selectedHoldTimeCfgId) {
+                continue;
+            }
+            holdMatch = holdMatch ?? option;
+            if (option.byoyomiCountCfgId == selectedByoyomiCountCfgId) {
+                holdAndCountMatch = option;
+                break;
+            }
+        }
+
+        return holdAndCountMatch ?? holdMatch;
+    }
+
+    private OgsAutomatchTimeOptionDataType ResolveDefaultOgsAutomatchTimeOption(string boardCfgId)
+    {
+        List<OgsAutomatchTimeOptionDataType> options = GetOgsAutomatchTimeOptionsForBoard(boardCfgId);
+        foreach (OgsAutomatchTimeOptionDataType option in options) {
+            if (option.speed == "rapid" && option.system == "byoyomi") {
+                return option;
+            }
+        }
+
+        return options.Count > 0 ? options[0] : null;
+    }
+
+    private OgsAutomatchTimeOptionDataType FindOgsAutomatchTimeOption(string boardCfgId, string holdTimeCfgId, string byoyomiCountCfgId, string byoyomiTimeCfgId)
+    {
+        foreach (OgsAutomatchTimeOptionDataType option in GetOgsAutomatchTimeOptionsForBoard(boardCfgId)) {
+            if (option.holdTimeCfgId == holdTimeCfgId
+                && option.byoyomiCountCfgId == byoyomiCountCfgId
+                && option.byoyomiTimeCfgId == byoyomiTimeCfgId) {
+                return option;
+            }
+        }
+
+        return null;
+    }
+
+    private List<OgsAutomatchTimeOptionDataType> GetOgsAutomatchTimeOptionsForBoard(string boardCfgId)
+    {
+        List<OgsAutomatchTimeOptionDataType> options = new List<OgsAutomatchTimeOptionDataType>();
+        OgsAutomatchTimeOptionDataType.GetConfigData(string.Empty);
+        if (OgsAutomatchTimeOptionDataType.OgsAutomatchTimeOptionDict == null) {
+            return options;
+        }
+
+        foreach (OgsAutomatchTimeOptionDataType option in OgsAutomatchTimeOptionDataType.OgsAutomatchTimeOptionDict.Values) {
+            if (option != null && option.enabled && option.boardCfgId == boardCfgId) {
+                options.Add(option);
+            }
+        }
+        options.Sort(CompareOgsAutomatchTimeOption);
+        return options;
+    }
+
+    private int CompareOgsAutomatchTimeOption(OgsAutomatchTimeOptionDataType a, OgsAutomatchTimeOptionDataType b)
+    {
+        int orderCompare = a.sortOrder.CompareTo(b.sortOrder);
+        return orderCompare != 0 ? orderCompare : string.CompareOrdinal(a.id, b.id);
+    }
+
+    private int CompareHoldTimeData(DuelHoldTimeDataType a, DuelHoldTimeDataType b)
+    {
+        int aSeconds = a.isInfinite ? int.MaxValue : a.holdSeconds;
+        int bSeconds = b.isInfinite ? int.MaxValue : b.holdSeconds;
+        int secondsCompare = aSeconds.CompareTo(bSeconds);
+        return secondsCompare != 0 ? secondsCompare : string.CompareOrdinal(a.id, b.id);
+    }
+
+    private void RefreshDropdownOptions(TMP_Dropdown dropdown, List<string> cfgIds, string selectedCfgId, Func<string, string> displayNameResolver)
+    {
+        if (dropdown == null) {
+            return;
+        }
+
+        dropdown.ClearOptions();
+        List<TMP_Dropdown.OptionData> options = new List<TMP_Dropdown.OptionData>();
+        foreach (string cfgId in cfgIds) {
+            options.Add(new TMP_Dropdown.OptionData(displayNameResolver(cfgId)));
+        }
+        dropdown.AddOptions(options);
+
+        int selectedIndex = cfgIds.IndexOf(selectedCfgId);
+        if (selectedIndex < 0) {
+            selectedIndex = 0;
+        }
+        dropdown.SetValueWithoutNotify(selectedIndex);
+        dropdown.RefreshShownValue();
+    }
+
+    private string GetHoldTimeDisplayName(string cfgId)
+    {
+        DuelHoldTimeDataType data = DuelHoldTimeDataType.GetConfigData(cfgId);
+        return data != null ? data.displayName : cfgId;
+    }
+
+    private string GetByoyomiCountDisplayName(string cfgId)
+    {
+        DuelByoyomiCountDataType data = DuelByoyomiCountDataType.GetConfigData(cfgId);
+        return data != null ? data.displayName : cfgId;
+    }
+
+    private string GetByoyomiTimeDisplayName(string cfgId)
+    {
+        DuelByoyomiTimeDataType data = DuelByoyomiTimeDataType.GetConfigData(cfgId);
+        return data != null ? data.displayName : cfgId;
+    }
+
+    private string GetOgsAutomatchTimeOptionDisplayName(string cfgId)
+    {
+        OgsAutomatchTimeOptionDataType data = OgsAutomatchTimeOptionDataType.GetConfigData(cfgId);
+        return data != null ? data.displayName : cfgId;
+    }
+
+    private void AddUnique(List<string> cfgIds, string cfgId)
+    {
+        if (!string.IsNullOrEmpty(cfgId) && !cfgIds.Contains(cfgId)) {
+            cfgIds.Add(cfgId);
+        }
+    }
+
     private void RefreshSelectionState()
     {
         SetButtonInteractable(binder.btn_9x9, CanUseBoardCfg("9x9") && selectedBoardCfgId != "9x9");
         SetButtonInteractable(binder.btn_13x13, CanUseBoardCfg("13x13") && selectedBoardCfgId != "13x13");
         SetButtonInteractable(binder.btn_19x19, CanUseBoardCfg("19x19") && selectedBoardCfgId != "19x19");
 
-        SetButtonInteractable(binder.btn_hold_time_2m, CanUseHoldTimeCfg("2m") && selectedHoldTimeCfgId != "2m");
-        SetButtonInteractable(binder.btn_hold_time_5m, CanUseHoldTimeCfg("5m") && selectedHoldTimeCfgId != "5m");
-        SetButtonInteractable(binder.btn_hold_time_10m, CanUseHoldTimeCfg("10m") && selectedHoldTimeCfgId != "10m");
-        SetButtonInteractable(binder.btn_hold_time_20m, CanUseHoldTimeCfg("20m") && selectedHoldTimeCfgId != "20m");
-        SetButtonInteractable(binder.btn_hold_time_infinite, CanUseHoldTimeCfg(InfiniteHoldTimeCfgId) && !IsInfiniteHoldTimeSelected());
-
         bool infiniteHoldTime = IsInfiniteHoldTimeSelected();
-        SetButtonInteractable(binder.btn_byoyomi_count_off, !infiniteHoldTime && CanUseByoyomiCountCfg(ByoyomiOffCfgId) && selectedByoyomiCountCfgId != ByoyomiOffCfgId);
-        SetButtonInteractable(binder.btn_byoyomi_count_1, !infiniteHoldTime && CanUseByoyomiCountCfg("1") && selectedByoyomiCountCfgId != "1");
-        SetButtonInteractable(binder.btn_byoyomi_count_3, !infiniteHoldTime && CanUseByoyomiCountCfg("3") && selectedByoyomiCountCfgId != "3");
-        SetButtonInteractable(binder.btn_byoyomi_count_5, !infiniteHoldTime && CanUseByoyomiCountCfg("5") && selectedByoyomiCountCfgId != "5");
-
         bool byoyomiEnabled = !infiniteHoldTime && selectedByoyomiCountCfgId != ByoyomiOffCfgId;
-        SetButtonInteractable(binder.btn_byoyomi_time_10s, byoyomiEnabled && CanUseByoyomiTimeCfg("10s") && selectedByoyomiTimeCfgId != "10s");
-        SetButtonInteractable(binder.btn_byoyomi_time_20s, byoyomiEnabled && CanUseByoyomiTimeCfg("20s") && selectedByoyomiTimeCfgId != "20s");
-        SetButtonInteractable(binder.btn_byoyomi_time_30s, byoyomiEnabled && CanUseByoyomiTimeCfg("30s") && selectedByoyomiTimeCfgId != "30s");
-        SetButtonInteractable(binder.btn_byoyomi_time_60s, byoyomiEnabled && CanUseByoyomiTimeCfg("60s") && selectedByoyomiTimeCfgId != "60s");
+        if (binder.dropdown_ogs_time_option != null) {
+            binder.dropdown_ogs_time_option.interactable = IsOgsAutomatchSetup() && ogsAutomatchTimeOptionCfgIds.Count > 1;
+        }
+        if (binder.dropdown_hold_time != null) {
+            binder.dropdown_hold_time.interactable = !IsOgsAutomatchSetup() && holdTimeCfgIds.Count > 1;
+        }
+        if (binder.dropdown_byoyomi_count != null) {
+            binder.dropdown_byoyomi_count.interactable = !IsOgsAutomatchSetup() && !infiniteHoldTime && byoyomiCountCfgIds.Count > 1;
+        }
+        if (binder.dropdown_byoyomi_time != null) {
+            binder.dropdown_byoyomi_time.interactable = !IsOgsAutomatchSetup() && byoyomiEnabled && byoyomiTimeCfgIds.Count > 1;
+        }
 
         binder.SetSrModeState(ResolveModeState());
         if (binder.dropdown_handicap != null) {
@@ -634,6 +979,46 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     {
         if (index >= 0 && index < aiDifficultyCfgIds.Count) {
             selectedAiDifficultyCfgId = aiDifficultyCfgIds[index];
+        }
+    }
+
+    private void OnHoldTimeDropdownValueChanged(int index)
+    {
+        if (isRefreshingTimeDropdowns) {
+            return;
+        }
+        if (index >= 0 && index < holdTimeCfgIds.Count) {
+            SelectHoldTime(holdTimeCfgIds[index]);
+        }
+    }
+
+    private void OnOgsTimeOptionDropdownValueChanged(int index)
+    {
+        if (isRefreshingTimeDropdowns) {
+            return;
+        }
+        if (index >= 0 && index < ogsAutomatchTimeOptionCfgIds.Count) {
+            SelectOgsAutomatchTimeOption(ogsAutomatchTimeOptionCfgIds[index]);
+        }
+    }
+
+    private void OnByoyomiCountDropdownValueChanged(int index)
+    {
+        if (isRefreshingTimeDropdowns) {
+            return;
+        }
+        if (index >= 0 && index < byoyomiCountCfgIds.Count) {
+            SelectByoyomiCount(byoyomiCountCfgIds[index]);
+        }
+    }
+
+    private void OnByoyomiTimeDropdownValueChanged(int index)
+    {
+        if (isRefreshingTimeDropdowns) {
+            return;
+        }
+        if (index >= 0 && index < byoyomiTimeCfgIds.Count) {
+            SelectByoyomiTime(byoyomiTimeCfgIds[index]);
         }
     }
 

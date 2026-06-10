@@ -382,6 +382,8 @@ public sealed class OgsAutomatchCreateParams
     public readonly int byoyomiPeriods;
     public readonly int byoyomiPeriodSeconds;
     public readonly int handicap;
+    public readonly string speed;
+    public readonly string system;
     public readonly int lowerRankDiff;
     public readonly int upperRankDiff;
 
@@ -391,6 +393,8 @@ public sealed class OgsAutomatchCreateParams
         int byoyomiPeriods,
         int byoyomiPeriodSeconds,
         int handicap,
+        string speed = "",
+        string system = "",
         int lowerRankDiff = 3,
         int upperRankDiff = 3)
     {
@@ -399,6 +403,8 @@ public sealed class OgsAutomatchCreateParams
         this.byoyomiPeriods = byoyomiPeriods;
         this.byoyomiPeriodSeconds = byoyomiPeriodSeconds;
         this.handicap = handicap;
+        this.speed = speed ?? string.Empty;
+        this.system = system ?? string.Empty;
         this.lowerRankDiff = lowerRankDiff;
         this.upperRankDiff = upperRankDiff;
     }
@@ -408,5 +414,7 @@ public sealed class OgsAutomatchCreateParams
         600,
         5,
         30,
-        0);
+        0,
+        "rapid",
+        "byoyomi");
 }

@@ -5,6 +5,10 @@ using XNClient.Logger;
 public class Global
 {
     private const float MinKataGoWarmupLoadingSeconds = 1.5f;
+#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
+    private static bool mobileApplicationHasFocus = true;
+    private static bool mobileApplicationIsPaused;
+#endif
 #if UNITY_ANDROID && !UNITY_EDITOR
     private const float AndroidRuntimePrepareProgressEnd = 0.12f;
     private const float AndroidWarmupProgressStart = AndroidRuntimePrepareProgressEnd;
@@ -14,8 +18,6 @@ public class Global
     private static bool androidPreviousRunInBackground;
     private static bool androidKeepAwakeApplied;
     private static bool androidRunInBackgroundApplied;
-    private static bool androidApplicationHasFocus = true;
-    private static bool androidApplicationIsPaused;
 #endif
 
     public enum KeepAwakeReason
@@ -28,8 +30,8 @@ public class Global
     {
         get
         {
-#if UNITY_ANDROID && !UNITY_EDITOR
-            return !androidApplicationHasFocus || androidApplicationIsPaused;
+#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
+            return !mobileApplicationHasFocus || mobileApplicationIsPaused;
 #else
             return false;
 #endif
@@ -318,16 +320,20 @@ public class Global
 
     public static void OnApplicationFocusChanged(bool hasFocus)
     {
+#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
+        mobileApplicationHasFocus = hasFocus;
+#endif
 #if UNITY_ANDROID && !UNITY_EDITOR
-        androidApplicationHasFocus = hasFocus;
         ApplyAndroidKeepAwakeState();
 #endif
     }
 
     public static void OnApplicationPauseChanged(bool isPaused)
     {
+#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
+        mobileApplicationIsPaused = isPaused;
+#endif
 #if UNITY_ANDROID && !UNITY_EDITOR
-        androidApplicationIsPaused = isPaused;
         ApplyAndroidKeepAwakeState();
 #endif
     }
@@ -343,7 +349,7 @@ public class Global
 #if UNITY_ANDROID && !UNITY_EDITOR
     private static void ApplyAndroidKeepAwakeState()
     {
-        bool shouldKeepAwake = androidApplicationHasFocus && !androidApplicationIsPaused && androidKeepAwakeReasons.Count > 0;
+        bool shouldKeepAwake = mobileApplicationHasFocus && !mobileApplicationIsPaused && androidKeepAwakeReasons.Count > 0;
         bool shouldRunInBackground = androidKeepAwakeReasons.Count > 0;
         ApplyAndroidRunInBackgroundState(shouldRunInBackground);
 
@@ -373,8 +379,8 @@ public class Global
             "Android keep-awake restored.",
             ("restoredSleepTimeout", androidPreviousSleepTimeout.ToString()),
             ("reasonCount", androidKeepAwakeReasons.Count.ToString()),
-            ("hasFocus", androidApplicationHasFocus.ToString()),
-            ("isPaused", androidApplicationIsPaused.ToString()));
+            ("hasFocus", mobileApplicationHasFocus.ToString()),
+            ("isPaused", mobileApplicationIsPaused.ToString()));
     }
 
     private static void ApplyAndroidRunInBackgroundState(bool shouldRunInBackground)

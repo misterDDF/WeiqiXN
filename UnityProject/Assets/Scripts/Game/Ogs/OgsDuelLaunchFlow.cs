@@ -8,7 +8,9 @@ public static class OgsDuelLaunchFlow
             values.mainTimeSeconds,
             values.byoyomiPeriods,
             values.byoyomiPeriodSeconds,
-            0);
+            0,
+            values.ogsAutomatchSpeed,
+            values.ogsAutomatchSystem);
     }
 
     public static OgsFriendChallengeCreateParams BuildFriendChallengeCreateParams(
@@ -70,6 +72,11 @@ public static class OgsDuelLaunchFlow
         DuelByoyomiCountDataType byoyomiCountData = DuelByoyomiCountDataType.GetConfigData(duelParams?.byoyomiCountCfgId);
         DuelByoyomiTimeDataType byoyomiTimeData = DuelByoyomiTimeDataType.GetConfigData(duelParams?.byoyomiTimeCfgId);
         DuelHandicapDataType handicapData = DuelHandicapDataType.GetConfigData(duelParams?.handicapCfgId);
+        OgsAutomatchTimeOptionDataType automatchOption = ResolveOgsAutomatchTimeOption(
+            duelParams?.boardCfgId,
+            duelParams?.holdTimeCfgId,
+            duelParams?.byoyomiCountCfgId,
+            duelParams?.byoyomiTimeCfgId);
 
         return new OgsDuelSetupValues
         {
@@ -81,7 +88,35 @@ public static class OgsDuelLaunchFlow
             byoyomiPeriodSeconds = byoyomiTimeData != null ? byoyomiTimeData.seconds : 30,
             handicap = handicapData != null ? handicapData.handicapCount : 0,
             komi = handicapData != null ? handicapData.komi : 7.5f,
+            ogsAutomatchSpeed = automatchOption?.speed ?? string.Empty,
+            ogsAutomatchSystem = automatchOption?.system ?? string.Empty,
         };
+    }
+
+    private static OgsAutomatchTimeOptionDataType ResolveOgsAutomatchTimeOption(
+        string boardCfgId,
+        string holdTimeCfgId,
+        string byoyomiCountCfgId,
+        string byoyomiTimeCfgId)
+    {
+        OgsAutomatchTimeOptionDataType.GetConfigData(string.Empty);
+        if (OgsAutomatchTimeOptionDataType.OgsAutomatchTimeOptionDict == null) {
+            return null;
+        }
+
+        foreach (OgsAutomatchTimeOptionDataType option in OgsAutomatchTimeOptionDataType.OgsAutomatchTimeOptionDict.Values) {
+            if (option == null || !option.enabled) {
+                continue;
+            }
+            if (option.boardCfgId == boardCfgId
+                && option.holdTimeCfgId == holdTimeCfgId
+                && option.byoyomiCountCfgId == byoyomiCountCfgId
+                && option.byoyomiTimeCfgId == byoyomiTimeCfgId) {
+                return option;
+            }
+        }
+
+        return null;
     }
 
     private static string ResolveChallengerColor(string playerSideCfgId)
@@ -105,5 +140,7 @@ public static class OgsDuelLaunchFlow
         public int byoyomiPeriodSeconds;
         public int handicap;
         public float komi;
+        public string ogsAutomatchSpeed;
+        public string ogsAutomatchSystem;
     }
 }

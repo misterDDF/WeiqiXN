@@ -9,6 +9,10 @@ using XNClient.Logger;
 
 public class OgsDuelSystem : SystemBase
 {
+    private const float RealtimeReconnectCooldownSeconds = 1f;
+    private const float RealtimeHealthCheckIntervalSeconds = 10f;
+    private const float RealtimeNoMessageReconnectSeconds = 120f;
+
     public override string systemName => GetSystemName<OgsDuelSystem>();
 
     private OgsRealtimeGameSession realtimeSession;
@@ -34,6 +38,10 @@ public class OgsDuelSystem : SystemBase
     private int ogsStoneRemovalClockBaseLeftSeconds;
     private OgsClockPlayerTime ogsBlackClock = OgsClockPlayerTime.Empty;
     private OgsClockPlayerTime ogsWhiteClock = OgsClockPlayerTime.Empty;
+    private bool wasApplicationInBackground;
+    private float lastRealtimeMessageLocalTime = -1f;
+    private float lastRealtimeHealthCheckLocalTime = -1f;
+    private float lastRealtimeReconnectRequestLocalTime = -1f;
 
     public OgsDuelSystem(SceneBase scene) : base(scene)
     {
@@ -57,6 +65,7 @@ public class OgsDuelSystem : SystemBase
         scene.RegisterSystemEvent<OnSubmitOgsRemovedStonesAccept>(OnSubmitOgsRemovedStonesAccept);
         scene.RegisterSystemEvent<OnSubmitOgsRemovedStonesReject>(OnSubmitOgsRemovedStonesReject);
 
+        wasApplicationInBackground = Global.IsApplicationInBackground;
         InitFromSceneParams();
         InitPlayers();
         ConnectAsync();
@@ -70,7 +79,9 @@ public class OgsDuelSystem : SystemBase
             compDuel.duelFSM.Update();
         }
 
+        UpdateRealtimeConnectionHealth();
         while (realtimeSession != null && realtimeSession.TryDequeueMessage(out OgsRealtimeGameMessage message)) {
+            lastRealtimeMessageLocalTime = UnityEngine.Time.unscaledTime;
             HandleRealtimeMessage(message);
         }
         RefreshOgsClockDisplay();
@@ -78,14 +89,7 @@ public class OgsDuelSystem : SystemBase
 
     public override void OnDestroy()
     {
-        cancellationTokenSource?.Cancel();
-        if (realtimeSession != null) {
-            _ = realtimeSession.DisconnectAsync();
-            realtimeSession.Dispose();
-            realtimeSession = null;
-        }
-        cancellationTokenSource?.Dispose();
-        cancellationTokenSource = null;
+        DisposeRealtimeSession();
         base.OnDestroy();
     }
 
@@ -172,30 +176,132 @@ public class OgsDuelSystem : SystemBase
 
     private async void ConnectAsync()
     {
+        await ReconnectRealtimeAsync("initial connect", true, false);
+    }
+
+    private async Task ReconnectRealtimeAsync(string reason, bool force, bool showWaitingPopup)
+    {
         if (compOgsDuel == null || compOgsDuel.gameId <= 0) {
             SetError("OGS game id is empty.");
             return;
         }
+        if (compOgsDuel.isConnecting) {
+            return;
+        }
+        if (!force && realtimeSession != null && realtimeSession.IsOpen) {
+            return;
+        }
 
-        cancellationTokenSource = new CancellationTokenSource();
+        float now = UnityEngine.Time.unscaledTime;
+        if (lastRealtimeReconnectRequestLocalTime >= 0f &&
+            now - lastRealtimeReconnectRequestLocalTime < RealtimeReconnectCooldownSeconds) {
+            return;
+        }
+        lastRealtimeReconnectRequestLocalTime = now;
+
+        if (showWaitingPopup) {
+            scene.EmitSystemEvent(new OnOgsDuelReconnectWaiting(reason));
+        }
+        DisposeRealtimeSession();
+        var connectCancellationTokenSource = new CancellationTokenSource();
+        cancellationTokenSource = connectCancellationTokenSource;
         compOgsDuel.isConnecting = true;
+        compOgsDuel.isConnected = false;
+        compOgsDuel.isSubmitting = false;
+        compOgsDuel.isSubmittingRemovedStones = false;
+        SyncInputAuthority();
         try {
-            realtimeSession = await Global.Instance.ogsConnectionService.CreateRealtimeGameSessionAsync(
+            OgsRealtimeGameSession newSession = await Global.Instance.ogsConnectionService.CreateRealtimeGameSessionAsync(
                 compOgsDuel.gameId,
                 OgsConnectionConfig.DefaultWebSocketUrl,
-                cancellationTokenSource.Token);
+                connectCancellationTokenSource.Token);
+            if (connectCancellationTokenSource.IsCancellationRequested || cancellationTokenSource != connectCancellationTokenSource) {
+                newSession.Dispose();
+                return;
+            }
+
+            realtimeSession = newSession;
             compOgsDuel.isConnected = true;
             compOgsDuel.lastError = string.Empty;
+            lastRealtimeMessageLocalTime = UnityEngine.Time.unscaledTime;
+            XNLogger.LogInfo(
+                "OGS duel realtime connected.",
+                ("gameId", compOgsDuel.gameId.ToString()),
+                ("reason", reason ?? string.Empty));
+            if (showWaitingPopup) {
+                scene.EmitSystemEvent(new OnOgsDuelReconnected());
+            }
+        }
+        catch (OperationCanceledException) {
         }
         catch (Exception ex) {
             SetError(ex.Message);
-            XNLogger.LogError("OGS duel realtime connect failed.", ("gameId", compOgsDuel.gameId.ToString()), ("err", ex.Message));
+            XNLogger.LogError(
+                "OGS duel realtime connect failed.",
+                ("gameId", compOgsDuel.gameId.ToString()),
+                ("reason", reason ?? string.Empty),
+                ("err", ex.Message));
         }
         finally {
-            if (compOgsDuel != null) {
+            if (compOgsDuel != null && cancellationTokenSource == connectCancellationTokenSource) {
                 compOgsDuel.isConnecting = false;
+                SyncInputAuthority();
             }
         }
+    }
+
+    private void UpdateRealtimeConnectionHealth()
+    {
+        bool isInBackground = Global.IsApplicationInBackground;
+        if (wasApplicationInBackground && !isInBackground) {
+            RequestRealtimeReconnect("foreground resume", true);
+        }
+        wasApplicationInBackground = isInBackground;
+
+        if (isInBackground || compOgsDuel == null || compOgsDuel.gameId <= 0 || compOgsDuel.isConnecting) {
+            return;
+        }
+
+        float now = UnityEngine.Time.unscaledTime;
+        if (lastRealtimeHealthCheckLocalTime >= 0f &&
+            now - lastRealtimeHealthCheckLocalTime < RealtimeHealthCheckIntervalSeconds) {
+            return;
+        }
+        lastRealtimeHealthCheckLocalTime = now;
+
+        if (realtimeSession == null || !realtimeSession.IsOpen) {
+            RequestRealtimeReconnect("realtime socket closed", true);
+            return;
+        }
+
+        if (lastRealtimeMessageLocalTime >= 0f &&
+            now - lastRealtimeMessageLocalTime >= RealtimeNoMessageReconnectSeconds) {
+            RequestRealtimeReconnect("realtime message timeout", true);
+        }
+    }
+
+    private void RequestRealtimeReconnect(string reason, bool force)
+    {
+        if (Global.IsApplicationInBackground || compOgsDuel == null || compOgsDuel.isConnecting) {
+            return;
+        }
+
+        _ = ReconnectRealtimeAsync(reason, force, true);
+    }
+
+    private void DisposeRealtimeSession()
+    {
+        CancellationTokenSource oldCancellationTokenSource = cancellationTokenSource;
+        OgsRealtimeGameSession oldSession = realtimeSession;
+        cancellationTokenSource = null;
+        realtimeSession = null;
+
+        oldCancellationTokenSource?.Cancel();
+        if (oldSession != null) {
+            _ = oldSession.DisconnectAsync();
+            oldSession.Dispose();
+        }
+        oldCancellationTokenSource?.Dispose();
     }
 
     private void HandleRealtimeMessage(OgsRealtimeGameMessage message)
@@ -241,6 +347,7 @@ public class OgsDuelSystem : SystemBase
                     compOgsDuel.lastError = message.message;
                 }
                 SyncInputAuthority();
+                RequestRealtimeReconnect("realtime closed message", true);
                 break;
         }
     }

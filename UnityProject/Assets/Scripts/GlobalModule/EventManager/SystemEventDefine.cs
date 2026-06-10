@@ -620,6 +620,23 @@ public class OnLanRoomReconnected : SystemEventBase
     public override string GetEventType() => GetEventType<OnLanRoomReconnected>();
 }
 
+public class OnOgsDuelReconnectWaiting : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnOgsDuelReconnectWaiting>();
+
+    public string reason;
+
+    public OnOgsDuelReconnectWaiting(string reason)
+    {
+        this.reason = reason ?? string.Empty;
+    }
+}
+
+public class OnOgsDuelReconnected : SystemEventBase
+{
+    public override string GetEventType() => GetEventType<OnOgsDuelReconnected>();
+}
+
 public class OnLanPlayerProfileChanged : SystemEventBase
 {
     public override string GetEventType() => GetEventType<OnLanPlayerProfileChanged>();

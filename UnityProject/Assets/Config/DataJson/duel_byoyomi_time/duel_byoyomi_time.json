@@ -1,4 +1,16 @@
 {
+  "5s": {
+    "id": "5s",
+    "displayName": "5秒",
+    "seconds": 5,
+    "ogsEnabled": true
+  },
+  "7s": {
+    "id": "7s",
+    "displayName": "7秒",
+    "seconds": 7,
+    "ogsEnabled": true
+  },
   "10s": {
     "id": "10s",
     "displayName": "10秒",
