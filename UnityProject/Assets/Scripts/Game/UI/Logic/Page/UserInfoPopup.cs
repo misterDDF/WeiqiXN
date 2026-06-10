@@ -5,7 +5,6 @@ using XNClient.Logger;
 
 public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
 {
-    private const int MaxReplayItemsPerPage = 7;
     private static readonly Color OgsAvatarEmptyColor = new Color(0.78f, 0.62f, 0.28f, 1f);
 
     private readonly List<DuelReplayIndexItem> replayItems = new List<DuelReplayIndexItem>();
@@ -502,19 +501,10 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
 
     private int GetReplayItemsPerPage()
     {
-        if (binder.content_replay_list == null) {
-            return MaxReplayItemsPerPage;
-        }
-
-        float contentHeight = binder.content_replay_list.rect.height;
-        if (contentHeight <= 0f) {
-            return MaxReplayItemsPerPage;
-        }
-
-        int visibleCount = Mathf.FloorToInt(
-            (contentHeight + ReplayArchiveItemWidget.ItemSpacing) /
-            (ReplayArchiveItemWidget.ItemHeight + ReplayArchiveItemWidget.ItemSpacing));
-        return Mathf.Clamp(visibleCount, 1, MaxReplayItemsPerPage);
+        return UIUtils.GetVisibleListItemCount(
+            binder.content_replay_list,
+            ReplayArchiveItemWidget.ItemHeight,
+            ReplayArchiveItemWidget.ItemSpacing);
     }
 
     private int GetReplayPageCount(int itemsPerPage)

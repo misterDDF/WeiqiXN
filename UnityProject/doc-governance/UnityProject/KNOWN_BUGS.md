@@ -10,6 +10,8 @@
 
 ## 未移除 Bug
 
+- 2026-06-10: 复盘列表排序在 `ReplayIndex.json` 时间字段被 Newtonsoft 自动解析为 Date token 后，使用 `JToken.ToString()` 作为字符串排序键会把 6 月 10 日记录排到 6 月 9 日等记录之后。已落地修复候选：索引读取禁用自动日期解析，读写排序统一按 UTC ticks 降序，并保留 `gameId` 作为稳定次级排序。已通过 Unity 脚本重编译和 Console 检查；仍待重新打包安装后用真机 `ReplayIndex.json` 验证 6 月 10 日记录显示在第一页最前。
+- 2026-06-10: 移动端复盘列表、个人信息页复盘列表和 OGS 好友/邀请列表按内容区高度计算每页数量后仍被固定最大条数截断，导致空间足够时仍过早分页。已落地修复候选：移除三个列表的固定每页上限，统一通过 `UIUtils.GetVisibleListItemCount` 按实际内容区高度、VerticalLayoutGroup padding 和 spacing 计算可见元素数量。已通过 Unity 脚本重编译和 Console 检查；仍待真机横竖屏验证分页数量符合可见高度。
 - 2026-06-10: OGS 对局在移动端切后台期间如果对手落子，切回前台后可能无法更新到最新对手落子。已落地修复候选：移动端前后台状态纳入 `Global.IsApplicationInBackground`，`OgsDuelSystem` 在前台恢复时强制重建 OGS realtime websocket 并重新 `game/connect` 等待 `gamedata` 补同步；前台每 10 秒执行连接健康检查，socket 关闭/缺失或 120 秒无 realtime payload 时自动重连。仍待真机验证：后台期间对手落子后切回前台能通过服务端 `gamedata` 更新棋盘。
 - 2026-06-10: 引入专用 `UICamera` 后，Play 模式中 UI/场景渲染仍待最终确认。已落地修复候选：`UICamera` 改为独立高 depth Base camera，不再依赖 URP overlay stack，并使用 `CameraClearFlags.Nothing` 避免清掉场景相机颜色；`UILogicBase.OnUnityResourceLoaded()` 会递归设置已加载 UI 页面/Widget 实例到 `UI` layer；场景相机继续排除 `UI` layer。仍待基础 Play 验证 loading、主菜单、棋盘和对局页面都恢复可见；验证通过后移除此条。
 - Android 天玑 9000（V2183A / mt6983 / Mali-G710 MC10）首次启动时可能在 KataGo OpenCL autotune 中卡住并退出：2026-06-09 真机日志显示 `com.DefaultCompany.WeiqiXN` 进程 20451 在 12:04:15 进入 `OpenCLTuner::loadOrAutoTune`，KataGo 日志记录 `No existing tuning parameters found` / `Performing autotuning` / `Dummy tuning thread starting` 后不再继续；系统在 12:05:45 记录 `am_proc_died` 和 `proc died without state saved`，未出现 `AndroidRuntime`、`Fatal signal`、`am_crash` 或 dropbox tombstone。该问题只在首次启动缺少本地 OpenCL tuning cache 时出现，后续应继续观察是否能够稳定生成并复用 `KataGoData/opencltuning` 下的缓存文件，必要时再按实际现象收敛启动策略。
