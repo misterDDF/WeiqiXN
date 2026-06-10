@@ -12,7 +12,6 @@ public class OgsDuelSystem : SystemBase
     private const float RealtimeReconnectCooldownSeconds = 1f;
     private const float RealtimeHealthCheckIntervalSeconds = 10f;
     private const float RealtimeNoMessageReconnectSeconds = 120f;
-
     public override string systemName => GetSystemName<OgsDuelSystem>();
 
     private OgsRealtimeGameSession realtimeSession;
@@ -1941,11 +1940,12 @@ public class OgsDuelSystem : SystemBase
             compOgsDuel.isBotGame = true;
         }
 
+        int boardSize = compOgsDuel.boardSize;
         if (!string.IsNullOrWhiteSpace(blackName)) {
-            compDuel.player1DisplayName.value = blackName;
+            compDuel.player1DisplayName.value = FormatPlayerNameWithBoardRank(blackName, blackPlayer, boardSize);
         }
         if (!string.IsNullOrWhiteSpace(whiteName)) {
-            compDuel.player2DisplayName.value = whiteName;
+            compDuel.player2DisplayName.value = FormatPlayerNameWithBoardRank(whiteName, whitePlayer, boardSize);
         }
 
         if (compOgsDuel.localOgsUserId > 0) {
@@ -2264,6 +2264,15 @@ public class OgsDuelSystem : SystemBase
         }
 
         return ReadFirstString(playerJson?["player"] as JObject, "username", "name", "professional_name", "id");
+    }
+
+    private static string FormatPlayerNameWithBoardRank(string playerName, JObject playerJson, int boardSize)
+    {
+        string safeName = string.IsNullOrWhiteSpace(playerName) ? string.Empty : playerName.Trim();
+        string rankLabel = OgsRankDisplayFormatter.ReadBoardRankDisplay(playerJson, boardSize, true, true);
+        return string.IsNullOrWhiteSpace(rankLabel)
+            ? safeName
+            : $"{safeName} [{rankLabel}]";
     }
 
     private static bool IsBotPlayer(JObject playerJson)

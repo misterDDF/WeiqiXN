@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Net;
 using System.Net.WebSockets;
 using System.Net.Http;
@@ -24,9 +23,6 @@ public sealed class OgsConnectionService : ModuleBase
     private const string FriendStatusOfflineText = "\u79bb\u7ebf";
     private const int FriendListDisplayPrefetchPageSize = 100;
     private const float FriendListDisplayPrefetchRetrySeconds = 30f;
-    private const double OgsRatingToRankingScale = 23.15;
-    private const double OgsRatingToRankingBase = 525.0;
-
     private object sessionLock;
     private OgsSession session;
     private string apiBaseUrl;
@@ -3346,13 +3342,13 @@ public sealed class OgsConnectionService : ModuleBase
             return trimmed;
         }
 
-        if (!TryParseDouble(trimmed, out double number)) {
+        if (!OgsRankDisplayFormatter.TryParseDouble(trimmed, out double number)) {
             return trimmed;
         }
 
         return isRankingValue
-            ? FormatOgsRankFromRanking(number)
-            : FormatOgsRankFromRating(number);
+            ? OgsRankDisplayFormatter.FormatRankFromRanking(number)
+            : OgsRankDisplayFormatter.FormatRankFromRating(number);
     }
 
     private static string CreatePkceVerifier()
@@ -3939,11 +3935,11 @@ public sealed class OgsConnectionService : ModuleBase
             avatarUrl = NormalizeOgsUrl(ReadFirstUrlString(userJson, "icon", "icon-url", "icon_url", "avatar", "avatar_url", "picture", "image", "image_url"), baseUrl),
             country = ReadFriendCountry(userJson),
             ratingText = BuildFriendRatingText(userJson),
-            ratingOverall = ReadOverallRankDisplay(userJson),
-            rankingText = ReadRankingDisplay(userJson, "ranking", "rank"),
-            rating19 = ReadRatingRankDisplay(userJson["ratings"]?["19x19"]) ?? ReadRatingRankDisplay(userJson["ratings"]?["19"]) ?? string.Empty,
-            rating13 = ReadRatingRankDisplay(userJson["ratings"]?["13x13"]) ?? ReadRatingRankDisplay(userJson["ratings"]?["13"]) ?? string.Empty,
-            rating9 = ReadRatingRankDisplay(userJson["ratings"]?["9x9"]) ?? ReadRatingRankDisplay(userJson["ratings"]?["9"]) ?? string.Empty,
+            ratingOverall = OgsRankDisplayFormatter.ReadOverallRankDisplay(userJson),
+            rankingText = OgsRankDisplayFormatter.ReadRankingDisplay(userJson, "ranking", "rank"),
+            rating19 = OgsRankDisplayFormatter.ReadRatingRankDisplay(userJson["ratings"]?["19x19"]) ?? OgsRankDisplayFormatter.ReadRatingRankDisplay(userJson["ratings"]?["19"]) ?? string.Empty,
+            rating13 = OgsRankDisplayFormatter.ReadRatingRankDisplay(userJson["ratings"]?["13x13"]) ?? OgsRankDisplayFormatter.ReadRatingRankDisplay(userJson["ratings"]?["13"]) ?? string.Empty,
+            rating9 = OgsRankDisplayFormatter.ReadRatingRankDisplay(userJson["ratings"]?["9x9"]) ?? OgsRankDisplayFormatter.ReadRatingRankDisplay(userJson["ratings"]?["9"]) ?? string.Empty,
             statusText = BuildFriendStatusText(userJson, wrapper),
             registeredAt = ReadFirstString(userJson, "date_joined", "created", "created_at", "registered", "registered_at", "registration_date"),
             about = ReadFirstString(userJson, "about", "bio", "biography", "description"),
@@ -4038,7 +4034,7 @@ public sealed class OgsConnectionService : ModuleBase
 
     private static string BuildFriendRatingText(JObject userJson)
     {
-        return ReadOverallRankDisplay(userJson);
+        return OgsRankDisplayFormatter.ReadOverallRankDisplay(userJson);
     }
 
     private static string BuildFriendStatusText(JObject userJson, JObject wrapper)
@@ -4189,19 +4185,19 @@ public sealed class OgsConnectionService : ModuleBase
             fields.tags = BuildUserTags(json);
         }
         if (string.IsNullOrEmpty(fields.ranking)) {
-            fields.ranking = ReadRankingDisplay(json, "ranking", "rank");
+            fields.ranking = OgsRankDisplayFormatter.ReadRankingDisplay(json, "ranking", "rank");
         }
         if (string.IsNullOrEmpty(fields.ratingOverall)) {
-            fields.ratingOverall = ReadOverallRankDisplay(json);
+            fields.ratingOverall = OgsRankDisplayFormatter.ReadOverallRankDisplay(json);
         }
         if (string.IsNullOrEmpty(fields.rating19)) {
-            fields.rating19 = ReadRatingRankDisplay(json["ratings"]?["19x19"]) ?? ReadRatingRankDisplay(json["ratings"]?["19"]) ?? string.Empty;
+            fields.rating19 = OgsRankDisplayFormatter.ReadRatingRankDisplay(json["ratings"]?["19x19"]) ?? OgsRankDisplayFormatter.ReadRatingRankDisplay(json["ratings"]?["19"]) ?? string.Empty;
         }
         if (string.IsNullOrEmpty(fields.rating13)) {
-            fields.rating13 = ReadRatingRankDisplay(json["ratings"]?["13x13"]) ?? ReadRatingRankDisplay(json["ratings"]?["13"]) ?? string.Empty;
+            fields.rating13 = OgsRankDisplayFormatter.ReadRatingRankDisplay(json["ratings"]?["13x13"]) ?? OgsRankDisplayFormatter.ReadRatingRankDisplay(json["ratings"]?["13"]) ?? string.Empty;
         }
         if (string.IsNullOrEmpty(fields.rating9)) {
-            fields.rating9 = ReadRatingRankDisplay(json["ratings"]?["9x9"]) ?? ReadRatingRankDisplay(json["ratings"]?["9"]) ?? string.Empty;
+            fields.rating9 = OgsRankDisplayFormatter.ReadRatingRankDisplay(json["ratings"]?["9x9"]) ?? OgsRankDisplayFormatter.ReadRatingRankDisplay(json["ratings"]?["9"]) ?? string.Empty;
         }
     }
 
@@ -4243,136 +4239,6 @@ public sealed class OgsConnectionService : ModuleBase
         if (!tags.Contains(trimmed)) {
             tags.Add(trimmed);
         }
-    }
-
-    private static string ReadOverallRankDisplay(JObject json)
-    {
-        if (json == null) {
-            return string.Empty;
-        }
-
-        string rating = ReadRatingRankDisplay(json["ratings"]?["overall"]) ??
-            ReadRatingRankDisplay(json["rating"]) ??
-            ReadRatingRankDisplay(json["ratings"]);
-        if (!string.IsNullOrWhiteSpace(rating)) {
-            return rating;
-        }
-
-        return ReadRankingDisplay(json, "ranking", "rank");
-    }
-
-    private static string ReadRankingDisplay(JObject json, params string[] fieldNames)
-    {
-        if (json == null || fieldNames == null) {
-            return string.Empty;
-        }
-
-        foreach (string fieldName in fieldNames) {
-            JToken token = json[fieldName];
-            if (TryReadDouble(token, out double ranking)) {
-                return FormatOgsRankFromRanking(ranking);
-            }
-        }
-
-        return string.Empty;
-    }
-
-    private static string ReadRatingRankDisplay(JToken token)
-    {
-        if (token == null || token.Type == JTokenType.Null) {
-            return null;
-        }
-
-        if (TryReadDouble(token, out double rating)) {
-            return FormatOgsRankFromRating(rating);
-        }
-
-        if (token is JObject obj) {
-            string ranking = ReadRankingDisplay(obj, "ranking", "rank");
-            if (!string.IsNullOrWhiteSpace(ranking)) {
-                return ranking;
-            }
-
-            foreach (string fieldName in new[] { "rating", "elo", "glicko", "score", "value" }) {
-                if (TryReadDouble(obj[fieldName], out rating)) {
-                    return FormatOgsRankFromRating(rating);
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private static string FormatOgsRankFromRating(double rating)
-    {
-        if (rating <= 0.0 || double.IsNaN(rating) || double.IsInfinity(rating)) {
-            return string.Empty;
-        }
-
-        double ranking = OgsRatingToRankingScale * Math.Log(rating / OgsRatingToRankingBase);
-        return FormatOgsRankFromRanking(ranking);
-    }
-
-    private static string FormatOgsRankFromRanking(double ranking)
-    {
-        if (double.IsNaN(ranking) || double.IsInfinity(ranking)) {
-            return string.Empty;
-        }
-
-        if (ranking < 30.0) {
-            double kyu = Math.Max(1.0, Math.Min(30.0, 30.0 - ranking));
-            return $"{FormatRankNumber(kyu)}级";
-        }
-
-        double dan = Math.Max(1.0, Math.Min(9.0, ranking - 29.0));
-        return $"{FormatRankNumber(dan)}段";
-    }
-
-    private static string FormatRankNumber(double value)
-    {
-        return Math.Abs(value - Math.Round(value)) < 0.05
-            ? Math.Round(value).ToString("0", CultureInfo.InvariantCulture)
-            : value.ToString("0.0", CultureInfo.InvariantCulture);
-    }
-
-    private static bool TryReadDouble(JToken token, out double value)
-    {
-        value = 0.0;
-        if (token == null || token.Type == JTokenType.Null) {
-            return false;
-        }
-
-        if (token.Type == JTokenType.Integer || token.Type == JTokenType.Float) {
-            value = token.ToObject<double>();
-            return true;
-        }
-
-        return TryParseDouble(token.ToString(), out value);
-    }
-
-    private static string FormatNumericString(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) {
-            return string.Empty;
-        }
-
-        string trimmed = value.Trim();
-        if (TryParseDouble(trimmed, out double number)) {
-            return Math.Abs(number - Math.Round(number)) < 0.01
-                ? Math.Round(number).ToString("0", CultureInfo.InvariantCulture)
-                : number.ToString("0.0", CultureInfo.InvariantCulture);
-        }
-
-        return trimmed;
-    }
-
-    private static bool TryParseDouble(string value, out double number)
-    {
-        if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out number)) {
-            return true;
-        }
-
-        return double.TryParse(value, out number);
     }
 
     private sealed class OgsCurrentUserFields
