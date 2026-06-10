@@ -112,6 +112,20 @@ public sealed class OgsFriendListItem
     public string about;
 }
 
+public sealed class OgsFriendProfileResult
+{
+    public readonly bool success;
+    public readonly string message;
+    public readonly OgsFriendListItem friend;
+
+    public OgsFriendProfileResult(bool success, string message, OgsFriendListItem friend = null)
+    {
+        this.success = success;
+        this.message = message ?? string.Empty;
+        this.friend = friend;
+    }
+}
+
 public sealed class OgsFriendInvitationListResult
 {
     public readonly bool success;

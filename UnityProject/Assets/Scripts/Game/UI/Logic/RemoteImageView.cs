@@ -29,7 +29,7 @@ public sealed class RemoteImageView
         }
 
         string safeUrl = imageUrl.Trim();
-        if (safeUrl == spriteUrl && sprite != null) {
+        if (safeUrl == spriteUrl && (sprite != null || downloadCoroutine != null)) {
             return;
         }
 

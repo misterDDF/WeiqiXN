@@ -10,5 +10,6 @@
 
 ## 未移除 Bug
 
+- 2026-06-10: OGS 好友列表/详情资料显示修复候选已落地并通过 Unity 脚本编译验证，但尚待真实 OGS 会话运行时确认：好友列表使用 `/api/v1/me/friends/` 作为 bearer-token 主路径，并仅在主路径失败时回退到 `/api/v1/ui/friends`；好友在线状态按 OGS 前端行为先默认为离线，再通过 best-effort websocket `user/monitor` / `user/state` 覆盖；好友详情打开时补拉 `players/{id}` / `players/{id}/full`；好友列表、详情和在线状态响应由服务层统一做 10 秒本地缓存。实网验证好友列表字段、注册时间、在线状态和详情补全均正常后移除此条。
 - 2026-06-10: 引入专用 `UICamera` 后，Play 模式中 UI/场景渲染仍待最终确认。已落地修复候选：`UICamera` 改为独立高 depth Base camera，不再依赖 URP overlay stack，并使用 `CameraClearFlags.Nothing` 避免清掉场景相机颜色；`UILogicBase.OnUnityResourceLoaded()` 会递归设置已加载 UI 页面/Widget 实例到 `UI` layer；场景相机继续排除 `UI` layer。仍待基础 Play 验证 loading、主菜单、棋盘和对局页面都恢复可见；验证通过后移除此条。
 - Android 天玑 9000（V2183A / mt6983 / Mali-G710 MC10）首次启动时可能在 KataGo OpenCL autotune 中卡住并退出：2026-06-09 真机日志显示 `com.DefaultCompany.WeiqiXN` 进程 20451 在 12:04:15 进入 `OpenCLTuner::loadOrAutoTune`，KataGo 日志记录 `No existing tuning parameters found` / `Performing autotuning` / `Dummy tuning thread starting` 后不再继续；系统在 12:05:45 记录 `am_proc_died` 和 `proc died without state saved`，未出现 `AndroidRuntime`、`Fatal signal`、`am_crash` 或 dropbox tombstone。该问题只在首次启动缺少本地 OpenCL tuning cache 时出现，后续应继续观察是否能够稳定生成并复用 `KataGoData/opencltuning` 下的缓存文件，必要时再按实际现象收敛启动策略。

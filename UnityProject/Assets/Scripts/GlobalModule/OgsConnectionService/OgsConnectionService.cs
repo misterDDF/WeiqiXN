@@ -19,12 +19,15 @@ public sealed class OgsConnectionService : ModuleBase
     private const int BrowserLoginCallbackTimeoutMilliseconds = 120000;
     private const string MobileOauthRedirectUri = "https://leo-zhang-git.github.io/weiqixn-oauth-redirect/ogs/callback/";
     private const string MobileDeepLinkCallbackUri = "weiqixn://ogs/callback";
+    private const string FriendStatusOnlineText = "\u5728\u7ebf";
+    private const string FriendStatusOfflineText = "\u79bb\u7ebf";
 
     private object sessionLock;
     private OgsSession session;
     private string apiBaseUrl;
     private bool sessionLoaded;
     private int friendInvitationCount;
+    private OgsFriendDataRequestCache friendDataRequestCache;
 
     public OgsConnectionService()
     {
@@ -79,6 +82,9 @@ public sealed class OgsConnectionService : ModuleBase
         if (string.IsNullOrEmpty(apiBaseUrl)) {
             apiBaseUrl = OgsConnectionConfig.DefaultApiBaseUrl;
         }
+        if (friendDataRequestCache == null) {
+            friendDataRequestCache = new OgsFriendDataRequestCache();
+        }
         if (sessionLoaded) {
             return;
         }
@@ -99,10 +105,12 @@ public sealed class OgsConnectionService : ModuleBase
         EnsureInitialized();
         if (string.IsNullOrWhiteSpace(baseUrl)) {
             apiBaseUrl = OgsConnectionConfig.DefaultApiBaseUrl;
+            friendDataRequestCache?.Clear();
             return;
         }
 
         apiBaseUrl = baseUrl.Trim().TrimEnd('/');
+        friendDataRequestCache?.Clear();
     }
 
     public OgsAuthorizationRequest CreateAuthorizationRequest(
@@ -176,6 +184,7 @@ public sealed class OgsConnectionService : ModuleBase
             }
 
             OgsSessionStore.Save(session);
+            friendDataRequestCache?.Clear();
             XNLogger.LogInfo("OGS login succeeded.", ("userId", session.userId ?? string.Empty), ("username", session.username ?? string.Empty));
             return new OgsConnectionResult(true, "OGS login succeeded.");
         }
@@ -355,10 +364,28 @@ public sealed class OgsConnectionService : ModuleBase
         try {
             page = Math.Max(1, page);
             pageSize = Mathf.Clamp(pageSize, 1, 100);
+            JToken friendJson;
             string url = $"{apiBaseUrl}/api/v1/me/friends/?page={page}&page_size={pageSize}";
-            JToken friendJson = await GetJsonTokenAsync(url, accessToken, cancellationToken);
-            List<OgsFriendListItem> friends = ReadFriendListItems(friendJson, apiBaseUrl);
-            int totalCount = ReadFriendListTotalCount(friendJson, friends.Count);
+            try {
+                friendJson = await friendDataRequestCache.GetJsonAsync(
+                    $"friend-list:{apiBaseUrl}:page:{page}:size:{pageSize}",
+                    token => GetJsonTokenAsync(url, accessToken, token),
+                    cancellationToken);
+            }
+            catch (Exception ex) {
+                XNLogger.LogWarn("OGS me/friends request failed, falling back to ui/friends.", ("err", ex.Message));
+                string fallbackUrl = $"{apiBaseUrl}/api/v1/ui/friends";
+                friendJson = await friendDataRequestCache.GetJsonAsync(
+                    $"friend-list-ui-fallback:{apiBaseUrl}",
+                    token => GetJsonTokenAsync(fallbackUrl, accessToken, token),
+                    cancellationToken);
+            }
+            List<OgsFriendListItem> allFriends = ReadFriendListItems(friendJson, apiBaseUrl);
+            await ApplyFriendOnlineStatusesAsync(allFriends, accessToken, cancellationToken);
+            int totalCount = ReadFriendListTotalCount(friendJson, allFriends.Count);
+            List<OgsFriendListItem> friends = IsPagedFriendListResponse(friendJson)
+                ? allFriends
+                : SliceFriendList(allFriends, page, pageSize);
             XNLogger.LogInfo(
                 "OGS friend list refreshed.",
                 ("page", page.ToString()),
@@ -370,6 +397,72 @@ public sealed class OgsConnectionService : ModuleBase
         catch (Exception ex) {
             XNLogger.LogError("OGS friend list request failed.", ("err", ex.Message));
             return new OgsFriendListResult(false, ex.Message);
+        }
+    }
+
+    public async Task<OgsFriendProfileResult> RequestFriendProfileAsync(
+        string friendUserId,
+        OgsFriendListItem fallback = null,
+        CancellationToken cancellationToken = default(CancellationToken))
+    {
+        EnsureInitialized();
+        string safeUserId = string.IsNullOrWhiteSpace(friendUserId)
+            ? fallback?.userId
+            : friendUserId.Trim();
+        if (string.IsNullOrWhiteSpace(safeUserId)) {
+            return new OgsFriendProfileResult(false, "OGS friend user id is empty.", CloneFriendItem(fallback));
+        }
+
+        OgsConnectionResult accessResult = await EnsureReadableAccessTokenAsync(cancellationToken);
+        if (!accessResult.success) {
+            return new OgsFriendProfileResult(false, accessResult.message, CloneFriendItem(fallback));
+        }
+
+        string accessToken;
+        lock (sessionLock) {
+            accessToken = session.accessToken;
+        }
+
+        OgsFriendListItem merged = CloneFriendItem(fallback) ?? new OgsFriendListItem { userId = safeUserId };
+        try {
+            string escapedUserId = Uri.EscapeDataString(safeUserId);
+            string profileUrl = $"{apiBaseUrl}/api/v1/players/{escapedUserId}";
+            JToken profileJson = await friendDataRequestCache.GetJsonAsync(
+                $"friend-profile:{apiBaseUrl}:{safeUserId}",
+                token => GetJsonTokenAsync(profileUrl, accessToken, token),
+                cancellationToken);
+            MergeFriendItem(merged, ReadFriendListItem(profileJson, apiBaseUrl));
+
+            string terminationProfileUrl = $"{apiBaseUrl}/termination-api/player/{escapedUserId}";
+            try {
+                JToken terminationProfileJson = await friendDataRequestCache.GetJsonAsync(
+                    $"friend-profile-termination:{apiBaseUrl}:{safeUserId}",
+                    token => GetJsonTokenAsync(terminationProfileUrl, accessToken, token),
+                    cancellationToken);
+                MergeFriendItem(merged, ReadFriendListItem(terminationProfileJson, apiBaseUrl));
+            }
+            catch (Exception ex) {
+                XNLogger.LogWarn("OGS friend termination profile request failed, using REST profile.", ("friendUserId", safeUserId), ("err", ex.Message));
+            }
+
+            string fullProfileUrl = $"{apiBaseUrl}/api/v1/players/{escapedUserId}/full";
+            try {
+                JToken fullProfileJson = await friendDataRequestCache.GetJsonAsync(
+                    $"friend-profile-full:{apiBaseUrl}:{safeUserId}",
+                    token => GetJsonTokenAsync(fullProfileUrl, accessToken, token),
+                    cancellationToken);
+                MergeFriendItem(merged, ReadFriendListItem(fullProfileJson, apiBaseUrl));
+            }
+            catch (Exception ex) {
+                XNLogger.LogWarn("OGS friend full profile request failed, using basic profile.", ("friendUserId", safeUserId), ("err", ex.Message));
+            }
+
+            await ApplyFriendOnlineStatusAsync(merged, accessToken, cancellationToken);
+            return new OgsFriendProfileResult(true, "OGS friend profile refreshed.", merged);
+        }
+        catch (Exception ex) {
+            XNLogger.LogError("OGS friend profile request failed.", ("friendUserId", safeUserId), ("err", ex.Message));
+            return new OgsFriendProfileResult(false, ex.Message, merged);
         }
     }
 
@@ -398,6 +491,7 @@ public sealed class OgsConnectionService : ModuleBase
                 ["player_id"] = playerId,
             };
             await PostJsonAsync($"{apiBaseUrl}/api/v1/me/friends/", payload, accessToken, cancellationToken);
+            friendDataRequestCache?.Clear();
             XNLogger.LogInfo("OGS friend request sent.", ("playerId", playerId.ToString()));
             return new OgsConnectionResult(true, "OGS friend request sent.");
         }
@@ -433,6 +527,7 @@ public sealed class OgsConnectionService : ModuleBase
                 ["delete"] = true,
             };
             await PostJsonTokenAsync($"{apiBaseUrl}/api/v1/me/friends/", payload, accessToken, cancellationToken);
+            friendDataRequestCache?.Clear();
             XNLogger.LogInfo("OGS friend deleted.", ("friendUserId", friendUserId.Trim()));
             return new OgsConnectionResult(true, "OGS friend deleted.");
         }
@@ -519,6 +614,7 @@ public sealed class OgsConnectionService : ModuleBase
             }
 
             await PostJsonAsync($"{apiBaseUrl}/api/v1/me/friends/invitations/", payload, accessToken, cancellationToken);
+            friendDataRequestCache?.Clear();
             XNLogger.LogInfo(
                 "OGS friend invitation responded.",
                 ("fromUserId", fromUserId.ToString()),
@@ -541,6 +637,7 @@ public sealed class OgsConnectionService : ModuleBase
         lock (sessionLock) {
             session.Clear();
         }
+        friendDataRequestCache?.Clear();
         OgsSessionStore.Clear();
         XNLogger.LogInfo("OGS session cleared.");
         EmitFriendInvitationCountChanged(0);
@@ -3152,6 +3249,350 @@ public sealed class OgsConnectionService : ModuleBase
         return defaultValue;
     }
 
+    private static List<OgsFriendListItem> SliceFriendList(List<OgsFriendListItem> friends, int page, int pageSize)
+    {
+        var result = new List<OgsFriendListItem>();
+        if (friends == null || friends.Count <= 0) {
+            return result;
+        }
+
+        page = Math.Max(1, page);
+        pageSize = Mathf.Clamp(pageSize, 1, 100);
+        int startIndex = (page - 1) * pageSize;
+        if (startIndex >= friends.Count) {
+            return result;
+        }
+
+        int endIndex = Math.Min(friends.Count, startIndex + pageSize);
+        for (int i = startIndex; i < endIndex; i++) {
+            result.Add(friends[i]);
+        }
+
+        return result;
+    }
+
+    private static bool IsPagedFriendListResponse(JToken root)
+    {
+        return root is JObject obj && obj["count"] != null && obj["results"] != null;
+    }
+
+    private async Task ApplyFriendOnlineStatusesAsync(List<OgsFriendListItem> friends, string accessToken, CancellationToken cancellationToken)
+    {
+        if (friends == null || friends.Count <= 0) {
+            return;
+        }
+
+        SetDefaultFriendOnlineStatuses(friends);
+        if (string.IsNullOrEmpty(accessToken)) {
+            return;
+        }
+
+        var userIds = new List<int>();
+        for (int i = 0; i < friends.Count; i++) {
+            if (int.TryParse(friends[i]?.userId, out int userId) && userId > 0 && !userIds.Contains(userId)) {
+                userIds.Add(userId);
+            }
+        }
+        if (userIds.Count <= 0) {
+            return;
+        }
+
+        try {
+            JObject states = await RequestFriendOnlineStateJsonAsync(userIds, accessToken, cancellationToken);
+            for (int i = 0; i < friends.Count; i++) {
+                ApplyFriendOnlineState(friends[i], states);
+            }
+        }
+        catch (Exception ex) {
+            XNLogger.LogWarn("OGS friend online status request failed, keeping REST status text.", ("err", ex.Message));
+        }
+    }
+
+    private async Task ApplyFriendOnlineStatusAsync(OgsFriendListItem friend, string accessToken, CancellationToken cancellationToken)
+    {
+        if (friend == null) {
+            return;
+        }
+
+        SetDefaultFriendOnlineStatus(friend);
+        if (string.IsNullOrEmpty(accessToken) || !int.TryParse(friend.userId, out int userId) || userId <= 0) {
+            return;
+        }
+
+        try {
+            JObject states = await RequestFriendOnlineStateJsonAsync(new List<int> { userId }, accessToken, cancellationToken);
+            ApplyFriendOnlineState(friend, states);
+        }
+        catch (Exception ex) {
+            XNLogger.LogWarn("OGS friend online status request failed, keeping profile status text.", ("friendUserId", friend.userId ?? string.Empty), ("err", ex.Message));
+        }
+    }
+
+    private async Task<JObject> RequestFriendOnlineStateJsonAsync(List<int> userIds, string accessToken, CancellationToken cancellationToken)
+    {
+        if (userIds == null || userIds.Count <= 0) {
+            return new JObject();
+        }
+
+        userIds.Sort();
+        string idsKey = BuildUserIdCacheKey(userIds);
+        JToken stateJson = await friendDataRequestCache.GetJsonAsync(
+            $"friend-online:{apiBaseUrl}:{idsKey}",
+            async token => {
+                string userJwt = await RequestRealtimeUserJwtAsync(accessToken, token);
+                if (string.IsNullOrEmpty(userJwt)) {
+                    throw new InvalidOperationException("OGS ui config did not include user_jwt.");
+                }
+
+                using (var websocket = new ClientWebSocket()) {
+                    await websocket.ConnectAsync(new Uri(OgsConnectionConfig.DefaultWebSocketUrl), token);
+                    await SendRealtimePayloadAsync(websocket, BuildRealtimeAuthenticatePayload(userJwt), token);
+                    await SendRealtimePayloadAsync(websocket, BuildUserMonitorPayload(userIds), token);
+                    JObject states = CreateDefaultOfflineUserStates(userIds);
+                    MergeUserStateJson(states, await WaitForUserStateAsync(websocket, userIds, token));
+                    return states;
+                }
+            },
+            cancellationToken);
+
+        return stateJson as JObject ?? new JObject();
+    }
+
+    private static async Task<JObject> WaitForUserStateAsync(ClientWebSocket websocket, List<int> requestedUserIds, CancellationToken cancellationToken)
+    {
+        var mergedStates = new JObject();
+        using (var receiveCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)) {
+            receiveCancellation.CancelAfter(OgsConnectionConfig.WebSocketSmokeReceiveMilliseconds);
+            try {
+                while (websocket.State == WebSocketState.Open || websocket.State == WebSocketState.CloseReceived) {
+                    string message = await ReceiveRealtimeMessageAsync(websocket, receiveCancellation.Token);
+                    JObject states = TryParseUserStateMessage(message);
+                    if (states != null) {
+                        MergeUserStateJson(mergedStates, states);
+                        if (ContainsRequestedUserState(states, requestedUserIds)) {
+                            return mergedStates;
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) {
+                return mergedStates;
+            }
+        }
+
+        return mergedStates;
+    }
+
+    private static JObject TryParseUserStateMessage(string message)
+    {
+        JArray envelope = TryParseArray(message);
+        if (envelope == null || envelope.Count < 2) {
+            return null;
+        }
+
+        string channel = envelope[0]?.ToString() ?? string.Empty;
+        return channel == "user/state" ? envelope[1] as JObject : null;
+    }
+
+    private static void ApplyFriendOnlineState(OgsFriendListItem friend, JObject states)
+    {
+        if (friend == null || states == null || string.IsNullOrWhiteSpace(friend.userId)) {
+            return;
+        }
+
+        JToken token = states[friend.userId.Trim()];
+        if (token == null || token.Type == JTokenType.Null) {
+            return;
+        }
+
+        if (TryReadOnlineStateToken(token, out bool online)) {
+            friend.statusText = online ? FriendStatusOnlineText : FriendStatusOfflineText;
+        }
+    }
+
+    private static void SetDefaultFriendOnlineStatuses(List<OgsFriendListItem> friends)
+    {
+        if (friends == null) {
+            return;
+        }
+
+        for (int i = 0; i < friends.Count; i++) {
+            SetDefaultFriendOnlineStatus(friends[i]);
+        }
+    }
+
+    private static void SetDefaultFriendOnlineStatus(OgsFriendListItem friend)
+    {
+        if (friend != null && string.IsNullOrWhiteSpace(friend.statusText)) {
+            friend.statusText = FriendStatusOfflineText;
+        }
+    }
+
+    private static JObject CreateDefaultOfflineUserStates(List<int> userIds)
+    {
+        var states = new JObject();
+        if (userIds == null) {
+            return states;
+        }
+
+        for (int i = 0; i < userIds.Count; i++) {
+            if (userIds[i] > 0) {
+                states[userIds[i].ToString()] = false;
+            }
+        }
+        return states;
+    }
+
+    private static void MergeUserStateJson(JObject target, JObject source)
+    {
+        if (target == null || source == null) {
+            return;
+        }
+
+        foreach (JProperty property in source.Properties()) {
+            target[property.Name] = property.Value?.DeepClone() ?? JValue.CreateNull();
+        }
+    }
+
+    private static bool ContainsRequestedUserState(JObject states, List<int> requestedUserIds)
+    {
+        if (states == null || requestedUserIds == null || requestedUserIds.Count <= 0) {
+            return states != null && states.HasValues;
+        }
+
+        for (int i = 0; i < requestedUserIds.Count; i++) {
+            if (requestedUserIds[i] > 0 && states[requestedUserIds[i].ToString()] != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool TryReadOnlineStateToken(JToken token, out bool online)
+    {
+        online = false;
+        if (token == null || token.Type == JTokenType.Null) {
+            return false;
+        }
+
+        if (token.Type == JTokenType.Boolean) {
+            online = token.ToObject<bool>();
+            return true;
+        }
+        if (token.Type == JTokenType.Integer) {
+            online = token.ToObject<int>() != 0;
+            return true;
+        }
+        if (token.Type == JTokenType.String) {
+            string value = token.ToString();
+            if (bool.TryParse(value, out online)) {
+                return true;
+            }
+            if (int.TryParse(value, out int numericValue)) {
+                online = numericValue != 0;
+                return true;
+            }
+        }
+        if (token is JObject obj) {
+            return TryReadBoolean(obj, out online, "online", "is_online", "isOnline", "connected", "state");
+        }
+
+        return false;
+    }
+
+    private static string BuildUserMonitorPayload(List<int> userIds)
+    {
+        var payloadUserIds = new JArray();
+        if (userIds != null) {
+            for (int i = 0; i < userIds.Count; i++) {
+                if (userIds[i] > 0) {
+                    payloadUserIds.Add(userIds[i]);
+                }
+            }
+        }
+
+        var payload = new JArray
+        {
+            "user/monitor",
+            new JObject
+            {
+                ["user_ids"] = payloadUserIds,
+            },
+        };
+        return payload.ToString(Newtonsoft.Json.Formatting.None);
+    }
+
+    private static string BuildUserIdCacheKey(List<int> userIds)
+    {
+        if (userIds == null || userIds.Count <= 0) {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder();
+        for (int i = 0; i < userIds.Count; i++) {
+            if (userIds[i] <= 0) {
+                continue;
+            }
+            if (builder.Length > 0) {
+                builder.Append('.');
+            }
+            builder.Append(userIds[i]);
+        }
+        return builder.ToString();
+    }
+
+    private static OgsFriendListItem CloneFriendItem(OgsFriendListItem source)
+    {
+        if (source == null) {
+            return null;
+        }
+
+        return new OgsFriendListItem
+        {
+            userId = source.userId,
+            username = source.username,
+            avatarUrl = source.avatarUrl,
+            country = source.country,
+            ratingText = source.ratingText,
+            ratingOverall = source.ratingOverall,
+            rankingText = source.rankingText,
+            rating19 = source.rating19,
+            rating13 = source.rating13,
+            rating9 = source.rating9,
+            statusText = source.statusText,
+            registeredAt = source.registeredAt,
+            about = source.about,
+        };
+    }
+
+    private static void MergeFriendItem(OgsFriendListItem target, OgsFriendListItem source)
+    {
+        if (target == null || source == null) {
+            return;
+        }
+
+        SetIfPresent(ref target.userId, source.userId);
+        SetIfPresent(ref target.username, source.username);
+        SetIfPresent(ref target.avatarUrl, source.avatarUrl);
+        SetIfPresent(ref target.country, source.country);
+        SetIfPresent(ref target.ratingText, source.ratingText);
+        SetIfPresent(ref target.ratingOverall, source.ratingOverall);
+        SetIfPresent(ref target.rankingText, source.rankingText);
+        SetIfPresent(ref target.rating19, source.rating19);
+        SetIfPresent(ref target.rating13, source.rating13);
+        SetIfPresent(ref target.rating9, source.rating9);
+        SetIfPresent(ref target.statusText, source.statusText);
+        SetIfPresent(ref target.registeredAt, source.registeredAt);
+        SetIfPresent(ref target.about, source.about);
+    }
+
+    private static void SetIfPresent(ref string target, string source)
+    {
+        if (!string.IsNullOrWhiteSpace(source)) {
+            target = source.Trim();
+        }
+    }
+
     private static List<OgsFriendListItem> ReadFriendListItems(JToken root, string baseUrl)
     {
         var result = new List<OgsFriendListItem>();
@@ -3226,7 +3667,7 @@ public sealed class OgsConnectionService : ModuleBase
         {
             userId = userId,
             username = username,
-            avatarUrl = NormalizeOgsUrl(ReadFirstUrlString(userJson, "icon", "icon_url", "avatar", "avatar_url", "picture", "image", "image_url"), baseUrl),
+            avatarUrl = NormalizeOgsUrl(ReadFirstUrlString(userJson, "icon", "icon-url", "icon_url", "avatar", "avatar_url", "picture", "image", "image_url"), baseUrl),
             country = ReadFriendCountry(userJson),
             ratingText = BuildFriendRatingText(userJson),
             ratingOverall = ReadRating(userJson["ratings"]?["overall"]) ??

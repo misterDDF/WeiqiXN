@@ -14,6 +14,7 @@ public class OgsFriendProfilePopup : UIPageWithBinder<OgsFriendProfilePopupUI>
     private bool lastPortraitLayout;
     private bool isDeletingFriend;
     private bool isInvitingGame;
+    private int profileRefreshVersion;
     private CancellationTokenSource inviteCancellationTokenSource;
     private RemoteImageView avatarImage;
 
@@ -44,10 +45,12 @@ public class OgsFriendProfilePopup : UIPageWithBinder<OgsFriendProfilePopupUI>
         currentItem = pendingItem;
         pendingItem = null;
         ApplyData(currentItem);
+        RefreshCurrentFriendProfile();
     }
 
     protected override void OnClose()
     {
+        profileRefreshVersion += 1;
         avatarImage?.Clear();
         base.OnClose();
     }
@@ -77,6 +80,39 @@ public class OgsFriendProfilePopup : UIPageWithBinder<OgsFriendProfilePopupUI>
         SetText(binder.txt_note, "资料来自 OGS，部分字段可能为空");
 
         avatarImage?.Load(item?.avatarUrl);
+    }
+
+    private async void RefreshCurrentFriendProfile()
+    {
+        int currentVersion = ++profileRefreshVersion;
+        OgsFriendListItem snapshot = currentItem;
+        string friendUserId = snapshot?.userId ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(friendUserId)) {
+            return;
+        }
+
+        OgsConnectionService service = Global.Instance.ogsConnectionService;
+        if (service == null || !service.HasSession) {
+            return;
+        }
+
+        try {
+            OgsFriendProfileResult result = await service.RequestFriendProfileAsync(friendUserId, snapshot);
+            if (currentVersion != profileRefreshVersion || result?.friend == null) {
+                return;
+            }
+
+            currentItem = result.friend;
+            ApplyData(currentItem);
+            if (!result.success) {
+                XNLogger.LogWarn("Refresh OGS friend profile returned fallback data.", ("friendUserId", friendUserId), ("message", result.message));
+            }
+        }
+        catch (System.Exception ex) {
+            if (currentVersion == profileRefreshVersion) {
+                XNLogger.LogWarn("Refresh OGS friend profile from popup failed.", ("friendUserId", friendUserId), ("err", ex.Message));
+            }
+        }
     }
 
     private void OnClickClose()

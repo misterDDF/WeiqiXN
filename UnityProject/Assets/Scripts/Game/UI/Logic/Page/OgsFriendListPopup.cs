@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -327,11 +327,10 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
 
     private void RefreshPage()
     {
-        ClearItemWidgets();
-
         int itemsPerPage = GetItemsPerPage();
         int pageCount = GetPageCount(itemsPerPage);
         if (pageCount <= 0) {
+            ClearItemWidgets();
             SetText(binder.txt_empty, isInvitationMode ? "暂无 OGS 好友申请" : "暂无 OGS 好友");
             SetState(OgsFriendListPopupUI.SrOgsFriendState.Empty);
             SetText(binder.txt_page, "0 / 0");
@@ -343,14 +342,24 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
         pageIndex = Mathf.Clamp(pageIndex, 0, pageCount - 1);
         int startIndex = isInvitationMode ? pageIndex * itemsPerPage : 0;
         int endIndex = Mathf.Min(startIndex + itemsPerPage, CurrentItemCount);
-        for (int i = startIndex; i < endIndex; i++) {
-            OgsFriendItemWidget itemWidget = CreateItemWidget();
+        int displayCount = Mathf.Max(0, endIndex - startIndex);
+        if (itemWidgets.Count != displayCount) {
+            ClearItemWidgets();
+            for (int i = 0; i < displayCount; i++) {
+                OgsFriendItemWidget itemWidget = CreateItemWidget();
+                if (itemWidget != null) {
+                    itemWidgets.Add(itemWidget);
+                }
+            }
+        }
+
+        for (int i = 0; i < displayCount; i++) {
+            OgsFriendItemWidget itemWidget = i >= 0 && i < itemWidgets.Count ? itemWidgets[i] : null;
             if (itemWidget == null) {
                 continue;
             }
 
-            itemWidget.SetData(GetDisplayItem(i), OnClickFriendItem);
-            itemWidgets.Add(itemWidget);
+            itemWidget.SetData(GetDisplayItem(startIndex + i), OnClickFriendItem);
         }
 
         if (itemWidgets.Count <= 0) {
@@ -363,7 +372,6 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
         SetText(binder.txt_page, $"{pageIndex + 1} / {pageCount}");
         SetPageButtons(pageIndex > 0, pageIndex < pageCount - 1);
     }
-
     private OgsFriendItemWidget CreateItemWidget()
     {
         if (binder.content_friend_list == null) {
