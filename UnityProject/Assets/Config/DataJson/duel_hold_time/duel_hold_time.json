@@ -1,8 +1,22 @@
 {
+  "30s": {
+    "id": "30s",
+    "displayName": "30秒",
+    "holdSeconds": 30,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
   "2m": {
     "id": "2m",
     "displayName": "2分钟",
     "holdSeconds": 120,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
+  "3m": {
+    "id": "3m",
+    "displayName": "3分钟",
+    "holdSeconds": 180,
     "isInfinite": false,
     "ogsEnabled": true
   },
