@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 using XNLogger = XNClient.Logger.XNLogger;
 
@@ -9,6 +10,7 @@ public class UIManager : ModuleBase
     public GameObject uiRoot;
     public GameObject uiEventSystemGO;
     public Camera uiCamera;
+    public Camera sceneCamera;
     private Dictionary<UIContextType, UIContext> contextDict = new Dictionary<UIContextType, UIContext>();
 
     public override void Init()
@@ -18,6 +20,7 @@ public class UIManager : ModuleBase
 
         uiRoot = new GameObject(UIConfig.NAME_UI_ROOT);
         GameObject.DontDestroyOnLoad(uiRoot);
+        EnsureUICamera();
         uiEventSystemGO = Global.Instance.resourceManager.LoadGamePrefabWithConfigId(UIConfig.UI_EVENTSYSTEM_CONFIG_ID);
         if (uiEventSystemGO != null) {
             GameObject.DontDestroyOnLoad(uiEventSystemGO);
@@ -28,6 +31,7 @@ public class UIManager : ModuleBase
         foreach (UIContextType type in Enum.GetValues(typeof(UIContextType))) {
             contextDict.TryAdd(type, new UIContext(type));
         }
+        UpdateUICamera();
     }
 
     public void OnActiveSceneChanged(OnActiveSceneChanged evt)
@@ -148,29 +152,130 @@ public class UIManager : ModuleBase
 
     public void UpdateUICamera()
     {
-        Scene activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
-        if (!activeScene.IsValid()) {
-            uiCamera = null;
-            XNLogger.LogError("Active scene invalid, update ui camera failed.");
-            return;
-        }
-
-        foreach (var rootGO in activeScene.GetRootGameObjects()) {
-            var camera = rootGO.GetComponentInChildren<Camera>();
-            if (camera != null) {
-                uiCamera = camera;
-                XNLogger.LogInfo("Update ui camera success.", ("uiCameraName", uiCamera.gameObject.name));
-                break;
-            }
-        }
+        EnsureUICamera();
+        UpdateSceneCamera();
 
         if (uiCamera != null) {
             foreach (var kvp in contextDict) {
                 kvp.Value.UpdateUICamera(uiCamera);
             }
         } else {
-            uiCamera = null;
-            XNLogger.LogWarn("Camera not found in active scene, update ui camera failed.", ("sceneName", activeScene.name));
+            XNLogger.LogError("UI camera not found, update ui camera failed.");
+        }
+    }
+
+    public Camera GetSceneCamera()
+    {
+        if (sceneCamera != null) {
+            return sceneCamera;
+        }
+
+        sceneCamera = Camera.main;
+        if (sceneCamera != null) {
+            ConfigureSceneCamera(sceneCamera);
+        }
+        return sceneCamera;
+    }
+
+    private void EnsureUICamera()
+    {
+        if (uiCamera == null) {
+            GameObject uiCameraGO = new GameObject(UIConfig.NAME_UI_CAMERA);
+            if (uiRoot != null) {
+                uiCameraGO.transform.SetParent(uiRoot.transform, false);
+            }
+            uiCamera = uiCameraGO.AddComponent<Camera>();
+        }
+
+        ConfigureUICamera(uiCamera);
+    }
+
+    private void ConfigureUICamera(Camera camera)
+    {
+        if (camera == null) {
+            return;
+        }
+
+        int uiLayerMask = UIConfig.GetUILayerMask();
+        if (uiLayerMask == 0) {
+            XNLogger.LogError("UI layer not found, configure ui camera failed.", ("layerName", UIConfig.NAME_UI_LAYER));
+            return;
+        }
+
+        camera.clearFlags = CameraClearFlags.Nothing;
+        camera.cullingMask = uiLayerMask;
+        camera.eventMask = uiLayerMask;
+        camera.depth = UIConfig.UI_CAMERA_DEPTH;
+        camera.nearClipPlane = 0.1f;
+        camera.farClipPlane = UIConfig.UI_CAMERA_FAR_CLIP_PLANE;
+        camera.useOcclusionCulling = false;
+        camera.allowHDR = false;
+        camera.allowMSAA = false;
+
+        var cameraData = camera.GetComponent<UniversalAdditionalCameraData>();
+        if (cameraData == null) {
+            cameraData = camera.gameObject.AddComponent<UniversalAdditionalCameraData>();
+        }
+        cameraData.renderType = CameraRenderType.Base;
+        cameraData.renderShadows = false;
+        cameraData.renderPostProcessing = false;
+    }
+
+    private void UpdateSceneCamera()
+    {
+        Scene activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+        if (!activeScene.IsValid()) {
+            sceneCamera = null;
+            XNLogger.LogError("Active scene invalid, update scene camera failed.");
+            return;
+        }
+
+        sceneCamera = FindActiveSceneCamera(activeScene);
+        if (sceneCamera == null) {
+            XNLogger.LogWarn("Camera not found in active scene, update scene camera failed.", ("sceneName", activeScene.name));
+            return;
+        }
+
+        ConfigureSceneCamera(sceneCamera);
+        XNLogger.LogInfo("Update scene camera success.", ("sceneCameraName", sceneCamera.gameObject.name));
+    }
+
+    private Camera FindActiveSceneCamera(Scene activeScene)
+    {
+        Camera mainCamera = Camera.main;
+        if (mainCamera != null && mainCamera.gameObject.scene == activeScene) {
+            return mainCamera;
+        }
+
+        foreach (var rootGO in activeScene.GetRootGameObjects()) {
+            var camera = rootGO.GetComponentInChildren<Camera>();
+            if (camera != null) {
+                return camera;
+            }
+        }
+
+        return null;
+    }
+
+    private void ConfigureSceneCamera(Camera camera)
+    {
+        if (camera == null) {
+            return;
+        }
+
+        int uiLayerMask = UIConfig.GetUILayerMask();
+        if (uiLayerMask != 0) {
+            camera.cullingMask &= ~uiLayerMask;
+        }
+
+        var cameraData = camera.GetComponent<UniversalAdditionalCameraData>();
+        if (cameraData == null) {
+            return;
+        }
+
+        cameraData.renderType = CameraRenderType.Base;
+        if (uiCamera != null && cameraData.cameraStack.Contains(uiCamera)) {
+            cameraData.cameraStack.Remove(uiCamera);
         }
     }
 }

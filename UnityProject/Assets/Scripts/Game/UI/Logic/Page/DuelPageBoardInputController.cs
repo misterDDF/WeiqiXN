@@ -223,7 +223,12 @@ public class DuelPageBoardInputController
         compChessBoard = null;
         coords = null;
         nearestCellCenterLocalPos = Vector3.zero;
-        Ray mouseRay = Global.Instance.uiManager.uiCamera.ScreenPointToRay(Input.mousePosition);
+        Camera sceneCamera = Global.Instance.uiManager.GetSceneCamera();
+        if (sceneCamera == null) {
+            return false;
+        }
+
+        Ray mouseRay = sceneCamera.ScreenPointToRay(Input.mousePosition);
         if (!Physics.Raycast(mouseRay.origin, mouseRay.direction, out RaycastHit hitInfo, 500)) {
             return false;
         }

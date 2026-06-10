@@ -54,6 +54,7 @@ public abstract class UILogicBase : ITimerAttacher, IEventReceiver, IResourceLoa
     public void OnUnityResourceLoaded(GameObject uiGameObject)
     {
         _gameObject = uiGameObject;
+        ApplyUILayer(uiGameObject);
         isLoaded = true;
         transform.SetParent(Global.Instance.uiManager.uiRoot.transform);
         transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
@@ -77,6 +78,25 @@ public abstract class UILogicBase : ITimerAttacher, IEventReceiver, IResourceLoa
     protected virtual void OnLoaded()
     {
 
+    }
+
+    private void ApplyUILayer(GameObject uiGameObject)
+    {
+        int uiLayer = LayerMask.NameToLayer(UIConfig.NAME_UI_LAYER);
+        if (uiLayer < 0) {
+            XNLogger.LogError("UI layer not found, apply ui layer failed.", ("layerName", UIConfig.NAME_UI_LAYER));
+            return;
+        }
+
+        SetLayerRecursively(uiGameObject.transform, uiLayer);
+    }
+
+    private void SetLayerRecursively(Transform target, int layer)
+    {
+        target.gameObject.layer = layer;
+        for (int i = 0; i < target.childCount; i++) {
+            SetLayerRecursively(target.GetChild(i), layer);
+        }
     }
 
     protected virtual void OnOpen()

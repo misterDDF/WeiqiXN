@@ -15,9 +15,19 @@ public static class UIConfig
     public readonly static string PATH_UI_BINDER_EXPORT = Path.Combine(PATH_UI_SCRIPT_FOLDER, "Binder");
     public readonly static string PATH_UI_LOGIC_EXPORT = Path.Combine(PATH_UI_SCRIPT_FOLDER, "Logic");
     public const string NAME_UI_ROOT = "uiRoot";
+    public const string NAME_UI_CAMERA = "UICamera";
+    public const string NAME_UI_LAYER = "UI";
     public const string UI_EVENTSYSTEM_CONFIG_ID = "eventSystem";
+    public const float UI_CAMERA_DEPTH = 100f;
+    public const float UI_CAMERA_FAR_CLIP_PLANE = 1000f;
 
     public const int CONTEXT_INCREASE_CANVAS_ORDER = 1000;
     public const int MAINPAGE_INCREASE_CANVAS_ORDER = 20;
     public const int POPUP_INCREASE_CANVAS_ORDER = 1;
+
+    public static int GetUILayerMask()
+    {
+        int uiLayer = LayerMask.NameToLayer(NAME_UI_LAYER);
+        return uiLayer >= 0 ? 1 << uiLayer : 0;
+    }
 }
