@@ -275,11 +275,11 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
         SetText(binder.txt_ogs_registered, "注册: --");
         SetText(binder.txt_ogs_tags, "标签: --");
         SetText(binder.txt_ogs_about, "简介: --");
-        SetText(binder.txt_ogs_rating_overall, "综合: --");
-        SetText(binder.txt_ogs_ranking, "排名: --");
-        SetText(binder.txt_ogs_rating_19, "19路 --");
-        SetText(binder.txt_ogs_rating_13, "13路 --");
-        SetText(binder.txt_ogs_rating_9, "9路 --");
+        SetText(binder.txt_ogs_rating_overall, "综合段级: --");
+        SetText(binder.txt_ogs_ranking, "OGS 段级: --");
+        SetText(binder.txt_ogs_rating_19, "19路段级: --");
+        SetText(binder.txt_ogs_rating_13, "13路段级: --");
+        SetText(binder.txt_ogs_rating_9, "9路段级: --");
         SetText(binder.txt_ogs_friend_summary, "登录后可使用 OGS 好友入口");
     }
 
@@ -297,11 +297,11 @@ public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
         SetText(binder.txt_ogs_registered, $"注册: {DisplayValue(session.registeredAt)}");
         SetText(binder.txt_ogs_tags, $"标签: {DisplayValue(session.tags)}");
         SetText(binder.txt_ogs_about, $"简介: {DisplayValue(session.about)}");
-        SetText(binder.txt_ogs_rating_overall, $"综合: {DisplayValue(session.ratingOverall)}");
-        SetText(binder.txt_ogs_ranking, $"排名: {DisplayValue(session.ranking)}");
-        SetText(binder.txt_ogs_rating_19, $"19路 {DisplayValue(session.rating19)}");
-        SetText(binder.txt_ogs_rating_13, $"13路 {DisplayValue(session.rating13)}");
-        SetText(binder.txt_ogs_rating_9, $"9路 {DisplayValue(session.rating9)}");
+        SetText(binder.txt_ogs_rating_overall, $"综合段级: {DisplayValue(session.ratingOverall)}");
+        SetText(binder.txt_ogs_ranking, $"OGS 段级: {DisplayValue(session.ranking)}");
+        SetText(binder.txt_ogs_rating_19, $"19路段级: {DisplayValue(session.rating19)}");
+        SetText(binder.txt_ogs_rating_13, $"13路段级: {DisplayValue(session.rating13)}");
+        SetText(binder.txt_ogs_rating_9, $"9路段级: {DisplayValue(session.rating9)}");
         SetText(binder.txt_ogs_friend_summary, "好友列表入口已预留");
         ogsAvatarImage?.Load(session.avatarUrl);
     }

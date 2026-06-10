@@ -70,11 +70,11 @@ public class OgsFriendProfilePopup : UIPageWithBinder<OgsFriendProfilePopupUI>
         SetText(binder.txt_status, DisplayValue(item?.statusText, "状态未知"));
         SetText(binder.txt_user_id, $"OGS ID: {DisplayValue(item?.userId)}");
         SetText(binder.txt_country, $"地区: {DisplayValue(item?.country)}");
-        SetText(binder.txt_rating_overall, $"综合评分: {DisplayValue(item?.ratingOverall)}");
-        SetText(binder.txt_ranking, $"排名: {DisplayValue(item?.rankingText)}");
-        SetText(binder.txt_rating_19, $"19 路: {DisplayValue(item?.rating19)}");
-        SetText(binder.txt_rating_13, $"13 路: {DisplayValue(item?.rating13)}");
-        SetText(binder.txt_rating_9, $"9 路: {DisplayValue(item?.rating9)}");
+        SetText(binder.txt_rating_overall, $"综合段级: {DisplayValue(item?.ratingOverall)}");
+        SetText(binder.txt_ranking, $"OGS 段级: {DisplayValue(item?.rankingText)}");
+        SetText(binder.txt_rating_19, $"19 路段级: {DisplayValue(item?.rating19)}");
+        SetText(binder.txt_rating_13, $"13 路段级: {DisplayValue(item?.rating13)}");
+        SetText(binder.txt_rating_9, $"9 路段级: {DisplayValue(item?.rating9)}");
         SetText(binder.txt_registered, $"注册时间: {DisplayValue(item?.registeredAt)}");
         SetText(binder.txt_about, $"简介: {DisplayValue(item?.about)}");
         SetText(binder.txt_note, "资料来自 OGS，部分字段可能为空");
