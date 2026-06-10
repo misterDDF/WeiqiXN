@@ -29,10 +29,58 @@
     "seconds": 30,
     "ogsEnabled": true
   },
+  "40s": {
+    "id": "40s",
+    "displayName": "40秒",
+    "seconds": 40,
+    "ogsEnabled": true
+  },
+  "50s": {
+    "id": "50s",
+    "displayName": "50秒",
+    "seconds": 50,
+    "ogsEnabled": true
+  },
   "60s": {
     "id": "60s",
-    "displayName": "60秒",
+    "displayName": "1分钟",
     "seconds": 60,
+    "ogsEnabled": true
+  },
+  "70s": {
+    "id": "70s",
+    "displayName": "1分钟10秒",
+    "seconds": 70,
+    "ogsEnabled": true
+  },
+  "80s": {
+    "id": "80s",
+    "displayName": "1分钟20秒",
+    "seconds": 80,
+    "ogsEnabled": true
+  },
+  "90s": {
+    "id": "90s",
+    "displayName": "1分钟30秒",
+    "seconds": 90,
+    "ogsEnabled": true
+  },
+  "100s": {
+    "id": "100s",
+    "displayName": "1分钟40秒",
+    "seconds": 100,
+    "ogsEnabled": true
+  },
+  "110s": {
+    "id": "110s",
+    "displayName": "1分钟50秒",
+    "seconds": 110,
+    "ogsEnabled": true
+  },
+  "120s": {
+    "id": "120s",
+    "displayName": "2分钟",
+    "seconds": 120,
     "ogsEnabled": true
   }
 }

@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Concurrent;
-using System.Net.WebSockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
@@ -9,29 +7,22 @@ using XNClient.Logger;
 
 public sealed class OgsRealtimeGameSession : IDisposable
 {
-    private readonly ClientWebSocket websocket;
+    private readonly OgsRealtimeConnection connection;
     private readonly int gameId;
-    private readonly CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
     private readonly ConcurrentQueue<OgsRealtimeGameMessage> messageQueue = new ConcurrentQueue<OgsRealtimeGameMessage>();
-    private Task receiveTask;
     private bool isDisposed;
 
     public int GameId => gameId;
-    public bool IsOpen => websocket != null && websocket.State == WebSocketState.Open && !isDisposed;
+    public bool IsOpen => connection != null && connection.IsConnected && !isDisposed;
 
-    public OgsRealtimeGameSession(ClientWebSocket websocket, int gameId)
+    internal OgsRealtimeGameSession(OgsRealtimeConnection connection, int gameId)
     {
-        this.websocket = websocket;
+        this.connection = connection ?? throw new ArgumentNullException(nameof(connection));
         this.gameId = gameId;
     }
 
     public void StartReceiveLoop()
     {
-        if (receiveTask != null) {
-            return;
-        }
-
-        receiveTask = ReceiveLoopAsync();
     }
 
     public bool TryDequeueMessage(out OgsRealtimeGameMessage message)
@@ -163,23 +154,7 @@ public sealed class OgsRealtimeGameSession : IDisposable
             return;
         }
 
-        try {
-            if (websocket.State == WebSocketState.Open) {
-                var payload = new JArray
-                {
-                    "game/disconnect",
-                    new JObject
-                    {
-                        ["game_id"] = gameId,
-                    },
-                };
-                await SendPayloadAsync(payload.ToString(Newtonsoft.Json.Formatting.None), cancellationToken);
-                await websocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "disconnect", cancellationToken);
-            }
-        }
-        catch (Exception ex) {
-            XNLogger.LogWarn("OGS realtime disconnect failed.", ("gameId", gameId.ToString()), ("err", ex.Message));
-        }
+        await connection.SendGameDisconnectAsync(gameId, cancellationToken);
     }
 
     public void Dispose()
@@ -189,88 +164,15 @@ public sealed class OgsRealtimeGameSession : IDisposable
         }
 
         isDisposed = true;
-        cancellationTokenSource.Cancel();
-        websocket.Dispose();
-        cancellationTokenSource.Dispose();
+        connection.UnregisterGameSession(gameId, this);
     }
 
-    private async Task SendPayloadAsync(string payload, CancellationToken cancellationToken)
+    internal void EnqueueParsedMessage(string channel, JToken payload)
     {
-        if (!IsOpen) {
-            throw new InvalidOperationException($"OGS realtime socket is not open: {websocket.State}");
-        }
-
-        using (var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cancellationTokenSource.Token)) {
-            byte[] bytes = Encoding.UTF8.GetBytes(payload);
-            await websocket.SendAsync(
-                new ArraySegment<byte>(bytes),
-                WebSocketMessageType.Text,
-                true,
-                linked.Token);
-        }
-        LogVerboseRealtimePayload("OGS realtime sent.", payload);
-    }
-
-    private async Task ReceiveLoopAsync()
-    {
-        try {
-            while (!cancellationTokenSource.IsCancellationRequested &&
-                (websocket.State == WebSocketState.Open || websocket.State == WebSocketState.CloseReceived)) {
-                string rawMessage = await ReceiveMessageAsync(cancellationTokenSource.Token);
-                if (string.IsNullOrEmpty(rawMessage)) {
-                    continue;
-                }
-
-                LogVerboseRealtimePayload("OGS realtime received.", rawMessage);
-                EnqueueParsedMessage(rawMessage);
-            }
-        }
-        catch (OperationCanceledException) {
-        }
-        catch (Exception ex) {
-            XNLogger.LogError("OGS realtime receive loop failed.", ("gameId", gameId.ToString()), ("err", ex.Message));
-            messageQueue.Enqueue(new OgsRealtimeGameMessage(OgsRealtimeGameMessageType.Closed, string.Empty, null, ex.Message));
-        }
-        finally {
-            if (!isDisposed) {
-                messageQueue.Enqueue(new OgsRealtimeGameMessage(OgsRealtimeGameMessageType.Closed, string.Empty, null, websocket.State.ToString()));
-            }
-        }
-    }
-
-    private async Task<string> ReceiveMessageAsync(CancellationToken cancellationToken)
-    {
-        byte[] buffer = new byte[8192];
-        var messageBuilder = new StringBuilder();
-        WebSocketReceiveResult result;
-        do {
-            result = await websocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
-            if (result.MessageType == WebSocketMessageType.Close) {
-                return messageBuilder.ToString();
-            }
-            messageBuilder.Append(Encoding.UTF8.GetString(buffer, 0, result.Count));
-        } while (!result.EndOfMessage);
-
-        return messageBuilder.ToString();
-    }
-
-    private void EnqueueParsedMessage(string rawMessage)
-    {
-        JArray envelope;
-        try {
-            envelope = JArray.Parse(rawMessage);
-        }
-        catch (Exception ex) {
-            XNLogger.LogWarn("OGS realtime message parse failed.", ("gameId", gameId.ToString()), ("err", ex.Message));
+        if (isDisposed) {
             return;
         }
 
-        if (envelope.Count < 2) {
-            return;
-        }
-
-        string channel = envelope[0]?.ToString() ?? string.Empty;
-        JToken payload = envelope[1];
         if (channel == $"game/{gameId}/gamedata" || channel == $"game/{gameId}/data") {
             messageQueue.Enqueue(new OgsRealtimeGameMessage(OgsRealtimeGameMessageType.GameData, channel, payload));
         } else if (channel == $"game/{gameId}/move") {
@@ -298,6 +200,23 @@ public sealed class OgsRealtimeGameSession : IDisposable
                 ("channel", channel),
                 ("payload", TrimForLog(payload?.ToString(Newtonsoft.Json.Formatting.None) ?? string.Empty)));
         }
+    }
+
+    internal void NotifyClosed(string message)
+    {
+        if (!isDisposed) {
+            messageQueue.Enqueue(new OgsRealtimeGameMessage(OgsRealtimeGameMessageType.Closed, string.Empty, null, message ?? string.Empty));
+        }
+    }
+
+    private async Task SendPayloadAsync(string payload, CancellationToken cancellationToken)
+    {
+        if (!IsOpen) {
+            throw new InvalidOperationException("OGS realtime game session is not open.");
+        }
+
+        await connection.SendPayloadAsync(payload, cancellationToken);
+        LogVerboseRealtimePayload("OGS realtime sent.", payload);
     }
 
     private static string TrimForLog(string value)

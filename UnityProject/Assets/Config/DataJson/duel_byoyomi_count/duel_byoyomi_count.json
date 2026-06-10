@@ -11,16 +11,58 @@
     "count": 1,
     "ogsEnabled": true
   },
+  "2": {
+    "id": "2",
+    "displayName": "2次",
+    "count": 2,
+    "ogsEnabled": true
+  },
   "3": {
     "id": "3",
     "displayName": "3次",
     "count": 3,
     "ogsEnabled": true
   },
+  "4": {
+    "id": "4",
+    "displayName": "4次",
+    "count": 4,
+    "ogsEnabled": true
+  },
   "5": {
     "id": "5",
     "displayName": "5次",
     "count": 5,
+    "ogsEnabled": true
+  },
+  "6": {
+    "id": "6",
+    "displayName": "6次",
+    "count": 6,
+    "ogsEnabled": true
+  },
+  "7": {
+    "id": "7",
+    "displayName": "7次",
+    "count": 7,
+    "ogsEnabled": true
+  },
+  "8": {
+    "id": "8",
+    "displayName": "8次",
+    "count": 8,
+    "ogsEnabled": true
+  },
+  "9": {
+    "id": "9",
+    "displayName": "9次",
+    "count": 9,
+    "ogsEnabled": true
+  },
+  "10": {
+    "id": "10",
+    "displayName": "10次",
+    "count": 10,
     "ogsEnabled": true
   }
 }

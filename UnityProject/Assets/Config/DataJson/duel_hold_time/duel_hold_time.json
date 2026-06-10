@@ -41,6 +41,160 @@
     "isInfinite": false,
     "ogsEnabled": true
   },
+  "30m": {
+    "id": "30m",
+    "displayName": "30分钟",
+    "holdSeconds": 1800,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
+  "40m": {
+    "id": "40m",
+    "displayName": "40分钟",
+    "holdSeconds": 2400,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
+  "50m": {
+    "id": "50m",
+    "displayName": "50分钟",
+    "holdSeconds": 3000,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
+  "60m": {
+    "id": "60m",
+    "displayName": "1小时",
+    "holdSeconds": 3600,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
+  "70m": {
+    "id": "70m",
+    "displayName": "1小时10分",
+    "holdSeconds": 4200,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
+  "80m": {
+    "id": "80m",
+    "displayName": "1小时20分",
+    "holdSeconds": 4800,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
+  "90m": {
+    "id": "90m",
+    "displayName": "1小时30分",
+    "holdSeconds": 5400,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
+  "100m": {
+    "id": "100m",
+    "displayName": "1小时40分",
+    "holdSeconds": 6000,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
+  "110m": {
+    "id": "110m",
+    "displayName": "1小时50分",
+    "holdSeconds": 6600,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
+  "120m": {
+    "id": "120m",
+    "displayName": "2小时",
+    "holdSeconds": 7200,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
+  "130m": {
+    "id": "130m",
+    "displayName": "2小时10分",
+    "holdSeconds": 7800,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
+  "140m": {
+    "id": "140m",
+    "displayName": "2小时20分",
+    "holdSeconds": 8400,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
+  "150m": {
+    "id": "150m",
+    "displayName": "2小时30分",
+    "holdSeconds": 9000,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
+  "160m": {
+    "id": "160m",
+    "displayName": "2小时40分",
+    "holdSeconds": 9600,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
+  "170m": {
+    "id": "170m",
+    "displayName": "2小时50分",
+    "holdSeconds": 10200,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
+  "180m": {
+    "id": "180m",
+    "displayName": "3小时",
+    "holdSeconds": 10800,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
+  "190m": {
+    "id": "190m",
+    "displayName": "3小时10分",
+    "holdSeconds": 11400,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
+  "200m": {
+    "id": "200m",
+    "displayName": "3小时20分",
+    "holdSeconds": 12000,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
+  "210m": {
+    "id": "210m",
+    "displayName": "3小时30分",
+    "holdSeconds": 12600,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
+  "220m": {
+    "id": "220m",
+    "displayName": "3小时40分",
+    "holdSeconds": 13200,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
+  "230m": {
+    "id": "230m",
+    "displayName": "3小时50分",
+    "holdSeconds": 13800,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
+  "240m": {
+    "id": "240m",
+    "displayName": "4小时",
+    "holdSeconds": 14400,
+    "isInfinite": false,
+    "ogsEnabled": true
+  },
   "infinite": {
     "id": "infinite",
     "displayName": "无限时间",

@@ -28,6 +28,7 @@ public sealed class OgsConnectionService : ModuleBase
     private bool sessionLoaded;
     private int friendInvitationCount;
     private OgsFriendDataRequestCache friendDataRequestCache;
+    private OgsRealtimeConnection realtimeConnection;
 
     public OgsConnectionService()
     {
@@ -71,6 +72,20 @@ public sealed class OgsConnectionService : ModuleBase
     {
     }
 
+    public override void Update()
+    {
+        EnsureInitialized();
+        UpdateRealtimeConnectionLifecycle();
+    }
+
+    public override void OnDestroy()
+    {
+        StopRealtimeConnection();
+        realtimeConnection?.Dispose();
+        realtimeConnection = null;
+        base.OnDestroy();
+    }
+
     private void EnsureInitialized()
     {
         if (sessionLock == null) {
@@ -84,6 +99,11 @@ public sealed class OgsConnectionService : ModuleBase
         }
         if (friendDataRequestCache == null) {
             friendDataRequestCache = new OgsFriendDataRequestCache();
+        }
+        if (realtimeConnection == null) {
+            realtimeConnection = new OgsRealtimeConnection(
+                RequestRealtimeUserJwtForCurrentSessionAsync,
+                () => OgsConnectionConfig.DefaultWebSocketUrl);
         }
         if (sessionLoaded) {
             return;
@@ -106,11 +126,13 @@ public sealed class OgsConnectionService : ModuleBase
         if (string.IsNullOrWhiteSpace(baseUrl)) {
             apiBaseUrl = OgsConnectionConfig.DefaultApiBaseUrl;
             friendDataRequestCache?.Clear();
+            RestartRealtimeConnectionIfNeeded();
             return;
         }
 
         apiBaseUrl = baseUrl.Trim().TrimEnd('/');
         friendDataRequestCache?.Clear();
+        RestartRealtimeConnectionIfNeeded();
     }
 
     public OgsAuthorizationRequest CreateAuthorizationRequest(
@@ -185,6 +207,7 @@ public sealed class OgsConnectionService : ModuleBase
 
             OgsSessionStore.Save(session);
             friendDataRequestCache?.Clear();
+            StartRealtimeConnection();
             XNLogger.LogInfo("OGS login succeeded.", ("userId", session.userId ?? string.Empty), ("username", session.username ?? string.Empty));
             return new OgsConnectionResult(true, "OGS login succeeded.");
         }
@@ -634,10 +657,12 @@ public sealed class OgsConnectionService : ModuleBase
     public void Logout()
     {
         EnsureInitialized();
+        StopRealtimeConnection();
         lock (sessionLock) {
             session.Clear();
         }
         friendDataRequestCache?.Clear();
+        realtimeConnection?.ClearUserStates();
         OgsSessionStore.Clear();
         XNLogger.LogInfo("OGS session cleared.");
         EmitFriendInvitationCountChanged(0);
@@ -647,6 +672,65 @@ public sealed class OgsConnectionService : ModuleBase
     {
         friendInvitationCount = Mathf.Max(0, count);
         Global.Instance?.eventManager?.EmitSystemEvent(new OnOgsFriendInvitationCountChanged(friendInvitationCount));
+    }
+
+    private void UpdateRealtimeConnectionLifecycle()
+    {
+        if (ShouldMaintainRealtimeConnection()) {
+            StartRealtimeConnection();
+        } else {
+            StopRealtimeConnection();
+        }
+    }
+
+    private bool ShouldMaintainRealtimeConnection()
+    {
+        if (Global.IsApplicationInBackground) {
+            return false;
+        }
+
+        lock (sessionLock) {
+            return session != null && (session.HasAccessToken || session.CanRefresh);
+        }
+    }
+
+    private void StartRealtimeConnection()
+    {
+        if (realtimeConnection == null || !ShouldMaintainRealtimeConnection()) {
+            return;
+        }
+
+        realtimeConnection.Start();
+    }
+
+    private void StopRealtimeConnection()
+    {
+        realtimeConnection?.Stop();
+    }
+
+    private void RestartRealtimeConnectionIfNeeded()
+    {
+        if (realtimeConnection == null || !realtimeConnection.IsStarted) {
+            return;
+        }
+
+        realtimeConnection.Stop();
+        StartRealtimeConnection();
+    }
+
+    private async Task<string> RequestRealtimeUserJwtForCurrentSessionAsync(CancellationToken cancellationToken)
+    {
+        OgsConnectionResult accessResult = await EnsureReadableAccessTokenAsync(cancellationToken);
+        if (!accessResult.success) {
+            throw new InvalidOperationException(accessResult.message);
+        }
+
+        string accessToken;
+        lock (sessionLock) {
+            accessToken = session.accessToken;
+        }
+
+        return await RequestRealtimeUserJwtAsync(accessToken, cancellationToken);
     }
 
     public async Task<OgsRealtimeSmokeResult> TestRealtimeAuthenticationAsync(
@@ -1289,30 +1373,11 @@ public sealed class OgsConnectionService : ModuleBase
             throw new InvalidOperationException(accessResult.message);
         }
 
-        string accessToken;
-        lock (sessionLock) {
-            accessToken = session.accessToken;
-        }
-
-        string userJwt = await RequestRealtimeUserJwtAsync(accessToken, cancellationToken);
-        if (string.IsNullOrEmpty(userJwt)) {
-            throw new InvalidOperationException("OGS ui config did not include user_jwt.");
-        }
-
-        var websocket = new ClientWebSocket();
-        try {
-            await websocket.ConnectAsync(new Uri(websocketUrl.Trim()), cancellationToken);
-            await SendRealtimePayloadAsync(websocket, BuildRealtimeAuthenticatePayload(userJwt), cancellationToken);
-            await SendRealtimePayloadAsync(websocket, BuildGameConnectPayload(gameId), cancellationToken);
-            var session = new OgsRealtimeGameSession(websocket, gameId);
-            session.StartReceiveLoop();
-            XNLogger.LogInfo("OGS realtime game session connected.", ("gameId", gameId.ToString()));
-            return session;
-        }
-        catch {
-            websocket.Dispose();
-            throw;
-        }
+        StartRealtimeConnection();
+        OgsRealtimeGameSession gameSession = await realtimeConnection.CreateGameSessionAsync(gameId, cancellationToken);
+        gameSession.StartReceiveLoop();
+        XNLogger.LogInfo("OGS realtime game session subscribed.", ("gameId", gameId.ToString()));
+        return gameSession;
     }
 
     private Task<OgsConnectionResult> EnsureUsableAccessTokenAsync(CancellationToken cancellationToken)
@@ -3368,6 +3433,7 @@ public sealed class OgsConnectionService : ModuleBase
         }
 
         userIds.Sort();
+        realtimeConnection?.MonitorUsers(userIds);
         string idsKey = BuildUserIdCacheKey(userIds);
         JToken stateJson = await friendDataRequestCache.GetJsonAsync(
             $"friend-online:{apiBaseUrl}:{idsKey}",
