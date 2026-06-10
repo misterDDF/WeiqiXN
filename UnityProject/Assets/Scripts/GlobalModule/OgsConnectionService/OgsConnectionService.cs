@@ -21,6 +21,8 @@ public sealed class OgsConnectionService : ModuleBase
     private const string MobileDeepLinkCallbackUri = "weiqixn://ogs/callback";
     private const string FriendStatusOnlineText = "\u5728\u7ebf";
     private const string FriendStatusOfflineText = "\u79bb\u7ebf";
+    private const int FriendListDisplayPrefetchPageSize = 100;
+    private const float FriendListDisplayPrefetchRetrySeconds = 30f;
 
     private object sessionLock;
     private OgsSession session;
@@ -32,6 +34,9 @@ public sealed class OgsConnectionService : ModuleBase
     private List<OgsFriendListItem> cachedFriendListItems;
     private int cachedFriendListTotalCount;
     private bool hasCachedFriendList;
+    private int friendDataCacheVersion;
+    private bool friendListDisplayPrefetchRunning;
+    private float nextFriendListDisplayPrefetchTime;
     private OgsRealtimeConnection realtimeConnection;
 
     public OgsConnectionService()
@@ -80,6 +85,7 @@ public sealed class OgsConnectionService : ModuleBase
     {
         EnsureInitialized();
         UpdateRealtimeConnectionLifecycle();
+        TryStartFriendListDisplayPrefetch();
     }
 
     public override void OnDestroy()
@@ -378,6 +384,7 @@ public sealed class OgsConnectionService : ModuleBase
         CancellationToken cancellationToken = default(CancellationToken))
     {
         EnsureInitialized();
+        int requestCacheVersion = friendDataCacheVersion;
         OgsConnectionResult accessResult = await EnsureReadableAccessTokenAsync(cancellationToken);
         if (!accessResult.success) {
             return new OgsFriendListResult(false, accessResult.message);
@@ -413,7 +420,7 @@ public sealed class OgsConnectionService : ModuleBase
             List<OgsFriendListItem> friends = IsPagedFriendListResponse(friendJson)
                 ? allFriends
                 : SliceFriendList(allFriends, page, pageSize);
-            if (page == 1) {
+            if (page == 1 && requestCacheVersion == friendDataCacheVersion) {
                 UpdateCachedFriendList(friends, totalCount);
             }
             XNLogger.LogInfo(
@@ -709,10 +716,58 @@ public sealed class OgsConnectionService : ModuleBase
     private void ClearFriendDataCaches()
     {
         friendDataRequestCache?.Clear();
+        friendDataCacheVersion += 1;
+        nextFriendListDisplayPrefetchTime = 0f;
         lock (friendListDisplayCacheLock) {
             cachedFriendListItems = null;
             cachedFriendListTotalCount = 0;
             hasCachedFriendList = false;
+        }
+    }
+
+    private void TryStartFriendListDisplayPrefetch()
+    {
+        if (friendListDisplayPrefetchRunning || HasCachedFriendListDisplaySnapshot()) {
+            return;
+        }
+        if (!ShouldMaintainRealtimeConnection()) {
+            return;
+        }
+        if (Time.unscaledTime < nextFriendListDisplayPrefetchTime) {
+            return;
+        }
+
+        friendListDisplayPrefetchRunning = true;
+        nextFriendListDisplayPrefetchTime = Time.unscaledTime + FriendListDisplayPrefetchRetrySeconds;
+        _ = PrefetchFriendListDisplayCacheAsync();
+    }
+
+    private async Task PrefetchFriendListDisplayCacheAsync()
+    {
+        try {
+            OgsFriendListResult result = await RequestFriendListAsync(1, FriendListDisplayPrefetchPageSize);
+            if (!result.success) {
+                XNLogger.LogWarn("OGS friend list display prefetch failed.", ("message", result.message));
+                return;
+            }
+
+            XNLogger.LogInfo(
+                "OGS friend list display prefetched.",
+                ("count", result.friends?.Count.ToString() ?? "0"),
+                ("total", result.totalCount.ToString()));
+        }
+        catch (Exception ex) {
+            XNLogger.LogWarn("OGS friend list display prefetch threw.", ("err", ex.Message));
+        }
+        finally {
+            friendListDisplayPrefetchRunning = false;
+        }
+    }
+
+    private bool HasCachedFriendListDisplaySnapshot()
+    {
+        lock (friendListDisplayCacheLock) {
+            return hasCachedFriendList;
         }
     }
 
