@@ -1,5 +1,5 @@
 param(
-    [string]$ApkPath = "F:\WorkSpace\WeiqiXN\Build\Android\WeiqiXN.apk",
+    [string]$ApkPath = "",
     [string]$AdbPath = "C:\Users\78447\AppData\Local\Android\Sdk\platform-tools\adb.exe",
     [string]$PackageName = "com.DefaultCompany.WeiqiXN",
     [string]$LaunchActivity = "com.unity3d.player.UnityPlayerActivity"
@@ -7,10 +7,31 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$scriptRoot = $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($scriptRoot)) {
+    $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+}
+
+$repoRoot = [System.IO.Path]::GetFullPath((Join-Path $scriptRoot "..\..\..\.."))
+$repoApkPath = Join-Path $repoRoot "Build\Android\WeiqiXN.apk"
+$legacyApkPath = "F:\WorkSpace\WeiqiXN\Build\Android\WeiqiXN.apk"
+
+if ([string]::IsNullOrWhiteSpace($ApkPath)) {
+    if (Test-Path -LiteralPath $repoApkPath -PathType Leaf) {
+        $ApkPath = $repoApkPath
+    } elseif (Test-Path -LiteralPath $legacyApkPath -PathType Leaf) {
+        $ApkPath = $legacyApkPath
+    } else {
+        $ApkPath = $repoApkPath
+    }
+}
+
 if (-not (Test-Path -LiteralPath $ApkPath -PathType Leaf)) {
-    [Console]::Error.WriteLine("APK not found: $ApkPath. Ask the user whether to build it with Unity menu '自定义功能/打包/Build Android APK'.")
+    [Console]::Error.WriteLine("APK not found. Checked current repo output '$repoApkPath' and legacy output '$legacyApkPath'. Ask the user whether to build it with Unity menu '自定义功能/打包/Build Android APK'.")
     exit 2
 }
+
+Write-Host "Using APK: $ApkPath"
 
 if (-not (Test-Path -LiteralPath $AdbPath -PathType Leaf)) {
     [Console]::Error.WriteLine("ADB not found: $AdbPath")
