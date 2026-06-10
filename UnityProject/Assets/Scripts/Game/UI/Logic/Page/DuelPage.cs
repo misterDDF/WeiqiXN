@@ -11,6 +11,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     private int pendingScorePopupRequestId;
     private int pendingTakeBackPopupRequestId;
     private int reconnectWaitingPopupRequestId;
+    private int ogsReconnectWaitingPopupRequestId;
     private int pendingTakeBackMoveCount;
     private int pendingTakeBackRemoveCount;
     private string pendingTakeBackTurnPlayerGuid;
@@ -40,6 +41,8 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         RegisterSystemEvent<OnLanRoomPeerLeft>(OnLanRoomPeerLeft);
         RegisterSystemEvent<OnLanRoomReconnectWaiting>(OnLanRoomReconnectWaiting);
         RegisterSystemEvent<OnLanRoomReconnected>(OnLanRoomReconnected);
+        RegisterSystemEvent<OnOgsDuelReconnectWaiting>(OnOgsDuelReconnectWaiting);
+        RegisterSystemEvent<OnOgsDuelReconnected>(OnOgsDuelReconnected);
 
         BindPrefabHud();
     }
@@ -78,6 +81,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         ClosePendingScorePopup();
         ClosePendingTakeBackPopup();
         CloseReconnectWaitingPopup();
+        CloseOgsReconnectWaitingPopup();
         CloseMoveConfirmPopup();
         boardInput.Dispose();
         base.OnClose();
@@ -271,6 +275,20 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         hudView.ShowActionNotice(MessageText.Get("lan_room_reconnect_restored"));
     }
 
+    public void OnOgsDuelReconnectWaiting(OnOgsDuelReconnectWaiting evt)
+    {
+        ClosePendingScorePopup();
+        ClosePendingTakeBackPopup();
+        CloseMoveConfirmPopup();
+        ShowOrUpdateOgsReconnectWaitingPopup();
+    }
+
+    public void OnOgsDuelReconnected(OnOgsDuelReconnected evt)
+    {
+        CloseOgsReconnectWaitingPopup();
+        hudView.ShowActionNotice("OGS 对局连接已恢复");
+    }
+
     public void RefreshDuelHud()
     {
         hudView.Refresh(Global.Instance.sceneManager.mainScene);
@@ -333,6 +351,11 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     private void ExitReconnectWaitingToMainMenu()
     {
         Global.Instance.lanRoomService?.LeaveCurrentSession(LanRoomLeaveReason.ExitDuel, false);
+        Global.Instance.sceneManager.EnterMainScene(SceneConfig.MAIN_MENU_SCENE_TYPE_ID, SceneCreateParams.Default);
+    }
+
+    private void ExitOgsReconnectWaitingToMainMenu()
+    {
         Global.Instance.sceneManager.EnterMainScene(SceneConfig.MAIN_MENU_SCENE_TYPE_ID, SceneCreateParams.Default);
     }
 
@@ -655,6 +678,39 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         ConfirmPopup.CloseIfOpen(reconnectWaitingPopupRequestId);
         reconnectWaitingPopupRequestId = 0;
+    }
+
+    private void ShowOrUpdateOgsReconnectWaitingPopup()
+    {
+        const string title = "OGS 重连中";
+        const string content = "正在恢复 OGS 对局连接，恢复后将自动继续对局。";
+        const string buttonText = "返回主菜单";
+
+        if (ogsReconnectWaitingPopupRequestId <= 0) {
+            ogsReconnectWaitingPopupRequestId = ConfirmPopup.ShowTip(
+                title,
+                content,
+                ExitOgsReconnectWaitingToMainMenu,
+                buttonText);
+            return;
+        }
+
+        ConfirmPopup.UpdateOpenContent(
+            ogsReconnectWaitingPopupRequestId,
+            title,
+            content,
+            ExitOgsReconnectWaitingToMainMenu,
+            true);
+    }
+
+    private void CloseOgsReconnectWaitingPopup()
+    {
+        if (ogsReconnectWaitingPopupRequestId <= 0) {
+            return;
+        }
+
+        ConfirmPopup.CloseIfOpen(ogsReconnectWaitingPopupRequestId);
+        ogsReconnectWaitingPopupRequestId = 0;
     }
 
     private void RefreshPortraitMoveConfirmation(SceneBase mainScene, SceneComponentDuel compDuel, DuelInputAuthorityState inputState)
