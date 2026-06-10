@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using XNClient.Logger;
 
@@ -21,7 +23,7 @@ public static class DuelReplayIndexFile
                 return true;
             }
 
-            JObject indexJson = JObject.Parse(File.ReadAllText(GameSaveConfig.ReplayIndexPath));
+            JObject indexJson = ParseIndexJson(File.ReadAllText(GameSaveConfig.ReplayIndexPath));
             if (!(indexJson["items"] is JArray itemTokens)) {
                 return true;
             }
@@ -30,7 +32,7 @@ public static class DuelReplayIndexFile
                 items.Add(DuelReplayIndexItem.FromJson(itemJson));
             }
 
-            items.Sort((a, b) => string.CompareOrdinal(b.lastUpdatedAtUtc, a.lastUpdatedAtUtc));
+            items.Sort(CompareByLastUpdatedDesc);
             return true;
         }
         catch (Exception ex) {
@@ -50,7 +52,7 @@ public static class DuelReplayIndexFile
             return false;
         }
 
-        string gameId = saveInfoJson["gameId"]?.ToString();
+        string gameId = ReadTokenString(saveInfoJson["gameId"]);
         if (string.IsNullOrEmpty(gameId)) {
             return false;
         }
@@ -60,7 +62,7 @@ public static class DuelReplayIndexFile
             JArray items = GetItems(indexJson);
             JObject item = items
                 .OfType<JObject>()
-                .FirstOrDefault(existing => string.Equals(existing["gameId"]?.ToString(), gameId, StringComparison.Ordinal));
+                .FirstOrDefault(existing => string.Equals(ReadTokenString(existing["gameId"]), gameId, StringComparison.Ordinal));
             if (item == null) {
                 item = new JObject();
                 items.Add(item);
@@ -93,7 +95,7 @@ public static class DuelReplayIndexFile
             JArray items = GetItems(indexJson);
             JToken target = items
                 .OfType<JObject>()
-                .FirstOrDefault(existing => string.Equals(existing["gameId"]?.ToString(), gameId, StringComparison.Ordinal));
+                .FirstOrDefault(existing => string.Equals(ReadTokenString(existing["gameId"]), gameId, StringComparison.Ordinal));
             target?.Remove();
             Save(indexJson);
             return true;
@@ -112,9 +114,19 @@ public static class DuelReplayIndexFile
             return new JObject { ["items"] = new JArray() };
         }
 
-        JObject indexJson = JObject.Parse(File.ReadAllText(indexPath));
+        JObject indexJson = ParseIndexJson(File.ReadAllText(indexPath));
         GetItems(indexJson);
         return indexJson;
+    }
+
+    private static JObject ParseIndexJson(string json)
+    {
+        using (StringReader stringReader = new StringReader(json))
+        using (JsonTextReader jsonReader = new JsonTextReader(stringReader))
+        {
+            jsonReader.DateParseHandling = DateParseHandling.None;
+            return JObject.Load(jsonReader);
+        }
     }
 
     private static JArray GetItems(JObject indexJson)
@@ -130,19 +142,19 @@ public static class DuelReplayIndexFile
 
     private static void FillItem(JObject item, JObject saveInfoJson)
     {
-        string gameId = saveInfoJson["gameId"]?.ToString() ?? string.Empty;
+        string gameId = ReadTokenString(saveInfoJson["gameId"]);
         item["gameId"] = gameId;
-        item["createdAtUtc"] = saveInfoJson["createdAtUtc"]?.ToString() ?? string.Empty;
-        item["lastUpdatedAtUtc"] = saveInfoJson["lastUpdatedAtUtc"]?.ToString() ?? string.Empty;
-        item["archivedAtUtc"] = saveInfoJson["archivedAtUtc"]?.ToString() ?? string.Empty;
+        item["createdAtUtc"] = ReadTokenString(saveInfoJson["createdAtUtc"]);
+        item["lastUpdatedAtUtc"] = ReadTokenString(saveInfoJson["lastUpdatedAtUtc"]);
+        item["archivedAtUtc"] = ReadTokenString(saveInfoJson["archivedAtUtc"]);
         item["moveCount"] = saveInfoJson["moveCount"]?.Value<int>() ?? 0;
         item["boardSize"] = saveInfoJson["board"]?["boardSize"]?.Value<int>() ?? 0;
-        item["resultType"] = saveInfoJson["resultType"]?.ToString() ?? string.Empty;
-        item["winnerFlag"] = saveInfoJson["winnerFlag"]?.ToString() ?? string.Empty;
-        item["finalScore"] = saveInfoJson["finalScore"]?.ToString() ?? string.Empty;
-        item["sourceType"] = saveInfoJson["sourceType"]?.ToString() ?? string.Empty;
-        item["blackPlayerName"] = saveInfoJson["players"]?["black"]?["displayName"]?.ToString() ?? string.Empty;
-        item["whitePlayerName"] = saveInfoJson["players"]?["white"]?["displayName"]?.ToString() ?? string.Empty;
+        item["resultType"] = ReadTokenString(saveInfoJson["resultType"]);
+        item["winnerFlag"] = ReadTokenString(saveInfoJson["winnerFlag"]);
+        item["finalScore"] = ReadTokenString(saveInfoJson["finalScore"]);
+        item["sourceType"] = ReadTokenString(saveInfoJson["sourceType"]);
+        item["blackPlayerName"] = ReadTokenString(saveInfoJson["players"]?["black"]?["displayName"]);
+        item["whitePlayerName"] = ReadTokenString(saveInfoJson["players"]?["white"]?["displayName"]);
         item["isCompleted"] = saveInfoJson["isCompleted"]?.Value<bool>() ?? false;
         item["isArchived"] = saveInfoJson["isArchived"]?.Value<bool>() ?? false;
         item["saveInfoPath"] = $"replay/{gameId}/SaveInfo.json";
@@ -152,7 +164,8 @@ public static class DuelReplayIndexFile
     {
         JToken[] sortedItems = items
             .OfType<JObject>()
-            .OrderByDescending(item => item["lastUpdatedAtUtc"]?.ToString() ?? string.Empty, StringComparer.Ordinal)
+            .OrderByDescending(item => ReadUtcTicks(item["lastUpdatedAtUtc"]))
+            .ThenByDescending(item => ReadTokenString(item["gameId"]), StringComparer.Ordinal)
             .Cast<JToken>()
             .ToArray();
 
@@ -166,6 +179,75 @@ public static class DuelReplayIndexFile
     {
         Directory.CreateDirectory(GameSaveConfig.ReplayRootPath);
         File.WriteAllText(GameSaveConfig.ReplayIndexPath, indexJson.ToString());
+    }
+
+    internal static string ReadIndexTokenString(JToken token)
+    {
+        return ReadTokenString(token);
+    }
+
+    internal static long ReadIndexUtcTicks(JToken token)
+    {
+        return ReadUtcTicks(token);
+    }
+
+    private static int CompareByLastUpdatedDesc(DuelReplayIndexItem a, DuelReplayIndexItem b)
+    {
+        long leftTicks = a != null ? a.lastUpdatedAtUtcTicks : long.MinValue;
+        long rightTicks = b != null ? b.lastUpdatedAtUtcTicks : long.MinValue;
+        int timeCompare = rightTicks.CompareTo(leftTicks);
+        if (timeCompare != 0) {
+            return timeCompare;
+        }
+
+        return string.CompareOrdinal(b?.gameId ?? string.Empty, a?.gameId ?? string.Empty);
+    }
+
+    private static string ReadTokenString(JToken token)
+    {
+        if (token == null || token.Type == JTokenType.Null) {
+            return string.Empty;
+        }
+
+        if (token.Type == JTokenType.Date) {
+            DateTime dateTime = token.Value<DateTime>();
+            if (dateTime.Kind == DateTimeKind.Unspecified) {
+                dateTime = DateTime.SpecifyKind(dateTime, DateTimeKind.Utc);
+            }
+
+            return dateTime.ToUniversalTime().ToString("o", CultureInfo.InvariantCulture);
+        }
+
+        return token.Type == JTokenType.String
+            ? token.Value<string>() ?? string.Empty
+            : token.ToString();
+    }
+
+    private static long ReadUtcTicks(JToken token)
+    {
+        if (token == null || token.Type == JTokenType.Null) {
+            return long.MinValue;
+        }
+
+        if (token.Type == JTokenType.Date) {
+            DateTime dateTime = token.Value<DateTime>();
+            if (dateTime.Kind == DateTimeKind.Unspecified) {
+                dateTime = DateTime.SpecifyKind(dateTime, DateTimeKind.Utc);
+            }
+
+            return dateTime.ToUniversalTime().Ticks;
+        }
+
+        string timeText = ReadTokenString(token);
+        if (DateTimeOffset.TryParse(
+            timeText,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out DateTimeOffset dateTimeOffset)) {
+            return dateTimeOffset.UtcDateTime.Ticks;
+        }
+
+        return long.MinValue;
     }
 }
 
@@ -186,26 +268,29 @@ public class DuelReplayIndexItem
     public bool isCompleted;
     public bool isArchived;
     public string saveInfoPath;
+    public long lastUpdatedAtUtcTicks;
 
     public static DuelReplayIndexItem FromJson(JObject json)
     {
+        string lastUpdatedAtUtc = DuelReplayIndexFile.ReadIndexTokenString(json?["lastUpdatedAtUtc"]);
         return new DuelReplayIndexItem
         {
-            gameId = json["gameId"]?.ToString() ?? string.Empty,
-            createdAtUtc = json["createdAtUtc"]?.ToString() ?? string.Empty,
-            lastUpdatedAtUtc = json["lastUpdatedAtUtc"]?.ToString() ?? string.Empty,
-            archivedAtUtc = json["archivedAtUtc"]?.ToString() ?? string.Empty,
-            moveCount = json["moveCount"]?.Value<int>() ?? 0,
-            boardSize = json["boardSize"]?.Value<int>() ?? 0,
-            resultType = json["resultType"]?.ToString() ?? string.Empty,
-            winnerFlag = json["winnerFlag"]?.ToString() ?? string.Empty,
-            finalScore = json["finalScore"]?.ToString() ?? string.Empty,
-            sourceType = json["sourceType"]?.ToString() ?? string.Empty,
-            blackPlayerName = json["blackPlayerName"]?.ToString() ?? string.Empty,
-            whitePlayerName = json["whitePlayerName"]?.ToString() ?? string.Empty,
-            isCompleted = json["isCompleted"]?.Value<bool>() ?? false,
-            isArchived = json["isArchived"]?.Value<bool>() ?? false,
-            saveInfoPath = json["saveInfoPath"]?.ToString() ?? string.Empty,
+            gameId = DuelReplayIndexFile.ReadIndexTokenString(json?["gameId"]),
+            createdAtUtc = DuelReplayIndexFile.ReadIndexTokenString(json?["createdAtUtc"]),
+            lastUpdatedAtUtc = lastUpdatedAtUtc,
+            archivedAtUtc = DuelReplayIndexFile.ReadIndexTokenString(json?["archivedAtUtc"]),
+            moveCount = json?["moveCount"]?.Value<int>() ?? 0,
+            boardSize = json?["boardSize"]?.Value<int>() ?? 0,
+            resultType = DuelReplayIndexFile.ReadIndexTokenString(json?["resultType"]),
+            winnerFlag = DuelReplayIndexFile.ReadIndexTokenString(json?["winnerFlag"]),
+            finalScore = DuelReplayIndexFile.ReadIndexTokenString(json?["finalScore"]),
+            sourceType = DuelReplayIndexFile.ReadIndexTokenString(json?["sourceType"]),
+            blackPlayerName = DuelReplayIndexFile.ReadIndexTokenString(json?["blackPlayerName"]),
+            whitePlayerName = DuelReplayIndexFile.ReadIndexTokenString(json?["whitePlayerName"]),
+            isCompleted = json?["isCompleted"]?.Value<bool>() ?? false,
+            isArchived = json?["isArchived"]?.Value<bool>() ?? false,
+            saveInfoPath = DuelReplayIndexFile.ReadIndexTokenString(json?["saveInfoPath"]),
+            lastUpdatedAtUtcTicks = DuelReplayIndexFile.ReadIndexUtcTicks(json?["lastUpdatedAtUtc"]),
         };
     }
 }

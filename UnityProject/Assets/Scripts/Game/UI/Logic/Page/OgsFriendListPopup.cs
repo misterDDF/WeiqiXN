@@ -6,7 +6,6 @@ using XNClient.Logger;
 
 public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
 {
-    private const int MaxItemsPerPage = 6;
     private const float AutoRefreshIntervalSeconds = 5f;
     private const string FriendListButtonText = "好友列表";
     private const string FriendRequestsButtonText = "好友申请";
@@ -404,20 +403,10 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
 
     private int GetItemsPerPage()
     {
-        if (binder.content_friend_list == null) {
-            return MaxItemsPerPage;
-        }
-
-        Canvas.ForceUpdateCanvases();
-        float contentHeight = binder.content_friend_list.rect.height;
-        if (contentHeight <= 0f) {
-            return MaxItemsPerPage;
-        }
-
-        int visibleCount = Mathf.FloorToInt(
-            (contentHeight + OgsFriendItemWidget.ItemSpacing) /
-            (OgsFriendItemWidget.ItemHeight + OgsFriendItemWidget.ItemSpacing));
-        return Mathf.Clamp(visibleCount, 1, MaxItemsPerPage);
+        return UIUtils.GetVisibleListItemCount(
+            binder.content_friend_list,
+            OgsFriendItemWidget.ItemHeight,
+            OgsFriendItemWidget.ItemSpacing);
     }
 
     private int GetPageCount(int itemsPerPage)

@@ -5,8 +5,6 @@ using UnityEngine.UI;
 
 public class RecentReplayListPopup : UIPageWithBinder<RecentReplayListPopupUI>
 {
-    private const int MaxItemsPerPage = 6;
-
     private readonly List<DuelReplayIndexItem> replayItems = new List<DuelReplayIndexItem>();
     private readonly List<ReplayArchiveItemWidget> itemWidgets = new List<ReplayArchiveItemWidget>();
     private int pageIndex;
@@ -155,20 +153,10 @@ public class RecentReplayListPopup : UIPageWithBinder<RecentReplayListPopupUI>
 
     private int GetItemsPerPage()
     {
-        if (binder.content_replay_list == null) {
-            return MaxItemsPerPage;
-        }
-
-        Canvas.ForceUpdateCanvases();
-        float contentHeight = binder.content_replay_list.rect.height;
-        if (contentHeight <= 0f) {
-            return MaxItemsPerPage;
-        }
-
-        int visibleCount = Mathf.FloorToInt(
-            (contentHeight + ReplayArchiveItemWidget.ItemSpacing) /
-            (ReplayArchiveItemWidget.ItemHeight + ReplayArchiveItemWidget.ItemSpacing));
-        return Mathf.Clamp(visibleCount, 1, MaxItemsPerPage);
+        return UIUtils.GetVisibleListItemCount(
+            binder.content_replay_list,
+            ReplayArchiveItemWidget.ItemHeight,
+            ReplayArchiveItemWidget.ItemSpacing);
     }
 
     private int GetPageCount(int itemsPerPage)
