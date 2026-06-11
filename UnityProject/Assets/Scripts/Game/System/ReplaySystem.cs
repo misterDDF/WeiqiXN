@@ -20,6 +20,12 @@ public class ReplaySystem : SystemBase
     private const string ConfigChartHighMaxVisits9 = "chartHighMaxVisits9";
     private const string ConfigChartHighMaxVisits13 = "chartHighMaxVisits13";
     private const string ConfigChartHighMaxVisits19 = "chartHighMaxVisits19";
+    private const string ConfigChartPcLowMaxVisits9 = "chartPcLowMaxVisits9";
+    private const string ConfigChartPcLowMaxVisits13 = "chartPcLowMaxVisits13";
+    private const string ConfigChartPcLowMaxVisits19 = "chartPcLowMaxVisits19";
+    private const string ConfigChartPcHighMaxVisits9 = "chartPcHighMaxVisits9";
+    private const string ConfigChartPcHighMaxVisits13 = "chartPcHighMaxVisits13";
+    private const string ConfigChartPcHighMaxVisits19 = "chartPcHighMaxVisits19";
     private const string ConfigChartHighRefreshEnabled = "chartHighRefreshEnabled";
     private const string ConfigChartLowBatchTurnsLimit = "chartLowBatchTurnsLimit";
     private const string ConfigChartHighBatchTurnsLimit = "chartHighBatchTurnsLimit";
@@ -652,6 +658,7 @@ public class ReplaySystem : SystemBase
                     tier.maxVisits,
                     tier.includeOwnership,
                     KataGoAiAnalysisConfigService.IncludePolicy);
+                KataGoAiAnalysisConfigService.ApplyAiAnalysisRequestSettings(query);
 
                 KataGoAnalyzeOptions options = CreateReplayRetryUntilCanceledAnalyzeOptions($"replay-ai-tier{tier.tier}");
                 options.priority = tier.priority;
@@ -909,6 +916,18 @@ public class ReplaySystem : SystemBase
 
     private int ResolveChartLowMaxVisits(int boardSize)
     {
+        if (KataGoAiAnalysisConfigService.UsesPcAnalysisProfile) {
+            if (boardSize <= 9) {
+                return Mathf.Max(GetReplayConfigInt(ConfigChartPcLowMaxVisits9, 120), 1);
+            }
+
+            if (boardSize <= 13) {
+                return Mathf.Max(GetReplayConfigInt(ConfigChartPcLowMaxVisits13, 96), 1);
+            }
+
+            return Mathf.Max(GetReplayConfigInt(ConfigChartPcLowMaxVisits19, 72), 1);
+        }
+
         if (boardSize <= 9) {
             return Mathf.Max(GetReplayConfigInt(ConfigChartLowMaxVisits9, 48), 1);
         }
@@ -922,6 +941,18 @@ public class ReplaySystem : SystemBase
 
     private int ResolveChartHighMaxVisits(int boardSize)
     {
+        if (KataGoAiAnalysisConfigService.UsesPcAnalysisProfile) {
+            if (boardSize <= 9) {
+                return Mathf.Max(GetReplayConfigInt(ConfigChartPcHighMaxVisits9, 600), 1);
+            }
+
+            if (boardSize <= 13) {
+                return Mathf.Max(GetReplayConfigInt(ConfigChartPcHighMaxVisits13, 480), 1);
+            }
+
+            return Mathf.Max(GetReplayConfigInt(ConfigChartPcHighMaxVisits19, 320), 1);
+        }
+
         if (boardSize <= 9) {
             return Mathf.Max(GetReplayConfigInt(ConfigChartHighMaxVisits9, 192), 1);
         }

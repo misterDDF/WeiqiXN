@@ -285,5 +285,117 @@
     "valueType": "int",
     "intValue": 3,
     "description": "旧版 loading 采样数量，保留兼容"
+  },
+  "aiPcTier1MaxVisits9": {
+    "id": "aiPcTier1MaxVisits9",
+    "group": "ai_analysis_pc",
+    "valueType": "int",
+    "intValue": 400,
+    "description": "PC 9 路 AI 推荐第一档快速访问次数"
+  },
+  "aiPcTier1MaxVisits13": {
+    "id": "aiPcTier1MaxVisits13",
+    "group": "ai_analysis_pc",
+    "valueType": "int",
+    "intValue": 300,
+    "description": "PC 13 路 AI 推荐第一档快速访问次数"
+  },
+  "aiPcTier1MaxVisits19": {
+    "id": "aiPcTier1MaxVisits19",
+    "group": "ai_analysis_pc",
+    "valueType": "int",
+    "intValue": 160,
+    "description": "PC 19 路 AI 推荐第一档快速访问次数"
+  },
+  "aiPcTier2MaxVisits9": {
+    "id": "aiPcTier2MaxVisits9",
+    "group": "ai_analysis_pc",
+    "valueType": "int",
+    "intValue": 1200,
+    "description": "PC 9 路 AI 推荐第二档 ownership 访问次数"
+  },
+  "aiPcTier2MaxVisits13": {
+    "id": "aiPcTier2MaxVisits13",
+    "group": "ai_analysis_pc",
+    "valueType": "int",
+    "intValue": 900,
+    "description": "PC 13 路 AI 推荐第二档 ownership 访问次数"
+  },
+  "aiPcTier2MaxVisits19": {
+    "id": "aiPcTier2MaxVisits19",
+    "group": "ai_analysis_pc",
+    "valueType": "int",
+    "intValue": 500,
+    "description": "PC 19 路 AI 推荐第二档 ownership 访问次数"
+  },
+  "aiPcTier3MaxVisits9": {
+    "id": "aiPcTier3MaxVisits9",
+    "group": "ai_analysis_pc",
+    "valueType": "int",
+    "intValue": 5000,
+    "description": "PC 9 路 AI 推荐第三档最终访问次数"
+  },
+  "aiPcTier3MaxVisits13": {
+    "id": "aiPcTier3MaxVisits13",
+    "group": "ai_analysis_pc",
+    "valueType": "int",
+    "intValue": 4000,
+    "description": "PC 13 路 AI 推荐第三档最终访问次数"
+  },
+  "aiPcTier3MaxVisits19": {
+    "id": "aiPcTier3MaxVisits19",
+    "group": "ai_analysis_pc",
+    "valueType": "int",
+    "intValue": 3000,
+    "description": "PC 19 路 AI 推荐第三档最终访问次数"
+  },
+  "aiPcWideRootNoise": {
+    "id": "aiPcWideRootNoise",
+    "group": "ai_analysis_pc",
+    "valueType": "float",
+    "floatValue": 0.04,
+    "description": "PC AI 推荐请求 wideRootNoise"
+  },
+  "chartPcLowMaxVisits9": {
+    "id": "chartPcLowMaxVisits9",
+    "group": "chart_analysis_pc",
+    "valueType": "int",
+    "intValue": 120,
+    "description": "PC 9 路复盘曲线低精度访问次数"
+  },
+  "chartPcLowMaxVisits13": {
+    "id": "chartPcLowMaxVisits13",
+    "group": "chart_analysis_pc",
+    "valueType": "int",
+    "intValue": 96,
+    "description": "PC 13 路复盘曲线低精度访问次数"
+  },
+  "chartPcLowMaxVisits19": {
+    "id": "chartPcLowMaxVisits19",
+    "group": "chart_analysis_pc",
+    "valueType": "int",
+    "intValue": 72,
+    "description": "PC 19 路复盘曲线低精度访问次数"
+  },
+  "chartPcHighMaxVisits9": {
+    "id": "chartPcHighMaxVisits9",
+    "group": "chart_analysis_pc",
+    "valueType": "int",
+    "intValue": 600,
+    "description": "PC 9 路复盘曲线高精度访问次数"
+  },
+  "chartPcHighMaxVisits13": {
+    "id": "chartPcHighMaxVisits13",
+    "group": "chart_analysis_pc",
+    "valueType": "int",
+    "intValue": 480,
+    "description": "PC 13 路复盘曲线高精度访问次数"
+  },
+  "chartPcHighMaxVisits19": {
+    "id": "chartPcHighMaxVisits19",
+    "group": "chart_analysis_pc",
+    "valueType": "int",
+    "intValue": 320,
+    "description": "PC 19 路复盘曲线高精度访问次数"
   }
 }

@@ -105,6 +105,7 @@ public class DuelAiRecommendationSystem : SystemBase
                     tier.maxVisits,
                     tier.includeOwnership,
                     KataGoAiAnalysisConfigService.IncludePolicy);
+                KataGoAiAnalysisConfigService.ApplyAiAnalysisRequestSettings(query);
                 KataGoAnalyzeOptions options = CreateAnalyzeOptions($"duel-ai-recommend-tier{tier.tier}");
                 options.priority = tier.priority;
 
