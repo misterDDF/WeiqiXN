@@ -784,7 +784,7 @@ GameObject:
   - component: {fileID: 5971777301998615958}
   - component: {fileID: 2058904624404873385}
   m_Layer: 0
-  m_Name: panel_ownership_result
+  m_Name: panel_replay_shape_result
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -2257,7 +2257,7 @@ GameObject:
   - component: {fileID: 904556039481575393}
   - component: {fileID: 7990381809296310180}
   m_Layer: 0
-  m_Name: txt_ownership_black_points
+  m_Name: txt_shape_lead_points
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -2924,11 +2924,11 @@ MonoBehaviour:
     value: {fileID: 7594962235796542810}
   - name: txt_ownership_button
     value: {fileID: 6935306270303769989}
-  - name: panel_ownership_result
+  - name: panel_replay_shape_result
     value: {fileID: 1952834196276702009}
-  - name: txt_ownership_black_points
+  - name: txt_shape_lead_points
     value: {fileID: 7990381809296310180}
-  - name: txt_ownership_white_points
+  - name: txt_shape_rule_info
     value: {fileID: 2431388381007622045}
   isNodesExpand: 1
 --- !u!114 &2736307278549103385
@@ -2962,9 +2962,9 @@ MonoBehaviour:
   btn_ai_analysis: {fileID: 8816484953635831572}
   btn_ownership: {fileID: 7594962235796542810}
   txt_ownership_button: {fileID: 6935306270303769989}
-  panel_ownership_result: {fileID: 1952834196276702009}
-  txt_ownership_black_points: {fileID: 7990381809296310180}
-  txt_ownership_white_points: {fileID: 2431388381007622045}
+  panel_replay_shape_result: {fileID: 1952834196276702009}
+  txt_shape_lead_points: {fileID: 7990381809296310180}
+  txt_shape_rule_info: {fileID: 2431388381007622045}
   txt_scrub_preview: {fileID: 6546297090228881074}
   rect_chart_area: {fileID: 7614509832260687908}
   img_move_scrubber_hit: {fileID: 201828802395836941}
@@ -2982,7 +2982,7 @@ GameObject:
   - component: {fileID: 2333270499279460245}
   - component: {fileID: 2431388381007622045}
   m_Layer: 0
-  m_Name: txt_ownership_white_points
+  m_Name: txt_shape_rule_info
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

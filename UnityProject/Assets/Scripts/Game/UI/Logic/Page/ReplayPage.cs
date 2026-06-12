@@ -342,26 +342,34 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
 
     private void RefreshOwnershipResult(ReplaySystem replaySystem)
     {
-        if (binder.panel_ownership_result == null) {
+        if (binder.panel_replay_shape_result == null) {
             return;
         }
 
         bool isVisible = replaySystem != null && (replaySystem.IsOwnershipAnalyzing || replaySystem.HasOwnershipResult);
-        binder.panel_ownership_result.SetActive(isVisible);
+        binder.panel_replay_shape_result.SetActive(isVisible);
         if (!isVisible) {
             return;
         }
 
         if (replaySystem.IsOwnershipAnalyzing) {
-            SetText(binder.txt_ownership_black_points, MessageText.Get("duel_ownership_black_calculating"));
-            SetText(binder.txt_ownership_white_points, MessageText.Get("duel_ownership_white_calculating"));
+            SetText(binder.txt_shape_lead_points, MessageText.Get("duel_ownership_lead_calculating"));
+            SetText(binder.txt_shape_rule_info, MessageText.Get("duel_ownership_rule_calculating"));
             return;
         }
 
         if (replaySystem.TryGetOwnershipScore(out DuelOwnershipScore score)) {
-            SetText(binder.txt_ownership_black_points, MessageText.Format("duel_ownership_black_points", FormatPointCount(score.blackPoints)));
-            SetText(binder.txt_ownership_white_points, MessageText.Format("duel_ownership_white_points", FormatPointCount(score.whitePoints)));
+            SetText(binder.txt_shape_lead_points, DuelOwnershipDisplayFormatter.BuildLeadText(score.blackPoints, score.whitePoints));
+            SetText(binder.txt_shape_rule_info, BuildReplayOwnershipRuleInfoText(score.komi));
         }
+    }
+
+    private string BuildReplayOwnershipRuleInfoText(float komi)
+    {
+        SceneComponentReplay compReplay = Global.Instance.sceneManager.mainScene?.GetComponent<SceneComponentReplay>();
+        int handicapCount = compReplay != null ? compReplay.replayInitialStones.Count : 0;
+        bool isSen = handicapCount <= 0 && Mathf.Approximately(komi, 0.5f);
+        return DuelOwnershipDisplayFormatter.BuildRuleInfoText(komi, handicapCount, isSen);
     }
 
     private void RefreshChartProgress(ReplaySystem replaySystem)
@@ -457,9 +465,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
 
     private string FormatPointCount(float pointCount)
     {
-        return Mathf.Approximately(pointCount, Mathf.Round(pointCount))
-            ? Mathf.RoundToInt(pointCount).ToString()
-            : pointCount.ToString("0.0");
+        return DuelOwnershipDisplayFormatter.FormatPointCount(pointCount);
     }
 
     private void SetText(TextMeshProUGUI text, string value)

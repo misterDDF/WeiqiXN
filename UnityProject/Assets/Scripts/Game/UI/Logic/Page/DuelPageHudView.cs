@@ -70,8 +70,8 @@ public class DuelPageHudView
 
     public void OnDuelOwnershipResult(OnDuelOwnershipResult evt)
     {
-        SetText(binder.txt_ownership_black_points, MessageText.Format("duel_ownership_black_points", FormatPointCount(evt.blackPoints)));
-        SetText(binder.txt_ownership_white_points, MessageText.Format(GetOwnershipWhitePointsMessageKey(), FormatPointCount(evt.whitePoints)));
+        SetText(binder.txt_shape_lead_points, DuelOwnershipDisplayFormatter.BuildLeadText(evt.blackPoints, evt.whitePoints));
+        SetText(binder.txt_shape_rule_info, BuildOwnershipRuleInfoText(evt.komi));
         SetOwnershipActive(true);
         SetOwnershipResultPanelVisible(evt == null || evt.showResultPanel);
     }
@@ -86,8 +86,8 @@ public class DuelPageHudView
     {
         SetOwnershipActive(true);
         SetOwnershipResultPanelVisible(false);
-        SetText(binder.txt_ownership_black_points, MessageText.Get("duel_ownership_black_calculating"));
-        SetText(binder.txt_ownership_white_points, MessageText.Get("duel_ownership_white_calculating"));
+        SetText(binder.txt_shape_lead_points, MessageText.Get("duel_ownership_lead_calculating"));
+        SetText(binder.txt_shape_rule_info, MessageText.Get("duel_ownership_rule_calculating"));
     }
 
     public void OnDuelPassAccepted(OnDuelPassAccepted evt)
@@ -130,31 +130,42 @@ public class DuelPageHudView
             winnerText);
     }
 
-    private string GetOwnershipWhitePointsMessageKey()
+    private string BuildOwnershipRuleInfoText(float komi)
+    {
+        return DuelOwnershipDisplayFormatter.BuildRuleInfoText(komi, GetOwnershipHandicapCount(), IsOwnershipSen());
+    }
+
+    private int GetOwnershipHandicapCount()
     {
         SceneComponentOgsDuel compOgsDuel = Global.Instance.sceneManager.mainScene?.GetComponent<SceneComponentOgsDuel>();
         if (compOgsDuel != null) {
-            if (compOgsDuel.ogsHandicapCount > 1 || compOgsDuel.initialStoneCount > 0 || compOgsDuel.openingSameColorMoveCount > 0) {
-                return "duel_ownership_white_points_handicap";
-            }
-
-            if (compOgsDuel.hasKomi && Mathf.Approximately(compOgsDuel.komi, 0.5f)) {
-                return "duel_ownership_white_points_sen";
-            }
-
-            return "duel_ownership_white_points";
+            return GetOgsOwnershipHandicapCount(compOgsDuel);
         }
 
-        string handicapCfgId = GetCurrentHandicapCfgId();
-        if (DuelHandicapPlacement.IsSen(handicapCfgId)) {
-            return "duel_ownership_white_points_sen";
+        return DuelHandicapPlacement.GetHandicapCount(GetCurrentHandicapCfgId());
+    }
+
+    private bool IsOwnershipSen()
+    {
+        SceneComponentOgsDuel compOgsDuel = Global.Instance.sceneManager.mainScene?.GetComponent<SceneComponentOgsDuel>();
+        if (compOgsDuel != null) {
+            return GetOgsOwnershipHandicapCount(compOgsDuel) <= 0 &&
+                compOgsDuel.hasKomi &&
+                Mathf.Approximately(compOgsDuel.komi, 0.5f);
         }
 
-        if (DuelHandicapPlacement.HasHandicap(handicapCfgId)) {
-            return "duel_ownership_white_points_handicap";
+        return DuelHandicapPlacement.IsSen(GetCurrentHandicapCfgId());
+    }
+
+    private int GetOgsOwnershipHandicapCount(SceneComponentOgsDuel compOgsDuel)
+    {
+        if (compOgsDuel == null) {
+            return 0;
         }
 
-        return "duel_ownership_white_points";
+        return Mathf.Max(
+            Mathf.Max(compOgsDuel.ogsHandicapCount, compOgsDuel.initialStoneCount),
+            compOgsDuel.openingSameColorMoveCount);
     }
 
     private string GetScoreConfirmContentMessageKey()
@@ -392,9 +403,7 @@ public class DuelPageHudView
 
     private string FormatPointCount(float pointCount)
     {
-        return Mathf.Approximately(pointCount, Mathf.Round(pointCount))
-            ? Mathf.RoundToInt(pointCount).ToString()
-            : pointCount.ToString("0.0");
+        return DuelOwnershipDisplayFormatter.FormatPointCount(pointCount);
     }
 
     private string FormatBoardPoint(RectCoordinates coords)
@@ -419,8 +428,8 @@ public class DuelPageHudView
 
     private void SetOwnershipResultPanelVisible(bool isVisible)
     {
-        if (binder.panel_duel_ownership_result != null) {
-            binder.panel_duel_ownership_result.SetActive(isVisible);
+        if (binder.panel_duel_shape_result != null) {
+            binder.panel_duel_shape_result.SetActive(isVisible);
         }
     }
 

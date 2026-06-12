@@ -424,26 +424,6 @@
     "text": "{0} · {1}{2}",
     "remark": "玩家标题，0=方位，1=类型，2=行棋后缀"
   },
-  "duel_ownership_black_points": {
-    "id": "duel_ownership_black_points",
-    "text": "黑方目数: {0}",
-    "remark": "形势黑方目数"
-  },
-  "duel_ownership_white_points": {
-    "id": "duel_ownership_white_points",
-    "text": "白方目数: {0}（贴目后）",
-    "remark": "形势白方目数"
-  },
-  "duel_ownership_black_calculating": {
-    "id": "duel_ownership_black_calculating",
-    "text": "黑方目数: 计算中...",
-    "remark": "形势黑方计算中"
-  },
-  "duel_ownership_white_calculating": {
-    "id": "duel_ownership_white_calculating",
-    "text": "白方目数: 计算中...",
-    "remark": "形势白方计算中"
-  },
   "duel_pass_consecutive_scoring": {
     "id": "duel_pass_consecutive_scoring",
     "text": "双方连续虚手，正在数子...",
@@ -749,20 +729,10 @@
     "text": "当前无法请求数子",
     "remark": "无法请求数子"
   },
-  "duel_ownership_white_points_sen": {
-    "id": "duel_ownership_white_points_sen",
-    "text": "白方目数: {0}（让先）",
-    "remark": "形势白方目数，让先贴0.5目"
-  },
   "duel_score_confirm_content_sen": {
     "id": "duel_score_confirm_content_sen",
     "text": "黑方: {0} 目\n白方: {1} 目（让先，贴 {2}）\n结果: {3}",
     "remark": "数子确认内容，让先贴0.5目"
-  },
-  "duel_ownership_white_points_handicap": {
-    "id": "duel_ownership_white_points_handicap",
-    "text": "白方目数: {0}（让子）",
-    "remark": "形势白方目数，让子贴0.5目"
   },
   "duel_score_confirm_content_handicap": {
     "id": "duel_score_confirm_content_handicap",
@@ -878,5 +848,50 @@
     "id": "lan_room_peer_left_content",
     "text": "对方已离开联机对局，将返回主菜单。",
     "remark": "对方离开后提示内容"
+  },
+  "duel_player_black_short": {
+    "id": "duel_player_black_short",
+    "text": "黑",
+    "remark": "黑方短显示名"
+  },
+  "duel_player_white_short": {
+    "id": "duel_player_white_short",
+    "text": "白",
+    "remark": "白方短显示名"
+  },
+  "duel_ownership_lead_points": {
+    "id": "duel_ownership_lead_points",
+    "text": "{0}领先{1}目",
+    "remark": "形势领先方目数，0=领先方，1=领先目数"
+  },
+  "duel_ownership_lead_even": {
+    "id": "duel_ownership_lead_even",
+    "text": "双方持平",
+    "remark": "形势双方目数持平"
+  },
+  "duel_ownership_rule_info": {
+    "id": "duel_ownership_rule_info",
+    "text": "贴目{0}{1}",
+    "remark": "形势贴目与让子规则信息，0=贴目，1=让先/让子后缀"
+  },
+  "duel_ownership_rule_sen_suffix": {
+    "id": "duel_ownership_rule_sen_suffix",
+    "text": "（让先）",
+    "remark": "形势让先后缀"
+  },
+  "duel_ownership_rule_handicap_suffix": {
+    "id": "duel_ownership_rule_handicap_suffix",
+    "text": "（让{0}子）",
+    "remark": "形势让子后缀，0=汉字让子数量"
+  },
+  "duel_ownership_lead_calculating": {
+    "id": "duel_ownership_lead_calculating",
+    "text": "领先目数: 计算中...",
+    "remark": "形势领先目数计算中"
+  },
+  "duel_ownership_rule_calculating": {
+    "id": "duel_ownership_rule_calculating",
+    "text": "贴目: 计算中...",
+    "remark": "形势贴目规则计算中"
   }
 }

@@ -1787,11 +1787,11 @@ MonoBehaviour:
     value: {fileID: 9111000000000000014}
   - name: btn_duel_pass
     value: {fileID: 9111000000000000055}
-  - name: panel_duel_ownership_result
+  - name: panel_duel_shape_result
     value: {fileID: 9111000000000000021}
-  - name: txt_ownership_black_points
+  - name: txt_shape_lead_points
     value: {fileID: 9111000000000000034}
-  - name: txt_ownership_white_points
+  - name: txt_shape_rule_info
     value: {fileID: 9111000000000000044}
   - name: panel_duel_settings
     value: {fileID: 8704255474950295647}
@@ -1858,9 +1858,9 @@ MonoBehaviour:
   txt_duel_ownership_button: {fileID: 9111000000000000014}
   txt_duel_stone_removal_countdown: {fileID: 1232528818259413566}
   btn_duel_pass: {fileID: 9111000000000000055}
-  panel_duel_ownership_result: {fileID: 9111000000000000021}
-  txt_ownership_black_points: {fileID: 9111000000000000034}
-  txt_ownership_white_points: {fileID: 9111000000000000044}
+  panel_duel_shape_result: {fileID: 9111000000000000021}
+  txt_shape_lead_points: {fileID: 9111000000000000034}
+  txt_shape_rule_info: {fileID: 9111000000000000044}
   panel_duel_settings: {fileID: 8704255474950295647}
   btn_settings_request_score: {fileID: 9111000000000000065}
   btn_settings_resign: {fileID: 9111000000000000095}
@@ -4138,7 +4138,7 @@ GameObject:
   - component: {fileID: 9111000000000000023}
   - component: {fileID: 9111000000000000024}
   m_Layer: 0
-  m_Name: panel_duel_ownership_result
+  m_Name: panel_duel_shape_result
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4215,7 +4215,7 @@ GameObject:
   - component: {fileID: 9111000000000000033}
   - component: {fileID: 9111000000000000034}
   m_Layer: 0
-  m_Name: txt_ownership_black_points
+  m_Name: txt_shape_lead_points
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4349,7 +4349,7 @@ GameObject:
   - component: {fileID: 9111000000000000043}
   - component: {fileID: 9111000000000000044}
   m_Layer: 0
-  m_Name: txt_ownership_white_points
+  m_Name: txt_shape_rule_info
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

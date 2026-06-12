@@ -29,9 +29,9 @@ public class ReplayPageUI : UIBinderBase
 	public ReplayAnalysisChartGraphic chart_analysis;
 	public Button btn_ownership;
 	public TextMeshProUGUI txt_ownership_button;
-	public GameObject panel_ownership_result;
-	public TextMeshProUGUI txt_ownership_black_points;
-	public TextMeshProUGUI txt_ownership_white_points;
+	public GameObject panel_replay_shape_result;
+	public TextMeshProUGUI txt_shape_lead_points;
+	public TextMeshProUGUI txt_shape_rule_info;
 
 	public enum SrPlatformState
 	{
