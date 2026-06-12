@@ -1,11 +1,8 @@
-using System.Threading.Tasks;
 using UnityEngine;
 using XNClient.Logger;
 
 public class ReplayScene : SceneBase
 {
-    private const float UnitySceneProgressEnd = 0.6f;
-
     public SceneComponentChessBoard compChessBoard;
     public SceneComponentDuel compDuel;
     public SceneComponentReplay compReplay;
@@ -20,12 +17,7 @@ public class ReplayScene : SceneBase
         AddComponent(compReplay);
     }
 
-    protected override void ConfigureLoadingProgressBeforeSceneLoad()
-    {
-        LoadingPage.SetProgressRange(0f, UnitySceneProgressEnd);
-    }
-
-    public override async void OnSceneLoaded()
+    public override void OnSceneLoaded()
     {
         Global.ReleaseKeepAwake(Global.KeepAwakeReason.Startup);
         Global.RequestKeepAwake(Global.KeepAwakeReason.Duel);
@@ -36,7 +28,6 @@ public class ReplayScene : SceneBase
         AddSystem(new ChessBoardSystem(this));
         ReplaySystem replaySystem = GetSystem<ReplaySystem>();
         replaySystem?.RestoreDefaultBoard();
-        await BuildReplayChartDuringLoading(replaySystem);
 
         if (!isMainScene) {
             return;
@@ -44,6 +35,7 @@ public class ReplayScene : SceneBase
 
         Global.Instance.uiManager.TryClosePage<LoadingPage>();
         Global.Instance.uiManager.ShowPage<ReplayPage>();
+        StartReplayChartBackgroundBuild(replaySystem);
     }
 
     public override void OnSceneExit()
@@ -67,26 +59,17 @@ public class ReplayScene : SceneBase
         }
     }
 
-    private async Task BuildReplayChartDuringLoading(ReplaySystem replaySystem)
+    private void StartReplayChartBackgroundBuild(ReplaySystem replaySystem)
     {
         if (replaySystem == null || !replaySystem.IsReplayLoaded) {
             return;
         }
 
         try {
-            if (!LoadingPage.hasActivePage) {
-                Global.Instance.uiManager.ShowPage<LoadingPage>();
-            }
-
-            LoadingPage.SetProgressRange(UnitySceneProgressEnd, 1f);
-            await replaySystem.BuildChartDuringLoadingAsync();
+            replaySystem.StartInitialChartBuild();
         }
         catch (System.Exception ex) {
-            XNLogger.LogError("Replay scene chart loading failed.", ("error", ex.Message));
-        }
-        finally {
-            LoadingPage.ResetProgressRange();
-            replaySystem.StartChartBackgroundBuild();
+            XNLogger.LogError("Replay scene chart background start failed.", ("error", ex.Message));
         }
     }
 }

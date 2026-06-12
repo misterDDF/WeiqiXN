@@ -227,7 +227,21 @@ public class ReplaySystem : SystemBase
         return $"预览 第 {safeCursor} 手 · {GetPlayerText(move.playerFlag)} {moveText}";
     }
 
-    public async Task BuildChartDuringLoadingAsync()
+    public async void StartInitialChartBuild()
+    {
+        try {
+            await BuildInitialChartAsync();
+        }
+        catch (System.Exception ex) {
+            if (compReplay != null) {
+                compReplay.chartStatus = "图表生成失败";
+            }
+
+            XNLogger.LogError("Replay initial chart analysis failed.", ("error", ex.Message));
+        }
+    }
+
+    private async Task BuildInitialChartAsync()
     {
         if (!IsReplayLoaded || compReplay == null) {
             return;
@@ -279,7 +293,7 @@ public class ReplaySystem : SystemBase
                 ResolveChartLowMaxVisits(compReplay.replayBoardSize),
                 ChartTierLow,
                 ChartSourceChart,
-                "replay-chart-loading-low",
+                "replay-chart-initial-low",
                 ReplayChartLoadingLowPriority,
                 ResolveChartLowBatchTurnsLimit(),
                 chartVersion,
@@ -287,10 +301,7 @@ public class ReplaySystem : SystemBase
                 result =>
                 {
                 completedSampleCount += 1;
-                LoadingPage.SetProgress(
-                    "生成复盘图表",
-                    $"分析采样 {completedSampleCount}/{sampleMoveIndexes.Count}（第 {result.moveIndex} 手）",
-                    (float)completedSampleCount / Mathf.Max(sampleMoveIndexes.Count, 1));
+                compReplay.chartStatus = $"分析采样 {completedSampleCount}/{sampleMoveIndexes.Count}（第 {result.moveIndex} 手）";
 
                 if (!IsValidChartPoint(result.point)) {
                     chartBackgroundStoppedByFailure = true;
@@ -318,8 +329,11 @@ public class ReplaySystem : SystemBase
             }
 
             compReplay.isChartLoading = false;
-            LoadingPage.SetProgress("生成复盘图表", compReplay.chartStatus, 1f);
+            bool wasCanceled = requestCancellationTokenSource.IsCancellationRequested;
             requestCancellationTokenSource.Dispose();
+            if (compReplay != null && !wasCanceled) {
+                StartChartBackgroundBuild();
+            }
         }
     }
 
