@@ -13,6 +13,7 @@ public class SceneComponentReplay : SceneComponentBase
     public int replayCursorMoveIndex;
     public int tryBaseCursorMoveIndex;
     public int tryCursorMoveIndex;
+    public PlayerFlag tryPlayerFlagOverride;
     public bool isReplayLoaded;
     public bool isTryMode;
     public bool isAiAnalyzing;

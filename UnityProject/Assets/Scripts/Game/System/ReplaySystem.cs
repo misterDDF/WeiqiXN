@@ -106,6 +106,7 @@ public class ReplaySystem : SystemBase
     public int TryCursorMoveIndex => compReplay != null ? compReplay.tryCursorMoveIndex : 0;
     public int ReplayBoardSize => compReplay != null ? compReplay.replayBoardSize : 0;
     public PlayerFlag CurrentTryPlayerFlag => compReplay != null ? ResolveNextTryPlayerFlag() : 0;
+    public PlayerFlag TryPlayerFlagOverride => compReplay != null ? compReplay.tryPlayerFlagOverride : 0;
     public bool IsAiAnalyzing => compReplay != null && compReplay.isAiAnalyzing;
     public bool HasAiAnalysisRender => compReplay != null && compReplay.hasAiAnalysisRender;
     public bool IsOwnershipAnalyzing => ownershipCancellationTokenSource != null;
@@ -461,6 +462,7 @@ public class ReplaySystem : SystemBase
 
         compReplay.tryBaseCursorMoveIndex = compReplay.replayCursorMoveIndex;
         compReplay.tryCursorMoveIndex = 0;
+        compReplay.tryPlayerFlagOverride = 0;
         compReplay.tryMoves.Clear();
         compReplay.isTryMode = true;
         compReplay.replayStatus = string.Empty;
@@ -477,6 +479,7 @@ public class ReplaySystem : SystemBase
         compReplay.isTryMode = false;
         compReplay.tryMoves.Clear();
         compReplay.tryCursorMoveIndex = 0;
+        compReplay.tryPlayerFlagOverride = 0;
         ApplyReplayCursor(compReplay.tryBaseCursorMoveIndex);
         TryRequestCurrentCursorChartPoint();
         compReplay.replayStatus = string.Empty;
@@ -522,10 +525,20 @@ public class ReplaySystem : SystemBase
 
         compReplay.tryMoves.Add(move);
         compReplay.tryCursorMoveIndex = compReplay.tryMoves.Count;
-        int appliedVariationCount = ApplyAiRecommendationVariation(aiVariation);
+        int appliedVariationCount = compReplay.tryPlayerFlagOverride == 0 ? ApplyAiRecommendationVariation(aiVariation) : 0;
         SyncTryBoardMarkers();
         compReplay.replayStatus = appliedVariationCount > 0 ? $"已展开AI推荐变化 {appliedVariationCount} 手" : string.Empty;
         return true;
+    }
+
+    public void SetTryPlayerFlagOverride(PlayerFlag playerFlag)
+    {
+        if (!IsReplayLoaded || !IsTryMode || compReplay == null) {
+            return;
+        }
+
+        compReplay.tryPlayerFlagOverride = IsValidTryPlayerFlag(playerFlag) ? playerFlag : 0;
+        compReplay.replayStatus = string.Empty;
     }
 
     public async void RequestAiAnalysis()
@@ -1931,6 +1944,10 @@ public class ReplaySystem : SystemBase
             return 0;
         }
 
+        if (IsTryMode && IsValidTryPlayerFlag(compReplay.tryPlayerFlagOverride)) {
+            return compReplay.tryPlayerFlagOverride;
+        }
+
         if (IsTryMode && compReplay.tryMoves.Count > 0) {
             int lastVisibleTryMoveIndex = Mathf.Min(compReplay.tryCursorMoveIndex, compReplay.tryMoves.Count) - 1;
             if (lastVisibleTryMoveIndex >= 0) {
@@ -1948,6 +1965,11 @@ public class ReplaySystem : SystemBase
         }
 
         return compReplay.replayInitialStones.Count > 0 ? PlayerFlag.Player2 : PlayerFlag.Player1;
+    }
+
+    private static bool IsValidTryPlayerFlag(PlayerFlag playerFlag)
+    {
+        return playerFlag == PlayerFlag.Player1 || playerFlag == PlayerFlag.Player2;
     }
 
     private string BuildReplayStatusText()

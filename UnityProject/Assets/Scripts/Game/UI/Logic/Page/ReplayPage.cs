@@ -30,6 +30,15 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         binder.btn_next.onClick.AddListener(OnClickNext);
         binder.btn_last.onClick.AddListener(OnClickLast);
         binder.btn_try_mode.onClick.AddListener(OnClickTryMode);
+        if (binder.toggle_move_color_auto != null) {
+            binder.toggle_move_color_auto.onValueChanged.AddListener(OnToggleMoveColorAuto);
+        }
+        if (binder.toggle_move_color_black != null) {
+            binder.toggle_move_color_black.onValueChanged.AddListener(OnToggleMoveColorBlack);
+        }
+        if (binder.toggle_move_color_white != null) {
+            binder.toggle_move_color_white.onValueChanged.AddListener(OnToggleMoveColorWhite);
+        }
         if (binder.btn_ai_analysis != null) {
             binder.btn_ai_analysis.onClick.AddListener(OnClickAiAnalysis);
         }
@@ -48,6 +57,15 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
             binder.btn_next.onClick.RemoveListener(OnClickNext);
             binder.btn_last.onClick.RemoveListener(OnClickLast);
             binder.btn_try_mode.onClick.RemoveListener(OnClickTryMode);
+            if (binder.toggle_move_color_auto != null) {
+                binder.toggle_move_color_auto.onValueChanged.RemoveListener(OnToggleMoveColorAuto);
+            }
+            if (binder.toggle_move_color_black != null) {
+                binder.toggle_move_color_black.onValueChanged.RemoveListener(OnToggleMoveColorBlack);
+            }
+            if (binder.toggle_move_color_white != null) {
+                binder.toggle_move_color_white.onValueChanged.RemoveListener(OnToggleMoveColorWhite);
+            }
             if (binder.btn_ai_analysis != null) {
                 binder.btn_ai_analysis.onClick.RemoveListener(OnClickAiAnalysis);
             }
@@ -121,6 +139,10 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         if (binder.btn_try_mode != null) {
             binder.btn_try_mode.interactable = isTryMode;
         }
+        if (binder.panel_move_color != null) {
+            binder.panel_move_color.SetActive(isTryMode);
+        }
+        RefreshMoveColorButtons(replaySystem, isTryMode);
         if (binder.btn_ai_analysis != null) {
             binder.btn_ai_analysis.interactable = canAiAnalysis;
         }
@@ -190,6 +212,33 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
     private void OnClickTryMode()
     {
         GetReplaySystem()?.ExitTryMode();
+    }
+
+    private void OnToggleMoveColorAuto(bool isOn)
+    {
+        if (!isOn) {
+            return;
+        }
+
+        GetReplaySystem()?.SetTryPlayerFlagOverride(0);
+    }
+
+    private void OnToggleMoveColorBlack(bool isOn)
+    {
+        if (!isOn) {
+            return;
+        }
+
+        GetReplaySystem()?.SetTryPlayerFlagOverride(PlayerFlag.Player1);
+    }
+
+    private void OnToggleMoveColorWhite(bool isOn)
+    {
+        if (!isOn) {
+            return;
+        }
+
+        GetReplaySystem()?.SetTryPlayerFlagOverride(PlayerFlag.Player2);
     }
 
     private void OnClickAiAnalysis()
@@ -485,6 +534,24 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         if (buttonText != null) {
             buttonText.text = text;
         }
+    }
+
+    private void RefreshMoveColorButtons(ReplaySystem replaySystem, bool isTryMode)
+    {
+        PlayerFlag selectedFlag = replaySystem != null ? replaySystem.TryPlayerFlagOverride : 0;
+        RefreshMoveColorToggle(binder.toggle_move_color_auto, selectedFlag == 0, isTryMode);
+        RefreshMoveColorToggle(binder.toggle_move_color_black, selectedFlag == PlayerFlag.Player1, isTryMode);
+        RefreshMoveColorToggle(binder.toggle_move_color_white, selectedFlag == PlayerFlag.Player2, isTryMode);
+    }
+
+    private void RefreshMoveColorToggle(Toggle toggle, bool selected, bool interactable)
+    {
+        if (toggle == null) {
+            return;
+        }
+
+        toggle.interactable = interactable;
+        toggle.SetIsOnWithoutNotify(selected);
     }
 
     private void RefreshAiAnalysisButtonSelection(bool selected)
