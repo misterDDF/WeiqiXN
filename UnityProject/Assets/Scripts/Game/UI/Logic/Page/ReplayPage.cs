@@ -299,7 +299,10 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
     private void OnClickExportSgf()
     {
         ReplaySystem replaySystem = GetReplaySystem();
-        if (replaySystem == null || !replaySystem.IsReplayLoaded || replaySystem.IsFreeLayout) {
+        if (!RuntimeSgfFilePicker.IsSupported ||
+            replaySystem == null ||
+            !replaySystem.IsReplayLoaded ||
+            replaySystem.IsFreeLayout) {
             return;
         }
 

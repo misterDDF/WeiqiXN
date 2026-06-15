@@ -186,7 +186,6 @@ public class RecentReplayListPopup : UIPageWithBinder<RecentReplayListPopupUI>
     private void OnClickBtnImportSgf()
     {
         if (!RuntimeSgfFilePicker.IsSupported) {
-            ConfirmPopup.ShowTip("导入棋谱", "当前平台暂不支持打开文件管理器选择 SGF。", null, "确定");
             return;
         }
 
