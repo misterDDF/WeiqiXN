@@ -348,7 +348,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
             return;
         }
 
-        RectTransform rectTransform = binder.img_move_scrubber_hit.rectTransform;
+        RectTransform rectTransform = GetChartPositionRectTransform();
         Camera eventCamera = eventData != null ? eventData.pressEventCamera : null;
         if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(rectTransform, eventData.position, eventCamera, out Vector2 localPoint)) {
             return;
@@ -444,21 +444,53 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
 
     private void RefreshChartCursor(ReplaySystem replaySystem, int targetMoveIndex)
     {
-        if (binder.img_chart_cursor == null || binder.img_move_scrubber_hit == null || replaySystem == null || !replaySystem.IsReplayLoaded) {
+        if (binder.img_chart_cursor == null || replaySystem == null || !replaySystem.IsReplayLoaded) {
             if (binder.img_chart_cursor != null) {
                 binder.img_chart_cursor.enabled = false;
             }
             return;
         }
 
-        RectTransform hitRect = binder.img_move_scrubber_hit.rectTransform;
+        RectTransform chartRect = GetChartPositionRectTransform();
+        if (chartRect == null) {
+            return;
+        }
+
         RectTransform cursorRect = binder.img_chart_cursor.rectTransform;
         float normalized = replaySystem.ReplayMoveCount <= 0
             ? 0f
             : Mathf.Clamp01((float)Mathf.Clamp(targetMoveIndex, 0, replaySystem.ReplayMoveCount) / replaySystem.ReplayMoveCount);
-        float localX = Mathf.Lerp(hitRect.rect.xMin, hitRect.rect.xMax, normalized);
-        cursorRect.anchoredPosition = new Vector2(localX, cursorRect.anchoredPosition.y);
+        float chartLocalX = Mathf.Lerp(chartRect.rect.xMin, chartRect.rect.xMax, normalized);
+        float cursorLocalX = ConvertLocalXToAnchoredX(chartRect, chartLocalX, cursorRect);
+        cursorRect.anchoredPosition = new Vector2(cursorLocalX, cursorRect.anchoredPosition.y);
         binder.img_chart_cursor.enabled = true;
+    }
+
+    private RectTransform GetChartPositionRectTransform()
+    {
+        if (binder.chart_analysis != null) {
+            return binder.chart_analysis.rectTransform;
+        }
+
+        if (binder.img_move_scrubber_hit != null) {
+            return binder.img_move_scrubber_hit.rectTransform;
+        }
+
+        return binder.rect_chart_area;
+    }
+
+    private float ConvertLocalXToAnchoredX(RectTransform sourceRect, float sourceLocalX, RectTransform targetRect)
+    {
+        Transform targetParent = targetRect.parent;
+        if (!(targetParent is RectTransform targetParentRect)) {
+            return sourceLocalX;
+        }
+
+        Vector3 worldPoint = sourceRect.TransformPoint(new Vector3(sourceLocalX, 0f, 0f));
+        float parentLocalX = targetParentRect.InverseTransformPoint(worldPoint).x;
+        Rect parentRect = targetParentRect.rect;
+        float anchorReferenceX = Mathf.Lerp(parentRect.xMin, parentRect.xMax, (targetRect.anchorMin.x + targetRect.anchorMax.x) * 0.5f);
+        return parentLocalX - anchorReferenceX;
     }
 
     private void OnMouse0Down()
