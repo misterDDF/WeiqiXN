@@ -19,6 +19,17 @@ public static class RuntimeSgfFilePicker
 #endif
     }
 
+    public static string SaveSgfFilePanel(string defaultFileName)
+    {
+#if UNITY_EDITOR
+        return EditorUtility.SaveFilePanel("导出棋谱", string.Empty, NormalizeDefaultFileName(defaultFileName), "sgf");
+#elif UNITY_STANDALONE_WIN
+        return SaveWindowsFilePanel(NormalizeDefaultFileName(defaultFileName));
+#else
+        return string.Empty;
+#endif
+    }
+
     public static bool IsSupported
     {
         get
@@ -29,6 +40,17 @@ public static class RuntimeSgfFilePicker
             return false;
 #endif
         }
+    }
+
+    private static string NormalizeDefaultFileName(string defaultFileName)
+    {
+        if (string.IsNullOrWhiteSpace(defaultFileName)) {
+            return "replay.sgf";
+        }
+
+        return defaultFileName.EndsWith(".sgf", StringComparison.OrdinalIgnoreCase)
+            ? defaultFileName
+            : $"{defaultFileName}.sgf";
     }
 
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
@@ -48,8 +70,27 @@ public static class RuntimeSgfFilePicker
         return GetOpenFileName(openFileName) ? openFileName.file.ToString() : string.Empty;
     }
 
+    private static string SaveWindowsFilePanel(string defaultFileName)
+    {
+        OpenFileName openFileName = new OpenFileName
+        {
+            structSize = Marshal.SizeOf(typeof(OpenFileName)),
+            filter = "SGF Files\0*.sgf\0All Files\0*.*\0",
+            file = new StringBuilder(defaultFileName, 1024),
+            title = "导出棋谱",
+            flags = 0x00080000 | 0x00000800 | 0x00000002,
+            defExt = "sgf",
+        };
+        openFileName.maxFile = openFileName.file.Capacity;
+
+        return GetSaveFileName(openFileName) ? openFileName.file.ToString() : string.Empty;
+    }
+
     [DllImport("Comdlg32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern bool GetOpenFileName([In, Out] OpenFileName ofn);
+
+    [DllImport("Comdlg32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern bool GetSaveFileName([In, Out] OpenFileName ofn);
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
     private sealed class OpenFileName

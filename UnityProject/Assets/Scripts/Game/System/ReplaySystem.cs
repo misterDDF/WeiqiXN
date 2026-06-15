@@ -119,6 +119,7 @@ public class ReplaySystem : SystemBase
     public bool IsChartHidden => compReplay != null && compReplay.hideChart;
     public IReadOnlyList<ReplayChartPoint> ChartPoints => compReplay != null ? compReplay.chartPoints : null;
     public string ReplayStatus => BuildReplayStatusText();
+    public string ReplayGameId => scene.sceneCreateParams != null ? scene.sceneCreateParams.replayGameId : string.Empty;
 
     private static bool IsMobilePlayerBuild
     {
@@ -878,6 +879,16 @@ public class ReplaySystem : SystemBase
             ? $"目差 {FormatScoreLead(point.scoreLead)}"
             : "目差 --";
         return $"{winrateText} · {scoreText}";
+    }
+
+    public string BuildSgfExportFileName()
+    {
+        return DuelSgfReplayExporter.BuildDefaultFileName(ReplayGameId);
+    }
+
+    public bool TryExportSgf(string sgfFilePath, out string message)
+    {
+        return DuelSgfReplayExporter.TryExport(compReplay, ReplayGameId, sgfFilePath, out message);
     }
 
     private void LoadReplayRecord()

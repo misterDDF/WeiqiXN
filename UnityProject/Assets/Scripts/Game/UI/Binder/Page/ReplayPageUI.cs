@@ -15,19 +15,12 @@ public class ReplayPageUI : UIBinderBase
 	public TextMeshProUGUI txt_move_detail;
 	public TextMeshProUGUI txt_analysis_placeholder;
 	public GameObject panel_try_mode;
-	public GameObject panel_move_color;
 	public Button btn_close;
 	public Button btn_first;
 	public Button btn_prev;
 	public Button btn_next;
 	public Button btn_last;
 	public Button btn_try_mode;
-	public Toggle toggle_move_color_auto;
-	public Toggle toggle_move_color_black;
-	public Toggle toggle_move_color_white;
-	public TextMeshProUGUI txt_move_color_auto;
-	public TextMeshProUGUI txt_move_color_black;
-	public TextMeshProUGUI txt_move_color_white;
 	public Button btn_ai_analysis;
 	public TextMeshProUGUI txt_scrub_preview;
 	public RectTransform rect_chart_area;
@@ -39,13 +32,21 @@ public class ReplayPageUI : UIBinderBase
 	public GameObject panel_replay_shape_result;
 	public TextMeshProUGUI txt_shape_lead_points;
 	public TextMeshProUGUI txt_shape_rule_info;
-
+	public GameObject panel_move_color;
+	public TextMeshProUGUI txt_move_color_auto;
+	public TextMeshProUGUI txt_move_color_black;
+	public TextMeshProUGUI txt_move_color_white;
+	public Toggle toggle_move_color_auto;
+	public Toggle toggle_move_color_black;
+	public Toggle toggle_move_color_white;
+	public Button btn_export_sgf;
+	
 	public enum SrPlatformState
 	{
 		Landscape = 0,
 		Portrait = 1,
 	}
-
+	
 	public void SetSrPlatformState(SrPlatformState state, bool force = false)
 	{
 		if (sr_platform != null) {

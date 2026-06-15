@@ -18,6 +18,7 @@ public class RecentReplayListPopup : UIPageWithBinder<RecentReplayListPopupUI>
         base.OnLoaded();
 
         ApplyCurrentLayoutState(true);
+        SetImportSgfButtonVisible(RuntimeSgfFilePicker.IsSupported);
         AddButtonListener(binder.btn_close, OnClickBtnClose);
         AddButtonListener(binder.btn_refresh, OnClickBtnRetry);
         AddButtonListener(binder.btn_import_sgf, OnClickBtnImportSgf);
@@ -301,6 +302,13 @@ public class RecentReplayListPopup : UIPageWithBinder<RecentReplayListPopupUI>
     {
         if (button != null) {
             button.onClick.AddListener(action);
+        }
+    }
+
+    private void SetImportSgfButtonVisible(bool visible)
+    {
+        if (binder.btn_import_sgf != null) {
+            binder.btn_import_sgf.gameObject.SetActive(visible);
         }
     }
 }

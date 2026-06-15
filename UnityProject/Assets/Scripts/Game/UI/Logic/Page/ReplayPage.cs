@@ -45,6 +45,9 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         if (binder.btn_ownership != null) {
             binder.btn_ownership.onClick.AddListener(OnClickOwnership);
         }
+        if (binder.btn_export_sgf != null) {
+            binder.btn_export_sgf.onClick.AddListener(OnClickExportSgf);
+        }
         BindScrubberEvents();
     }
 
@@ -71,6 +74,9 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
             }
             if (binder.btn_ownership != null) {
                 binder.btn_ownership.onClick.RemoveListener(OnClickOwnership);
+            }
+            if (binder.btn_export_sgf != null) {
+                binder.btn_export_sgf.onClick.RemoveListener(OnClickExportSgf);
             }
             UnbindScrubberEvents();
         }
@@ -151,6 +157,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         if (binder.btn_ownership != null) {
             binder.btn_ownership.interactable = canOwnership;
         }
+        RefreshExportSgfButton(replaySystem);
         SetChartVisible(!hideChart);
         SetButtonText(binder.btn_close, "退出");
         SetTryModeButtonText("取消试下");
@@ -287,6 +294,26 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         }
 
         replaySystem.RequestOwnershipAnalysis();
+    }
+
+    private void OnClickExportSgf()
+    {
+        ReplaySystem replaySystem = GetReplaySystem();
+        if (replaySystem == null || !replaySystem.IsReplayLoaded || replaySystem.IsFreeLayout) {
+            return;
+        }
+
+        string filePath = RuntimeSgfFilePicker.SaveSgfFilePanel(replaySystem.BuildSgfExportFileName());
+        if (string.IsNullOrEmpty(filePath)) {
+            return;
+        }
+
+        if (!replaySystem.TryExportSgf(filePath, out string message)) {
+            ConfirmPopup.ShowTip("导出棋谱失败", message, null, "确定");
+            return;
+        }
+
+        ConfirmPopup.ShowTip("导出棋谱", message, null, "确定");
     }
 
     private void BindScrubberEvents()
@@ -630,6 +657,20 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
 
         toggle.interactable = interactable;
         toggle.SetIsOnWithoutNotify(selected);
+    }
+
+    private void RefreshExportSgfButton(ReplaySystem replaySystem)
+    {
+        if (binder.btn_export_sgf == null) {
+            return;
+        }
+
+        bool isVisible = RuntimeSgfFilePicker.IsSupported &&
+            replaySystem != null &&
+            replaySystem.IsReplayLoaded &&
+            !replaySystem.IsFreeLayout;
+        binder.btn_export_sgf.gameObject.SetActive(isVisible);
+        binder.btn_export_sgf.interactable = isVisible;
     }
 
     private void RefreshAiAnalysisButtonSelection(bool selected)
