@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
@@ -114,6 +115,8 @@ public class ReplaySystem : SystemBase
     public bool HasOwnershipResult => hasOwnershipScore;
     public bool IsAiAnalysisEnabled => KataGoAiAnalysisConfigService.IsAiAnalysisEnabled;
     public bool IsChartReady => compReplay != null && compReplay.isChartReady;
+    public bool IsFreeLayout => compReplay != null && compReplay.isFreeLayout;
+    public bool IsChartHidden => compReplay != null && compReplay.hideChart;
     public IReadOnlyList<ReplayChartPoint> ChartPoints => compReplay != null ? compReplay.chartPoints : null;
     public string ReplayStatus => BuildReplayStatusText();
 
@@ -229,6 +232,10 @@ public class ReplaySystem : SystemBase
 
     public async void StartInitialChartBuild()
     {
+        if (IsChartHidden) {
+            return;
+        }
+
         try {
             await BuildInitialChartAsync();
         }
@@ -339,6 +346,10 @@ public class ReplaySystem : SystemBase
 
     public async void StartChartBackgroundBuild()
     {
+        if (IsChartHidden) {
+            return;
+        }
+
         await BuildChartInBackgroundAsync();
     }
 
@@ -485,7 +496,7 @@ public class ReplaySystem : SystemBase
 
     public bool ExitTryMode()
     {
-        if (!IsTryMode) {
+        if (!IsTryMode || IsFreeLayout) {
             return false;
         }
 
@@ -602,6 +613,7 @@ public class ReplaySystem : SystemBase
             string requestId = $"replay-ownership-{DateTime.UtcNow.Ticks}";
             JObject query = KataGoPositionJsonBuilder.BuildOwnershipAnalysisJson(scene, requestId);
             if (compReplay != null) {
+                query["rules"] = compReplay.replayRules;
                 query["komi"] = compReplay.replayKomi;
             }
 
@@ -748,6 +760,10 @@ public class ReplaySystem : SystemBase
         }
 
         string boardText = compReplay.replayBoardSize > 0 ? $"{compReplay.replayBoardSize} 路" : "未知棋盘";
+        if (IsFreeLayout) {
+            return $"{boardText} · 自由布局";
+        }
+
         if (IsTryMode) {
             return $"{boardText} · 主线 {compReplay.replayMoves.Count} 手 · 试下 {compReplay.tryCursorMoveIndex}/{compReplay.tryMoves.Count} 手";
         }
@@ -821,7 +837,7 @@ public class ReplaySystem : SystemBase
 
     public string BuildChartProgressText()
     {
-        if (!IsReplayLoaded || compReplay == null) {
+        if (!IsReplayLoaded || compReplay == null || IsChartHidden) {
             return string.Empty;
         }
 
@@ -838,6 +854,10 @@ public class ReplaySystem : SystemBase
 
     public string BuildChartSummaryText()
     {
+        if (IsChartHidden) {
+            return string.Empty;
+        }
+
         if (!IsReplayLoaded) {
             return "图表未加载";
         }
@@ -869,6 +889,11 @@ public class ReplaySystem : SystemBase
             return;
         }
 
+        if (scene.sceneCreateParams != null && scene.sceneCreateParams.replayFreeLayout) {
+            LoadFreeLayoutRecord();
+            return;
+        }
+
         string gameId = scene.sceneCreateParams != null ? scene.sceneCreateParams.replayGameId : string.Empty;
         if (string.IsNullOrEmpty(gameId)) {
             XNLogger.LogError("Replay scene load failed, replay game id is empty.");
@@ -880,9 +905,15 @@ public class ReplaySystem : SystemBase
         if (KataGoDuelRecordFile.TryLoad(recordFilePath, out JObject recordJson) &&
             KataGoDuelRecordFile.TryGetBoardSize(recordJson, out int boardSize)) {
             compReplay.replayBoardSize = boardSize;
+            compReplay.replayRules = KataGoDuelRecordFile.TryGetRules(recordJson, out string rules)
+                ? rules
+                : KataGoDuelRecordFile.Rules;
             compReplay.replayKomi = KataGoDuelRecordFile.TryGetKomi(recordJson, out float komi)
                 ? komi
                 : KataGoDuelRecordFile.Komi;
+            compReplay.replayHandicapCount = KataGoDuelRecordFile.TryGetHandicapCount(recordJson, out int handicapCount)
+                ? handicapCount
+                : 0;
             compChessBoard.boardCfgId.value = $"{boardSize}x{boardSize}";
             if (TryLoadReplayRecord(recordJson)) {
                 compReplay.isReplayLoaded = true;
@@ -890,6 +921,30 @@ public class ReplaySystem : SystemBase
         } else {
             compReplay.replayStatus = "复盘记录读取失败";
         }
+    }
+
+    private void LoadFreeLayoutRecord()
+    {
+        const int defaultBoardSize = 19;
+
+        compReplay.replayMoves.Clear();
+        compReplay.replayInitialStones.Clear();
+        compReplay.tryMoves.Clear();
+        compReplay.replayBoardSize = defaultBoardSize;
+        compReplay.replayRules = KataGoDuelRecordFile.Rules;
+        compReplay.replayKomi = KataGoDuelRecordFile.Komi;
+        compReplay.replayHandicapCount = 0;
+        compReplay.replayCursorMoveIndex = 0;
+        compReplay.tryBaseCursorMoveIndex = 0;
+        compReplay.tryCursorMoveIndex = 0;
+        compReplay.tryPlayerFlagOverride = 0;
+        compReplay.isReplayLoaded = true;
+        compReplay.isFreeLayout = true;
+        compReplay.hideChart = scene.sceneCreateParams == null || scene.sceneCreateParams.replayHideChart;
+        compReplay.isTryMode = true;
+        compReplay.isChartReady = true;
+        compReplay.replayStatus = string.Empty;
+        compChessBoard.boardCfgId.value = $"{defaultBoardSize}x{defaultBoardSize}";
     }
 
     private List<RectGridAiRecommendationMarker> BuildAiRecommendationMarkers(JObject result)
@@ -1024,7 +1079,7 @@ public class ReplaySystem : SystemBase
 
     private bool TryParseFloat(JToken token, out float value)
     {
-        return float.TryParse(token?.ToString(), out value);
+        return float.TryParse(token?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out value);
     }
 
     private int ParseInt(JToken token)
@@ -1063,7 +1118,7 @@ public class ReplaySystem : SystemBase
         JObject query = new JObject
         {
             ["id"] = $"replay-chart-{tier}-{maxMoveIndex}-{safeMoveIndexes.Count}-{System.DateTime.UtcNow.Ticks}",
-            ["rules"] = KataGoDuelRecordFile.Rules,
+            ["rules"] = compReplay.replayRules,
             ["komi"] = compReplay.replayKomi,
             ["boardXSize"] = compReplay.replayBoardSize,
             ["boardYSize"] = compReplay.replayBoardSize,
@@ -1368,6 +1423,11 @@ public class ReplaySystem : SystemBase
 
     private void TryRequestCurrentCursorChartPoint()
     {
+        if (IsChartHidden) {
+            CancelCursorChartRequest();
+            return;
+        }
+
         if (!scene.isMainScene || !IsReplayLoaded || compReplay == null || IsTryMode) {
             CancelCursorChartRequest();
             return;

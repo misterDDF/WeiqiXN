@@ -58,6 +58,7 @@ public static class KataGoPositionJsonBuilder
         JObject query = BuildBaseAnalysisJson(replayScene, requestId, Math.Max(maxVisits, 1));
         SceneComponentReplay compReplay = replayScene.GetComponent<SceneComponentReplay>();
         if (compReplay != null) {
+            query["rules"] = compReplay.replayRules;
             query["komi"] = compReplay.replayKomi;
         }
 

@@ -4,6 +4,8 @@ public class SceneCreateParams
 
     public string saveFilePath;
     public string replayGameId;
+    public bool replayFreeLayout;
+    public bool replayHideChart;
 
     public DuelSceneCreateParamas duelSceneCreateParamas;
     public OgsDuelSceneCreateParams ogsDuelSceneCreateParams;

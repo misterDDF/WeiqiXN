@@ -11,6 +11,8 @@ public class RecentReplayListPopupUI : UIBinderBase
     public StateRoot sr_recent_replay_state;
     public Button btn_close;
     public Button btn_refresh;
+    public Button btn_import_sgf;
+    public Button btn_free_layout;
     public Button btn_retry;
     public Button btn_prev_page;
     public Button btn_next_page;

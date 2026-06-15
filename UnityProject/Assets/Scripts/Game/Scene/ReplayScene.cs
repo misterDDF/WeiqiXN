@@ -61,7 +61,7 @@ public class ReplayScene : SceneBase
 
     private void StartReplayChartBackgroundBuild(ReplaySystem replaySystem)
     {
-        if (replaySystem == null || !replaySystem.IsReplayLoaded) {
+        if (replaySystem == null || !replaySystem.IsReplayLoaded || replaySystem.IsChartHidden) {
             return;
         }
 

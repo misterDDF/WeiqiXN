@@ -117,6 +117,8 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         bool canAiAnalysis = replaySystem != null && replaySystem.IsReplayLoaded &&
             (hasAiAnalysisRender || (!replaySystem.IsAiAnalyzing && replaySystem.IsAiAnalysisEnabled));
         bool canOwnership = replaySystem != null && replaySystem.IsReplayLoaded && !replaySystem.IsOwnershipAnalyzing;
+        bool hideChart = replaySystem != null && replaySystem.IsChartHidden;
+        bool isFreeLayout = replaySystem != null && replaySystem.IsFreeLayout;
 
         binder.txt_title.text = replayScene != null ? replayScene.configData.id : "Replay";
         binder.txt_summary.text = replaySystem != null ? replaySystem.BuildSummaryText() : "未加载复盘场景";
@@ -132,12 +134,12 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         binder.btn_next.interactable = canBrowse;
         binder.btn_last.interactable = canBrowse;
         if (binder.panel_try_mode != null) {
-            binder.panel_try_mode.SetActive(isTryMode);
+            binder.panel_try_mode.SetActive(isTryMode && !isFreeLayout);
         } else if (binder.btn_try_mode != null) {
-            binder.btn_try_mode.gameObject.SetActive(isTryMode);
+            binder.btn_try_mode.gameObject.SetActive(isTryMode && !isFreeLayout);
         }
         if (binder.btn_try_mode != null) {
-            binder.btn_try_mode.interactable = isTryMode;
+            binder.btn_try_mode.interactable = isTryMode && !isFreeLayout;
         }
         if (binder.panel_move_color != null) {
             binder.panel_move_color.SetActive(isTryMode);
@@ -149,6 +151,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         if (binder.btn_ownership != null) {
             binder.btn_ownership.interactable = canOwnership;
         }
+        SetChartVisible(!hideChart);
         SetButtonText(binder.btn_close, "退出");
         SetTryModeButtonText("取消试下");
         SetButtonText(binder.btn_ai_analysis, GetAiAnalysisButtonText(replaySystem));
@@ -211,7 +214,12 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
 
     private void OnClickTryMode()
     {
-        GetReplaySystem()?.ExitTryMode();
+        ReplaySystem replaySystem = GetReplaySystem();
+        if (replaySystem != null && replaySystem.IsFreeLayout) {
+            return;
+        }
+
+        replaySystem?.ExitTryMode();
     }
 
     private void OnToggleMoveColorAuto(bool isOn)
@@ -416,7 +424,9 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
     private string BuildReplayOwnershipRuleInfoText(float komi)
     {
         SceneComponentReplay compReplay = Global.Instance.sceneManager.mainScene?.GetComponent<SceneComponentReplay>();
-        int handicapCount = compReplay != null ? compReplay.replayInitialStones.Count : 0;
+        int handicapCount = compReplay != null && compReplay.replayHandicapCount > 0
+            ? compReplay.replayHandicapCount
+            : compReplay != null ? compReplay.replayInitialStones.Count : 0;
         bool isSen = handicapCount <= 0 && Mathf.Approximately(komi, 0.5f);
         return DuelOwnershipDisplayFormatter.BuildRuleInfoText(komi, handicapCount, isSen);
     }
@@ -427,6 +437,12 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
             return;
         }
 
+        if (replaySystem != null && replaySystem.IsChartHidden) {
+            binder.txt_analysis_placeholder.text = string.Empty;
+            binder.txt_analysis_placeholder.gameObject.SetActive(false);
+            return;
+        }
+
         string progressText = replaySystem != null ? replaySystem.BuildChartProgressText() : string.Empty;
         binder.txt_analysis_placeholder.text = progressText;
         binder.txt_analysis_placeholder.gameObject.SetActive(!string.IsNullOrEmpty(progressText));
@@ -434,6 +450,17 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
 
     private void RefreshChart(ReplaySystem replaySystem)
     {
+        if (replaySystem != null && replaySystem.IsChartHidden) {
+            if (binder.chart_analysis != null) {
+                binder.chart_analysis.SetData(null, 0);
+            }
+
+            if (binder.img_chart_cursor != null) {
+                binder.img_chart_cursor.enabled = false;
+            }
+            return;
+        }
+
         if (binder.chart_analysis != null) {
             binder.chart_analysis.SetData(replaySystem?.ChartPoints, replaySystem != null ? replaySystem.ReplayMoveCount : 0);
         }
@@ -511,6 +538,25 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
     private ReplaySystem GetReplaySystem()
     {
         return Global.Instance.sceneManager.mainScene?.GetSystem<ReplaySystem>();
+    }
+
+    private void SetChartVisible(bool visible)
+    {
+        if (binder.rect_chart_area != null) {
+            binder.rect_chart_area.gameObject.SetActive(visible);
+        }
+
+        if (binder.img_move_scrubber_hit != null) {
+            binder.img_move_scrubber_hit.gameObject.SetActive(visible);
+        }
+
+        if (binder.img_chart_cursor != null) {
+            binder.img_chart_cursor.gameObject.SetActive(visible);
+        }
+
+        if (binder.txt_scrub_preview != null) {
+            binder.txt_scrub_preview.gameObject.SetActive(visible);
+        }
     }
 
     private void SetTryModeButtonText(string text)

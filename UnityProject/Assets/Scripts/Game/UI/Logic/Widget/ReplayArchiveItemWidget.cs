@@ -108,6 +108,10 @@ public class ReplayArchiveItemWidget : UIWidgetWithBinder<ReplayArchiveItemWidge
 
     private string FormatResultType(string resultType)
     {
+        if (resultType == "sgf") {
+            return "导入棋谱";
+        }
+
         switch (resultType) {
             case DuelGameEndReason.Score:
                 return "数子终局";
@@ -124,6 +128,10 @@ public class ReplayArchiveItemWidget : UIWidgetWithBinder<ReplayArchiveItemWidge
 
     private string FormatSourceType(string sourceType)
     {
+        if (sourceType == "sgf") {
+            return "导入棋谱";
+        }
+
         switch (sourceType) {
             case "ai":
                 return "电脑对局";

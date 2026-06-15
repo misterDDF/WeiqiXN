@@ -9,7 +9,9 @@ public class SceneComponentReplay : SceneComponentBase
     public readonly Dictionary<int, List<ReplayAiVariationMove>> aiRecommendationVariations = new Dictionary<int, List<ReplayAiVariationMove>>();
     public readonly List<ReplayChartPoint> chartPoints = new List<ReplayChartPoint>();
     public int replayBoardSize;
+    public string replayRules = KataGoDuelRecordFile.Rules;
     public float replayKomi = KataGoDuelRecordFile.Komi;
+    public int replayHandicapCount;
     public int replayCursorMoveIndex;
     public int tryBaseCursorMoveIndex;
     public int tryCursorMoveIndex;
@@ -25,6 +27,8 @@ public class SceneComponentReplay : SceneComponentBase
     public int aiAnalysisVersion;
     public int chartAnalysisVersion;
     public float lastAiAnalysisRequestTime;
+    public bool isFreeLayout;
+    public bool hideChart;
     public string aiAnalysisStatus;
     public string chartStatus;
     public string replayStatus;

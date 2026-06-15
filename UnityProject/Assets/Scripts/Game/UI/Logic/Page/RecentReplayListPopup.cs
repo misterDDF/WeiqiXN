@@ -19,6 +19,9 @@ public class RecentReplayListPopup : UIPageWithBinder<RecentReplayListPopupUI>
 
         ApplyCurrentLayoutState(true);
         AddButtonListener(binder.btn_close, OnClickBtnClose);
+        AddButtonListener(binder.btn_refresh, OnClickBtnRetry);
+        AddButtonListener(binder.btn_import_sgf, OnClickBtnImportSgf);
+        AddButtonListener(binder.btn_free_layout, OnClickBtnFreeLayout);
         AddButtonListener(binder.btn_retry, OnClickBtnRetry);
         AddButtonListener(binder.btn_prev_page, OnClickBtnPrevPage);
         AddButtonListener(binder.btn_next_page, OnClickBtnNextPage);
@@ -177,6 +180,42 @@ public class RecentReplayListPopup : UIPageWithBinder<RecentReplayListPopupUI>
     private void OnClickBtnRetry()
     {
         RefreshReplayItems();
+    }
+
+    private void OnClickBtnImportSgf()
+    {
+        if (!RuntimeSgfFilePicker.IsSupported) {
+            ConfirmPopup.ShowTip("导入棋谱", "当前平台暂不支持打开文件管理器选择 SGF。", null, "确定");
+            return;
+        }
+
+        string filePath = RuntimeSgfFilePicker.OpenSgfFilePanel();
+        if (string.IsNullOrEmpty(filePath)) {
+            return;
+        }
+
+        if (!DuelSgfReplayImporter.TryImport(filePath, out string gameId, out string message)) {
+            ConfirmPopup.ShowTip("导入棋谱失败", message, null, "确定");
+            return;
+        }
+
+        ClosePage();
+        SceneCreateParams sceneCreateParams = new SceneCreateParams
+        {
+            replayGameId = gameId,
+        };
+        Global.Instance.sceneManager.EnterMainScene(SceneConfig.REPLAY_SCENE_TYPE_ID, sceneCreateParams);
+    }
+
+    private void OnClickBtnFreeLayout()
+    {
+        ClosePage();
+        SceneCreateParams sceneCreateParams = new SceneCreateParams
+        {
+            replayFreeLayout = true,
+            replayHideChart = true,
+        };
+        Global.Instance.sceneManager.EnterMainScene(SceneConfig.REPLAY_SCENE_TYPE_ID, sceneCreateParams);
     }
 
     private void OnClickBtnPrevPage()
