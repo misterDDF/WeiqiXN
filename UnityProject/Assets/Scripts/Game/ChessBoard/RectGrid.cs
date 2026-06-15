@@ -387,7 +387,7 @@ namespace XNClient.ChessBoard
 
             for (int z = 0; z < gridSize; z++) {
                 string rowLabel = (gridSize - z).ToString();
-                float centerZ = GetCellCenterLocalPosition(0, gridSize - 1 - z).z;
+                float centerZ = GetCellCenterLocalPosition(0, z).z;
                 CreateCoordinateLabel(
                     $"CoordinateLeft_{rowLabel}",
                     rowLabel,
