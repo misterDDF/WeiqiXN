@@ -5,8 +5,8 @@ using UnityEngine.UI;
 public class ReplayAnalysisChartGraphic : MaskableGraphic
 {
     private const float AxisThickness = 1.5f;
-    private const float LineThickness = 3f;
-    private const float PointSize = 5f;
+    private const float LineThickness = 1f;
+    private const float PointSize = 1.5f;
     private static readonly Color AxisColor = new Color(1f, 1f, 1f, 0.25f);
     private static readonly Color WinrateColor = new Color(0.25f, 0.72f, 1f, 0.95f);
     private static readonly Color ScoreLeadColor = new Color(1f, 0.76f, 0.28f, 0.95f);
