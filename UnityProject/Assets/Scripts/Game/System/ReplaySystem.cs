@@ -936,12 +936,14 @@ public class ReplaySystem : SystemBase
 
     private void LoadFreeLayoutRecord()
     {
-        const int defaultBoardSize = 19;
+        string boardCfgId = ResolveFreeLayoutBoardCfgId();
+        ChessBoardDataType boardData = ChessBoardDataType.GetConfigData(boardCfgId);
+        int boardSize = boardData != null ? boardData.boardSize : 19;
 
         compReplay.replayMoves.Clear();
         compReplay.replayInitialStones.Clear();
         compReplay.tryMoves.Clear();
-        compReplay.replayBoardSize = defaultBoardSize;
+        compReplay.replayBoardSize = boardSize;
         compReplay.replayRules = KataGoDuelRecordFile.Rules;
         compReplay.replayKomi = KataGoDuelRecordFile.Komi;
         compReplay.replayHandicapCount = 0;
@@ -955,7 +957,19 @@ public class ReplaySystem : SystemBase
         compReplay.isTryMode = true;
         compReplay.isChartReady = true;
         compReplay.replayStatus = string.Empty;
-        compChessBoard.boardCfgId.value = $"{defaultBoardSize}x{defaultBoardSize}";
+        compChessBoard.boardCfgId.value = boardCfgId;
+    }
+
+    private string ResolveFreeLayoutBoardCfgId()
+    {
+        string boardCfgId = scene.sceneCreateParams != null
+            ? scene.sceneCreateParams.replayFreeLayoutBoardCfgId
+            : string.Empty;
+        if (!string.IsNullOrEmpty(boardCfgId) && ChessBoardDataType.GetConfigData(boardCfgId) != null) {
+            return boardCfgId;
+        }
+
+        return "19x19";
     }
 
     private List<RectGridAiRecommendationMarker> BuildAiRecommendationMarkers(JObject result)

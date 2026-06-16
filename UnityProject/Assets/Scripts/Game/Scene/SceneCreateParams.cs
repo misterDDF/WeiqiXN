@@ -5,6 +5,7 @@ public class SceneCreateParams
     public string saveFilePath;
     public string replayGameId;
     public bool replayFreeLayout;
+    public string replayFreeLayoutBoardCfgId;
     public bool replayHideChart;
 
     public DuelSceneCreateParamas duelSceneCreateParamas;

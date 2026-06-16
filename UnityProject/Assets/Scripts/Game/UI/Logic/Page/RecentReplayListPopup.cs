@@ -209,10 +209,16 @@ public class RecentReplayListPopup : UIPageWithBinder<RecentReplayListPopupUI>
 
     private void OnClickBtnFreeLayout()
     {
+        DuelSetupPopup.OpenForFreeLayout(StartFreeLayoutReplay);
+    }
+
+    private void StartFreeLayoutReplay(DuelSceneCreateParamas duelParams)
+    {
         ClosePage();
         SceneCreateParams sceneCreateParams = new SceneCreateParams
         {
             replayFreeLayout = true,
+            replayFreeLayoutBoardCfgId = duelParams?.boardCfgId,
             replayHideChart = true,
         };
         Global.Instance.sceneManager.EnterMainScene(SceneConfig.REPLAY_SCENE_TYPE_ID, sceneCreateParams);

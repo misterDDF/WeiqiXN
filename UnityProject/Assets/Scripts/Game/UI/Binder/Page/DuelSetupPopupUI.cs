@@ -42,6 +42,7 @@ public class DuelSetupPopupUI : UIBinderBase
 		Ai = 1,
 		Lan = 2,
 		Ogs = 3,
+		FreeLayout = 4,
 	}
 	
 	public void SetSrModeState(SrModeState state, bool force = false)

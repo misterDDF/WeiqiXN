@@ -13,6 +13,7 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         Lan,
         Ogs,
         OgsFriend,
+        FreeLayout,
     }
 
     public override string pageName => UIPage.GetPageName<DuelSetupPopup>();
@@ -79,6 +80,14 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     {
         pendingOpenAiDuel = false;
         pendingOpenMode = SetupOpenMode.OgsFriend;
+        pendingConfirmHandler = onConfirmed;
+        Global.Instance.uiManager.ShowPage<DuelSetupPopup>();
+    }
+
+    public static void OpenForFreeLayout(Action<DuelSceneCreateParamas> onConfirmed)
+    {
+        pendingOpenAiDuel = false;
+        pendingOpenMode = SetupOpenMode.FreeLayout;
         pendingConfirmHandler = onConfirmed;
         Global.Instance.uiManager.ShowPage<DuelSetupPopup>();
     }
@@ -1052,6 +1061,9 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
 
     private DuelSetupPopupUI.SrModeState ResolveModeState()
     {
+        if (IsFreeLayoutSetup()) {
+            return DuelSetupPopupUI.SrModeState.FreeLayout;
+        }
         if (IsLanRoomSetup()) {
             return DuelSetupPopupUI.SrModeState.Lan;
         }
@@ -1089,6 +1101,11 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         return setupMode == SetupOpenMode.OgsFriend;
     }
 
+    private bool IsFreeLayoutSetup()
+    {
+        return setupMode == SetupOpenMode.FreeLayout;
+    }
+
     private bool IsAnyOgsSetup()
     {
         return IsOgsAutomatchSetup() || IsOgsFriendSetup();
@@ -1096,6 +1113,9 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
 
     private DuelSetupPreferenceMode ResolvePreferenceMode()
     {
+        if (IsFreeLayoutSetup()) {
+            return DuelSetupPreferenceMode.FreeLayout;
+        }
         if (IsLanRoomSetup()) {
             return DuelSetupPreferenceMode.Lan;
         }

@@ -5,6 +5,7 @@ public enum DuelSetupPreferenceMode
     Lan = 2,
     Ogs = 3,
     OgsFriend = 4,
+    FreeLayout = 5,
 }
 
 public class UserComponentDuelSetupPreference : UserComponentBase
@@ -14,6 +15,7 @@ public class UserComponentDuelSetupPreference : UserComponentBase
     public DuelSetupModePreference lanDuel = new DuelSetupModePreference();
     public DuelSetupModePreference ogsDuel = DuelSetupModePreference.CreateOgsDefault();
     public DuelSetupModePreference ogsFriendDuel = DuelSetupModePreference.CreateOgsDefault();
+    public DuelSetupModePreference freeLayout = DuelSetupModePreference.CreateFreeLayoutDefault();
 
     public UserComponentDuelSetupPreference(User owner) : base(owner)
     {
@@ -30,6 +32,8 @@ public class UserComponentDuelSetupPreference : UserComponentBase
                 return ogsDuel;
             case DuelSetupPreferenceMode.OgsFriend:
                 return ogsFriendDuel;
+            case DuelSetupPreferenceMode.FreeLayout:
+                return freeLayout;
             case DuelSetupPreferenceMode.Local:
             default:
                 return localDuel;
@@ -51,6 +55,13 @@ public class DuelSetupModePreference : SavableObj
     {
         DuelSetupModePreference preference = new DuelSetupModePreference();
         preference.Set("9x9", "10m", "5", "30s", "guess", "9x9_0", "k20_k15");
+        return preference;
+    }
+
+    public static DuelSetupModePreference CreateFreeLayoutDefault()
+    {
+        DuelSetupModePreference preference = new DuelSetupModePreference();
+        preference.Set("19x19", "infinite", "off", "30s", "guess", "19x19_0", "k20_k15");
         return preference;
     }
 
