@@ -38,14 +38,28 @@ namespace XNClient.ChessBoard
 
         public static bool CheckIsStarPoint(int x, int z, int gridSize)
         {
+            if (!TryGetStarPointLayout(gridSize, out int low, out int mid, out int high, out bool onlyCornersAndCenter)) {
+                return false;
+            }
+
+            return CheckStarPoint(x, z, low, mid, high, onlyCornersAndCenter);
+        }
+
+        // 星位布局：low/mid/high 为星位所在的线序号；onlyCornersAndCenter 表示只有四角与天元。
+        public static bool TryGetStarPointLayout(int gridSize, out int low, out int mid, out int high, out bool onlyCornersAndCenter)
+        {
             switch (gridSize) {
                 case 9:
-                    return CheckStarPoint(x, z, 2, 4, 6, true);
+                    (low, mid, high, onlyCornersAndCenter) = (2, 4, 6, true);
+                    return true;
                 case 13:
-                    return CheckStarPoint(x, z, 3, 6, 9, true);
+                    (low, mid, high, onlyCornersAndCenter) = (3, 6, 9, true);
+                    return true;
                 case 19:
-                    return CheckStarPoint(x, z, 3, 9, 15, false);
+                    (low, mid, high, onlyCornersAndCenter) = (3, 9, 15, false);
+                    return true;
                 default:
+                    (low, mid, high, onlyCornersAndCenter) = (0, 0, 0, false);
                     return false;
             }
         }

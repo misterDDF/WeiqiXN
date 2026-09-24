@@ -13,6 +13,10 @@
 - `Assets/Scripts/Editor/Build/BuildConfig.cs`
 - `Assets/Scripts/Editor/TMPSprite/SpriteAtlasToTMPSpriteTool.cs`
 - `Assets/Scripts/Editor/Inspector/TextureArrayWizard.cs`
+- `Assets/Scripts/Editor/Chess/ChessStoneAssetPolishTool.cs`
+- `Assets/Scripts/Editor/Chess/ChessStonePreviewAssetPolishTool.cs`
+- `Assets/Scripts/Editor/Scene/DuelSceneLookAssetTool.cs`
+- `Assets/Scripts/Editor/Scene/DuelLookPreviewCaptureTool.cs`
 - `Assets/Scripts/Global/GameConfig.cs`
 - `Assets/Scripts/Game/KataGo/KataGoBootstrap.cs`
 - `Assets/Scripts/Game/KataGo/KataGoRuntimeEnvironment.cs`
@@ -35,6 +39,7 @@
 - 项目已有多份生成的 `*PageUI.cs` 和页面逻辑类。
 - AssetBundle、TMP sprite、TextureArray 等编辑器工具文件已经存在。
 - 项目自维护编辑器菜单统一挂在 Unity 顶部菜单 `自定义功能` 下；迁移既有菜单时保留去掉原 `Assets/` 前缀后的多层结构，例如 `Assets/打包/打PC包` 对应 `自定义功能/打包/打PC包`。KataGo OpenCL 预热缓存可通过 `自定义功能/KataGo/清除opencl预热文件` 清除，命令执行结束后会弹窗提示清除成功、未找到缓存或失败原因。
+- 对局画面美术配置由幂等菜单维护，参数写在工具代码常量里，重复执行结果一致：`自定义功能/棋盘/应用棋子美术配置` → `自定义功能/棋盘/应用预览棋子透明配置`（预览材质从正式材质复制，必须后执行）→ `自定义功能/场景/应用对局场景画面配置`。`自定义功能/场景/生成对局画面预览截图` 在不进入 Play 的情况下离屏渲染 19 路横屏、9 路横屏、19 路竖屏与 19 路近景四张截图到 `Temp/WeiqiXN/LookPreview/`，用于调参对比；`Temp/` 会在编辑器重启时清空，需要保留的对比图应另存。
 - 编辑器自动化优先通过 Unity MCP 执行。C# 编译验证优先使用 MCP `recompile_scripts` 并读取 Unity Console；不再把 `dotnet build UnityProject.sln` 作为常规验证路径。
 - 场景对象、材质、资源导入等 MCP 已覆盖的编辑器操作应优先走 MCP。既有复杂 prefab asset 的层级编辑只有在 MCP 工具能完整覆盖时才直接用 MCP；否则应使用 Unity 编辑器脚本、编辑器菜单或人工 prefab 编辑，再通过 MCP 做导入和编译验证，避免手写复杂 prefab YAML。
 - KataGo 流程当前目标是跑通 Windows Unity Editor 和 Windows PC 包内的本地 exe/native 后端调用和 JSON 解析。

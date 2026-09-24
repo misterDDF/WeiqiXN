@@ -79,11 +79,9 @@ namespace XNClient.ChessBoard
         private const float CoordinateLabelBoundsPaddingFactor = 0.22f;
         private const float CoordinateLabelOuterOffsetFactor = 0.38f;
         private const int CoordinateLabelFontSize = 84;
-        private const float CoordinateLabelCharacterSize = 0.32f;
-        private const float CoordinateLabelShadowCharacterSize = 0.30f;
-        private static readonly Vector3 CoordinateLabelShadowOffset = new Vector3(0.025f, -0.004f, -0.025f);
-        private static readonly Color CoordinateLabelColor = new Color(0.23f, 0.15f, 0.07f, 0.98f);
-        private static readonly Color CoordinateLabelShadowColor = new Color(0.08f, 0.05f, 0.02f, 0.55f);
+        private const float CoordinateLabelCharacterSize = 0.27f;
+        // 坐标按印在木面上的墨字处理，与棋盘线同色系、略淡；TextMesh 顶点色不做色彩空间转换，这里直接填线性值。
+        private static readonly Color CoordinateLabelColor = new Color(0.014f, 0.011f, 0.008f, 0.9f);
 
         private const float OwnershipSquareSizeFactor = ChessBoardConfig.starPointRadiusFactor * 2f * 2.5f;
         private const float OwnershipYOffset = 0.04f;
@@ -115,6 +113,12 @@ namespace XNClient.ChessBoard
         private static readonly Color AiRecommendationColor = new Color(0.05f, 0.85f, 0.20f, 1f);
         private static readonly Color AiRecommendationOutlineColor = new Color(0f, 0f, 0f, 0.92f);
         private static readonly Color AiRecommendationTextColor = new Color(0f, 0f, 0f, 1f);
+        private const int BoardTextureReferenceGridSize = 19;
+        private static readonly int BoardGridShaderId = Shader.PropertyToID("_XNBoardGrid");
+        private static readonly int BoardStarShaderId = Shader.PropertyToID("_XNBoardStar");
+        private static readonly int BoardRectShaderId = Shader.PropertyToID("_XNBoardRect");
+        private static readonly int BoardUVShaderId = Shader.PropertyToID("_XNBoardUV");
+        private static readonly int BoardWorldToGridShaderId = Shader.PropertyToID("_XNBoardWorldToGrid");
 
         private Material blackMaterial;
         private Material whiteMaterial;
@@ -406,6 +410,7 @@ namespace XNClient.ChessBoard
 
         private void RefreshBoardCoordinateFrame()
         {
+            RefreshBoardShaderGlobals();
             foreach (RectGridChunk chunk in chunkList) {
                 if (chunk != null) {
                     chunk.SetOuterBorderVisible(boardCoordinateFrameVisible);
@@ -417,6 +422,29 @@ namespace XNClient.ChessBoard
             } else {
                 ClearCoordinateLabels();
             }
+        }
+
+        // Ground.shader 按棋盘坐标解析绘制木纹、网格线、星位和盘边倒角，这里同步棋盘几何参数。
+        private void RefreshBoardShaderGlobals()
+        {
+            float cellSize = ChessBoardConfig.rectCellSideLength;
+            float sideLength = gridSize * cellSize;
+            float borderWidth = cellSize * ChessBoardVisualConfig.boardOuterBorderWidthFactor;
+            float outerPadding = boardCoordinateFrameVisible ? borderWidth : 0f;
+            // 木纹按固定物理尺寸铺设，小路数棋盘只取贴图中央部分，纹理疏密与 19 路一致。
+            float textureSize = Mathf.Max(BoardTextureReferenceGridSize, gridSize) * cellSize + borderWidth * 2f;
+            float textureOrigin = sideLength / 2f - textureSize / 2f;
+
+            Vector4 starLayout = Vector4.zero;
+            if (ChessBoardUtils.TryGetStarPointLayout(gridSize, out int low, out int mid, out int high, out bool onlyCornersAndCenter)) {
+                starLayout = new Vector4(low, mid, high, onlyCornersAndCenter ? 1f : 2f);
+            }
+
+            Shader.SetGlobalVector(BoardGridShaderId, new Vector4(gridSize, cellSize, 0f, 0f));
+            Shader.SetGlobalVector(BoardStarShaderId, starLayout);
+            Shader.SetGlobalVector(BoardRectShaderId, new Vector4(-outerPadding, -outerPadding, sideLength + outerPadding, sideLength + outerPadding));
+            Shader.SetGlobalVector(BoardUVShaderId, new Vector4(textureOrigin, textureOrigin, 1f / textureSize, 1f / textureSize));
+            Shader.SetGlobalMatrix(BoardWorldToGridShaderId, transform.worldToLocalMatrix);
         }
 
         private void ClearCoordinateLabels()
@@ -435,13 +463,6 @@ namespace XNClient.ChessBoard
                 return;
             }
 
-            CreateCoordinateLabelMesh(
-                objectName + "_Shadow",
-                labelText,
-                localPosition + CoordinateLabelShadowOffset,
-                CoordinateLabelShadowCharacterSize,
-                CoordinateLabelShadowColor,
-                0);
             CreateCoordinateLabelMesh(
                 objectName,
                 labelText,
@@ -463,7 +484,7 @@ namespace XNClient.ChessBoard
             textMesh.text = labelText;
             textMesh.fontSize = CoordinateLabelFontSize;
             textMesh.characterSize = characterSize;
-            textMesh.fontStyle = FontStyle.Bold;
+            textMesh.fontStyle = FontStyle.Normal;
             textMesh.alignment = TextAlignment.Center;
             textMesh.anchor = TextAnchor.MiddleCenter;
             textMesh.color = color;

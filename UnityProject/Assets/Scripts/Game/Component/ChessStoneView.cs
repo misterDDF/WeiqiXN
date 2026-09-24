@@ -95,6 +95,13 @@ public class ChessStoneView : MonoBehaviour
     public void SetRemovedVisual(bool removed)
     {
         Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
+        bool showRemovedVisual = removed && removedStonePreviewMaterial != null;
+        foreach (Renderer renderer in renderers) {
+            if (IsContactShadow(renderer)) {
+                renderer.enabled = !showRemovedVisual;
+            }
+        }
+
         if (!removed) {
             foreach (Renderer renderer in renderers) {
                 if (renderer != null && originalRendererMaterials.TryGetValue(renderer, out Material[] materials)) {
@@ -110,7 +117,7 @@ public class ChessStoneView : MonoBehaviour
         }
 
         foreach (Renderer renderer in renderers) {
-            if (renderer == null) {
+            if (renderer == null || IsContactShadow(renderer)) {
                 continue;
             }
 
@@ -129,6 +136,11 @@ public class ChessStoneView : MonoBehaviour
             }
             renderer.sharedMaterials = previewMaterials;
         }
+    }
+
+    private static bool IsContactShadow(Renderer renderer)
+    {
+        return renderer != null && renderer.GetComponent<ChessStoneContactShadow>() != null;
     }
 
     public void NotifyPlacementAnimationComplete()

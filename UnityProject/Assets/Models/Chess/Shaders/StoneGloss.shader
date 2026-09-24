@@ -1,15 +1,18 @@
 Shader "WeiqiXN/StoneGloss"
 {
+    // 正式棋子：接收并投射主光阴影；光照见 StoneGlossLighting.hlsl，与落点预览共用。
     Properties
     {
-        _BaseColor ("Base Color", Color) = (0.02, 0.02, 0.02, 1)
-        _EdgeColor ("Edge Color", Color) = (0, 0, 0, 1)
-        _HighlightColor ("Highlight Color", Color) = (1, 1, 1, 1)
-        _Smoothness ("Smoothness", Range(0, 1)) = 0.82
-        _SpecStrength ("Specular Strength", Range(0, 2)) = 0.6
-        _RimStrength ("Rim Strength", Range(0, 1)) = 0.12
-        _PatternStrength ("Pattern Strength", Range(0, 0.25)) = 0.03
-        _PatternScale ("Pattern Scale", Range(0.5, 16)) = 5
+        _BaseColor ("Base Color", Color) = (0.03, 0.03, 0.03, 1)
+        _HighlightColor ("Reflection Tint", Color) = (1, 1, 1, 1)
+        _Smoothness ("Smoothness", Range(0, 1)) = 0.7
+        _SoftboxStrength ("Softbox Reflection Strength", Range(0, 16)) = 12
+        _SoftboxShape ("Softbox Shape (Half Width, Half Height, Softness, Halo)", Vector) = (0.16, 0.12, 0.06, 0.1)
+        _ReflectionStrength ("Environment Reflection Strength", Range(0, 2)) = 1
+        _Wrap ("Diffuse Wrap", Range(0, 1)) = 0
+        [NoScaleOffset] _DetailMap ("Detail (R Stripes, G Grain, B Cloud)", 2D) = "gray" {}
+        _DetailStrength ("Detail Strength (Stripes, Grain, Cloud)", Vector) = (0, 0, 0, 0)
+        _AmbientStrength ("Ambient Strength", Range(0, 2)) = 1
     }
 
     SubShader
@@ -21,89 +24,77 @@ Shader "WeiqiXN/StoneGloss"
             "Queue" = "Geometry"
         }
 
+        HLSLINCLUDE
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+        CBUFFER_START(UnityPerMaterial)
+            half4 _BaseColor;
+            half4 _HighlightColor;
+            half _Smoothness;
+            half _SoftboxStrength;
+            half4 _SoftboxShape;
+            half _ReflectionStrength;
+            half _Wrap;
+            half4 _DetailStrength;
+            half _AmbientStrength;
+        CBUFFER_END
+        ENDHLSL
+
         Pass
         {
             Name "Forward"
             Tags { "LightMode" = "UniversalForward" }
 
             HLSLPROGRAM
-            #pragma vertex Vert
+            #pragma target 3.5
+            #pragma vertex StoneVert
             #pragma fragment Frag
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT
 
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "StoneGlossLighting.hlsl"
 
-            struct Attributes
+            half4 Frag(StoneVaryings input) : SV_Target
             {
-                float4 positionOS : POSITION;
-                float3 normalOS : NORMAL;
-            };
-
-            struct Varyings
-            {
-                float4 positionCS : SV_POSITION;
-                float3 positionWS : TEXCOORD0;
-                float3 normalWS : TEXCOORD1;
-                float3 viewDirWS : TEXCOORD2;
-            };
-
-            CBUFFER_START(UnityPerMaterial)
-                half4 _BaseColor;
-                half4 _EdgeColor;
-                half4 _HighlightColor;
-                half _Smoothness;
-                half _SpecStrength;
-                half _RimStrength;
-                half _PatternStrength;
-                half _PatternScale;
-            CBUFFER_END
-
-            Varyings Vert(Attributes input)
-            {
-                Varyings output;
-                VertexPositionInputs positionInputs = GetVertexPositionInputs(input.positionOS.xyz);
-                output.positionCS = positionInputs.positionCS;
-                output.positionWS = positionInputs.positionWS;
-                output.normalWS = normalize(TransformObjectToWorldNormal(input.normalOS));
-                output.viewDirWS = normalize(GetWorldSpaceViewDir(positionInputs.positionWS));
-                return output;
-            }
-
-            half4 Frag(Varyings input) : SV_Target
-            {
-                half3 normalWS = normalize(input.normalWS);
-                half3 viewDirWS = normalize(input.viewDirWS);
-                Light mainLight = GetMainLight();
-                half3 lightDirWS = normalize(mainLight.direction);
-                half3 lightTint = lerp(half3(1.0h, 1.0h, 1.0h), mainLight.color, 0.35h);
-                half diffuse = saturate(dot(normalWS, lightDirWS)) * 0.55h + 0.45h;
-
-                half edge = pow(saturate(1.0h - abs(normalWS.y)), 1.65h);
-                half top = pow(saturate(normalWS.y), 2.0h);
-
-                half grain =
-                    sin(input.positionWS.x * _PatternScale) +
-                    sin(input.positionWS.z * _PatternScale * 1.37h) +
-                    sin((input.positionWS.x + input.positionWS.z) * _PatternScale * 0.63h);
-                grain *= 0.333h * _PatternStrength;
-
-                half3 baseColor = _BaseColor.rgb * (diffuse + grain) * lightTint;
-                baseColor = lerp(baseColor, _EdgeColor.rgb, edge * 0.52h);
-                baseColor = lerp(baseColor, _HighlightColor.rgb, top * 0.07h);
-
-                half3 halfDir = normalize(lightDirWS + viewDirWS);
-                half specPower = lerp(18.0h, 150.0h, _Smoothness);
-                half specular = pow(saturate(dot(normalWS, halfDir)), specPower) * _SpecStrength;
-                half rim = pow(saturate(1.0h - dot(viewDirWS, normalWS)), 3.0h) * _RimStrength;
-                half topSheenPower = lerp(10.0h, 28.0h, _Smoothness);
-                half topSheen = pow(saturate(dot(normalWS, viewDirWS)), topSheenPower) * top * _SpecStrength * 0.22h;
-
-                half3 color = baseColor + _HighlightColor.rgb * lightTint * specular + _HighlightColor.rgb * rim + _HighlightColor.rgb * topSheen;
-                return half4(saturate(color), _BaseColor.a);
+                return half4(StoneShade(input), 1.0h);
             }
             ENDHLSL
         }
-    }
 
-    FallBack "Universal Render Pipeline/Lit"
+        Pass
+        {
+            Name "ShadowCaster"
+            Tags { "LightMode" = "ShadowCaster" }
+
+            ZWrite On
+            ZTest LEqual
+            ColorMask 0
+            Cull Back
+
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex XNShadowVert
+            #pragma fragment XNShadowFrag
+            #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+            #include "Assets/Graphics/ShaderLibrary/XNShadowCaster.hlsl"
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "DepthOnly"
+            Tags { "LightMode" = "DepthOnly" }
+
+            ZWrite On
+            ColorMask R
+            Cull Back
+
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex XNDepthOnlyVert
+            #pragma fragment XNShadowFrag
+            #include "Assets/Graphics/ShaderLibrary/XNShadowCaster.hlsl"
+            ENDHLSL
+        }
+    }
 }

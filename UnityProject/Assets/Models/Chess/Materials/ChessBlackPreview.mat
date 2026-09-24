@@ -22,17 +22,22 @@ Material:
   m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
-    m_TexEnvs: []
+    m_TexEnvs:
+    - _DetailMap:
+        m_Texture: {fileID: 2800000, guid: f2c907d67d239f4479365157a9ea31e9, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _PatternScale: 4.2
-    - _PatternStrength: 0.008
+    - _AmbientStrength: 1
     - _PreviewAlpha: 0.8
-    - _RimStrength: 0.1
-    - _Smoothness: 0.86
-    - _SpecStrength: 0.58
+    - _ReflectionStrength: 0.5
+    - _Smoothness: 0.72
+    - _SoftboxStrength: 12
+    - _Wrap: 0
     m_Colors:
-    - _BaseColor: {r: 0.026, g: 0.025, b: 0.023, a: 1}
-    - _EdgeColor: {r: 0.008, g: 0.008, b: 0.007, a: 1}
-    - _HighlightColor: {r: 0.74, g: 0.72, b: 0.64, a: 1}
+    - _BaseColor: {r: 0.07, g: 0.068, b: 0.066, a: 1}
+    - _DetailStrength: {r: 0, g: 0.3, b: 0, a: 0}
+    - _HighlightColor: {r: 0.95, g: 0.95, b: 0.93, a: 1}
+    - _SoftboxShape: {r: 0.16, g: 0.12, b: 0.06, a: 0.1}
   m_BuildTextureStacks: []

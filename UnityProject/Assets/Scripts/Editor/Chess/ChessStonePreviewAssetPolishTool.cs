@@ -8,8 +8,11 @@ public static class ChessStonePreviewAssetPolishTool
     private const string ShaderPath = "Assets/Models/Chess/Shaders/StoneGlossPreview.shader";
     private const string BlackMaterialPath = "Assets/Models/Chess/Materials/ChessBlackPreview.mat";
     private const string WhiteMaterialPath = "Assets/Models/Chess/Materials/ChessWhitePreview.mat";
+    private const string BlackSourceMaterialPath = "Assets/Models/Chess/Materials/ChessBlack.mat";
+    private const string WhiteSourceMaterialPath = "Assets/Models/Chess/Materials/ChessWhite.mat";
     private const string BlackPrefabPath = "Assets/Models/Chess/ChessBlackPreview.prefab";
     private const string WhitePrefabPath = "Assets/Models/Chess/ChessWhitePreview.prefab";
+    private const string ModelNodePath = "VisualOffset/Model";
 
     [MenuItem(CustomEditorMenuPaths.ChessBoard + "/应用预览棋子透明配置")]
     public static void Polish()
@@ -20,31 +23,8 @@ public static class ChessStonePreviewAssetPolishTool
             return;
         }
 
-        ConfigureMaterial(
-            BlackMaterialPath,
-            shader,
-            new Color(0.026f, 0.025f, 0.023f, 1f),
-            new Color(0.008f, 0.008f, 0.007f, 1f),
-            new Color(0.74f, 0.72f, 0.64f, 1f),
-            0.8f,
-            0.86f,
-            0.58f,
-            0.1f,
-            0.008f,
-            4.2f);
-
-        ConfigureMaterial(
-            WhiteMaterialPath,
-            shader,
-            new Color(0.88f, 0.855f, 0.775f, 1f),
-            new Color(0.72f, 0.69f, 0.61f, 1f),
-            new Color(1f, 0.965f, 0.88f, 1f),
-            0.85f,
-            0.52f,
-            0.18f,
-            0.045f,
-            0.018f,
-            2.8f);
+        ConfigureMaterial(BlackMaterialPath, BlackSourceMaterialPath, shader, 0.8f);
+        ConfigureMaterial(WhiteMaterialPath, WhiteSourceMaterialPath, shader, 0.85f);
 
         ConfigurePrefab(BlackPrefabPath, BlackMaterialPath);
         ConfigurePrefab(WhitePrefabPath, WhiteMaterialPath);
@@ -54,35 +34,26 @@ public static class ChessStonePreviewAssetPolishTool
         Debug.Log("Chess preview stone assets polished.");
     }
 
-    private static void ConfigureMaterial(
-        string materialPath,
-        Shader shader,
-        Color baseColor,
-        Color edgeColor,
-        Color highlightColor,
-        float previewAlpha,
-        float smoothness,
-        float specStrength,
-        float rimStrength,
-        float patternStrength,
-        float patternScale)
+    // 预览材质从正式棋子材质复制外观参数，只额外设置透明度，保证两者一致。
+    private static void ConfigureMaterial(string materialPath, string sourceMaterialPath, Shader shader, float previewAlpha)
     {
+        Material sourceMaterial = AssetDatabase.LoadAssetAtPath<Material>(sourceMaterialPath);
+        if (sourceMaterial == null) {
+            Debug.LogError($"Chess stone source material not found: {sourceMaterialPath}");
+            return;
+        }
+
         Material material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
         if (material == null) {
             material = new Material(shader);
             AssetDatabase.CreateAsset(material, materialPath);
         }
 
+        // CopyPropertiesFromMaterial 会连同源材质的 shader 一起带过来，复制后必须重新指定预览 shader。
+        material.CopyPropertiesFromMaterial(sourceMaterial);
         material.shader = shader;
-        material.SetColor("_BaseColor", baseColor);
-        material.SetColor("_EdgeColor", edgeColor);
-        material.SetColor("_HighlightColor", highlightColor);
         material.SetFloat("_PreviewAlpha", previewAlpha);
-        material.SetFloat("_Smoothness", smoothness);
-        material.SetFloat("_SpecStrength", specStrength);
-        material.SetFloat("_RimStrength", rimStrength);
-        material.SetFloat("_PatternStrength", patternStrength);
-        material.SetFloat("_PatternScale", patternScale);
+        EditorUtils.RemoveUnusedMaterialProperties(material);
         EditorUtility.SetDirty(material);
     }
 
@@ -95,7 +66,8 @@ public static class ChessStonePreviewAssetPolishTool
         }
 
         try {
-            MeshRenderer renderer = prefabRoot.GetComponentInChildren<MeshRenderer>(true);
+            Transform model = prefabRoot.transform.Find(ModelNodePath);
+            MeshRenderer renderer = model != null ? model.GetComponent<MeshRenderer>() : null;
             Material material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
             if (renderer != null && material != null) {
                 renderer.sharedMaterial = material;
@@ -104,6 +76,12 @@ public static class ChessStonePreviewAssetPolishTool
             } else {
                 Debug.LogError($"Chess preview stone renderer or material not found: {prefabPath}");
                 return;
+            }
+
+            // 预览棋子悬在落点上方示意，不压暗盘面；接触阴影节点继承自正式棋子 prefab，这里只关闭。
+            Transform contactShadow = prefabRoot.transform.Find(ChessStoneAssetPolishTool.ContactShadowNodePath);
+            if (contactShadow != null) {
+                contactShadow.gameObject.SetActive(false);
             }
 
             PrefabUtility.SaveAsPrefabAsset(prefabRoot, prefabPath);

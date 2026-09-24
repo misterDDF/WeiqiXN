@@ -23,10 +23,11 @@
 - 支持 `9x9`、`13x13`、`19x19` 三种棋盘。
 - `RectCoordinates` 直接采用 KataGo 棋盘布局：`x` 从左到右递增，`z` 从棋盘上边向下递增；棋盘缓存索引使用 `z * boardSize + x`。
 - `RectGrid` 按配置尺寸生成棋盘并计算边界。
-- `RectGridChunk` 负责分块 mesh 和棋盘视觉结构。
-- `RectGrid` 会在棋盘外边框区域生成围棋常用坐标标签，列标跳过 `I`，行标按从上到下递减显示；标签使用加粗平铺文本并只作为纯表现层提示，不写入规则状态。外边框和坐标标签由 `RectGrid.SetBoardCoordinateFrameVisible(bool)` 统一切换，便于后续设置项控制。
+- `RectGridChunk` 负责分块 mesh 和棋盘视觉结构。网格线、星位、木纹和盘边倒角由 `Ground.shader` 按棋盘坐标解析绘制，`RectGrid` 在棋盘尺寸或外边框显隐变化时写入 `_XNBoard*` 全局参数（路数、格长、星位布局、盘面外缘、木纹 UV、世界到棋盘矩阵）；`RoadMesh` 只保留碰撞体供落子射线检测，渲染器关闭。桌布 `Table.shader` 读取同一组参数解析计算盘体落影。
+- `RectGrid` 会在棋盘外边框区域生成围棋常用坐标标签，列标跳过 `I`，行标按从上到下递减显示；标签使用常规字重的平铺墨色文本并只作为纯表现层提示，不写入规则状态。外边框和坐标标签由 `RectGrid.SetBoardCoordinateFrameVisible(bool)` 统一切换，便于后续设置项控制。
 - `RectGrid` 可以绘制和清除 ownership overlay：形势分析结果会按 KataGo `ownership` 行序直接在棋盘交叉点显示黑白小方块，低于当前阈值的中立或未明确控制点不绘制；同色相邻控制点之间会用对应颜色细线连接；overlay 位于棋子模型上方，只作为 AI 预测控制区域的表现层，不写入棋盘规则状态。
 - `ChessStoneViewCache` / `ChessStoneView` 负责棋子上方标记：对局最新手三角和复盘手数数字都绑定到当前可见棋子，黑棋使用白色标记、白棋使用黑色标记；棋子隐藏、提掉或复用时自动清理，落子动画到达棋面后显示，不等待后续抖动完全结束。标记只作为表现层，不写入棋盘规则状态。
+- 棋子 prefab 的 `VisualOffset/ContactShadow` 是接触阴影面片（带 `ChessStoneContactShadow` 标记）：跟随棋子随机偏移，不参与落子动画。`ChessStoneView.SetRemovedVisual` 把死子替换为半透明预览材质时跳过并隐藏该面片，恢复时重新显示。
 - `ReplaySystem` 使用棋子级手数数字：普通复盘只标当前最新非虚手主线手数，试下模式标仍留在棋盘上的每一步试下分支编号。手数数字与最新手三角通过单一 `StoneMarkerIntent` 互斥。
 - `SceneComponentChessBoard` 负责棋盘配置 id、运行时当前棋子信息、上一局面棋子信息、棋盘引用和虚拟相机引用；棋子字典不再作为持久化棋盘权威。
 - `ChessStoneViewCache` 负责棋子 prefab 表现缓存。规则状态仍以 `SceneComponentChessBoard.chessInfoDict` 为权威；普通落子、提子、LAN 快照纠偏、读档恢复和悔棋重建只把最终棋盘状态同步给表现缓存，由缓存按棋盘位置显示、隐藏或复用黑白棋子 prefab，避免整盘销毁重建造成闪动。
