@@ -63,10 +63,10 @@ public static class DuelLookPreviewCaptureTool
         new Vector2Int(4, 13),
     };
 
-    // 空点上的推荐：(x, z, 胜率)，按胜率从高到低排序。
+    // 空点上的推荐：(x, z, 胜率)，按胜率从高到低排序；第一推荐用三位数，近景里检查最宽的胜率文字。
     private static readonly Vector3Int[] AiRecommendations19 =
     {
-        new Vector3Int(6, 3, 56), new Vector3Int(12, 12, 53), new Vector3Int(6, 9, 49), new Vector3Int(3, 9, 47),
+        new Vector3Int(6, 3, 100), new Vector3Int(12, 12, 53), new Vector3Int(6, 9, 49), new Vector3Int(3, 9, 47),
     };
 
     private static readonly Vector2Int LatestMoveOnWhite19 = new Vector2Int(4, 4);

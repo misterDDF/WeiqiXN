@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Text;
 using Newtonsoft.Json.Linq;
+using TMPro;
 using UnityEngine;
 using XNClient.Logger;
 
@@ -96,7 +97,8 @@ namespace XNClient.ChessBoard
         // 推荐圆片与棋子等大，读起来像“这里该落一子”。
         private const float AiRecommendationDiscSizeFactor = 0.86f;
         private const float AiRecommendationOutlineWidth = 0.06f;
-        private const float AiRecommendationFontSize = 16f;
+        // 胜率数字要在手机竖屏上也一眼读出：字号接近圆片直径的六成，并用 TMP 粗体。
+        private const float AiRecommendationFontSize = 22f;
         private const int AiRecommendationDiscSortingOrder = 28;
         private const int AiRecommendationTextSortingOrder = 30;
         private const int OwnershipNeutral = 0;
@@ -108,7 +110,7 @@ namespace XNClient.ChessBoard
         // 亮绿圆片表示“好点” + 深一档的细描边；亮底上纸色字对比不足，胜率用墨色。
         private static readonly Color AiRecommendationColor = new Color32(0x3C, 0xB9, 0x5A, 0xFF);
         private static readonly Color AiRecommendationOutlineColor = new Color32(0x25, 0x84, 0x3F, 0xFF);
-        private static readonly Color AiRecommendationTextColor = new Color(BoardSurfaceMarker.Ink.r, BoardSurfaceMarker.Ink.g, BoardSurfaceMarker.Ink.b, 0.9f);
+        private static readonly Color AiRecommendationTextColor = BoardSurfaceMarker.Ink;
         private static readonly int BaseColorShaderId = Shader.PropertyToID("_BaseColor");
         private static readonly int LegacyColorShaderId = Shader.PropertyToID("_Color");
         private static readonly int ShapeShaderId = Shader.PropertyToID("_Shape");
@@ -498,7 +500,7 @@ namespace XNClient.ChessBoard
             ApplyAiRecommendationColor(disc, ResolveAiRecommendationColor(markerContext.alpha));
 
             int winratePercent = Mathf.Clamp(marker.winratePercent, 1, 100);
-            BoardSurfaceMarker.CreateLabel(
+            TextMeshPro label = BoardSurfaceMarker.CreateLabel(
                 aiRecommendationMarkerRoot.transform,
                 $"AiRecommendationText_{marker.order}_{marker.x}_{marker.z}",
                 winratePercent.ToString(),
@@ -506,6 +508,7 @@ namespace XNClient.ChessBoard
                 BoardSurfaceMarker.ResolveNumberFontSize(winratePercent, AiRecommendationFontSize),
                 AiRecommendationTextColor,
                 AiRecommendationTextSortingOrder);
+            label.fontStyle = FontStyles.Bold;
         }
 
         private string GetGoCoordinateColumnLabel(int x)
