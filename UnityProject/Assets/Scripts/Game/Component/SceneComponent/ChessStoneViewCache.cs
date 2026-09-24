@@ -197,7 +197,7 @@ public class ChessStoneViewCache
 
         Dictionary<int, StoneMarkerIntent> markers = new Dictionary<int, StoneMarkerIntent>
         {
-            [posIndex] = StoneMarkerIntent.LatestTriangle(playerFlag == PlayerFlag.Player1)
+            [posIndex] = StoneMarkerIntent.LatestMove(playerFlag == PlayerFlag.Player1)
         };
         ApplyStoneMarkers(markers);
     }

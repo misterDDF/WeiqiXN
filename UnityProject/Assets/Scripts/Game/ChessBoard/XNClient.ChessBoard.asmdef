@@ -2,7 +2,8 @@
   "name": "XNClient.ChessBoard",
   "rootNamespace": "XNClient.ChessBoard",
   "references": [
-    "XNClient.Logger"
+    "XNClient.Logger",
+    "Unity.TextMeshPro"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

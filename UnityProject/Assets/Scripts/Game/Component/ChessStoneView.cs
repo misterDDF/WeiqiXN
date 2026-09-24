@@ -9,12 +9,6 @@ public class ChessStoneView : MonoBehaviour
     private const float MarkerAnimationMaxWaitSeconds = 2f;
     private const float MarkerAnimationMinimumWaitSeconds = 0.05f;
     private const float PlacementDropCompleteNormalizedTime = 0.35f;
-    private const int MoveNumberMarkerFontSize = 48;
-    private const float MoveNumberMarkerCharacterSize = 0.46f;
-    private const float LatestMoveMarkerSizeFactor = ChessBoardConfig.starPointRadiusFactor * 2f * 2.3f;
-    private static readonly Color MoveNumberOnBlackStoneColor = new Color(1f, 1f, 1f, 1f);
-    private static readonly Color MoveNumberOnWhiteStoneColor = new Color(0f, 0f, 0f, 1f);
-    private static Mesh latestMoveMarkerMesh;
 
     private int bindVersion;
     private int posIndex = -1;
@@ -26,6 +20,7 @@ public class ChessStoneView : MonoBehaviour
     private Material latestMoveMarkerOnBlackStoneMaterial;
     private Material latestMoveMarkerOnWhiteStoneMaterial;
     private Material removedStonePreviewMaterial;
+    private ChessStoneVisualRandomizer visualRandomizer;
     private readonly Dictionary<Renderer, Material[]> originalRendererMaterials = new Dictionary<Renderer, Material[]>();
 
     public void SetLatestMoveMarkerMaterials(Material onBlackStoneMaterial, Material onWhiteStoneMaterial)
@@ -234,8 +229,8 @@ public class ChessStoneView : MonoBehaviour
 
         if (marker.markerType == StoneMarkerType.MoveNumber) {
             ShowMoveNumberMarker(marker);
-        } else if (marker.markerType == StoneMarkerType.LatestTriangle) {
-            ShowLatestTriangleMarker(marker);
+        } else if (marker.markerType == StoneMarkerType.LatestMove) {
+            ShowLatestMoveMarker(marker);
         }
     }
 
@@ -246,36 +241,15 @@ public class ChessStoneView : MonoBehaviour
         }
 
         GameObject root = EnsureMarkerRoot();
-        GameObject labelGO = new GameObject($"MoveNumber_{marker.moveNumber}");
-        labelGO.transform.SetParent(root.transform, false);
-        labelGO.transform.localPosition = Vector3.zero;
-        labelGO.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-        labelGO.transform.localScale = Vector3.one;
-
-        TextMesh textMesh = labelGO.AddComponent<TextMesh>();
-        textMesh.text = marker.moveNumber.ToString();
-        textMesh.fontSize = MoveNumberMarkerFontSize;
-        textMesh.characterSize = MoveNumberMarkerCharacterSize;
-        textMesh.fontStyle = FontStyle.Bold;
-        textMesh.alignment = TextAlignment.Center;
-        textMesh.anchor = TextAnchor.MiddleCenter;
-        textMesh.color = marker.isBlackStone ? MoveNumberOnBlackStoneColor : MoveNumberOnWhiteStoneColor;
-        textMesh.richText = false;
-
-        Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        if (font != null) {
-            textMesh.font = font;
-        }
-
-        MeshRenderer meshRenderer = labelGO.GetComponent<MeshRenderer>();
-        if (meshRenderer != null) {
-            meshRenderer.receiveShadows = false;
-            meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            meshRenderer.sortingOrder = 20;
-        }
+        BoardSurfaceMarker.CreateMoveNumber(
+            root.transform,
+            $"MoveNumber_{marker.moveNumber}",
+            marker.moveNumber,
+            marker.isBlackStone,
+            Vector3.zero);
     }
 
-    private void ShowLatestTriangleMarker(StoneMarkerIntent marker)
+    private void ShowLatestMoveMarker(StoneMarkerIntent marker)
     {
         Material markerMaterial = marker.isBlackStone
             ? latestMoveMarkerOnBlackStoneMaterial
@@ -285,20 +259,7 @@ public class ChessStoneView : MonoBehaviour
         }
 
         GameObject root = EnsureMarkerRoot();
-        GameObject markerGO = new GameObject("LatestMoveTriangle");
-        markerGO.transform.SetParent(root.transform, false);
-        markerGO.transform.localPosition = Vector3.zero;
-        markerGO.transform.localRotation = Quaternion.identity;
-        markerGO.transform.localScale = Vector3.one;
-
-        MeshFilter meshFilter = markerGO.AddComponent<MeshFilter>();
-        meshFilter.sharedMesh = GetLatestMoveMarkerMesh();
-
-        MeshRenderer meshRenderer = markerGO.AddComponent<MeshRenderer>();
-        meshRenderer.sharedMaterial = markerMaterial;
-        meshRenderer.receiveShadows = false;
-        meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        meshRenderer.sortingOrder = 20;
+        BoardSurfaceMarker.CreateLatestMoveMarker(root.transform, "LatestMoveMarker", Vector3.zero, markerMaterial);
     }
 
     private GameObject EnsureMarkerRoot()
@@ -309,7 +270,7 @@ public class ChessStoneView : MonoBehaviour
 
         markerRoot = new GameObject("StoneMarkerRoot");
         markerRoot.transform.SetParent(transform, false);
-        markerRoot.transform.localPosition = new Vector3(0f, MarkerLocalYOffset, 0f);
+        markerRoot.transform.localPosition = GetVisualPositionOffset() + new Vector3(0f, MarkerLocalYOffset, 0f);
         markerRoot.transform.localRotation = Quaternion.identity;
         markerRoot.transform.localScale = Vector3.one;
         return markerRoot;
@@ -325,26 +286,14 @@ public class ChessStoneView : MonoBehaviour
         markerRoot = null;
     }
 
-    private static Mesh GetLatestMoveMarkerMesh()
+    // 标记居中到随机摆放后的棋子上，但不跟随偏转，手数始终保持正向。
+    private Vector3 GetVisualPositionOffset()
     {
-        if (latestMoveMarkerMesh != null) {
-            return latestMoveMarkerMesh;
+        if (visualRandomizer == null) {
+            visualRandomizer = GetComponent<ChessStoneVisualRandomizer>();
         }
 
-        float markerSize = ChessBoardConfig.rectCellSideLength * LatestMoveMarkerSizeFactor;
-        float halfWidth = markerSize * 0.5f;
-        float halfHeight = markerSize * 0.5f;
-        latestMoveMarkerMesh = new Mesh();
-        latestMoveMarkerMesh.name = "StoneLatestMoveMarkerMesh";
-        latestMoveMarkerMesh.SetVertices(new List<Vector3>
-        {
-            new Vector3(0f, 0f, halfHeight),
-            new Vector3(-halfWidth, 0f, -halfHeight),
-            new Vector3(halfWidth, 0f, -halfHeight),
-        });
-        latestMoveMarkerMesh.SetTriangles(new[] { 0, 2, 1 }, 0);
-        latestMoveMarkerMesh.RecalculateNormals();
-        return latestMoveMarkerMesh;
+        return visualRandomizer != null ? visualRandomizer.PositionOffset : Vector3.zero;
     }
 
     private void OnDisable()

@@ -1,7 +1,7 @@
 public enum StoneMarkerType
 {
     None,
-    LatestTriangle,
+    LatestMove,
     MoveNumber,
 }
 
@@ -20,9 +20,9 @@ public readonly struct StoneMarkerIntent
         this.isBlackStone = isBlackStone;
     }
 
-    public static StoneMarkerIntent LatestTriangle(bool isBlackStone)
+    public static StoneMarkerIntent LatestMove(bool isBlackStone)
     {
-        return new StoneMarkerIntent(StoneMarkerType.LatestTriangle, 0, isBlackStone);
+        return new StoneMarkerIntent(StoneMarkerType.LatestMove, 0, isBlackStone);
     }
 
     public static StoneMarkerIntent MoveNumber(int moveNumber, bool isBlackStone)

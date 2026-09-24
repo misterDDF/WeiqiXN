@@ -7,6 +7,9 @@ public class ChessStoneVisualRandomizer : MonoBehaviour
     [SerializeField] private float positionOffsetPower = 2f;
     [SerializeField] private float maxYawDegrees = 8f;
 
+    // 当前随机摆放偏移（棋子根节点局部空间），盘上标记据此对齐棋子中心。
+    public Vector3 PositionOffset => visualOffsetRoot != null ? visualOffsetRoot.localPosition : Vector3.zero;
+
     private void Awake()
     {
         EnsureVisualOffsetRoot();

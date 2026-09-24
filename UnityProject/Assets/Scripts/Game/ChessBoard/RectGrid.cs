@@ -77,42 +77,44 @@ namespace XNClient.ChessBoard
 
         private const float CoordinateLabelSurfaceYOffset = 0.04f;
         private const float CoordinateLabelBoundsPaddingFactor = 0.22f;
-        private const float CoordinateLabelOuterOffsetFactor = 0.38f;
-        private const int CoordinateLabelFontSize = 84;
-        private const float CoordinateLabelCharacterSize = 0.27f;
-        // 坐标按印在木面上的墨字处理，与棋盘线同色系、略淡；TextMesh 顶点色不做色彩空间转换，这里直接填线性值。
-        private static readonly Color CoordinateLabelColor = new Color(0.014f, 0.011f, 0.008f, 0.9f);
+        private const float CoordinateLabelOuterOffsetFactor = 0.45f;
+        private const float CoordinateLabelFontSize = 20f;
+        private const int CoordinateLabelSortingOrder = 1;
+        // 坐标按印在木面上的墨字处理，比棋盘线略淡。
+        private static readonly Color CoordinateLabelColor = new Color(BoardSurfaceMarker.Ink.r, BoardSurfaceMarker.Ink.g, BoardSurfaceMarker.Ink.b, 0.72f);
 
         private const float OwnershipSquareSizeFactor = ChessBoardConfig.starPointRadiusFactor * 2f * 2.5f;
         private const float OwnershipYOffset = 0.04f;
         private const float OwnershipBlackPointMinAlpha = 0.55f;
         private const float OwnershipBlackPointMaxAlpha = 0.95f;
-        private const float OwnershipWhitePointMinAlpha = 0.35f;
-        private const float OwnershipWhitePointMaxAlpha = 0.75f;
+        private const float OwnershipWhitePointMinAlpha = 0.45f;
+        private const float OwnershipWhitePointMaxAlpha = 0.85f;
         private const float LatestMoveMarkerYOffset = 0.05f;
-        private const float LatestMoveMarkerSizeFactor = ChessBoardConfig.starPointRadiusFactor * 2f * 2.3f;
         private const float MoveNumberMarkerYOffset = 1.74f;
-        private const int MoveNumberMarkerFontSize = 48;
-        private const float MoveNumberMarkerCharacterSize = 0.46f;
-        private const float AiRecommendationCircleYOffset = 0.10f;
+        private const float AiRecommendationDiscYOffset = 0.10f;
         private const float AiRecommendationTextYOffset = 0.115f;
-        private const float AiRecommendationMarkerSizeFactor = 0.96f;
-        private const float AiRecommendationOutlineYOffset = 0.106f;
-        private const float AiRecommendationOutlineWidth = 0.3f;
-        private const int AiRecommendationCircleSegments = 40;
-        private const int AiRecommendationFontSize = 58;
-        private const float AiRecommendationCharacterSize = 0.46f;
-        private const float AiRecommendationTextLeftOffset = 0.14f;
+        // 推荐圆片与棋子等大，读起来像“这里该落一子”。
+        private const float AiRecommendationDiscSizeFactor = 0.86f;
+        private const float AiRecommendationOutlineWidth = 0.06f;
+        private const float AiRecommendationFontSize = 16f;
+        private const int AiRecommendationDiscSortingOrder = 28;
+        private const int AiRecommendationTextSortingOrder = 30;
         private const int OwnershipNeutral = 0;
         private const int OwnershipBlack = 1;
         private const int OwnershipWhite = -1;
-        private static readonly Color MoveNumberOnBlackStoneColor = new Color(1f, 1f, 1f, 1f);
-        private static readonly Color MoveNumberOnWhiteStoneColor = new Color(0f, 0f, 0f, 1f);
-        private const float AiRecommendationLowestAlpha = 0.35f;
-        private const float AiRecommendationHighestAlpha = 0.85f;
-        private static readonly Color AiRecommendationColor = new Color(0.05f, 0.85f, 0.20f, 1f);
-        private static readonly Color AiRecommendationOutlineColor = new Color(0f, 0f, 0f, 0.92f);
-        private static readonly Color AiRecommendationTextColor = new Color(0f, 0f, 0f, 1f);
+        // 按胜率名次分档：第一推荐完全不透明，名次越低越淡（透出网格线正好表示“弱”），区间要够宽才能一眼分出高低。
+        private const float AiRecommendationLowestAlpha = 0.4f;
+        private const float AiRecommendationHighestAlpha = 1f;
+        // 亮绿圆片表示“好点” + 深一档的细描边；亮底上纸色字对比不足，胜率用墨色。
+        private static readonly Color AiRecommendationColor = new Color32(0x3C, 0xB9, 0x5A, 0xFF);
+        private static readonly Color AiRecommendationOutlineColor = new Color32(0x25, 0x84, 0x3F, 0xFF);
+        private static readonly Color AiRecommendationTextColor = new Color(BoardSurfaceMarker.Ink.r, BoardSurfaceMarker.Ink.g, BoardSurfaceMarker.Ink.b, 0.9f);
+        private static readonly int BaseColorShaderId = Shader.PropertyToID("_BaseColor");
+        private static readonly int LegacyColorShaderId = Shader.PropertyToID("_Color");
+        private static readonly int ShapeShaderId = Shader.PropertyToID("_Shape");
+        private static readonly int OutlineColorShaderId = Shader.PropertyToID("_OutlineColor");
+        private static readonly int OutlineWidthShaderId = Shader.PropertyToID("_OutlineWidth");
+        private const float DiscShape = 1f;
         private const int BoardTextureReferenceGridSize = 19;
         private static readonly int BoardGridShaderId = Shader.PropertyToID("_XNBoardGrid");
         private static readonly int BoardStarShaderId = Shader.PropertyToID("_XNBoardStar");
@@ -124,11 +126,7 @@ namespace XNClient.ChessBoard
         private Material whiteMaterial;
         private Material latestMoveMarkerOnBlackStoneMaterial;
         private Material latestMoveMarkerOnWhiteStoneMaterial;
-        private Mesh latestMoveMarkerMesh;
-        private Mesh aiRecommendationCircleMesh;
-        private Mesh aiRecommendationCircleOutlineMesh;
-        private Material aiRecommendationCircleMaterial;
-        private Material aiRecommendationOutlineMaterial;
+        private Material aiRecommendationDiscMaterial;
 
         public void InitGrid(int gridSize)
         {
@@ -256,24 +254,18 @@ namespace XNClient.ChessBoard
                 return;
             }
 
-            latestMoveMarkerRoot = new GameObject("LatestMoveMarkerRoot");
-            latestMoveMarkerRoot.transform.SetParent(transform, false);
-
-            GameObject marker = new GameObject($"LatestMoveMarker_{x}_{z}");
-            marker.transform.SetParent(latestMoveMarkerRoot.transform, false);
-            marker.transform.localPosition = GetOwnershipLocalPosition(x, z, LatestMoveMarkerYOffset);
-
-            MeshFilter meshFilter = marker.AddComponent<MeshFilter>();
-            meshFilter.sharedMesh = GetLatestMoveMarkerMesh();
-
             Material material = GetLatestMoveMarkerMaterial(isBlackStone);
             if (material == null) {
-                ClearLatestMoveMarker();
                 return;
             }
 
-            MeshRenderer meshRenderer = marker.AddComponent<MeshRenderer>();
-            meshRenderer.sharedMaterial = material;
+            latestMoveMarkerRoot = new GameObject("LatestMoveMarkerRoot");
+            latestMoveMarkerRoot.transform.SetParent(transform, false);
+            BoardSurfaceMarker.CreateLatestMoveMarker(
+                latestMoveMarkerRoot.transform,
+                $"LatestMoveMarker_{x}_{z}",
+                GetOwnershipLocalPosition(x, z, LatestMoveMarkerYOffset),
+                material);
         }
 
         public void ClearLatestMoveMarker()
@@ -376,27 +368,32 @@ namespace XNClient.ChessBoard
             coordinateLabelRoot = new GameObject("CoordinateLabelRoot");
             coordinateLabelRoot.transform.SetParent(transform, false);
 
-            float boardSideLength = gridSize * ChessBoardConfig.rectCellSideLength;
-            float labelOuterOffset = ChessBoardConfig.rectCellSideLength *
+            float cellSize = ChessBoardConfig.rectCellSideLength;
+            float boardSideLength = gridSize * cellSize;
+            float boardCenter = boardSideLength / 2f;
+            float labelOuterOffset = cellSize *
                 ChessBoardVisualConfig.boardOuterBorderWidthFactor *
                 CoordinateLabelOuterOffsetFactor;
-            for (int x = 0; x < gridSize; x++) {
-                string columnLabel = GetGoCoordinateColumnLabel(x);
-                float centerX = GetCellCenterLocalPosition(x, 0).x;
-                CreateCoordinateLabel(
-                    $"CoordinateTop_{columnLabel}",
-                    columnLabel,
-                    new Vector3(centerX, CoordinateLabelSurfaceYOffset, boardSideLength + labelOuterOffset));
+
+            // 每条边只用一个 TMP 文本：字母行按格宽等距排布、数字列按格宽固定行高，居中后逐字落在对应网格线上。
+            string cellEm = BoardSurfaceMarker.ToEm(cellSize, CoordinateLabelFontSize);
+            StringBuilder columnLabels = new StringBuilder($"<mspace={cellEm}>");
+            StringBuilder rowLabels = new StringBuilder($"<line-height={cellEm}>");
+            for (int i = 0; i < gridSize; i++) {
+                columnLabels.Append(GetGoCoordinateColumnLabel(i));
+                if (i > 0) {
+                    rowLabels.Append('\n');
+                }
+                rowLabels.Append(gridSize - i);
             }
 
-            for (int z = 0; z < gridSize; z++) {
-                string rowLabel = (gridSize - z).ToString();
-                float centerZ = GetCellCenterLocalPosition(0, z).z;
-                CreateCoordinateLabel(
-                    $"CoordinateLeft_{rowLabel}",
-                    rowLabel,
-                    new Vector3(-labelOuterOffset, CoordinateLabelSurfaceYOffset, centerZ));
-            }
+            string columnText = columnLabels.ToString();
+            string rowText = rowLabels.ToString();
+            float y = CoordinateLabelSurfaceYOffset;
+            CreateCoordinateLabel("CoordinateTop", columnText, new Vector3(boardCenter, y, boardSideLength + labelOuterOffset));
+            CreateCoordinateLabel("CoordinateBottom", columnText, new Vector3(boardCenter, y, -labelOuterOffset));
+            CreateCoordinateLabel("CoordinateLeft", rowText, new Vector3(-labelOuterOffset, y, boardCenter));
+            CreateCoordinateLabel("CoordinateRight", rowText, new Vector3(boardSideLength + labelOuterOffset, y, boardCenter));
         }
 
         private void EnsureCoordinateLabels()
@@ -463,183 +460,52 @@ namespace XNClient.ChessBoard
                 return;
             }
 
-            CreateCoordinateLabelMesh(
+            BoardSurfaceMarker.CreateLabel(
+                coordinateLabelRoot.transform,
                 objectName,
                 labelText,
                 localPosition,
-                CoordinateLabelCharacterSize,
+                CoordinateLabelFontSize,
                 CoordinateLabelColor,
-                1);
-        }
-
-        private void CreateCoordinateLabelMesh(string objectName, string labelText, Vector3 localPosition, float characterSize, Color color, int sortingOrder)
-        {
-            GameObject labelGO = new GameObject(objectName);
-            labelGO.transform.SetParent(coordinateLabelRoot.transform, false);
-            labelGO.transform.localPosition = localPosition;
-            labelGO.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            labelGO.transform.localScale = Vector3.one;
-
-            TextMesh textMesh = labelGO.AddComponent<TextMesh>();
-            textMesh.text = labelText;
-            textMesh.fontSize = CoordinateLabelFontSize;
-            textMesh.characterSize = characterSize;
-            textMesh.fontStyle = FontStyle.Normal;
-            textMesh.alignment = TextAlignment.Center;
-            textMesh.anchor = TextAnchor.MiddleCenter;
-            textMesh.color = color;
-            textMesh.richText = false;
-
-            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            if (font != null) {
-                textMesh.font = font;
-            }
-
-            MeshRenderer meshRenderer = labelGO.GetComponent<MeshRenderer>();
-            if (meshRenderer != null) {
-                meshRenderer.receiveShadows = false;
-                meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                meshRenderer.sortingOrder = sortingOrder;
-            }
+                CoordinateLabelSortingOrder);
         }
 
         private void CreateMoveNumberMarker(RectGridMoveNumberMarker marker)
         {
-            GameObject labelGO = new GameObject($"MoveNumber_{marker.moveNumber}_{marker.x}_{marker.z}");
-            labelGO.transform.SetParent(moveNumberMarkerRoot.transform, false);
-            labelGO.transform.localPosition = GetOwnershipLocalPosition(marker.x, marker.z, MoveNumberMarkerYOffset);
-            labelGO.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            labelGO.transform.localScale = Vector3.one;
-
-            TextMesh textMesh = labelGO.AddComponent<TextMesh>();
-            textMesh.text = marker.moveNumber.ToString();
-            textMesh.fontSize = MoveNumberMarkerFontSize;
-            textMesh.characterSize = MoveNumberMarkerCharacterSize;
-            textMesh.fontStyle = FontStyle.Bold;
-            textMesh.alignment = TextAlignment.Center;
-            textMesh.anchor = TextAnchor.MiddleCenter;
-            textMesh.color = marker.isBlackStone ? MoveNumberOnBlackStoneColor : MoveNumberOnWhiteStoneColor;
-            textMesh.richText = false;
-
-            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            if (font != null) {
-                textMesh.font = font;
-            }
-
-            MeshRenderer meshRenderer = labelGO.GetComponent<MeshRenderer>();
-            if (meshRenderer != null) {
-                meshRenderer.receiveShadows = false;
-                meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                meshRenderer.sortingOrder = 20;
-            }
+            BoardSurfaceMarker.CreateMoveNumber(
+                moveNumberMarkerRoot.transform,
+                $"MoveNumber_{marker.moveNumber}_{marker.x}_{marker.z}",
+                marker.moveNumber,
+                marker.isBlackStone,
+                GetOwnershipLocalPosition(marker.x, marker.z, MoveNumberMarkerYOffset));
         }
 
         private void CreateAiRecommendationMarker(RectGridAiRecommendationMarkerDrawContext markerContext)
         {
+            Material material = GetAiRecommendationDiscMaterial();
+            if (material == null) {
+                return;
+            }
+
             RectGridAiRecommendationMarker marker = markerContext.marker;
+            MeshRenderer disc = BoardSurfaceMarker.CreateQuad(
+                aiRecommendationMarkerRoot.transform,
+                $"AiRecommendationDisc_{marker.order}_{marker.x}_{marker.z}",
+                GetOwnershipLocalPosition(marker.x, marker.z, AiRecommendationDiscYOffset),
+                ChessBoardConfig.rectCellSideLength * AiRecommendationDiscSizeFactor,
+                material,
+                AiRecommendationDiscSortingOrder);
+            ApplyAiRecommendationColor(disc, ResolveAiRecommendationColor(markerContext.alpha));
+
             int winratePercent = Mathf.Clamp(marker.winratePercent, 1, 100);
-            CreateAiRecommendationCircle(marker, markerContext.alpha);
-            CreateAiRecommendationCircleOutline(marker);
-            CreateAiRecommendationText(marker, winratePercent);
-        }
-
-        private void CreateAiRecommendationCircle(RectGridAiRecommendationMarker marker, float alpha)
-        {
-            GameObject circle = new GameObject($"AiRecommendationCircle_{marker.order}_{marker.x}_{marker.z}");
-            circle.transform.SetParent(aiRecommendationMarkerRoot.transform, false);
-            circle.transform.localPosition = GetOwnershipLocalPosition(marker.x, marker.z, AiRecommendationCircleYOffset);
-            circle.transform.localRotation = Quaternion.identity;
-            circle.transform.localScale = Vector3.one;
-
-            MeshFilter meshFilter = circle.AddComponent<MeshFilter>();
-            meshFilter.sharedMesh = GetAiRecommendationCircleMesh();
-
-            Material material = GetAiRecommendationCircleMaterial();
-            if (material == null) {
-                return;
-            }
-
-            MeshRenderer meshRenderer = circle.AddComponent<MeshRenderer>();
-            meshRenderer.sharedMaterial = material;
-            meshRenderer.receiveShadows = false;
-            meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            meshRenderer.sortingOrder = 28;
-            ApplyAiRecommendationColor(meshRenderer, material, ResolveAiRecommendationColor(alpha));
-        }
-
-        private void CreateAiRecommendationCircleOutline(RectGridAiRecommendationMarker marker)
-        {
-            GameObject outline = new GameObject($"AiRecommendationCircleOutline_{marker.order}_{marker.x}_{marker.z}");
-            outline.transform.SetParent(aiRecommendationMarkerRoot.transform, false);
-            outline.transform.localPosition = GetOwnershipLocalPosition(marker.x, marker.z, AiRecommendationOutlineYOffset);
-            outline.transform.localRotation = Quaternion.identity;
-            outline.transform.localScale = Vector3.one;
-
-            MeshFilter meshFilter = outline.AddComponent<MeshFilter>();
-            meshFilter.sharedMesh = GetAiRecommendationCircleOutlineMesh();
-
-            Material material = GetAiRecommendationOutlineMaterial();
-            if (material == null) {
-                return;
-            }
-
-            MeshRenderer meshRenderer = outline.AddComponent<MeshRenderer>();
-            meshRenderer.sharedMaterial = material;
-            meshRenderer.receiveShadows = false;
-            meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            meshRenderer.sortingOrder = 29;
-            ApplyAiRecommendationColor(meshRenderer, material, AiRecommendationOutlineColor);
-        }
-
-        private void CreateAiRecommendationText(RectGridAiRecommendationMarker marker, int winratePercent)
-        {
-            string text = winratePercent.ToString();
-            Vector3 localPosition = GetOwnershipLocalPosition(marker.x, marker.z, AiRecommendationTextYOffset);
-            Vector3 numberPosition = localPosition + new Vector3(-AiRecommendationTextLeftOffset, 0f, 0f);
-            CreateAiRecommendationTextMesh(
+            BoardSurfaceMarker.CreateLabel(
+                aiRecommendationMarkerRoot.transform,
                 $"AiRecommendationText_{marker.order}_{marker.x}_{marker.z}",
-                text,
-                numberPosition,
+                winratePercent.ToString(),
+                GetOwnershipLocalPosition(marker.x, marker.z, AiRecommendationTextYOffset),
+                BoardSurfaceMarker.ResolveNumberFontSize(winratePercent, AiRecommendationFontSize),
                 AiRecommendationTextColor,
-                30);
-        }
-
-        private void CreateAiRecommendationTextMesh(
-            string objectName,
-            string labelText,
-            Vector3 localPosition,
-            Color color,
-            int sortingOrder,
-            int fontSize = AiRecommendationFontSize,
-            float characterSize = AiRecommendationCharacterSize)
-        {
-            GameObject labelGO = new GameObject(objectName);
-            labelGO.transform.SetParent(aiRecommendationMarkerRoot.transform, false);
-            labelGO.transform.localPosition = localPosition;
-            labelGO.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            labelGO.transform.localScale = Vector3.one;
-
-            TextMesh textMesh = labelGO.AddComponent<TextMesh>();
-            textMesh.text = labelText;
-            textMesh.fontSize = fontSize;
-            textMesh.characterSize = characterSize;
-            textMesh.fontStyle = FontStyle.Bold;
-            textMesh.alignment = TextAlignment.Center;
-            textMesh.anchor = TextAnchor.MiddleCenter;
-            textMesh.color = color;
-            textMesh.richText = false;
-
-            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            if (font != null) {
-                textMesh.font = font;
-            }
-
-            MeshRenderer meshRenderer = labelGO.GetComponent<MeshRenderer>();
-            if (meshRenderer != null) {
-                meshRenderer.receiveShadows = false;
-                meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                meshRenderer.sortingOrder = sortingOrder;
-            }
+                AiRecommendationTextSortingOrder);
         }
 
         private string GetGoCoordinateColumnLabel(int x)
@@ -709,15 +575,14 @@ namespace XNClient.ChessBoard
 
         private void CreateOwnershipSquare(int x, int z, float squareSize, Material material, float alpha)
         {
-            GameObject square = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            square.name = $"Ownership_{x}_{z}";
-            square.transform.SetParent(ownershipRoot.transform, false);
-            square.transform.localPosition = GetOwnershipLocalPosition(x, z, OwnershipYOffset);
-            square.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            square.transform.localScale = new Vector3(squareSize, squareSize, 1f);
-
-            RemoveOwnershipCollider(square);
-            ApplyOwnershipMaterial(square, material, alpha);
+            MeshRenderer square = BoardSurfaceMarker.CreateQuad(
+                ownershipRoot.transform,
+                $"Ownership_{x}_{z}",
+                GetOwnershipLocalPosition(x, z, OwnershipYOffset),
+                squareSize,
+                material,
+                0);
+            ApplyOwnershipAlpha(square, material, alpha);
         }
 
         private Vector3 GetOwnershipLocalPosition(int x, int z, float y)
@@ -751,88 +616,31 @@ namespace XNClient.ChessBoard
             return whiteMaterial;
         }
 
-        private Mesh GetLatestMoveMarkerMesh()
+        // 推荐圆片与最后一手标记共用 BoardOverlay shader，运行时按圆片形状和描边单独建一份材质。
+        private Material GetAiRecommendationDiscMaterial()
         {
-            if (latestMoveMarkerMesh == null) {
-                latestMoveMarkerMesh = CreateLatestMoveMarkerMesh(ChessBoardConfig.rectCellSideLength * LatestMoveMarkerSizeFactor);
+            if (aiRecommendationDiscMaterial != null) {
+                return aiRecommendationDiscMaterial;
             }
 
-            return latestMoveMarkerMesh;
-        }
-
-        private Mesh GetAiRecommendationCircleMesh()
-        {
-            if (aiRecommendationCircleMesh == null) {
-                aiRecommendationCircleMesh = CreateCircleMesh(
-                    ChessBoardConfig.rectCellSideLength * AiRecommendationMarkerSizeFactor,
-                    AiRecommendationCircleSegments);
-            }
-
-            return aiRecommendationCircleMesh;
-        }
-
-        private Mesh GetAiRecommendationCircleOutlineMesh()
-        {
-            if (aiRecommendationCircleOutlineMesh == null) {
-                aiRecommendationCircleOutlineMesh = CreateRingMesh(
-                    ChessBoardConfig.rectCellSideLength * AiRecommendationMarkerSizeFactor,
-                    AiRecommendationOutlineWidth,
-                    AiRecommendationCircleSegments);
-            }
-
-            return aiRecommendationCircleOutlineMesh;
-        }
-
-        private Material GetAiRecommendationCircleMaterial()
-        {
-            if (aiRecommendationCircleMaterial == null) {
-                aiRecommendationCircleMaterial = CreateAiRecommendationMaterial(AiRecommendationColor);
-            }
-
-            return aiRecommendationCircleMaterial;
-        }
-
-        private Material GetAiRecommendationOutlineMaterial()
-        {
-            if (aiRecommendationOutlineMaterial == null) {
-                aiRecommendationOutlineMaterial = CreateAiRecommendationMaterial(AiRecommendationOutlineColor);
-            }
-
-            return aiRecommendationOutlineMaterial;
-        }
-
-        private Material CreateAiRecommendationMaterial(Color markerColor)
-        {
             Shader shader = GetAiRecommendationMaterialShader();
             if (shader == null) {
                 return null;
             }
 
-            Material material = new Material(shader);
-            material.color = markerColor;
-            if (material.HasProperty("_BaseColor")) {
-                material.SetColor("_BaseColor", markerColor);
-            }
-            if (material.HasProperty("_Color")) {
-                material.SetColor("_Color", Color.white);
-            }
-            return material;
+            aiRecommendationDiscMaterial = new Material(shader);
+            aiRecommendationDiscMaterial.SetColor(BaseColorShaderId, AiRecommendationColor);
+            aiRecommendationDiscMaterial.SetColor(LegacyColorShaderId, Color.white);
+            aiRecommendationDiscMaterial.SetFloat(ShapeShaderId, DiscShape);
+            aiRecommendationDiscMaterial.SetColor(OutlineColorShaderId, AiRecommendationOutlineColor);
+            aiRecommendationDiscMaterial.SetFloat(OutlineWidthShaderId, AiRecommendationOutlineWidth);
+            return aiRecommendationDiscMaterial;
         }
 
-        private void ApplyAiRecommendationColor(MeshRenderer renderer, Material material, Color color)
+        private void ApplyAiRecommendationColor(MeshRenderer renderer, Color color)
         {
-            if (renderer == null || material == null) {
-                return;
-            }
-
             MaterialPropertyBlock propertyBlock = new MaterialPropertyBlock();
-            if (material.HasProperty("_BaseColor")) {
-                propertyBlock.SetColor("_BaseColor", color);
-            }
-            if (material.HasProperty("_Color")) {
-                propertyBlock.SetColor("_Color", Color.white);
-            }
-
+            propertyBlock.SetColor(BaseColorShaderId, color);
             renderer.SetPropertyBlock(propertyBlock);
         }
 
@@ -889,14 +697,9 @@ namespace XNClient.ChessBoard
 
         private void ClearAiRecommendationMarkerMaterials()
         {
-            if (aiRecommendationCircleMaterial != null) {
-                Destroy(aiRecommendationCircleMaterial);
-                aiRecommendationCircleMaterial = null;
-            }
-
-            if (aiRecommendationOutlineMaterial != null) {
-                Destroy(aiRecommendationOutlineMaterial);
-                aiRecommendationOutlineMaterial = null;
+            if (aiRecommendationDiscMaterial != null) {
+                Destroy(aiRecommendationDiscMaterial);
+                aiRecommendationDiscMaterial = null;
             }
         }
 
@@ -908,136 +711,23 @@ namespace XNClient.ChessBoard
             ClearMoveNumberMarkers();
             ClearAiRecommendationMarkers();
             ClearAiRecommendationMarkerMaterials();
-
-            if (latestMoveMarkerMesh != null) {
-                Destroy(latestMoveMarkerMesh);
-                latestMoveMarkerMesh = null;
-            }
-
-            if (aiRecommendationCircleMesh != null) {
-                Destroy(aiRecommendationCircleMesh);
-                aiRecommendationCircleMesh = null;
-            }
-
-            if (aiRecommendationCircleOutlineMesh != null) {
-                Destroy(aiRecommendationCircleOutlineMesh);
-                aiRecommendationCircleOutlineMesh = null;
-            }
         }
 
-        private Mesh CreateLatestMoveMarkerMesh(float markerSize)
+        private void ApplyOwnershipAlpha(MeshRenderer renderer, Material material, float alpha)
         {
-            float halfWidth = markerSize * 0.5f;
-            float halfHeight = markerSize * 0.5f;
-            Mesh markerMesh = new Mesh();
-            markerMesh.name = "LatestMoveMarkerMesh";
-            markerMesh.SetVertices(new List<Vector3>
-            {
-                new Vector3(0f, 0f, halfHeight),
-                new Vector3(-halfWidth, 0f, -halfHeight),
-                new Vector3(halfWidth, 0f, -halfHeight),
-            });
-            markerMesh.SetTriangles(new[] { 0, 2, 1 }, 0);
-            markerMesh.RecalculateNormals();
-            return markerMesh;
-        }
-
-        private Mesh CreateCircleMesh(float diameter, int segmentCount)
-        {
-            float radius = diameter * 0.5f;
-            int safeSegmentCount = Mathf.Max(segmentCount, 12);
-            List<Vector3> vertices = new List<Vector3>(safeSegmentCount + 2)
-            {
-                Vector3.zero
-            };
-            List<int> triangles = new List<int>(safeSegmentCount * 3);
-
-            for (int i = 0; i <= safeSegmentCount; i++) {
-                float angle = Mathf.PI * 2f * i / safeSegmentCount;
-                vertices.Add(new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius));
+            MaterialPropertyBlock propertyBlock = new MaterialPropertyBlock();
+            if (material.HasProperty(BaseColorShaderId)) {
+                Color baseColor = material.GetColor(BaseColorShaderId);
+                baseColor.a = Mathf.Clamp01(alpha);
+                propertyBlock.SetColor(BaseColorShaderId, baseColor);
+            }
+            if (material.HasProperty(LegacyColorShaderId)) {
+                Color legacyColor = material.GetColor(LegacyColorShaderId);
+                legacyColor.a = 1f;
+                propertyBlock.SetColor(LegacyColorShaderId, legacyColor);
             }
 
-            for (int i = 1; i <= safeSegmentCount; i++) {
-                triangles.Add(0);
-                triangles.Add(i);
-                triangles.Add(i + 1);
-            }
-
-            Mesh circleMesh = new Mesh();
-            circleMesh.name = "AiRecommendationCircleMesh";
-            circleMesh.SetVertices(vertices);
-            circleMesh.SetTriangles(triangles, 0);
-            circleMesh.RecalculateNormals();
-            return circleMesh;
-        }
-
-        private Mesh CreateRingMesh(float outerDiameter, float lineWidth, int segmentCount)
-        {
-            float outerRadius = outerDiameter * 0.5f;
-            float innerRadius = Mathf.Max(outerRadius - lineWidth, outerRadius * 0.5f);
-            int safeSegmentCount = Mathf.Max(segmentCount, 12);
-            List<Vector3> vertices = new List<Vector3>((safeSegmentCount + 1) * 2);
-            List<int> triangles = new List<int>(safeSegmentCount * 6);
-
-            for (int i = 0; i <= safeSegmentCount; i++) {
-                float angle = Mathf.PI * 2f * i / safeSegmentCount;
-                float cos = Mathf.Cos(angle);
-                float sin = Mathf.Sin(angle);
-                vertices.Add(new Vector3(cos * outerRadius, 0f, sin * outerRadius));
-                vertices.Add(new Vector3(cos * innerRadius, 0f, sin * innerRadius));
-            }
-
-            for (int i = 0; i < safeSegmentCount; i++) {
-                int outerA = i * 2;
-                int innerA = outerA + 1;
-                int outerB = outerA + 2;
-                int innerB = outerA + 3;
-                triangles.Add(outerA);
-                triangles.Add(innerA);
-                triangles.Add(outerB);
-                triangles.Add(innerA);
-                triangles.Add(innerB);
-                triangles.Add(outerB);
-            }
-
-            Mesh ringMesh = new Mesh();
-            ringMesh.name = "AiRecommendationCircleOutlineMesh";
-            ringMesh.SetVertices(vertices);
-            ringMesh.SetTriangles(triangles, 0);
-            ringMesh.RecalculateNormals();
-            return ringMesh;
-        }
-
-        private void RemoveOwnershipCollider(GameObject go)
-        {
-            Collider collider = go.GetComponent<Collider>();
-            if (collider != null) {
-                Destroy(collider);
-            }
-        }
-
-        private void ApplyOwnershipMaterial(GameObject go, Material material, float alpha)
-        {
-            MeshRenderer renderer = go.GetComponent<MeshRenderer>();
-            if (renderer != null) {
-                renderer.sharedMaterial = material;
-                MaterialPropertyBlock propertyBlock = new MaterialPropertyBlock();
-                float clampedAlpha = Mathf.Clamp01(alpha);
-                if (material.HasProperty("_BaseColor")) {
-                    Color baseColor = material.GetColor("_BaseColor");
-                    baseColor.a = clampedAlpha;
-                    propertyBlock.SetColor("_BaseColor", baseColor);
-                }
-                if (material.HasProperty("_Color")) {
-                    Color legacyColor = material.HasProperty("_Color")
-                        ? material.GetColor("_Color")
-                        : Color.white;
-                    legacyColor.a = 1f;
-                    propertyBlock.SetColor("_Color", legacyColor);
-                }
-
-                renderer.SetPropertyBlock(propertyBlock);
-            }
+            renderer.SetPropertyBlock(propertyBlock);
         }
 
         // 检查cell是否位于整个棋盘的最外圈边界上
