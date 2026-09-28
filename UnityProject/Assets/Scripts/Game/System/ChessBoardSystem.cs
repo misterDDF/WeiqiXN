@@ -126,7 +126,7 @@ public class ChessBoardSystem : SystemBase
         }
 
         DuelMoveRule.ApplyMoveResult(compChessBoard, moveResult);
-        ApplyMoveStoneViews(compChessBoard, moveResult, playerFlag, coords);
+        ApplyMoveStoneViews(compChessBoard, moveResult, playerFlag, coords, emitAcceptedEvent);
         ApplyLatestMoveMarker(compChessBoard, playerFlag, coords);
         int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : chessBoardData?.boardSize ?? 19;
         compDuel.AppendKataGoMove(playerFlag, coords, boardSize);
@@ -235,7 +235,7 @@ public class ChessBoardSystem : SystemBase
         }
 
         DuelMoveRule.ApplyMoveResult(compChessBoard, moveResult);
-        ApplyMoveStoneViews(compChessBoard, moveResult, playerFlag, coords);
+        ApplyMoveStoneViews(compChessBoard, moveResult, playerFlag, coords, true);
         ApplyLatestMoveMarker(compChessBoard, playerFlag, coords);
         int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : chessBoardData?.boardSize ?? 19;
         compDuel.AppendKataGoMove(playerFlag, coords, boardSize);
@@ -313,7 +313,7 @@ public class ChessBoardSystem : SystemBase
         }
 
         DuelMoveRule.ApplyMoveResult(compChessBoard, moveResult);
-        ApplyMoveStoneViews(compChessBoard, moveResult, move.playerFlag, move.coords);
+        ApplyMoveStoneViews(compChessBoard, moveResult, move.playerFlag, move.coords, true);
         ApplyLatestMoveMarker(compChessBoard, move.playerFlag, move.coords);
         int boardSize = compChessBoard.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : chessBoardData?.boardSize ?? 19;
         compDuel.AppendKataGoMove(move.playerFlag, move.coords, boardSize);
@@ -880,21 +880,19 @@ public class ChessBoardSystem : SystemBase
         return true;
     }
 
-    private void ApplyMoveStoneViews(SceneComponentChessBoard compChessBoard, DuelMoveResult moveResult, PlayerFlag playerFlag, RectCoordinates coords)
+    // animatePlacement：实时的一手播放落子动画，被提棋子留到着盘时再隐藏；OGS 重连时逐手重建局面直接显示。
+    private void ApplyMoveStoneViews(SceneComponentChessBoard compChessBoard, DuelMoveResult moveResult, PlayerFlag playerFlag, RectCoordinates coords, bool animatePlacement)
     {
         if (compChessBoard == null || moveResult == null) {
             return;
         }
 
         ChessStoneViewCache stoneViewCache = compChessBoard.GetStoneViewCache();
-        foreach (int removePosIndex in moveResult.pendingRemovePosIndexes) {
-            RectCoordinates removeCoords = compChessBoard.GetCoordsByPosIndex(removePosIndex);
-            stoneViewCache.HideStone(removeCoords);
-        }
+        stoneViewCache.HideCapturedStones(moveResult.pendingRemovePosIndexes, animatePlacement);
         if (moveResult.pendingRemovePosIndexes.Count > 0) {
             scene.EmitSystemEvent(new OnAfterCaptureChessFromBoard(moveResult.pendingRemovePosIndexes.Count));
         }
 
-        stoneViewCache.ShowStone(coords, playerFlag);
+        stoneViewCache.ShowStone(coords, playerFlag, animatePlacement);
     }
 }

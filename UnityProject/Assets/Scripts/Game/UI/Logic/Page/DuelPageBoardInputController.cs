@@ -5,8 +5,17 @@ public class DuelPageBoardInputController
 {
     private const float StoneRemovalHoverMarkerYOffset = 1.74f;
     private const float StoneRemovalHoverMarkerSizeFactor = 0.48f;
+    // 预览棋子 80ms 淡入淡出：各输入分支只设置目标可见性，Refresh 末尾按真实时间趋近，透明度降到 0 才隐藏；
+    // 在合法点之间移动只改位置，不重播淡入。透明度用 MaterialPropertyBlock 覆盖共享预览材质。
+    private const float AimChessPreviewFadeSeconds = 0.08f;
+    private static readonly int PreviewAlphaId = Shader.PropertyToID("_PreviewAlpha");
 
     private GameObject aimChessPreview;
+    private Renderer[] aimChessPreviewRenderers;
+    private MaterialPropertyBlock aimChessPreviewBlock;
+    private bool isAimChessPreviewShown;
+    private float aimChessPreviewFade;
+    private readonly RectCoordinates aimChessPreviewCoords = new RectCoordinates(-1, -1);
     private GameObject stoneRemovalHoverMarker;
     private readonly RectCoordinates aimCoords = new RectCoordinates(-1, -1);
     private readonly RectCoordinates pendingMoveCoords = new RectCoordinates(-1, -1);
@@ -17,6 +26,12 @@ public class DuelPageBoardInputController
     public bool IsPendingMoveActive => isPendingMoveActive;
 
     public void Refresh(SceneBase mainScene, SceneComponentDuel compDuel, DuelInputAuthorityState inputState, bool blockInput)
+    {
+        RefreshInput(mainScene, compDuel, inputState, blockInput);
+        UpdateAimChessPreviewFade(mainScene);
+    }
+
+    private void RefreshInput(SceneBase mainScene, SceneComponentDuel compDuel, DuelInputAuthorityState inputState, bool blockInput)
     {
         stoneRemovalHoverCoords.SetValue(-1, -1);
         if (!blockInput && mainScene is OgsDuelScene ogsScene) {
@@ -152,6 +167,7 @@ public class DuelPageBoardInputController
 
         aimChessPreview.transform.position = worldPosition;
         aimCoords.SetValue(nearestCoords.x, nearestCoords.z);
+        aimChessPreviewCoords.SetValue(nearestCoords.x, nearestCoords.z);
         SetAimChessPreviewActive(true);
     }
 
@@ -265,6 +281,7 @@ public class DuelPageBoardInputController
 
         pendingMoveCoords.SetValue(coords.x, coords.z);
         aimCoords.SetValue(coords.x, coords.z);
+        aimChessPreviewCoords.SetValue(coords.x, coords.z);
         aimChessPreview.transform.position = worldPosition;
         SetAimChessPreviewActive(true);
         isPendingMoveActive = true;
@@ -315,7 +332,9 @@ public class DuelPageBoardInputController
         }
 
         aimChessPreviewPlayerFlag = playerFlag;
-        SetAimChessPreviewActive(false);
+        aimChessPreviewRenderers = aimChessPreview.GetComponentsInChildren<Renderer>(true);
+        aimChessPreviewFade = 0f;
+        aimChessPreview.SetActive(false);
         foreach (Collider collider in aimChessPreview.GetComponentsInChildren<Collider>()) {
             collider.enabled = false;
         }
@@ -323,8 +342,70 @@ public class DuelPageBoardInputController
 
     private void SetAimChessPreviewActive(bool isActive)
     {
-        if (aimChessPreview != null) {
-            aimChessPreview.SetActive(isActive);
+        isAimChessPreviewShown = isActive;
+        if (isActive && aimChessPreview != null && !aimChessPreview.activeSelf) {
+            aimChessPreviewFade = 0f;
+            ApplyAimChessPreviewAlpha();
+            aimChessPreview.SetActive(true);
+        }
+    }
+
+    private void UpdateAimChessPreviewFade(SceneBase mainScene)
+    {
+        if (aimChessPreview == null || !aimChessPreview.activeSelf) {
+            return;
+        }
+
+        if (!isAimChessPreviewShown && IsAimChessPreviewCoveredByStone(mainScene)) {
+            // 落子成功：真实棋子接管该点，预览直接隐藏。
+            aimChessPreviewFade = 0f;
+        } else {
+            float target = isAimChessPreviewShown ? 1f : 0f;
+            aimChessPreviewFade = Mathf.MoveTowards(aimChessPreviewFade, target, Time.unscaledDeltaTime / AimChessPreviewFadeSeconds);
+        }
+
+        if (!isAimChessPreviewShown && aimChessPreviewFade <= 0f) {
+            aimChessPreview.SetActive(false);
+            return;
+        }
+
+        ApplyAimChessPreviewAlpha();
+    }
+
+    private bool IsAimChessPreviewCoveredByStone(SceneBase mainScene)
+    {
+        SceneComponentChessBoard compChessBoard = mainScene?.GetComponent<SceneComponentChessBoard>();
+        if (compChessBoard?.chessInfoDict == null || aimChessPreviewCoords.x < 0 || aimChessPreviewCoords.z < 0) {
+            return false;
+        }
+
+        int posIndex = compChessBoard.GetPosIndexByCoords(aimChessPreviewCoords);
+        return posIndex >= 0 && compChessBoard.chessInfoDict.ContainsKey(posIndex.ToString());
+    }
+
+    // 完全显示时清除覆盖，恢复共享材质原值。
+    private void ApplyAimChessPreviewAlpha()
+    {
+        if (aimChessPreviewRenderers == null) {
+            return;
+        }
+
+        foreach (Renderer renderer in aimChessPreviewRenderers) {
+            Material material = renderer != null ? renderer.sharedMaterial : null;
+            if (material == null || !material.HasProperty(PreviewAlphaId)) {
+                continue;
+            }
+
+            if (aimChessPreviewFade >= 1f) {
+                renderer.SetPropertyBlock(null);
+                continue;
+            }
+
+            if (aimChessPreviewBlock == null) {
+                aimChessPreviewBlock = new MaterialPropertyBlock();
+            }
+            aimChessPreviewBlock.SetFloat(PreviewAlphaId, material.GetFloat(PreviewAlphaId) * aimChessPreviewFade);
+            renderer.SetPropertyBlock(aimChessPreviewBlock);
         }
     }
 

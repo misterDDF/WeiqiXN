@@ -98,6 +98,8 @@ public abstract class UIPage : UILogicBase
             }
         } else {
             SetUIVisible(true);
+            // 主页面随场景切换，不做过渡；只有弹窗播放开合过渡。
+            UIPageTransition.PlayOpen(gameObject);
         }
 
         foreach (var widget in childWidgets) {

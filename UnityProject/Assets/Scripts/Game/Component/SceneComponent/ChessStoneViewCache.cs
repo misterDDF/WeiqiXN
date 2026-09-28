@@ -85,6 +85,19 @@ public class ChessStoneViewCache
         HideStoneAt(posIndex);
     }
 
+    // 提子：规则状态与表现缓存立即移除；waitForPlacement 时被提棋子保留到落子着盘时刻再一起瞬间隐藏，与提子音同步。
+    public void HideCapturedStones(IReadOnlyList<int> capturedPosIndexes, bool waitForPlacement)
+    {
+        if (isDestroyed || capturedPosIndexes == null) {
+            return;
+        }
+
+        float removalDelay = waitForPlacement ? ChessStoneView.PlacementDropSeconds : 0f;
+        foreach (int posIndex in capturedPosIndexes) {
+            HideStoneAt(posIndex, removalDelay);
+        }
+    }
+
     public void HideAllStones()
     {
         if (isDestroyed) {
@@ -104,7 +117,8 @@ public class ChessStoneViewCache
         }
     }
 
-    public void SyncStones(IEnumerable<ChessStoneViewState> targetStones)
+    // 按目标局面差异同步：已显示的棋子保持不动；新出现的棋子默认直接显示，只有单手推进时才由调用方要求播放落子动画。
+    public void SyncStones(IEnumerable<ChessStoneViewState> targetStones, bool animateNewStones = false)
     {
         if (isDestroyed) {
             return;
@@ -131,11 +145,11 @@ public class ChessStoneViewCache
 
         foreach (KeyValuePair<int, PlayerFlag> kvp in targetFlags) {
             RectCoordinates coords = compChessBoard.GetCoordsByPosIndex(kvp.Key);
-            ShowStone(coords, kvp.Value);
+            ShowStone(coords, kvp.Value, animateNewStones);
         }
     }
 
-    public void SyncFromChessInfoDict()
+    public void SyncFromChessInfoDict(bool animateNewStones = false)
     {
         if (isDestroyed) {
             return;
@@ -152,7 +166,7 @@ public class ChessStoneViewCache
             targetStones.Add(new ChessStoneViewState(coords, playerFlag));
         }
 
-        SyncStones(targetStones);
+        SyncStones(targetStones, animateNewStones);
     }
 
     public void SetLatestMoveMarkerMaterials(Material onBlackStoneMaterial, Material onWhiteStoneMaterial)
@@ -299,7 +313,8 @@ public class ChessStoneViewCache
         }
     }
 
-    private void HideStoneAt(int posIndex)
+    // removalDelay > 0 时正在显示的棋子保留该时长后自行隐藏，否则立即隐藏。
+    private void HideStoneAt(int posIndex, float removalDelay = 0f)
     {
         visibleStoneFlags.Remove(posIndex);
         visibleStoneViews.Remove(posIndex);
@@ -308,8 +323,15 @@ public class ChessStoneViewCache
         }
 
         foreach (GameObject go in viewsAtPos.Values) {
-            if (go != null) {
-                EnsureStoneView(go).Unbind();
+            if (go == null) {
+                continue;
+            }
+
+            ChessStoneView stoneView = EnsureStoneView(go);
+            if (removalDelay > 0f && go.activeInHierarchy) {
+                stoneView.RemoveAfterDelay(removalDelay);
+            } else {
+                stoneView.Unbind();
                 go.SetActive(false);
             }
         }

@@ -19,6 +19,7 @@ public static class DuelLookPreviewCaptureTool
         None,
         Analysis,
         MoveNumbers,
+        Motion,
     }
 
     private const string DuelScenePath = "Assets/Scenes/Duel/Duel.unity";
@@ -72,6 +73,16 @@ public static class DuelLookPreviewCaptureTool
     private static readonly Vector2Int LatestMoveOnWhite19 = new Vector2Int(4, 4);
     private static readonly Vector2Int LatestMoveOnBlack19 = new Vector2Int(4, 6);
 
+    // 落子关键帧（落子开始后的秒数）：刚出手、下落途中、将要着盘、着盘后摇晃峰值，放在同一张特写里对比投影偏移与倾斜高光。
+    private static readonly (Vector2Int point, bool isBlackStone, float elapsed)[] PlacementKeyframes19 =
+    {
+        (new Vector2Int(5, 2), true, 0f),
+        (new Vector2Int(4, 4), false, 0.05f),
+        (new Vector2Int(4, 6), true, 0.08f),
+        (new Vector2Int(3, 3), true, 0.127f),
+    };
+    private static readonly Vector3 PlacementKeyframeTiltAxis = new Vector3(1f, 0f, 1f).normalized;
+
     private static readonly Vector2Int[] Black9 =
     {
         new Vector2Int(2, 2), new Vector2Int(6, 6), new Vector2Int(4, 4), new Vector2Int(3, 4),
@@ -104,6 +115,7 @@ public static class DuelLookPreviewCaptureTool
             CaptureBoard(19, Black19, White19, 1600, 900, "board19_analysis_closeup", CloseupFrameScale, AnalysisCloseupCenter, BoardMarkers.Analysis);
             CaptureBoard(13, Black19, White19, 1600, 900, "board13_numbers", markers: BoardMarkers.MoveNumbers);
             CaptureBoard(19, Black19, White19, 1600, 900, "board19_numbers_closeup", CloseupFrameScale, CloseupCenter, BoardMarkers.MoveNumbers, LateGameMoveNumberBase);
+            CaptureBoard(19, Black19, White19, 1600, 900, "board19_motion_closeup", CloseupFrameScale, CloseupCenter, BoardMarkers.Motion);
         }
         finally {
             if (!string.IsNullOrEmpty(restoreScenePath)) {
@@ -144,6 +156,8 @@ public static class DuelLookPreviewCaptureTool
             DrawAnalysisMarkers(grid, blackStones, whiteStones, blackViews, whiteViews);
         } else if (markers == BoardMarkers.MoveNumbers) {
             DrawMoveNumbers(blackViews, whiteViews, moveNumberBase);
+        } else if (markers == BoardMarkers.Motion) {
+            ApplyMotionKeyframes(blackStones, whiteStones, blackViews, whiteViews);
         }
 
         FrameCamera(camera, grid.GetGridBounds(), (float)width / height);
@@ -242,6 +256,31 @@ public static class DuelLookPreviewCaptureTool
 
         views[index].SetLatestMoveMarkerMaterials(latestOnBlack, latestOnWhite);
         views[index].SetMarker(StoneMarkerIntent.LatestMove(isBlackStone));
+    }
+
+    private static void ApplyMotionKeyframes(
+        Vector2Int[] blackStones,
+        Vector2Int[] whiteStones,
+        List<ChessStoneView> blackViews,
+        List<ChessStoneView> whiteViews)
+    {
+        foreach ((Vector2Int point, bool isBlackStone, float elapsed) in PlacementKeyframes19) {
+            FindStoneView(point, isBlackStone, blackStones, whiteStones, blackViews, whiteViews)?.ApplyPlacementPose(elapsed, PlacementKeyframeTiltAxis);
+        }
+    }
+
+    private static ChessStoneView FindStoneView(
+        Vector2Int point,
+        bool isBlackStone,
+        Vector2Int[] blackStones,
+        Vector2Int[] whiteStones,
+        List<ChessStoneView> blackViews,
+        List<ChessStoneView> whiteViews)
+    {
+        Vector2Int[] points = isBlackStone ? blackStones : whiteStones;
+        List<ChessStoneView> views = isBlackStone ? blackViews : whiteViews;
+        int index = System.Array.IndexOf(points, point);
+        return index >= 0 ? views[index] : null;
     }
 
     // 黑白交替编号：黑棋第 k 颗为 base + 2k + 1，白棋第 k 颗为 base + 2k + 2。

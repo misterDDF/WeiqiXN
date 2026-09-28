@@ -12,6 +12,7 @@ public class UIManager : ModuleBase
     public Camera uiCamera;
     public Camera sceneCamera;
     private Dictionary<UIContextType, UIContext> contextDict = new Dictionary<UIContextType, UIContext>();
+    private bool isClosingSceneExitPages;
 
     public override void Init()
     {
@@ -41,10 +42,17 @@ public class UIManager : ModuleBase
 
     public void OnExitMainScene(OnExitMainScene evt)
     {
-        ConfirmPopup.CloseSceneExitRequests();
-        foreach (UIContext context in contextDict.Values) {
-            context.CloseSceneExitPages();
+        // 场景退出时弹窗直接销毁，不播放关闭过渡；仍在播放的关闭过渡立即结束。
+        isClosingSceneExitPages = true;
+        try {
+            ConfirmPopup.CloseSceneExitRequests();
+            foreach (UIContext context in contextDict.Values) {
+                context.CloseSceneExitPages();
+            }
+        } finally {
+            isClosingSceneExitPages = false;
         }
+        UIPageTransition.CompleteAllClosing();
     }
 
     public override void Update()
@@ -147,7 +155,14 @@ public class UIManager : ModuleBase
             return;
         }
 
-        GameObject.Destroy(page.gameObject);
+        GameObject pageGO = page.gameObject;
+        if (!page.pageConfig.isPopup || isClosingSceneExitPages) {
+            GameObject.Destroy(pageGO);
+            return;
+        }
+
+        // 弹窗播完关闭过渡再销毁；页面逻辑已从弹窗列表移除，同名弹窗可以立即重新打开。
+        UIPageTransition.PlayClose(pageGO, () => GameObject.Destroy(pageGO));
     }
 
     public void UpdateUICamera()

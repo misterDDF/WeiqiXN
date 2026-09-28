@@ -23,7 +23,7 @@ public static class ChessStoneAssetPolishTool
     private const string ModelNodePath = "VisualOffset/Model";
     public const string ContactShadowNodePath = "VisualOffset/ContactShadow";
 
-    // 棋子世界尺寸：直径 3.9、厚 1.6。Model 节点保留该缩放与 y=0.8 的抬高（落子动画以此为基准），网格按单位尺寸生成。
+    // 棋子世界尺寸：直径 3.9、厚 1.6。Model 节点保留该缩放与 y=0.8 的抬高（ChessStoneView 的落子动画以此为静止姿态），网格按单位尺寸生成。
     private static readonly Vector3 StoneSize = new Vector3(3.9f, 1.6f, 3.9f);
     private const float StoneEdgeFilletRadius = 0.25f;
     private const int LensRadialSegments = 40;
@@ -203,6 +203,12 @@ public static class ChessStoneAssetPolishTool
                 serializedRandomizer.ApplyModifiedPropertiesWithoutUndo();
             }
 
+            // 落子动画改由 ChessStoneView 代码驱动；根节点旧 Animator 在每次重新激活时都会重播，需移除。
+            Animator animator = prefabRoot.GetComponent<Animator>();
+            if (animator != null) {
+                UnityEngine.Object.DestroyImmediate(animator);
+            }
+
             PrefabUtility.SaveAsPrefabAsset(prefabRoot, prefabPath);
         }
         finally {
@@ -210,7 +216,7 @@ public static class ChessStoneAssetPolishTool
         }
     }
 
-    // 接触阴影挂在 VisualOffset 下：跟随随机偏移，但不参与落子动画（动画只驱动 Model）。
+    // 接触阴影挂在 VisualOffset 下：跟随随机偏移，不随 Model 倾斜；下落时由 ChessStoneView 按高度偏移投影。
     // 必须排在 Model 之后：运行时用 GetComponentInChildren<Renderer> 从预览棋子 prefab 取材质，需要先命中 Model。
     private static void ConfigureContactShadow(Transform visualOffset, Mesh mesh, Material material)
     {

@@ -1717,6 +1717,8 @@ public class ReplaySystem : SystemBase
         }
 
         int safeCursor = Mathf.Clamp(targetCursorMoveIndex, 0, compReplay.replayMoves.Count);
+        // 只有单手前进时新棋子播放落子动画，后退与跳转直接显示结果局面。
+        bool animateNewStones = safeCursor == compReplay.replayCursorMoveIndex + 1;
         compReplay.replayCursorMoveIndex = safeCursor;
         compReplay.replayStatus = string.Empty;
 
@@ -1746,7 +1748,7 @@ public class ReplaySystem : SystemBase
             latestMoveNumber = i + 1;
         }
 
-        SyncBoardViews(latestMove, latestMoveNumber);
+        SyncBoardViews(latestMove, latestMoveNumber, animateNewStones);
     }
 
     private void ApplyTryCursor(int targetTryCursorMoveIndex)
@@ -1879,10 +1881,7 @@ public class ReplaySystem : SystemBase
         }
 
         ChessStoneViewCache stoneViewCache = compChessBoard.GetStoneViewCache();
-        foreach (int removePosIndex in moveResult.pendingRemovePosIndexes) {
-            RectCoordinates removeCoords = compChessBoard.GetCoordsByPosIndex(removePosIndex);
-            stoneViewCache.HideStone(removeCoords);
-        }
+        stoneViewCache.HideCapturedStones(moveResult.pendingRemovePosIndexes, animatePlacedStone);
 
         if (moveResult.coords != null) {
             stoneViewCache.ShowStone(moveResult.coords, moveResult.playerFlag, animatePlacedStone);
@@ -1932,13 +1931,13 @@ public class ReplaySystem : SystemBase
         return cloned;
     }
 
-    private void SyncBoardViews(ReplayMoveState latestMove, int latestMoveNumber)
+    private void SyncBoardViews(ReplayMoveState latestMove, int latestMoveNumber, bool animateNewStones)
     {
         if (compChessBoard == null || compChessBoard.chessBoardGrid == null) {
             return;
         }
 
-        compChessBoard.GetStoneViewCache().SyncFromChessInfoDict();
+        compChessBoard.GetStoneViewCache().SyncFromChessInfoDict(animateNewStones);
         compChessBoard.GetStoneViewCache().ClearStoneMarkers();
         compChessBoard.chessBoardGrid.ClearLatestMoveMarker();
         compChessBoard.chessBoardGrid.ClearMoveNumberMarkers();
