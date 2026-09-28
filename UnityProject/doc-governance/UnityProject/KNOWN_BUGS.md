@@ -10,5 +10,4 @@
 
 ## 未移除 Bug
 
-- 2026-09-28: 棋子重新显示时会重播落子下落动画，与 `SPECIFICATION.md` 中“恢复被提棋子也不会重播落子动画”的描述不符。原因：棋子 prefab 根节点的 Animator（`ChessStoneDrop.controller`，`KeepAnimatorStateOnDisable=0`）在每次 `SetActive(true)` 时从头播放，不受 `ChessStoneViewCache.ShowStone` 的 `animatePlacement` 参数控制；`SyncStones` 也默认按新落子处理。影响：悔棋、读档恢复、LAN 快照重建、OGS 重连重建（逐手走实时落子路径）、复盘跳手，以及试下后退时恢复的被提棋子，重新出现的棋子都会从高处落下并弹跳。计划随视觉美化 V2.1 改为代码驱动落子动画时修复（方案见 `modules/14-visual-polish-plan.md` 的 V2 小节）。2026-09-28 已随 V2.1 修复（移除 Animator，播放与否改由调用方显式传参），编译通过，待 Play 验收（`modules/14-visual-polish-plan.md` 的 V2 Play 验收清单）通过后移除本条。
 - 2026-06-10: OGS 好友列表/详情资料显示和全局 realtime 连接修复候选已落地并通过 Unity 脚本编译验证，但尚待真实 OGS 会话运行时确认：好友列表使用 `/api/v1/me/friends/` 作为 bearer-token 主路径，并仅在主路径失败时回退到 `/api/v1/ui/friends`；登录态 OGS 会话会维护服务层全局 authenticated realtime websocket，好友在线状态按 OGS 前端行为先默认为离线，再通过该连接和 best-effort `user/monitor` / `user/state` 覆盖；OGS 对局 realtime session 已改为全局连接上的 game subscription，由全局连接按 `game/{id}/...` channel 路由；好友详情打开时补拉 `players/{id}` / `players/{id}/full`；好友列表、详情和在线状态响应由服务层统一做 10 秒本地缓存。实网验证好友列表字段、注册时间、在线状态、登录态保持在线、OGS 对局重连和详情补全均正常后移除此条。
