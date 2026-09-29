@@ -16,7 +16,6 @@ public class ChessBoardSystem : SystemBase
     private const float DuelOrthographicCameraDistance = 30f;
     private const float DuelOrthographicFramePaddingFactor = 1.08f;
     private const float DuelPortraitOrthographicFramePaddingFactor = 1f;
-    private const float DuelPortraitBoardScreenUpOffsetFactor = 0.1f;
     private const float ReplayCameraHorizontalOffsetFactor = 0.6f;
     private const float ReplayCameraHorizontalSpareUseFactor = 0.85f;
 
@@ -714,11 +713,11 @@ public class ChessBoardSystem : SystemBase
 
         float cameraDistance = Mathf.Max(extraYOffset, DuelOrthographicCameraDistance);
         Vector3 cameraPosition = gridBound.center - viewDir * cameraDistance;
-        if (ShouldApplyPortraitBoardUpOffset(aspect)) {
-            cameraPosition += Vector3.back * orthographicSize * DuelPortraitBoardScreenUpOffsetFactor;
-        }
-        if (ShouldApplyReplayCameraHorizontalOffset(aspect)) {
-            cameraPosition += Vector3.right * GetReplayCameraHorizontalOffset(gridBound, orthographicSize, aspect);
+        if (!IsPortraitAspect(aspect)) {
+            float horizontalOffset = scene is ReplayScene
+                ? GetReplayCameraHorizontalOffset(gridBound, orthographicSize, aspect)
+                : GetDuelCameraHorizontalOffset(gridBound, orthographicSize, aspect);
+            cameraPosition += Vector3.right * horizontalOffset;
         }
 
         duelVCamTransform.position = cameraPosition;
@@ -727,16 +726,6 @@ public class ChessBoardSystem : SystemBase
     private bool ShouldFillPortraitBoardWidth(float aspect)
     {
         return IsPortraitAspect(aspect);
-    }
-
-    private bool ShouldApplyPortraitBoardUpOffset(float aspect)
-    {
-        return !(scene is ReplayScene) && IsPortraitAspect(aspect);
-    }
-
-    private bool ShouldApplyReplayCameraHorizontalOffset(float aspect)
-    {
-        return scene is ReplayScene && !IsPortraitAspect(aspect);
     }
 
     private bool IsPortraitAspect(float aspect)
@@ -754,6 +743,18 @@ public class ChessBoardSystem : SystemBase
         float horizontalSpare = Mathf.Max(horizontalHalfFrame - gridBound.extents.x, 0f);
         float desiredOffset = gridBound.extents.x * ReplayCameraHorizontalOffsetFactor;
         return Mathf.Min(desiredOffset, horizontalSpare * ReplayCameraHorizontalSpareUseFactor);
+    }
+
+    // 对局横屏棋盘靠左，左边距等于上边距，右侧留给 DuelPage 右栏。
+    private float GetDuelCameraHorizontalOffset(Bounds gridBound, float orthographicSize, float aspect)
+    {
+        if (aspect <= 0f) {
+            return 0f;
+        }
+
+        float horizontalHalfFrame = orthographicSize * aspect;
+        float verticalMargin = Mathf.Max(orthographicSize - gridBound.extents.z, 0f);
+        return Mathf.Max(horizontalHalfFrame - gridBound.extents.x - verticalMargin, 0f);
     }
 
     public bool TryRestoreBoardFromKataGoRecord(SceneComponentChessBoard compChessBoard, string recordFilePath)

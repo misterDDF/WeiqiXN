@@ -11,6 +11,7 @@ public class DuelPageHudView
 
     private readonly DuelPageUI binder;
     private float actionNoticeHideStartTime = -1f;
+    private GameObject settingsInlineSourceRow;
 
     public bool IsOwnershipVisible { get; private set; }
 
@@ -22,6 +23,7 @@ public class DuelPageHudView
     public void Reset()
     {
         SetSettingsPanelVisible(false);
+        SetSettingsInlineConfirmationVisible(false);
         SetOwnershipActive(false);
         SetOwnershipResultPanelVisible(false);
         SetStoneRemovalCountdownVisible(false);
@@ -41,9 +43,13 @@ public class DuelPageHudView
         Player whitePlayer = mainScene.GetEntity<Player>(compDuel.player2Guid.value);
         string curTurnPlayerGuid = compDuel.duelFSM.isActivated ? compDuel.curTurnPlayerGuid.value : string.Empty;
 
+        RefreshDuelInfo(mainScene, compDuel);
+
         RefreshPlayerInfoPanel(
+            binder.img_black_turn_accent,
             binder.txt_black_title,
             binder.txt_black_player_name,
+            binder.txt_black_subtitle,
             binder.txt_black_hold_time,
             binder.txt_black_byoyomi_count,
             binder.txt_black_byoyomi_time,
@@ -53,8 +59,10 @@ public class DuelPageHudView
             MessageText.Get("duel_player_black")
         );
         RefreshPlayerInfoPanel(
+            binder.img_white_turn_accent,
             binder.txt_white_title,
             binder.txt_white_player_name,
+            binder.txt_white_subtitle,
             binder.txt_white_hold_time,
             binder.txt_white_byoyomi_count,
             binder.txt_white_byoyomi_time,
@@ -122,12 +130,36 @@ public class DuelPageHudView
             winnerText = MessageText.Get("duel_score_draw");
         }
 
-        return MessageText.Format(
+        string summary = MessageText.Format(
             GetScoreConfirmContentMessageKey(),
             FormatPointCount(scoreResult.blackScore),
             FormatPointCount(scoreResult.whiteScore),
             FormatPointCount(scoreResult.komi),
             winnerText);
+        string[] rows = summary.Split('\n');
+        if (rows.Length != 3) {
+            return summary;
+        }
+
+        string separator = $"<size=12><color=#{ColorUtility.ToHtmlStringRGBA(UIPalette.Hairline)}>────────────────────────────────</color></size>";
+        return $"<size=30>{MessageText.Get("duel_score_confirm_title")}</size>\n{separator}\n"
+            + $"{FormatScoreResultRow(rows[0], false)}\n{separator}\n"
+            + $"{FormatScoreResultRow(rows[1], false)}\n{separator}\n"
+            + FormatScoreResultRow(rows[2], true);
+    }
+
+    private string FormatScoreResultRow(string row, bool highlight)
+    {
+        int separatorIndex = row.IndexOf(':');
+        if (separatorIndex < 0) {
+            return row;
+        }
+
+        string label = row.Substring(0, separatorIndex);
+        string value = row.Substring(separatorIndex + 1).Trim();
+        return highlight
+            ? $"{label}<pos=52%><color=#{ColorUtility.ToHtmlStringRGB(UIPalette.Accent)}>{value}</color>"
+            : $"{label}<pos=52%>{value}";
     }
 
     private string BuildOwnershipRuleInfoText(float komi)
@@ -190,12 +222,28 @@ public class DuelPageHudView
 
     public void OpenSettingsPanel()
     {
+        SetSettingsInlineConfirmationVisible(false);
         SetSettingsPanelVisible(true);
     }
 
     public void CloseSettingsPanel()
     {
+        SetSettingsInlineConfirmationVisible(false);
         SetSettingsPanelVisible(false);
+    }
+
+    public void ShowSettingsInlineConfirmation(Button sourceButton, string title, string content, string confirmText)
+    {
+        SetText(binder.txt_settings_inline_title, title);
+        SetText(binder.txt_settings_inline_content, content);
+        SetText(binder.txt_settings_inline_confirm, confirmText);
+        PositionSettingsInlineConfirmation(sourceButton);
+        SetSettingsInlineConfirmationVisible(true);
+    }
+
+    public void HideSettingsInlineConfirmation()
+    {
+        SetSettingsInlineConfirmationVisible(false);
     }
 
     public bool IsSettingsPanelVisible()
@@ -260,8 +308,10 @@ public class DuelPageHudView
     }
 
     private void RefreshPlayerInfoPanel(
+        GameObject turnAccent,
         TextMeshProUGUI titleText,
         TextMeshProUGUI playerNameText,
+        TextMeshProUGUI subtitleText,
         TextMeshProUGUI holdText,
         TextMeshProUGUI byoyomiCountText,
         TextMeshProUGUI byoyomiTimeText,
@@ -273,9 +323,14 @@ public class DuelPageHudView
     {
         bool isCurTurnPlayer = player != null && player.guid == curTurnPlayerGuid;
         PlayerFlag playerFlag = player != null ? (PlayerFlag)player.playerFlag.value : 0;
-        string turnText = isCurTurnPlayer ? MessageText.Get("duel_turn_suffix").Replace(" ", string.Empty) : string.Empty;
+        string turnText = isCurTurnPlayer ? "  <color=#CC6048>行棋中</color>" : string.Empty;
         SetText(titleText, $"{title}{turnText}");
         SetText(playerNameText, GetPlayerDisplayName(compDuel, playerFlag));
+        SetText(subtitleText, BuildPlayerSubtitle(compDuel, playerFlag));
+        SetActive(turnAccent, isCurTurnPlayer);
+        SetTextAlpha(holdText, isCurTurnPlayer ? 1f : 0.3f);
+        SetTextAlpha(byoyomiCountText, isCurTurnPlayer ? 0.85f : 0.3f);
+        SetTextAlpha(byoyomiTimeText, isCurTurnPlayer ? 0.85f : 0.3f);
 
         ComponentDuelInfo compDuelInfo = player?.GetComponent<ComponentDuelInfo>();
         bool isByoyomiEnabled = DuelPageInteractionState.IsByoyomiEnabled(compDuel, compDuelInfo);
@@ -291,13 +346,13 @@ public class DuelPageHudView
             return;
         }
 
-        SetText(holdText, MessageText.Format("duel_hold_time", FormatSeconds(compDuelInfo.holdLeftSeconds.value, compDuelInfo.isInfiniteTime.value)));
+        SetText(holdText, FormatSeconds(compDuelInfo.holdLeftSeconds.value, compDuelInfo.isInfiniteTime.value));
         if (!isByoyomiEnabled) {
             return;
         }
 
-        SetText(byoyomiCountText, MessageText.Format("duel_byoyomi_count", compDuelInfo.byoyomiLeftCount.value));
-        SetText(byoyomiTimeText, MessageText.Format("duel_byoyomi_time", FormatSeconds(compDuelInfo.byoyomiLeftSeconds.value, false)));
+        SetText(byoyomiCountText, $"剩余读秒 {compDuelInfo.byoyomiLeftCount.value} 次 ·");
+        SetText(byoyomiTimeText, $"读秒 {FormatSeconds(compDuelInfo.byoyomiLeftSeconds.value, false)}");
     }
 
     private void RefreshSettingsActionVisibility(SceneBase mainScene, SceneComponentDuel compDuel)
@@ -321,7 +376,7 @@ public class DuelPageHudView
         DuelAiRecommendationSystem aiRecommendationSystem = mainScene?.GetSystem<DuelAiRecommendationSystem>();
         bool showAiAnalysis = !isLanDuel && !isOgsDuel;
         bool hasAiAnalysisRender = aiRecommendationSystem != null && aiRecommendationSystem.HasAiAnalysisRender;
-        bool canAiAnalysis = showAiAnalysis && aiRecommendationSystem != null &&
+        bool canAiAnalysis = showAiAnalysis && !isGameEnd && aiRecommendationSystem != null &&
             (hasAiAnalysisRender || (!aiRecommendationSystem.IsAiAnalyzing && aiRecommendationSystem.IsAiAnalysisEnabled));
         if (binder.panel_duel_ai_analysis != null) {
             binder.panel_duel_ai_analysis.SetActive(showAiAnalysis);
@@ -363,6 +418,56 @@ public class DuelPageHudView
             : MessageText.Format("duel_game_end_winner", winnerText));
         SetText(binder.txt_game_end_reason, reasonText);
         SetGameEndResultPanelVisible(true);
+    }
+
+    private void RefreshDuelInfo(SceneBase mainScene, SceneComponentDuel compDuel)
+    {
+        SceneComponentChessBoard compChessBoard = mainScene?.GetComponent<SceneComponentChessBoard>();
+        ChessBoardDataType boardConfig = ChessBoardDataType.GetConfigData(compChessBoard?.boardCfgId.value);
+        int boardSize = boardConfig != null
+            ? boardConfig.boardSize
+            : compChessBoard?.chessBoardGrid?.gridSize ?? 19;
+        float komi = ResolveKomi(mainScene, compDuel);
+        string mode = mainScene is OgsDuelScene
+            ? "OGS 对局"
+            : compDuel.isLanDuel.value
+                ? "局域网对战"
+                : compDuel.isAiDuel.value ? "电脑对局" : "本地对局";
+
+        SetText(binder.txt_duel_meta, $"{mode}  ·  {boardSize} 路  ·  贴 {FormatPointCount(komi)} 目");
+        string moveCount = $"第 {DuelMoveHistory.Count(compDuel.kataGoMoves)} 手";
+        SetText(binder.txt_duel_move_count, moveCount);
+        SetText(binder.txt_duel_move_count_portrait, moveCount);
+    }
+
+    private float ResolveKomi(SceneBase mainScene, SceneComponentDuel compDuel)
+    {
+        SceneComponentOgsDuel compOgsDuel = mainScene?.GetComponent<SceneComponentOgsDuel>();
+        return compOgsDuel != null && compOgsDuel.hasKomi
+            ? compOgsDuel.komi
+            : DuelHandicapPlacement.GetKomi(compDuel.handicapCfgId.value);
+    }
+
+    private string BuildPlayerSubtitle(SceneComponentDuel compDuel, PlayerFlag playerFlag)
+    {
+        if (compDuel != null && compDuel.isAiDuel.value && DuelPageInteractionState.IsAiPlayer(Global.Instance.sceneManager.mainScene, playerFlag)) {
+            DuelAiDifficultyDataType difficulty = DuelAiDifficultyDataType.GetConfigData(compDuel.aiDifficultyCfgId.value);
+            return difficulty != null && !string.IsNullOrWhiteSpace(difficulty.name)
+                ? $"电脑 · {difficulty.name}"
+                : "电脑 · KataGo";
+        }
+
+        if (Global.Instance.sceneManager.mainScene is OgsDuelScene) {
+            return "在线 · OGS";
+        }
+
+        if (compDuel != null && compDuel.isLanDuel.value) {
+            return (int)playerFlag == compDuel.localPlayerFlag.value ? "本机" : "局域网对手";
+        }
+
+        return compDuel != null && compDuel.localPlayerFlag.value != 0 && (int)playerFlag == compDuel.localPlayerFlag.value
+            ? "本机"
+            : "棋手";
     }
 
     private string BuildGameEndReasonText(SceneBase mainScene, SceneComponentDuel compDuel)
@@ -438,6 +543,36 @@ public class DuelPageHudView
         if (binder.panel_game_end_result != null) {
             binder.panel_game_end_result.SetActive(isVisible);
         }
+        SetActive(binder.panel_duel_info, !isVisible);
+        SetActive(binder.panel_duel_dynamic, !isVisible);
+    }
+
+    private void SetSettingsInlineConfirmationVisible(bool isVisible)
+    {
+        SetActive(binder.panel_settings_inline_confirm, isVisible);
+        if (!isVisible && settingsInlineSourceRow != null) {
+            settingsInlineSourceRow.SetActive(true);
+            settingsInlineSourceRow = null;
+        }
+    }
+
+    private void PositionSettingsInlineConfirmation(Button sourceButton)
+    {
+        if (settingsInlineSourceRow != null) {
+            settingsInlineSourceRow.SetActive(true);
+            settingsInlineSourceRow = null;
+        }
+
+        Transform inlineConfirm = binder.panel_settings_inline_confirm?.transform;
+        Transform sourceRow = sourceButton?.transform;
+        if (inlineConfirm == null || sourceRow == null || inlineConfirm.parent != sourceRow.parent) {
+            return;
+        }
+
+        inlineConfirm.SetAsLastSibling();
+        inlineConfirm.SetSiblingIndex(sourceRow.GetSiblingIndex() + 1);
+        settingsInlineSourceRow = sourceRow.gameObject;
+        settingsInlineSourceRow.SetActive(false);
     }
 
     private void SetActionNoticeVisible(bool isVisible)
@@ -496,6 +631,9 @@ public class DuelPageHudView
         SetText(binder.txt_duel_ownership_button, isActive
             ? MessageText.Get("common_close")
             : MessageText.Get("duel_ownership_button"));
+        SetText(binder.txt_duel_ownership_hint, isActive
+            ? "<color=#CC6048>●</color> 已开启"
+            : "显示归属与目数");
     }
 
     private void SetStoneRemovalCountdownText(string value)
@@ -530,6 +668,24 @@ public class DuelPageHudView
     {
         if (text != null && text.gameObject.activeSelf != isVisible) {
             text.gameObject.SetActive(isVisible);
+        }
+    }
+
+    private void SetTextAlpha(TextMeshProUGUI text, float alpha)
+    {
+        if (text == null) {
+            return;
+        }
+
+        Color color = text.color;
+        color.a = alpha;
+        text.color = color;
+    }
+
+    private void SetActive(GameObject target, bool isActive)
+    {
+        if (target != null && target.activeSelf != isActive) {
+            target.SetActive(isActive);
         }
     }
 

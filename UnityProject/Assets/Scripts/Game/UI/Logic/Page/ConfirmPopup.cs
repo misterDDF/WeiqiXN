@@ -20,6 +20,23 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
     private Vector2 defaultConfirmButtonPosition;
     private Vector2 defaultConfirmButtonSize;
     private Vector2 defaultCancelButtonPosition;
+    private Vector2 defaultCancelButtonSize;
+    private ColorBlock defaultConfirmButtonColors;
+    private Color defaultCancelPlateColor;
+    private RectTransform popupPanel;
+    private Vector2 defaultPanelAnchorMin;
+    private Vector2 defaultPanelAnchorMax;
+    private Vector2 defaultPanelPosition;
+    private Vector2 defaultPanelSize;
+    private Vector2 defaultPanelPivot;
+    private Vector2 defaultTitlePosition;
+    private Vector2 defaultTitleSize;
+    private Vector2 defaultContentPosition;
+    private Vector2 defaultContentSize;
+    private float defaultTitleFontSize;
+    private float defaultContentFontSize;
+    private float defaultContentLineSpacing;
+    private TextAlignmentOptions defaultContentAlignment;
     private bool hasCachedButtonLayout;
 
     public override string pageName => UIPage.GetPageName<ConfirmPopup>();
@@ -31,11 +48,12 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         Action onCancel = null,
         string confirmText = null,
         string cancelText = null,
-        bool canConfirm = true
+        bool canConfirm = true,
+        bool scoreResultLayout = false
     )
     {
         int requestId = ++requestSequence;
-        pendingRequest = new ConfirmPopupRequest(requestId, title, content, confirmText, cancelText, onConfirm, onCancel, canConfirm, true, true);
+        pendingRequest = new ConfirmPopupRequest(requestId, title, content, confirmText, cancelText, onConfirm, onCancel, canConfirm, true, true, scoreResultLayout: scoreResultLayout);
         pendingUpdateRequest = null;
         Global.Instance.uiManager.ShowPage<ConfirmPopup>();
         return requestId;
@@ -134,13 +152,13 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         pendingUpdateRequest = null;
     }
 
-    public static void UpdateOpenContent(string title, string content, Action onConfirm, bool canConfirm = true)
+    public static void UpdateOpenContent(string title, string content, Action onConfirm, bool canConfirm = true, bool scoreResultLayout = false)
     {
         int requestId = openedPopup?.currentRequest?.requestId ?? pendingRequest?.requestId ?? 0;
-        UpdateOpenContent(requestId, title, content, onConfirm, canConfirm);
+        UpdateOpenContent(requestId, title, content, onConfirm, canConfirm, scoreResultLayout);
     }
 
-    public static void UpdateOpenContent(int requestId, string title, string content, Action onConfirm, bool canConfirm = true)
+    public static void UpdateOpenContent(int requestId, string title, string content, Action onConfirm, bool canConfirm = true, bool scoreResultLayout = false)
     {
         if (requestId <= 0 || !CanUpdateRequest(requestId)) {
             return;
@@ -160,7 +178,8 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
             current == null || current.showCancelButton,
             current != null && current.showInput,
             current?.inputText,
-            current?.onInputConfirm
+            current?.onInputConfirm,
+            scoreResultLayout
         );
         openedPopup?.ApplyPendingUpdate();
         openedPopup?.RefreshContent();
@@ -178,6 +197,7 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         AddButtonListener(binder.btn_confirm, OnClickBtnConfirm);
         AddButtonListener(binder.btn_cancel, OnClickBtnCancel);
         CacheButtonLayout();
+        CacheContentLayout();
     }
 
     protected override void OnOpen()
@@ -229,7 +249,8 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
 
     private void RefreshContent()
     {
-        SetText(binder.txt_title, currentRequest?.title ?? DefaultTitle);
+        bool showScoreResult = currentRequest != null && currentRequest.scoreResultLayout;
+        SetText(binder.txt_title, showScoreResult ? "对局  ·  数子" : currentRequest?.title ?? DefaultTitle);
         SetText(binder.txt_content, currentRequest?.content ?? DefaultContent);
         SetText(binder.txt_confirm, currentRequest?.confirmText ?? DefaultConfirmText);
         SetText(binder.txt_cancel, currentRequest?.cancelText ?? DefaultCancelText);
@@ -239,6 +260,7 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         bool showCancelButton = currentRequest == null || currentRequest.showCancelButton;
         SetConfirmVisible(showConfirmButton);
         SetCancelVisible(showCancelButton, showConfirmButton);
+        ApplyContentLayout(showScoreResult);
     }
 
     private void AddButtonListener(Button button, UnityEngine.Events.UnityAction action)
@@ -307,7 +329,84 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         defaultConfirmButtonPosition = confirmRect.anchoredPosition;
         defaultConfirmButtonSize = confirmRect.sizeDelta;
         defaultCancelButtonPosition = cancelRect.anchoredPosition;
+        defaultCancelButtonSize = cancelRect.sizeDelta;
+        defaultConfirmButtonColors = binder.btn_confirm.colors;
+        if (binder.btn_cancel.targetGraphic != null) {
+            defaultCancelPlateColor = binder.btn_cancel.targetGraphic.color;
+        }
         hasCachedButtonLayout = true;
+    }
+
+    private void CacheContentLayout()
+    {
+        popupPanel = binder.txt_content.rectTransform.parent as RectTransform;
+        if (popupPanel == null) {
+            return;
+        }
+
+        defaultPanelSize = popupPanel.sizeDelta;
+        defaultPanelAnchorMin = popupPanel.anchorMin;
+        defaultPanelAnchorMax = popupPanel.anchorMax;
+        defaultPanelPosition = popupPanel.anchoredPosition;
+        defaultPanelPivot = popupPanel.pivot;
+        defaultTitlePosition = binder.txt_title.rectTransform.anchoredPosition;
+        defaultTitleSize = binder.txt_title.rectTransform.sizeDelta;
+        defaultContentPosition = binder.txt_content.rectTransform.anchoredPosition;
+        defaultContentSize = binder.txt_content.rectTransform.sizeDelta;
+        defaultTitleFontSize = binder.txt_title.fontSize;
+        defaultContentFontSize = binder.txt_content.fontSize;
+        defaultContentLineSpacing = binder.txt_content.lineSpacing;
+        defaultContentAlignment = binder.txt_content.alignment;
+    }
+
+    private void ApplyContentLayout(bool showScoreResult)
+    {
+        if (popupPanel == null) {
+            return;
+        }
+
+        bool isPortraitScore = showScoreResult && Screen.height > Screen.width;
+        popupPanel.anchorMin = isPortraitScore ? Vector2.zero : defaultPanelAnchorMin;
+        popupPanel.anchorMax = isPortraitScore ? new Vector2(1f, 0f) : defaultPanelAnchorMax;
+        popupPanel.pivot = isPortraitScore ? new Vector2(0.5f, 0f) : defaultPanelPivot;
+        popupPanel.anchoredPosition = isPortraitScore ? Vector2.zero : defaultPanelPosition;
+        popupPanel.sizeDelta = isPortraitScore ? new Vector2(0f, 480f) : showScoreResult ? new Vector2(600f, 440f) : defaultPanelSize;
+        binder.txt_title.rectTransform.anchoredPosition = showScoreResult ? new Vector2(34f, -48f) : defaultTitlePosition;
+        binder.txt_title.rectTransform.sizeDelta = showScoreResult ? new Vector2(-118f, 26f) : defaultTitleSize;
+        binder.txt_title.fontSize = showScoreResult ? 13f : defaultTitleFontSize;
+        binder.txt_content.rectTransform.anchoredPosition = showScoreResult ? new Vector2(0f, isPortraitScore ? 0f : -4f) : defaultContentPosition;
+        binder.txt_content.rectTransform.sizeDelta = showScoreResult ? new Vector2(isPortraitScore ? 640f : 500f, 300f) : defaultContentSize;
+        binder.txt_content.fontSize = showScoreResult ? 18f : defaultContentFontSize;
+        binder.txt_content.lineSpacing = showScoreResult ? 12f : defaultContentLineSpacing;
+        binder.txt_content.alignment = showScoreResult ? TextAlignmentOptions.TopLeft : defaultContentAlignment;
+
+        if (!hasCachedButtonLayout) {
+            return;
+        }
+
+        RectTransform confirmRect = binder.btn_confirm.transform as RectTransform;
+        RectTransform cancelRect = binder.btn_cancel.transform as RectTransform;
+        if (showScoreResult) {
+            confirmRect.anchoredPosition = isPortraitScore ? new Vector2(160f, -185f) : new Vector2(220f, -170f);
+            confirmRect.sizeDelta = new Vector2(isPortraitScore ? 300f : 160f, 52f);
+            cancelRect.anchoredPosition = isPortraitScore ? new Vector2(-160f, -185f) : new Vector2(92f, -170f);
+            cancelRect.sizeDelta = new Vector2(isPortraitScore ? 300f : 112f, 52f);
+            ColorBlock scoreColors = defaultConfirmButtonColors;
+            scoreColors.normalColor = UIPalette.Ink;
+            scoreColors.highlightedColor = Color.Lerp(UIPalette.Ink, Color.white, 0.08f);
+            scoreColors.pressedColor = Color.Lerp(UIPalette.Ink, Color.black, 0.08f);
+            scoreColors.selectedColor = UIPalette.Ink;
+            binder.btn_confirm.colors = scoreColors;
+            if (binder.btn_cancel.targetGraphic != null) {
+                binder.btn_cancel.targetGraphic.color = isPortraitScore ? defaultCancelPlateColor : Color.clear;
+            }
+        } else {
+            cancelRect.sizeDelta = defaultCancelButtonSize;
+            binder.btn_confirm.colors = defaultConfirmButtonColors;
+            if (binder.btn_cancel.targetGraphic != null) {
+                binder.btn_cancel.targetGraphic.color = defaultCancelPlateColor;
+            }
+        }
     }
 
     private void ApplyButtonLayout(bool showCancelButton, bool showConfirmButton)
@@ -402,6 +501,7 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         public readonly bool showInput;
         public readonly string inputText;
         public readonly Action<string> onInputConfirm;
+        public readonly bool scoreResultLayout;
 
         public ConfirmPopupRequest(
             int requestId,
@@ -416,7 +516,8 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
             bool showCancelButton,
             bool showInput = false,
             string inputText = null,
-            Action<string> onInputConfirm = null
+            Action<string> onInputConfirm = null,
+            bool scoreResultLayout = false
         )
         {
             this.requestId = requestId;
@@ -432,6 +533,7 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
             this.showInput = showInput;
             this.inputText = inputText ?? string.Empty;
             this.onInputConfirm = onInputConfirm;
+            this.scoreResultLayout = scoreResultLayout;
         }
     }
 

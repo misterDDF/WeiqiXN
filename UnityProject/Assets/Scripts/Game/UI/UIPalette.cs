@@ -19,6 +19,10 @@ public static class UIPalette
     public static readonly Color HintOutline = Rgb(0x25843F);
     public static readonly Color Positive = Rgb(0x4F6B3A);
     public static readonly Color Negative = Rgb(0xA8432F);
+    // 深色棋桌上的墨色卡（黑方玩家卡）、抽屉下的遮罩、墨底上提亮的朱色。
+    public static readonly Color InkCard = Rgb(0x12100E, 0.86f);
+    public static readonly Color Scrim = Rgb(0x0E0C0A, 0.45f);
+    public static readonly Color AccentOnInk = Rgb(0xCC6048);
 
     // 按钮禁用时底板的不透明度；文字和图标由 UIButtonFeedback 另行降低不透明度。
     public const float DisabledAlpha = 0.6f;

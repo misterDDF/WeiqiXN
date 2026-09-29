@@ -69,8 +69,10 @@ public class LoadingPage : UIPageWithBinder<LoadingPageUI>
         SetText(binder.txt_detail, currentProgress.detailText);
         SetText(binder.txt_percent, $"{Mathf.RoundToInt(currentProgress.progress * 100f)}%");
 
+        // 填充条是九宫格胶囊，按右锚点控制宽度；用 fillAmount 会把整张胶囊拉伸后再裁切，圆头变形。
         if (binder.img_progress_fill != null) {
-            binder.img_progress_fill.fillAmount = currentProgress.progress;
+            RectTransform fill = binder.img_progress_fill.rectTransform;
+            fill.anchorMax = new Vector2(currentProgress.progress, fill.anchorMax.y);
         }
     }
 

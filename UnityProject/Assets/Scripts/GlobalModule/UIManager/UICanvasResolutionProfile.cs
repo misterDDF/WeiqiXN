@@ -16,10 +16,11 @@ public static class UICanvasResolutionProfile
     {
         get
         {
+            if (Screen.height > Screen.width) {
+                return MobilePortraitReferenceResolution;
+            }
 #if UNITY_EDITOR
             return EditorReferenceResolution;
-#elif UNITY_ANDROID || UNITY_IOS
-            return MobilePortraitReferenceResolution;
 #else
             return PcReferenceResolution;
 #endif

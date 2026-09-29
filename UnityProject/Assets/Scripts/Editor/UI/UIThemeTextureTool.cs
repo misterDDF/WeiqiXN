@@ -22,6 +22,7 @@ public static class UIThemeTextureTool
     public static readonly string[] IconNames = {
         "icon_close", "icon_left", "icon_right", "icon_down", "icon_first", "icon_last", "icon_check",
         "icon_info", "icon_analysis", "icon_user", "icon_try", "icon_refresh", "icon_export",
+        "icon_up", "icon_pass", "icon_ownership", "icon_search", "icon_menu",
     };
 
     // 卡片柔影比面板四边各外扩这么多 UI 单位；使用时柔影 Image 比面板大 2 倍此值并略向下偏移。
@@ -256,6 +257,20 @@ public static class UIThemeTextureTool
                     Mathf.Min(Segment(x, y, 3f, 15f, 3f, 19f), Arc(x, y, 5f, 19f, 2f, 90f, 180f)),
                     Mathf.Min(Segment(x, y, 5f, 21f, 19f, 21f), Mathf.Min(Arc(x, y, 19f, 19f, 2f, 0f, 90f), Segment(x, y, 21f, 19f, 21f, 15f)))),
                     Mathf.Min(Polyline(x, y, 7f, 8f, 12f, 3f, 17f, 8f), Segment(x, y, 12f, 3f, 12f, 15f)));
+            case "icon_up":
+                return (x, y) => Polyline(x, y, 6f, 15f, 12f, 9f, 18f, 15f);
+            case "icon_pass":
+                // 圆内一道斜杠：这一手不下。
+                return (x, y) => Mathf.Min(Mathf.Abs(Circle(x, y, 12f, 12f, 7.5f)), Segment(x, y, 8f, 16f, 16f, 8f));
+            case "icon_ownership":
+                // 田字四格，对角实心：归属分黑白两方。四格中心线同为边长 6 − 笔画的方框，实心格取内部负距离，外沿与描边格对齐。
+                return (x, y) => Mathf.Min(
+                    Mathf.Min(RoundedRect(x, y, 8f, 8f, 3f - IconStroke * 0.5f, 0f), RoundedRect(x, y, 16f, 16f, 3f - IconStroke * 0.5f, 0f)),
+                    Mathf.Min(Mathf.Abs(RoundedRect(x, y, 16f, 8f, 3f - IconStroke * 0.5f, 0f)), Mathf.Abs(RoundedRect(x, y, 8f, 16f, 3f - IconStroke * 0.5f, 0f))));
+            case "icon_search":
+                return (x, y) => Mathf.Min(Mathf.Abs(Circle(x, y, 10f, 10f, 6f)), Segment(x, y, 14.5f, 14.5f, 20f, 20f));
+            case "icon_menu":
+                return (x, y) => Mathf.Min(Segment(x, y, 5f, 7f, 19f, 7f), Mathf.Min(Segment(x, y, 5f, 12f, 19f, 12f), Segment(x, y, 5f, 17f, 19f, 17f)));
             default:
                 throw new ArgumentException($"Unknown theme icon: {name}");
         }

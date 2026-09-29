@@ -5,6 +5,7 @@ using XNClient.Logger;
 public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
 {
     private const float FriendInvitationBadgeRefreshIntervalSeconds = 15f;
+    private const float UserChipRefreshIntervalSeconds = 1f;
 
     public override string pageName => UIPage.GetPageName<MainMenuPage>();
     private bool hasAppliedLayoutState;
@@ -13,6 +14,9 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
     private bool isOgsGameStarting;
     private bool isFriendInvitationBadgeRefreshing;
     private float nextFriendInvitationBadgeRefreshTime;
+    private float nextUserChipRefreshTime;
+    private string lastUserChipName;
+    private string lastUserChipStatus;
 
     protected override void OnLoaded()
     {
@@ -30,6 +34,8 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
 
         RefreshOgsGameButton(true);
         SetUserInfoRedDotVisible(false);
+        RefreshUserChip(true);
+        RefreshVersionText();
     }
 
     protected override void OnOpen()
@@ -39,6 +45,7 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
         ApplyCurrentLayoutState(false);
         RefreshOgsGameButton(false);
         RefreshFriendInvitationBadge(true);
+        RefreshUserChip(true);
         Global.Instance.ogsChallengeInviteCoordinator?.RequestImmediatePoll();
     }
 
@@ -50,6 +57,9 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
         RefreshOgsGameButton(false);
         if (Time.unscaledTime >= nextFriendInvitationBadgeRefreshTime) {
             RefreshFriendInvitationBadge(false);
+        }
+        if (Time.unscaledTime >= nextUserChipRefreshTime) {
+            RefreshUserChip(false);
         }
     }
 
@@ -205,10 +215,53 @@ public class MainMenuPage : UIPageWithBinder<MainMenuPageUI>
         }
     }
 
+    private void RefreshUserChip(bool force)
+    {
+        nextUserChipRefreshTime = Time.unscaledTime + UserChipRefreshIntervalSeconds;
+        string userName = User.Instance?.compUserInfo?.userName.value;
+        if (string.IsNullOrWhiteSpace(userName)) {
+            userName = "棋手";
+        }
+
+        OgsConnectionService service = Global.Instance.ogsConnectionService;
+        string status;
+        if (service != null && service.HasSession) {
+            int invitationCount = Mathf.Max(0, service.FriendInvitationCount);
+            status = invitationCount > 0
+                ? $"OGS 已登录 · {invitationCount} 条好友申请"
+                : "OGS 已登录";
+        } else {
+            status = "本地棋手 · OGS 未登录";
+        }
+
+        if (force || userName != lastUserChipName) {
+            SetText(binder.txt_user_name, userName);
+            lastUserChipName = userName;
+        }
+        if (force || status != lastUserChipStatus) {
+            SetText(binder.txt_user_status, status);
+            lastUserChipStatus = status;
+        }
+    }
+
+    private void RefreshVersionText()
+    {
+        string version = Application.version ?? string.Empty;
+        SetText(binder.txt_version, version.StartsWith("v") ? version : $"v{version}");
+    }
+
+    private static void SetText(TMPro.TextMeshProUGUI text, string value)
+    {
+        if (text != null) {
+            text.text = value ?? string.Empty;
+        }
+    }
+
     private void OnOgsFriendInvitationCountChanged(OnOgsFriendInvitationCountChanged evt)
     {
         SetUserInfoRedDotVisible(evt != null && evt.count > 0);
         nextFriendInvitationBadgeRefreshTime = Time.unscaledTime + FriendInvitationBadgeRefreshIntervalSeconds;
+        RefreshUserChip(true);
     }
 
     private async void StartOgsAutomatchWithConfig(DuelSceneCreateParamas duelParams)

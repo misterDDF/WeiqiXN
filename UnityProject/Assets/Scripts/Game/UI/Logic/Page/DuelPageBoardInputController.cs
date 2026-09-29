@@ -417,15 +417,15 @@ public class DuelPageBoardInputController
 
         stoneRemovalHoverMarker = new GameObject("OgsStoneRemovalHoverCross");
         MeshFilter meshFilter = stoneRemovalHoverMarker.AddComponent<MeshFilter>();
-        meshFilter.sharedMesh = CreateCrossMesh(ChessBoardConfig.rectCellSideLength * StoneRemovalHoverMarkerSizeFactor);
+        meshFilter.sharedMesh = CreateCrossMesh(ChessBoardConfig.rectCellSideLength * StoneRemovalHoverMarkerSizeFactor, 45f);
         MeshRenderer meshRenderer = stoneRemovalHoverMarker.AddComponent<MeshRenderer>();
-        meshRenderer.sharedMaterial = CreateCrossMaterial();
+        meshRenderer.sharedMaterial = CreateCrossMaterial(new Color(0.95f, 0.12f, 0.08f), 0.9f);
         meshRenderer.receiveShadows = false;
         meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         SetStoneRemovalHoverMarkerActive(false);
     }
 
-    private Mesh CreateCrossMesh(float size)
+    private Mesh CreateCrossMesh(float size, float rotationDegrees)
     {
         float halfLength = size * 0.5f;
         float halfWidth = size * 0.08f;
@@ -445,7 +445,7 @@ public class DuelPageBoardInputController
             0, 2, 1, 0, 3, 2,
             4, 6, 5, 4, 7, 6,
         };
-        Quaternion rotation = Quaternion.Euler(0f, 45f, 0f);
+        Quaternion rotation = Quaternion.Euler(0f, rotationDegrees, 0f);
         for (int i = 0; i < vertices.Length; i++) {
             vertices[i] = rotation * vertices[i];
         }
@@ -455,11 +455,11 @@ public class DuelPageBoardInputController
         return mesh;
     }
 
-    private Material CreateCrossMaterial()
+    private Material CreateCrossMaterial(Color color, float alpha)
     {
         Shader shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color") ?? Shader.Find("Standard");
         Material material = new Material(shader);
-        Color color = new Color(0.95f, 0.12f, 0.08f, 0.9f);
+        color.a = alpha;
         material.color = color;
         if (material.HasProperty("_BaseColor")) {
             material.SetColor("_BaseColor", color);

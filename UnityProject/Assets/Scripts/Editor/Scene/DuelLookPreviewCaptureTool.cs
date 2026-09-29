@@ -316,7 +316,7 @@ public static class DuelLookPreviewCaptureTool
         return ownership;
     }
 
-    // 与 ChessBoardSystem.InitDuelVCam 的正交俯视取景口径保持一致（不含竖屏上移和复盘横移）。
+    // 与 ChessBoardSystem.InitDuelVCam 的正交俯视取景口径保持一致（不含对局与复盘的横屏横移，棋盘居中）。
     private static void FrameCamera(Camera camera, Bounds bounds, float aspect)
     {
         bool portrait = aspect < 1f;

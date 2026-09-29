@@ -11,11 +11,12 @@ public class DuelMoveConfirmPopup : UIPageWithBinder<DuelMoveConfirmPopupUI>
 
     public override string pageName => UIPage.GetPageName<DuelMoveConfirmPopup>();
 
-    public static void Show(Action onConfirm, Action onCancel, Action<int, int> onAdjust)
+    public static void Show(Action onConfirm, Action onCancel, Action<int, int> onAdjust, Func<string> getCoordinateText)
     {
-        var request = new MoveConfirmRequest(onConfirm, onCancel, onAdjust);
+        var request = new MoveConfirmRequest(onConfirm, onCancel, onAdjust, getCoordinateText);
         if (openedPopup != null) {
             openedPopup.currentRequest = request;
+            openedPopup.RefreshCoordinateText();
             return;
         }
 
@@ -39,10 +40,11 @@ public class DuelMoveConfirmPopup : UIPageWithBinder<DuelMoveConfirmPopupUI>
 
         AddButtonListener(binder.btn_confirm, OnClickConfirm);
         AddButtonListener(binder.btn_cancel, OnClickCancel);
-        AddButtonListener(binder.btn_move_up, () => currentRequest.onAdjust?.Invoke(0, -1));
-        AddButtonListener(binder.btn_move_down, () => currentRequest.onAdjust?.Invoke(0, 1));
-        AddButtonListener(binder.btn_move_left, () => currentRequest.onAdjust?.Invoke(-1, 0));
-        AddButtonListener(binder.btn_move_right, () => currentRequest.onAdjust?.Invoke(1, 0));
+        AddButtonListener(binder.btn_move_up, () => AdjustMove(0, -1));
+        AddButtonListener(binder.btn_move_down, () => AdjustMove(0, 1));
+        AddButtonListener(binder.btn_move_left, () => AdjustMove(-1, 0));
+        AddButtonListener(binder.btn_move_right, () => AdjustMove(1, 0));
+        RefreshCoordinateText();
     }
 
     protected override void OnClose()
@@ -69,6 +71,19 @@ public class DuelMoveConfirmPopup : UIPageWithBinder<DuelMoveConfirmPopupUI>
         ClosePage();
     }
 
+    private void AdjustMove(int offsetX, int offsetZ)
+    {
+        currentRequest.onAdjust?.Invoke(offsetX, offsetZ);
+        RefreshCoordinateText();
+    }
+
+    private void RefreshCoordinateText()
+    {
+        if (binder.txt_move_coordinate != null) {
+            binder.txt_move_coordinate.text = currentRequest?.getCoordinateText?.Invoke() ?? "--";
+        }
+    }
+
     private void AddButtonListener(Button button, UnityEngine.Events.UnityAction action)
     {
         if (button != null) {
@@ -78,17 +93,19 @@ public class DuelMoveConfirmPopup : UIPageWithBinder<DuelMoveConfirmPopupUI>
 
     private sealed class MoveConfirmRequest
     {
-        public static readonly MoveConfirmRequest Empty = new MoveConfirmRequest(null, null, null);
+        public static readonly MoveConfirmRequest Empty = new MoveConfirmRequest(null, null, null, null);
 
         public readonly Action onConfirm;
         public readonly Action onCancel;
         public readonly Action<int, int> onAdjust;
+        public readonly Func<string> getCoordinateText;
 
-        public MoveConfirmRequest(Action onConfirm, Action onCancel, Action<int, int> onAdjust)
+        public MoveConfirmRequest(Action onConfirm, Action onCancel, Action<int, int> onAdjust, Func<string> getCoordinateText)
         {
             this.onConfirm = onConfirm;
             this.onCancel = onCancel;
             this.onAdjust = onAdjust;
+            this.getCoordinateText = getCoordinateText;
         }
     }
 }

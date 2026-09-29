@@ -6,19 +6,34 @@ using UnityEngine.UI;
 
 public class DuelPageUI : UIBinderBase
 {
+	public StateRoot sr_platform;
+	public GameObject panel_duel_info;
+	public GameObject panel_duel_dynamic;
+	public GameObject panel_duel_actions;
+	public TextMeshProUGUI txt_duel_meta;
+	public TextMeshProUGUI txt_duel_move_count;
+	public TextMeshProUGUI txt_duel_move_count_portrait;
 	public GameObject panel_black_player;
+	public GameObject img_black_turn_accent;
 	public TextMeshProUGUI txt_black_title;
+	public TextMeshProUGUI txt_black_subtitle;
 	public TextMeshProUGUI txt_black_hold_time;
 	public TextMeshProUGUI txt_black_byoyomi_count;
 	public TextMeshProUGUI txt_black_byoyomi_time;
 	public GameObject panel_white_player;
+	public GameObject img_white_turn_accent;
 	public TextMeshProUGUI txt_white_title;
+	public TextMeshProUGUI txt_white_subtitle;
 	public TextMeshProUGUI txt_white_hold_time;
 	public TextMeshProUGUI txt_white_byoyomi_count;
 	public TextMeshProUGUI txt_white_byoyomi_time;
 	public Button btn_duel_settings;
 	public Button btn_duel_ownership;
 	public TextMeshProUGUI txt_duel_ownership_button;
+	public TextMeshProUGUI txt_duel_ownership_hint;
+	public TextMeshProUGUI txt_duel_pass_hint;
+	public TextMeshProUGUI txt_duel_ai_hint;
+	public TextMeshProUGUI txt_duel_menu_hint;
 	public TextMeshProUGUI txt_duel_stone_removal_countdown;
 	public Button btn_duel_pass;
 	public GameObject panel_duel_shape_result;
@@ -29,9 +44,17 @@ public class DuelPageUI : UIBinderBase
 	public Button btn_settings_resign;
 	public Button btn_settings_exit;
 	public Button btn_settings_close;
+	public Button btn_settings_scrim;
+	public GameObject panel_settings_inline_confirm;
+	public TextMeshProUGUI txt_settings_inline_title;
+	public TextMeshProUGUI txt_settings_inline_content;
+	public TextMeshProUGUI txt_settings_inline_confirm;
+	public Button btn_settings_inline_cancel;
+	public Button btn_settings_inline_confirm;
 	public GameObject panel_game_end_result;
 	public TextMeshProUGUI txt_game_end_winner;
 	public TextMeshProUGUI txt_game_end_reason;
+	public Button btn_game_end_exit;
 	public GameObject panel_duel_action_notice;
 	public CanvasGroup canvas_duel_action_notice;
 	public Image img_duel_action_notice_icon;
@@ -41,4 +64,17 @@ public class DuelPageUI : UIBinderBase
 	public TextMeshProUGUI txt_black_player_name;
 	public TextMeshProUGUI txt_white_player_name;
 	public GameObject panel_duel_ai_analysis;
+
+	public enum SrPlatformState
+	{
+		Landscape = 0,
+		Portrait = 1,
+	}
+
+	public void SetSrPlatformState(SrPlatformState state, bool force = false)
+	{
+		if (sr_platform != null) {
+			sr_platform.SetState((int)state, force);
+		}
+	}
 }

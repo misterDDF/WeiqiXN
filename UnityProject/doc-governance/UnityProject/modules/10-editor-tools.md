@@ -3,7 +3,7 @@
 ## 主要文件
 
 - UI 生成与预览：`Assets/Scripts/Editor/UI/UICodeGenerator.cs`、`CSCodeGenerator.cs`、`UIPagePrefabPreviewPlatformMenu.cs`；`Assets/Scripts/Editor/Inspector/UIBinderEditor_Inspector.cs`、`UIBinderBase_Inspector.cs`
-- UI 主题：`Assets/Scripts/Editor/UI/UIThemePreviewCaptureTool.cs`、`UIThemeFontAssetTool.cs`、`UIThemeTextureTool.cs`、`UIThemeMigrationTool.cs`
+- UI 主题：`Assets/Scripts/Editor/UI/UIThemePreviewCaptureTool.cs`、`UIThemeFontAssetTool.cs`、`UIThemeTextureTool.cs`、`UIThemeMigrationTool.cs`、`MainMenuBoardBackdropTool.cs`
 - 棋盘与场景美术：`Assets/Scripts/Editor/Chess/ChessStoneAssetPolishTool.cs`、`ChessStonePreviewAssetPolishTool.cs`、`ChessBoardOverlayAssetPolishTool.cs`；`Assets/Scripts/Editor/Scene/DuelSceneLookAssetTool.cs`、`DuelLookPreviewCaptureTool.cs`
 - 通用：`Assets/Scripts/Editor/CustomEditorMenuPaths.cs`、`EditorUtils.cs`、`KataGoOpenClWarmupCleaner.cs`
 - 构建与资源：`Assets/Scripts/Editor/Build/AssetBundleGenerator.cs`、`BuildConfig.cs`；`Assets/Scripts/Editor/TMPSprite/SpriteAtlasToTMPSpriteTool.cs`；`Assets/Scripts/Editor/Inspector/TextureArrayWizard.cs`
@@ -61,6 +61,8 @@ UI 主题（V3，参数以工具代码常量为准）：
   - 有 `Landscape` / `Portrait` 状态的 `StateRoot` 会切到对应状态。
   - 截的是 prefab 默认状态，运行时才填的内容不会出现。
   - 工具不保存页面。
+- `自定义功能/UI/安装主菜单真实棋盘背景`：从对局场景复制棋盘模板到主菜单场景，引用正式黑白棋子预制体，并同步灯光与环境色；页面旧图片背景保持停用。
+- `自定义功能/UI/生成主菜单棋盘预览截图`：在编辑态生成横竖屏真实棋盘与完整主菜单合成图到 `Temp/WeiqiXN/MainMenuPreview/`，不保存临时棋子或页面实例。
 - `自定义功能/UI/应用主题迁移`：按 `UIThemeMigrationTool` 的页面规则表，把节点路径映射到样式角色，只写外观，不按旧颜色全局替换。
   - 写入范围：
     - Image 的 sprite、type 和颜色；
@@ -70,6 +72,10 @@ UI 主题（V3，参数以工具代码常量为准）：
   - 保存前把全部 `RectTransform` 和根 `Canvas.renderMode` 恢复成资产里的值。
   - 跳过嵌套 prefab 实例里的节点并警告；贴图或字体缺失时整次不执行；可重复执行。
   - 现有规则表还是首批 `LoadingPage` / `ConfirmPopup` 的平涂规则，这批已被否决，V3.3 按方案 E 逐页改写。
+- `自定义功能/UI/重建 DuelPage V3.3`：按 14 号文档方案 E 幂等重建 `DuelPage.prefab` 与 `DuelMoveConfirmPopup.prefab` 的 `PanelRoot` 子树、`sr_platform` 横竖状态、固定控件和 Binder 引用。
+  - 保存前把两个 Page 的 Canvas 根显式恢复为零尺寸 `Screen Space - Camera` 结构，布局只写在 `PanelRoot` 内。
+  - 菜单不改场景和业务配置；运行时模式、玩家、时钟、手数、形势、提示和按钮可用性仍由 `DuelPageHudView` 刷新。
+- `自定义功能/UI/重建 MainMenuPage V3.3`：幂等重建 `MainMenuPage.prefab` 的 `PanelRoot`、`sr_platform` 横竖状态、宣纸导航、用户胶囊和 Binder 引用；真实棋盘由主菜单场景独立渲染，不改变入口事件。
 
 KataGo 运行时（行为细节以 [SPECIFICATION.md](../SPECIFICATION.md) 为准）：
 

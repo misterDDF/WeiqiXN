@@ -84,8 +84,12 @@ public static class UIThemePreviewCaptureTool
         Vector2Int portrait = Vector2Int.RoundToInt(UICanvasResolutionProfile.EditorMobilePreviewReferenceResolution);
         foreach (string guid in AssetDatabase.FindAssets("t:Prefab", new[] { PageFolder })) {
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(AssetDatabase.GUIDToAssetPath(guid));
-            RenderPreview($"page_{prefab.name}.png", landscape, (scene, camera) => InstantiatePage(scene, camera, prefab, landscape, "Landscape", regular));
-            RenderPreview($"page_{prefab.name}_portrait.png", portrait, (scene, camera) => InstantiatePage(scene, camera, prefab, portrait, "Portrait", regular));
+            RenderPreview($"page_{prefab.name}.png", landscape, (scene, camera) => { InstantiatePage(scene, camera, prefab, landscape, "Landscape", regular); });
+            RenderPreview($"page_{prefab.name}_portrait.png", portrait, (scene, camera) => { InstantiatePage(scene, camera, prefab, portrait, "Portrait", regular); });
+            if (prefab.name == nameof(DuelPage)) {
+                RenderPreview("page_DuelPage_menu.png", landscape, (scene, camera) => InstantiateDuelMenu(scene, camera, prefab, landscape, "Landscape", regular));
+                RenderPreview("page_DuelPage_menu_portrait.png", portrait, (scene, camera) => InstantiateDuelMenu(scene, camera, prefab, portrait, "Portrait", regular));
+            }
         }
     }
 
@@ -268,7 +272,16 @@ public static class UIThemePreviewCaptureTool
     }
 
     // 先挂在未激活的父节点下实例化，TMP 生成网格之前清掉含 Regular 图集缺字的文字，避免编辑态给 Regular 追加字形。
-    private static void InstantiatePage(Scene scene, Camera camera, GameObject prefab, Vector2Int size, string platformState, TMP_FontAsset regular)
+    private static void InstantiateDuelMenu(Scene scene, Camera camera, GameObject prefab, Vector2Int size, string platformState, TMP_FontAsset regular)
+    {
+        GameObject page = InstantiatePage(scene, camera, prefab, size, platformState, regular);
+        DuelPageUI binder = page.GetComponent<DuelPageUI>();
+        if (binder != null && binder.panel_duel_settings != null) {
+            binder.panel_duel_settings.SetActive(true);
+        }
+    }
+
+    private static GameObject InstantiatePage(Scene scene, Camera camera, GameObject prefab, Vector2Int size, string platformState, TMP_FontAsset regular)
     {
         GameObject holder = new GameObject("PageHolder");
         holder.SetActive(false);
@@ -306,6 +319,7 @@ public static class UIThemePreviewCaptureTool
         rectTransform.pivot = new Vector2(0.5f, 0.5f);
         rectTransform.sizeDelta = size;
         rectTransform.position = Vector3.zero;
+        return page;
     }
 
     private static Camera CreateCamera(Scene scene, int height)

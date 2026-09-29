@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.UI;
 using XNClient.ChessBoard;
@@ -16,6 +17,9 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     private int pendingTakeBackRemoveCount;
     private string pendingTakeBackTurnPlayerGuid;
     private bool isMoveConfirmPopupOpen;
+    private bool hasAppliedLayoutState;
+    private bool lastPortraitLayout;
+    private Action pendingSettingsConfirmation;
 
     protected override void OnLoaded()
     {
@@ -23,6 +27,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         boardInput = new DuelPageBoardInputController();
         hudView = new DuelPageHudView(binder);
+        ApplyCurrentLayoutState(true);
 
         RegisterSystemEvent<OnDuelStateChanged>(OnDuelStateChanged);
         RegisterSystemEvent<OnDuelOwnershipResult>(OnDuelOwnershipResult);
@@ -52,6 +57,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         base.OnOpen();
 
         hudView.Reset();
+        ApplyCurrentLayoutState(false);
         RefreshDuelHud();
         if (Global.Instance.lanRoomService != null && Global.Instance.lanRoomService.IsReconnectWaiting) {
             ShowOrUpdateReconnectWaitingPopup(Global.Instance.lanRoomService.ReconnectWaitingSeconds);
@@ -64,6 +70,11 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
         RefreshDuelHud();
         hudView.RefreshActionNotice();
+        ApplyCurrentLayoutState(false);
+
+        if (hudView.IsSettingsPanelVisible() && Input.GetKeyDown(KeyCode.Escape)) {
+            CloseSettingsPanel();
+        }
 
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
@@ -83,6 +94,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         CloseReconnectWaitingPopup();
         CloseOgsReconnectWaitingPopup();
         CloseMoveConfirmPopup();
+        pendingSettingsConfirmation = null;
         boardInput.Dispose();
         base.OnClose();
     }
@@ -115,6 +127,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
                 MessageText.Get("duel_score_confirm_title"),
                 hudView.BuildScoreConfirmContent(scoreResult),
                 () => EmitSystemEvent(new OnConfirmDuelScore(scoreResult)),
+                true,
                 true
             );
             pendingScorePopupRequestId = 0;
@@ -209,7 +222,9 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             () => EmitSystemEvent(new OnSubmitLanDuelScoreResultConfirm(evt.result, true)),
             () => EmitSystemEvent(new OnSubmitLanDuelScoreResultConfirm(evt.result, false)),
             MessageText.Get("duel_score_accept_result"),
-            MessageText.Get("duel_score_reject_result")
+            MessageText.Get("duel_score_reject_result"),
+            true,
+            true
         );
     }
 
@@ -331,11 +346,44 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
     public void OnClickBtnExit()
     {
-        ConfirmPopup.Show(
+        ShowSettingsInlineConfirmation(
+            binder.btn_settings_exit,
             MessageText.Get("duel_exit_title"),
             MessageText.Get("duel_exit_content"),
-            ExitDuelToMainMenu
-        );
+            MessageText.Get("common_confirm"),
+            ExitDuelToMainMenu);
+    }
+
+    private void CloseSettingsPanel()
+    {
+        pendingSettingsConfirmation = null;
+        hudView.CloseSettingsPanel();
+    }
+
+    private void OpenSettingsPanel()
+    {
+        pendingSettingsConfirmation = null;
+        hudView.OpenSettingsPanel();
+    }
+
+    private void ShowSettingsInlineConfirmation(Button sourceButton, string title, string content, string confirmText, Action onConfirm)
+    {
+        pendingSettingsConfirmation = onConfirm;
+        hudView.ShowSettingsInlineConfirmation(sourceButton, title, content, confirmText);
+    }
+
+    private void OnClickSettingsInlineConfirm()
+    {
+        Action confirmation = pendingSettingsConfirmation;
+        pendingSettingsConfirmation = null;
+        hudView.HideSettingsInlineConfirmation();
+        confirmation?.Invoke();
+    }
+
+    private void OnClickSettingsInlineCancel()
+    {
+        pendingSettingsConfirmation = null;
+        hudView.HideSettingsInlineConfirmation();
     }
 
     private void ExitDuelToMainMenu()
@@ -415,7 +463,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     {
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
         if (mainScene is OgsDuelScene) {
-            hudView.CloseSettingsPanel();
+            CloseSettingsPanel();
             hudView.ShowActionNotice("OGS 对局数子由连续虚手后的服务器确认流程处理。");
             return;
         }
@@ -425,7 +473,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             return;
         }
 
-        hudView.CloseSettingsPanel();
+        CloseSettingsPanel();
         if (compDuel.isLanDuel.value) {
             pendingScorePopupRequestId = ConfirmPopup.ShowBlocking(
                 MessageText.Get("duel_score_wait_title"),
@@ -453,20 +501,20 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         if (mainScene is OgsDuelScene) {
             OgsDuelSystem ogsDuelSystem = mainScene.GetSystem<OgsDuelSystem>();
             if (ogsDuelSystem == null || !ogsDuelSystem.CanSubmitTakeBack()) {
-                hudView.CloseSettingsPanel();
+                CloseSettingsPanel();
                 hudView.ShowActionNotice(MessageText.Get("duel_take_back_unavailable"));
                 return;
             }
 
-            hudView.CloseSettingsPanel();
-            ConfirmPopup.Show(
+            ShowSettingsInlineConfirmation(
+                binder.btn_settings_take_back,
                 MessageText.Get("duel_take_back_title"),
                 MessageText.Get("duel_take_back_local_confirm_content"),
-                () => EmitSystemEvent(new OnSubmitOgsDuelTakeBack()),
-                null,
                 MessageText.Get("duel_take_back_confirm"),
-                MessageText.Get("common_cancel")
-            );
+                () => {
+                    CloseSettingsPanel();
+                    EmitSystemEvent(new OnSubmitOgsDuelTakeBack());
+                });
             return;
         }
 
@@ -478,7 +526,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         int removeCount = DuelSystem.GetTakeBackMoveCountForState(compDuel);
         int moveCount = DuelMoveHistory.Count(compDuel.kataGoMoves);
         if (removeCount <= 0 || moveCount < removeCount) {
-            hudView.CloseSettingsPanel();
+            CloseSettingsPanel();
             hudView.ShowActionNotice(MessageText.Get("duel_take_back_no_moves"));
             return;
         }
@@ -486,17 +534,14 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         pendingTakeBackMoveCount = moveCount;
         pendingTakeBackRemoveCount = removeCount;
         pendingTakeBackTurnPlayerGuid = compDuel.curTurnPlayerGuid.value;
-        hudView.CloseSettingsPanel();
-        ConfirmPopup.Show(
+        ShowSettingsInlineConfirmation(
+            binder.btn_settings_take_back,
             MessageText.Get("duel_take_back_title"),
             compDuel.isLanDuel.value
                 ? MessageText.Get("duel_take_back_lan_confirm_content")
                 : MessageText.Get("duel_take_back_local_confirm_content"),
-            () => SubmitConfirmedTakeBack(),
-            null,
             MessageText.Get("duel_take_back_confirm"),
-            MessageText.Get("common_cancel")
-        );
+            SubmitConfirmedTakeBack);
     }
 
     public void OnClickBtnResign()
@@ -509,18 +554,18 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
                 return;
             }
 
-            hudView.CloseSettingsPanel();
             SceneComponentDuel ogsCompDuel = mainScene.GetComponent<SceneComponentDuel>();
             Player ogsCurPlayer = ogsCompDuel != null ? mainScene.GetEntity<Player>(ogsCompDuel.curTurnPlayerGuid.value) : null;
             string ogsPlayerText = hudView.GetPlayerDisplayName(ogsCurPlayer, ogsCompDuel, ogsCompDuel?.curTurnPlayerGuid.value);
-            ConfirmPopup.Show(
+            ShowSettingsInlineConfirmation(
+                binder.btn_settings_resign,
                 MessageText.Get("duel_resign_title"),
                 MessageText.Format("duel_resign_content", ogsPlayerText),
-                () => EmitSystemEvent(new OnSubmitOgsDuelResign()),
-                null,
                 MessageText.Get("duel_resign_confirm"),
-                MessageText.Get("duel_continue_game")
-            );
+                () => {
+                    CloseSettingsPanel();
+                    EmitSystemEvent(new OnSubmitOgsDuelResign());
+                });
             return;
         }
 
@@ -531,26 +576,53 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             return;
         }
 
-        hudView.CloseSettingsPanel();
-
         Player curPlayer = mainScene.GetEntity<Player>(compDuel.curTurnPlayerGuid.value);
         string playerText = hudView.GetPlayerDisplayName(curPlayer, compDuel, compDuel.curTurnPlayerGuid.value);
         string loserGuid = compDuel.curTurnPlayerGuid.value;
         int moveCount = DuelMoveHistory.Count(compDuel.kataGoMoves);
 
-        ConfirmPopup.Show(
+        ShowSettingsInlineConfirmation(
+            binder.btn_settings_resign,
             MessageText.Get("duel_resign_title"),
             MessageText.Format("duel_resign_content", playerText),
-            () => EmitSystemEvent(new OnSubmitDuelResign(loserGuid, moveCount)),
-            null,
             MessageText.Get("duel_resign_confirm"),
-            MessageText.Get("duel_continue_game")
-        );
+            () => {
+                CloseSettingsPanel();
+                EmitSystemEvent(new OnSubmitDuelResign(loserGuid, moveCount));
+            });
+    }
+
+    private void ApplyCurrentLayoutState(bool force)
+    {
+        if (binder.sr_platform == null) {
+            return;
+        }
+
+        bool isPortrait = UIUtils.IsPortrait(rectTransform);
+        if (!force && hasAppliedLayoutState && isPortrait == lastPortraitLayout) {
+            return;
+        }
+
+        UICanvasResolutionProfile.ApplyRuntimeResolution(gameObject.GetComponent<CanvasScaler>());
+        binder.SetSrPlatformState(isPortrait ? DuelPageUI.SrPlatformState.Portrait : DuelPageUI.SrPlatformState.Landscape, force);
+        SetActionHintVisible(binder.txt_duel_pass_hint, !isPortrait);
+        SetActionHintVisible(binder.txt_duel_ownership_hint, !isPortrait);
+        SetActionHintVisible(binder.txt_duel_ai_hint, !isPortrait);
+        SetActionHintVisible(binder.txt_duel_menu_hint, !isPortrait);
+        hasAppliedLayoutState = true;
+        lastPortraitLayout = isPortrait;
+    }
+
+    private void SetActionHintVisible(TMPro.TextMeshProUGUI hint, bool isVisible)
+    {
+        if (hint != null) {
+            hint.gameObject.SetActive(isVisible);
+        }
     }
 
     private void BindPrefabHud()
     {
-        AddButtonListener(binder.btn_duel_settings, hudView.OpenSettingsPanel);
+        AddButtonListener(binder.btn_duel_settings, OpenSettingsPanel);
         AddButtonListener(binder.btn_duel_ownership, OnClickBtnOwnership);
         AddButtonListener(binder.btn_duel_ai_analysis, OnClickBtnAiAnalysis);
         AddButtonListener(binder.btn_duel_pass, OnClickBtnPass);
@@ -558,7 +630,11 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         AddButtonListener(binder.btn_settings_take_back, OnClickBtnTakeBack);
         AddButtonListener(binder.btn_settings_resign, OnClickBtnResign);
         AddButtonListener(binder.btn_settings_exit, OnClickBtnExit);
-        AddButtonListener(binder.btn_settings_close, hudView.CloseSettingsPanel);
+        AddButtonListener(binder.btn_settings_close, CloseSettingsPanel);
+        AddButtonListener(binder.btn_settings_scrim, CloseSettingsPanel);
+        AddButtonListener(binder.btn_settings_inline_cancel, OnClickSettingsInlineCancel);
+        AddButtonListener(binder.btn_settings_inline_confirm, OnClickSettingsInlineConfirm);
+        AddButtonListener(binder.btn_game_end_exit, ExitDuelToMainMenu);
     }
 
     private void AddButtonListener(Button button, UnityEngine.Events.UnityAction action)
@@ -600,6 +676,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
 
     private void SubmitConfirmedTakeBack()
     {
+        CloseSettingsPanel();
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
         if (compDuel == null) {
@@ -741,10 +818,12 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         }
 
         isMoveConfirmPopupOpen = true;
+        SetActionBarVisible(false);
         DuelMoveConfirmPopup.Show(
             ConfirmPortraitMove,
             CancelPortraitMove,
-            AdjustPortraitMove);
+            AdjustPortraitMove,
+            GetPendingMoveCoordinateText);
         return true;
     }
 
@@ -759,6 +838,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         }
 
         isMoveConfirmPopupOpen = false;
+        SetActionBarVisible(true);
         boardInput.ClearPendingMove();
         if (mainScene is OgsDuelScene) {
             EmitSystemEvent(new OnSubmitOgsDuelMove(coords));
@@ -771,6 +851,7 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
     private void CancelPortraitMove()
     {
         isMoveConfirmPopupOpen = false;
+        SetActionBarVisible(true);
         boardInput.ClearPendingMove();
     }
 
@@ -782,6 +863,25 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         boardInput.TryMovePendingMove(mainScene, compDuel, inputState, offsetX, offsetZ);
     }
 
+    private string GetPendingMoveCoordinateText()
+    {
+        SceneBase mainScene = Global.Instance.sceneManager.mainScene;
+        SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
+        DuelInputAuthorityState inputState = GetCurrentInputState(mainScene, compDuel);
+        if (!boardInput.TryGetPendingMoveCoords(inputState, out RectCoordinates coords)) {
+            return "--";
+        }
+
+        SceneComponentChessBoard compChessBoard = mainScene?.GetComponent<SceneComponentChessBoard>();
+        int boardSize = compChessBoard?.chessBoardGrid != null ? compChessBoard.chessBoardGrid.gridSize : 19;
+        try {
+            return KataGoPositionJsonBuilder.ToKataGoPoint(coords, boardSize);
+        }
+        catch (Exception) {
+            return coords.ToString();
+        }
+    }
+
     private void CloseMoveConfirmPopup()
     {
         if (!isMoveConfirmPopupOpen) {
@@ -789,8 +889,16 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         }
 
         isMoveConfirmPopupOpen = false;
+        SetActionBarVisible(true);
         boardInput.ClearPendingMove();
         Global.Instance.uiManager.TryClosePage<DuelMoveConfirmPopup>();
+    }
+
+    private void SetActionBarVisible(bool visible)
+    {
+        if (binder.panel_duel_actions != null) {
+            binder.panel_duel_actions.SetActive(visible);
+        }
     }
 
     private bool ShouldUsePortraitMoveConfirm(SceneBase mainScene, SceneComponentDuel compDuel, DuelInputAuthorityState inputState)

@@ -11,6 +11,9 @@ public class MainMenuPageUI : UIBinderBase
 	public Button btn_exit;
 	public Button btn_user_info;
 	public RectTransform red_dot_user_info;
+	public TextMeshProUGUI txt_user_name;
+	public TextMeshProUGUI txt_user_status;
+	public TextMeshProUGUI txt_version;
 	public Button btn_ai_game;
 	public Button btn_lan_game;
 	public Button btn_ogs_game;
