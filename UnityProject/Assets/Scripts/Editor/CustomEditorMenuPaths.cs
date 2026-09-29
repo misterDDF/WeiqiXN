@@ -7,4 +7,5 @@ public static class CustomEditorMenuPaths
     public const string KataGo = Root + "/KataGo";
     public const string ChessBoard = Root + "/棋盘";
     public const string Scene = Root + "/场景";
+    public const string UI = Root + "/UI";
 }

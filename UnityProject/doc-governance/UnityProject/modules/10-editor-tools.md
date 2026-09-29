@@ -2,79 +2,115 @@
 
 ## 主要文件
 
-- `Assets/Scripts/Editor/UI/UICodeGenerator.cs`
-- `Assets/Scripts/Editor/UI/CSCodeGenerator.cs`
-- `Assets/Scripts/Editor/UI/UIPagePrefabPreviewPlatformMenu.cs`
-- `Assets/Scripts/Editor/Inspector/UIBinderEditor_Inspector.cs`
-- `Assets/Scripts/Editor/Inspector/UIBinderBase_Inspector.cs`
-- `Assets/Scripts/Editor/CustomEditorMenuPaths.cs`
-- `Assets/Scripts/Editor/KataGoOpenClWarmupCleaner.cs`
-- `Assets/Scripts/Editor/Build/AssetBundleGenerator.cs`
-- `Assets/Scripts/Editor/Build/BuildConfig.cs`
-- `Assets/Scripts/Editor/TMPSprite/SpriteAtlasToTMPSpriteTool.cs`
-- `Assets/Scripts/Editor/Inspector/TextureArrayWizard.cs`
-- `Assets/Scripts/Editor/Chess/ChessStoneAssetPolishTool.cs`
-- `Assets/Scripts/Editor/Chess/ChessStonePreviewAssetPolishTool.cs`
-- `Assets/Scripts/Editor/Chess/ChessBoardOverlayAssetPolishTool.cs`
-- `Assets/Scripts/Editor/Scene/DuelSceneLookAssetTool.cs`
-- `Assets/Scripts/Editor/Scene/DuelLookPreviewCaptureTool.cs`
-- `Assets/Scripts/Global/GameConfig.cs`
-- `Assets/Scripts/Game/KataGo/KataGoBootstrap.cs`
-- `Assets/Scripts/Game/KataGo/KataGoRuntimeEnvironment.cs`
-- `Assets/Scripts/Game/KataGo/KataGoRuntimePreparer.cs`
-- `Assets/Scripts/Game/KataGo/Win32NativeKataGoEngine.cs`
-- `Assets/Scripts/Game/KataGo/AndroidNativeKataGoEngine.cs`
-- `Assets/Scripts/Game/KataGo/KataGoDuelRecordFile.cs`
-- `Assets/Scripts/Game/KataGo/KataGoPositionJsonBuilder.cs`
+- UI 生成与预览：`Assets/Scripts/Editor/UI/UICodeGenerator.cs`、`CSCodeGenerator.cs`、`UIPagePrefabPreviewPlatformMenu.cs`；`Assets/Scripts/Editor/Inspector/UIBinderEditor_Inspector.cs`、`UIBinderBase_Inspector.cs`
+- UI 主题：`Assets/Scripts/Editor/UI/UIThemePreviewCaptureTool.cs`、`UIThemeFontAssetTool.cs`、`UIThemeTextureTool.cs`、`UIThemeMigrationTool.cs`
+- 棋盘与场景美术：`Assets/Scripts/Editor/Chess/ChessStoneAssetPolishTool.cs`、`ChessStonePreviewAssetPolishTool.cs`、`ChessBoardOverlayAssetPolishTool.cs`；`Assets/Scripts/Editor/Scene/DuelSceneLookAssetTool.cs`、`DuelLookPreviewCaptureTool.cs`
+- 通用：`Assets/Scripts/Editor/CustomEditorMenuPaths.cs`、`EditorUtils.cs`、`KataGoOpenClWarmupCleaner.cs`
+- 构建与资源：`Assets/Scripts/Editor/Build/AssetBundleGenerator.cs`、`BuildConfig.cs`；`Assets/Scripts/Editor/TMPSprite/SpriteAtlasToTMPSpriteTool.cs`；`Assets/Scripts/Editor/Inspector/TextureArrayWizard.cs`
+- KataGo 运行时：`Assets/Scripts/Global/GameConfig.cs`；`Assets/Scripts/Game/KataGo/` 下的 `KataGoBootstrap`、`KataGoRuntimeEnvironment`、`KataGoRuntimePreparer`、`Win32NativeKataGoEngine`、`AndroidNativeKataGoEngine`、`KataGoDuelRecordFile`、`KataGoPositionJsonBuilder`
 
 ## 职责
 
-编辑器工具模块负责提升内容生产效率，包括 UI Binder 代码生成、UI 逻辑脚手架、AssetBundle 生成、TMP sprite 转换和材质/贴图辅助工具。
+编辑器工具模块负责提升内容生产效率：UI Binder 代码生成、UI 逻辑脚手架、美术配置与离屏截图、AssetBundle 生成、TMP sprite 转换和贴图辅助工具。KataGo 运行时接入和打包校验目前也记在本文。
 
 ## 当前进度
 
-- `UICodeGenerator` 会根据 `UIBinderEditor` 节点导出 Binder 脚本。
-- 如果 UI 逻辑文件不存在，生成器会创建基础 `UIPageWithBinder<T>` 或 `UIWidgetWithBinder<T>` 逻辑类。
-- 生成脚本会自动刷新 AssetDatabase。
-- Page prefab 右键菜单提供 `切换预览平台/PC端` 和 `切换预览平台/移动端`，可从 Project 面板的 Page prefab asset 触发，也可在 Page prefab 的 Prefab Mode 中从 Hierarchy 右键触发；入口仅对 `Assets/UI/Prefab/Page/*.prefab` 且带 `CanvasScaler` 的 prefab 生效。菜单直接保存 prefab 的 CanvasScaler 预览尺寸、同步切换 Editor Game 窗口固定分辨率，并写入不纳入版本库的 `UserSettings/UIRuntimeCanvasResolution.json`，让 Editor Play 模式使用同一运行时 UI 分辨率基准；PC 预览为 `1600x900`，移动端预览为 `720x1280`。
-- 项目已有多份生成的 `*PageUI.cs` 和页面逻辑类。
-- AssetBundle、TMP sprite、TextureArray 等编辑器工具文件已经存在。
-- 项目自维护编辑器菜单统一挂在 Unity 顶部菜单 `自定义功能` 下；迁移既有菜单时保留去掉原 `Assets/` 前缀后的多层结构，例如 `Assets/打包/打PC包` 对应 `自定义功能/打包/打PC包`。KataGo OpenCL 预热缓存可通过 `自定义功能/KataGo/清除opencl预热文件` 清除，命令执行结束后会弹窗提示清除成功、未找到缓存或失败原因。
-- 对局画面美术配置由幂等菜单维护，参数写在工具代码常量里，重复执行结果一致：`自定义功能/棋盘/应用棋盘覆盖层材质`（形势方块与最后一手圆点材质）→ `自定义功能/棋盘/应用棋子美术配置` → `自定义功能/棋盘/应用预览棋子透明配置`（预览材质从正式材质复制，必须后执行）→ `自定义功能/场景/应用对局场景画面配置`。`自定义功能/场景/生成对局画面预览截图` 在不进入 Play 的情况下离屏渲染 19 路横屏、9 路横屏、19 路竖屏、19 路近景，以及用合成数据绘制盘上标记的 19 路形势/推荐点全景与近景、13 路手数、19 路三位数手数近景，以及按关键帧摆出落子姿态（刚出手、下落途中、将要着盘、着盘后摇晃峰值）的 19 路动效近景 `board19_motion_closeup` 共九张截图到 `Temp/WeiqiXN/LookPreview/`，用于调参对比；`Temp/` 会在编辑器重启时清空，需要保留的对比图应另存。
-- 编辑器自动化优先通过 Unity MCP 执行。C# 编译验证优先使用 MCP `recompile_scripts` 并读取 Unity Console；不再把 `dotnet build UnityProject.sln` 作为常规验证路径。
-- 场景对象、材质、资源导入等 MCP 已覆盖的编辑器操作应优先走 MCP。既有复杂 prefab asset 的层级编辑只有在 MCP 工具能完整覆盖时才直接用 MCP；否则应使用 Unity 编辑器脚本、编辑器菜单或人工 prefab 编辑，再通过 MCP 做导入和编译验证，避免手写复杂 prefab YAML。
-- KataGo 流程当前目标是跑通 Windows Unity Editor 和 Windows PC 包内的本地 exe/native 后端调用和 JSON 解析。
-- 启动流程在 Loading 阶段调用 `KataGoBootstrap.Start()`，退出时调用 `KataGoBootstrap.Stop()`；`KataGoBootstrap` 内部读取根目录 `game-config.json` 并按平台解析后端和引擎路径。Windows Unity Editor 通过仓库根 `KataGo/` 定位资源，Windows PC 包通过包体根目录 `<BuildRoot>/KataGo/` 定位资源。`exe` 后端通过 Win32 pipe 子进程适配器优先后台启动 OpenCL 版 KataGo，加载本地模型，依次发送 9 路、13 路、19 路 smoke query，并在日志中输出各棋盘路数的 `ownershipLength`；OpenCL 缺失、启动失败或任一 smoke test 失败时会自动 fallback 到 Eigen AVX2 CPU 版 KataGo。`native` 后端通过 `Win32NativeKataGoEngine` 加载 `native-eigen/katago_bridge.dll`，使用同一套 smoke query 验证 bridge。启动时会检查游戏根目录写权限；不可写时通过 `ConfirmPopup` 提示模式提示、跳过 OpenCL，并使用 no-write analysis 配置关闭 KataGo 文件写入。
-- Native KataGo analysis concurrency is configured through the shared `katago.analysis.maxConcurrentNativeRequests` value in `game-config.json`. `KataGoBootstrap` uses the same queued request scheduler for Windows and Android native backends, then caps active dispatch width to `1` if the loaded bridge binary does not export concurrent-analyze support. Upper gameplay systems can enqueue many analysis tasks; the scheduler dispatches only the configured number into KataGo and selects queued requests by priority, so replay AI/current-cursor analysis can be chosen before lower-priority replay background chart requests when a slot opens. Requests can carry an owner key for targeted cleanup of not-yet-dispatched queued work during scene teardown; already-dispatched KataGo requests are not canceled by owner cleanup. The native bridge routes simultaneous `kg_analyze` calls by request id on the single active analysis engine, and the current OpenCL analysis config uses `numAnalysisThreads=2`, `numSearchThreadsPerAnalysisThread=4`, and `nnMaxBatchSize=16` for two in-flight positions without increasing total search threads above `8`. Windows native DLLs and both Android native plugins are rebuilt for the concurrent bridge protocol.
-- Android native OpenCL startup writes an uncached tuning attempt marker under `KataGoData/opencltuning` before entering KataGo OpenCL initialization. If a later launch sees that marker without any generated `tune*.txt` cache, `KataGoBootstrap` skips `katago_bridge_opencl` and falls back to `katago_bridge_eigen` when CPU fallback is enabled. Android build fields that identify a MediaTek Dimensity-class SoC (`Dimensity`, `mt68*`, `mt69*`, `k68*`, `k69*`) also skip OpenCL directly. Successful OpenCL startup clears the marker only after tuning cache is generated or reused and smoke validation passes.
-- Human SL is packaged as a second KataGo model. `game-config.json` uses `katago.model.fileName` for the normal analysis model and `katago.model.humanSlFileName` for the companion Human SL model. Windows exe startup appends `-human-model` when the companion model exists; native startup calls `kg_create_engine_with_human_model`. Android runtime preparation copies both `.bin.gz.bytes` model assets from `StreamingAssets` into `persistentDataPath/KataGo/models` and treats the runtime as prepared only when both copied model files exist and are nonempty.
-- `KataGoBootstrap.AnalyzeOwnershipAsync` 负责把当前对局 query 交给已选 KataGo 后端，读取匹配 request id 的最终结果，并只返回第一版形势按钮需要的 `ownership` 数组；超时、后端未运行和协议缺失会写入日志。分析超时会停止当前 KataGo 后端实例，后续分析请求会先检查状态并尝试按已解析路径自动重启，避免一次超时后持续失败。形势结果由游戏侧根据 `0.3` ownership 阈值统计，低于阈值的中立或未明确控制点不计入双方，白方统计值会额外加上 query 中的 `komi`；UI 显示该统计口径下的领先方领先目数和贴目/让子规则信息。
-- `KataGoPositionJsonBuilder` 当前提供 `BuildOwnershipAnalysisJson` 默认入口，以及完整手顺和当前盘面快照两个显式 JSON 生成入口；正常对局直接维护 KataGo 标准 `moves`，合法落子记录点位、虚手记录 `pass`。形势展示和 ownership 数子使用默认入口按当前棋盘快照生成 `initialStones` 并置空 `moves`；电脑对局实时落子、记录文件和后续复盘分析使用完整手顺入口。电脑对局实时落子请求的访问次数由 `DuelAiBudgetService` 按难度配置和棋盘路数解析，再由 `DuelAiAnalyzeService` 传入 JSON 生成入口；JSON Builder 不再维护本地固定上限。启用 Human SL 的 AI 难度会由 JSON Builder 发送 `overrideSettings.humanSLProfile` 和 `ignorePreRootHistory=false` 并请求 policy 输出，后续由 AI 选点侧按 `humanPolicyWeight` 加权消费 `humanPolicy`。本地 `RectCoordinates` 已按 KataGo 棋盘布局定义，点位输出不再维护额外坐标兼容转换层。
-- `KataGoDuelRecordFile` 负责保存和读取对局棋盘记录文件的底层能力。当前正式流程只使用保存侧；记录文件采用可直接提交给 KataGo analysis engine 的 JSON 结构，`pass` 项会保存在手顺中但不会改变棋盘缓存。
+通用：
+
+- 自维护菜单统一挂在顶部菜单 `自定义功能` 下，迁移既有菜单时保留去掉 `Assets/` 前缀后的层级（例如 `自定义功能/打包/打PC包`）。
+- `自定义功能/KataGo/清除opencl预热文件` 清除 OpenCL 预热缓存，结束后弹窗报告结果。
+- 编辑器自动化和编译验证的规则见 [AGENTS.md](../AGENTS.md)「编译验证」「编辑器操作策略」。
+
+UI 生成与预览：
+
+- `UICodeGenerator` 按 `UIBinderEditor` 节点导出 Binder 脚本，并刷新 AssetDatabase。逻辑文件不存在时，生成基础的 `UIPageWithBinder<T>` / `UIWidgetWithBinder<T>` 类。
+- Page prefab 右键菜单 `切换预览平台/PC端`（1600×900）和 `切换预览平台/移动端`（720×1280）。Project 面板和 Prefab Mode 的 Hierarchy 都可触发，只对 `Assets/UI/Prefab/Page/*.prefab` 中带 `CanvasScaler` 的 prefab 生效。执行时会：
+  - 保存 prefab 的 CanvasScaler 预览尺寸；
+  - 切换 Game 窗口分辨率；
+  - 写入不入库的 `UserSettings/UIRuntimeCanvasResolution.json`，让 Editor Play 使用同一基准。
+
+对局画面美术：
+
+- 配置由幂等菜单维护，参数写在工具常量里。执行顺序：
+  1. `自定义功能/棋盘/应用棋盘覆盖层材质`
+  2. `应用棋子美术配置`
+  3. `应用预览棋子透明配置`：预览材质从正式材质复制，所以必须在上一步之后执行。
+  4. `自定义功能/场景/应用对局场景画面配置`
+- `自定义功能/场景/生成对局画面预览截图` 不进 Play，离屏渲染九张图到 `Temp/WeiqiXN/LookPreview/`：
+  - 19 路横屏、9 路横屏、19 路竖屏、19 路近景；
+  - 用合成数据画的形势和推荐点（全景与近景）、13 路手数、三位数手数近景；
+  - 落子关键帧动效近景 `board19_motion_closeup`。
+- `Temp/` 在编辑器重启时清空，要保留的图需要另存。
+
+UI 主题（V3，参数以工具代码常量为准）：
+
+- `自定义功能/UI/生成主题样张截图`：在预览场景里临时搭 World Space Canvas，输出两张 1600×900 样张到 `Temp/WeiqiXN/ThemePreview/`：
+  - `theme_landscape.png`：同一套内容分别放在纸卡上和桌面上，展示字号阶梯、文字色、字重对比和 `UIPalette` 全部令牌。
+  - `theme_controls.png`：按钮各状态、输入框、下拉、勾选、滑条、滚动条、列表和全部图标。
+  - Regular 文字只用图集里已有的字符，缺字时跳过并警告，避免给 10MB 的 Regular 资产追加字形。
+  - 离屏渲染共用 `EditorUtils.RenderCameraToPng`。
+- `自定义功能/UI/生成主题贴图`：用有符号距离场生成 `Assets/UI/Textures/Theme/` 下的白色 + alpha 贴图。
+  - 按 4 倍精度绘制（PPU 400；柔影 2 倍、PPU 200），开 mipmap、Trilinear、不压缩，打 `ui_main_texture` 标签。
+  - 1px 边缘的明度由 `Hairline` 与 `Paper` 算出。
+  - 字节和导入参数不变时不重写，可重复执行。
+- `自定义功能/UI/生成主题字体资产`：为思源黑体 CN Medium 和思源宋体 CN SemiBold 生成动态 TMP 字体资产。
+  - 参数与 Regular 相同：采样 90、padding 9、SDFAA、1024 多图集。
+  - 同时校正 fallback 到 Regular，并给 OTF 和字体资产打 `font` 标签。
+  - 已有资产只校正设置、不重建。
+- `自定义功能/UI/生成页面预览截图`：把每个 Page prefab 临时改为 World Space，按运行时参考分辨率 1:1 铺满，输出 `page_<名称>.png`（1600×900）和 `page_<名称>_portrait.png`（720×1280）。
+  - 有 `Landscape` / `Portrait` 状态的 `StateRoot` 会切到对应状态。
+  - 截的是 prefab 默认状态，运行时才填的内容不会出现。
+  - 工具不保存页面。
+- `自定义功能/UI/应用主题迁移`：按 `UIThemeMigrationTool` 的页面规则表，把节点路径映射到样式角色，只写外观，不按旧颜色全局替换。
+  - 写入范围：
+    - Image 的 sprite、type 和颜色；
+    - TMP 的字体与默认材质、字号（自动字号以样式字号为上限）、颜色，并去掉 Bold；
+    - Selectable 的 ColorTint 色块，底板 `Image.color` 置白；按钮另挂 `UIButtonFeedback`，输入框不挂；
+    - 移除被套样式节点上的 `Shadow` / `Outline`。
+  - 保存前把全部 `RectTransform` 和根 `Canvas.renderMode` 恢复成资产里的值。
+  - 跳过嵌套 prefab 实例里的节点并警告；贴图或字体缺失时整次不执行；可重复执行。
+  - 现有规则表还是首批 `LoadingPage` / `ConfirmPopup` 的平涂规则，这批已被否决，V3.3 按方案 E 逐页改写。
+
+KataGo 运行时（行为细节以 [SPECIFICATION.md](../SPECIFICATION.md) 为准）：
+
+- 启动与后端：
+  - Loading 阶段调用 `KataGoBootstrap.Start()`，退出时调用 `Stop()`，读取根目录 `game-config.json` 按平台选后端。
+  - Windows Editor 用仓库根 `KataGo/`，PC 包用 `<BuildRoot>/KataGo/`。
+  - `exe` 后端经 Win32 pipe 优先启动 OpenCL，失败时回退 Eigen AVX2。`native` 后端加载 bridge DLL。
+  - 两种后端都跑 9/13/19 路 smoke query，日志输出 `ownershipLength`。
+  - 根目录不可写时提示，并改用 no-write 配置。
+- 调度与 Android：
+  - 并发由 `katago.analysis.maxConcurrentNativeRequests` 控制，请求按优先级出队，可按 owner 清理未派发的请求。
+  - Android OpenCL 用 tuning 标记识别上次调优失败，天玑类 SoC 直接跳过 OpenCL。
+- Human SL 是第二个模型，由 `katago.model.humanSlFileName` 配置。
+- 查询与记录：
+  - `AnalyzeOwnershipAsync` 返回 `ownership`，超时会停掉后端，下次请求时自动重启。
+  - `KataGoPositionJsonBuilder`：形势和数子按当前快照生成，AI 选点和记录文件用完整手顺。
+  - `KataGoDuelRecordFile` 只用保存侧。
+
+构建：
+
+- `AssetBundleGenerator` 在 PC 与 WebGL 共用的构建路径里执行 `PackRuntimeAssetTable`，见 04 号文档。
+- 构建前只清理当前平台的输出目录：Windows 清 `../Build/PC`，Android 清 `../Build/Android`，WebGL 清 `../WebGL`。
+- Windows 打包：按 `katago.backend.windowsPlayer` 校验并复制运行文件，并复制根目录 `game-config.json`。
+  - exe 包带完整 `KataGo/`。
+  - native 包只带配置的 bridge、config 和两个模型，不完整的 `native-opencl` 跳过并警告。
+  - 复制时排除日志、`KataGoData`、tuning 缓存、`Library`、`Temp`、`weiqixn_bridge_resolved_config.cfg` 和 `.meta`。
+- Android 打包：
+  - 校验 bridge 插件、配置和两个模型，模型写成 `StreamingAssets/KataGo/models` 下的 `.bytes`。
+  - `OpenCLNativeLibrary.androidlib` 只声明可选的 `libOpenCL.so`，必须保留独立 package。
+  - `AndroidOpenClLibraryGradlePostprocessor` 在 Gradle 工程生成后修正该 library 的 namespace 并关闭 BuildConfig，避免和 launcher 生成同名 `BuildConfig`，导致 release dex 合并失败。
 
 ## 设计观察
 
-UI 工具链已经承担了重复代码生成工作，这对后续快速增加联机页面有帮助。现有自动生成 Binder 的方式要求 prefab 上的绑定信息和生成脚本保持同步。
+UI 工具链承担了重复代码生成工作，但要求 prefab 上的绑定信息和生成脚本保持同步。
 
 ## 风险和缺口
 
-- 自动生成文件可能覆盖手写 Binder 修改，Binder 文件应视为生成产物。
-- UI 逻辑文件只在不存在时生成，后续逻辑需要手工维护。
-- 编辑器工具没有在文档中形成使用流程，新成员容易误改生成文件。
-- KataGo 二进制、模型和配置路径位于仓库根目录 `KataGo/`，该目录不进入 Unity `Assets` 导入体系；Windows PC 构建会按 `game-config.json` 的 `katago.backend.windowsPlayer` 校验和复制对应 runtime，并始终复制根目录 `game-config.json`。exe 校验 CPU fallback 所需的 `eigenavx2` 运行文件、`analysis_example.cfg`、`analysis_nowrite.cfg`、普通模型和 Human SL 模型，如果 `opencl` 引擎目录已随包提供，则同时校验其 `katago.exe` 和 `analysis_example.cfg`，复制时保留完整 `KataGo/` runtime；native 校验并复制 configured native bridge/config candidates、普通模型和 Human SL 模型，因此 native 包不会携带 `opencl/`、`eigenavx2/` 或 `katago.exe`。Windows runtime 复制会排除 `analysis_logs`、`KataGoData`、`android-opencl-tuning`、`Library`、`Temp`、`weiqixn_bridge_resolved_config.cfg` 和 `.meta`，确保本地日志、OpenCL tuning 缓存、Android tuning 文件、Unity 临时目录和 bridge 解析配置不进入 PC 包。Android 构建校验 Android bridge 插件、analysis 配置和两个模型，并把两个模型都写入 `StreamingAssets/KataGo/models` 的 `.bytes` 包装文件；`Assets/Plugins/Android/OpenCLNativeLibrary.androidlib` 只声明可选系统 `libOpenCL.so`，必须保留独立 package，并由 `AndroidOpenClLibraryGradlePostprocessor` 在 Gradle 工程生成后修正该 library 的 namespace、关闭 BuildConfig 生成，避免 Android Gradle Plugin 为该 library 和 launcher 生成同名 `BuildConfig` 导致 release dex 合并失败。缺失、启动失败、超时和协议解析失败都需要有明确日志。
+- Binder 文件是生成产物，重新生成会覆盖手改内容；业务逻辑写在 `Logic/Page` 或 `Logic/Widget`。
+- UI 逻辑文件只在不存在时生成，之后需要手工维护。
+- KataGo 文件缺失、启动失败、超时和协议解析失败都必须有明确日志。
 
 ## 后续建议
 
-- 2026-05-25: KataGo Windows native packaging follows `game-config.json` native candidates. With CPU fallback enabled, `native-eigen/katago_bridge.dll` and `analysis_nowrite.cfg` are required; incomplete `native-opencl` produces build warnings and is skipped from the native runtime copy until `katago_bridge.dll` is available. Runtime fallback failures are logged with candidate name, DLL/config/model paths, write mode, and exception details.
-
-## 2026-05-20 Runtime Asset Build Addendum
-
-- `AssetBundleGenerator` includes `PackRuntimeAssetTable` in the shared AssetBundle build path used by both PC and WebGL build menu entries.
-- `PackRuntimeAssetTable` reads `Assets/Config/DataJson/runtime_asset/runtime_asset.json`, validates each declared asset path and type, and applies the configured AssetBundle label before `BuildAssetBundles`.
-- The source table is `ConfigExporter/xlsx/runtime_asset.xlsx`; generated JSON and data type files should not be hand-edited.
-- Player build cleanup is scoped to the current platform output directory: Windows clears `../Build/PC`, Android clears `../Build/Android`, and WebGL clears `../WebGL`; Windows builds do not delete the shared `../Build` root or existing Android APK output.
-
-- 在 UI 模块补一份“新增页面流程”。
-- 明确 `*UI.cs` Binder 文件为生成文件，业务逻辑写在 `Logic/Page` 或 `Logic/Widget`。
-- 新增 KataGo 编辑器工具时，优先提供一次性 smoke test：选择或读取本地 `katago`、模型和 config 路径，按 9 路、13 路、19 路请求 `includeOwnership`，并输出各棋盘路数 ownership 数组长度和错误原因；第一版不要把 `scoreLead`、胜率或最佳选点接到形势按钮。
-- 联机页面新增前先跑一遍 UI 生成流程，避免手工维护绑定字段。
+- 在 UI 模块补一份“新增页面流程”；新增页面前先走一遍 UI 生成流程，避免手工维护绑定字段。

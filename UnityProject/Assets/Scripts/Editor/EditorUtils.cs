@@ -40,4 +40,29 @@ public static class EditorUtils
 
         serializedMaterial.ApplyModifiedPropertiesWithoutUndo();
     }
+
+    // 编辑态离屏截图：相机临时渲染到 sRGB RenderTexture 并写出 PNG，结束后恢复相机目标。
+    public static void RenderCameraToPng(Camera camera, int width, int height, int msaaSamples, string path)
+    {
+        RenderTexture target = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+        target.antiAliasing = msaaSamples;
+        RenderTexture previousTarget = camera.targetTexture;
+        RenderTexture previousActive = RenderTexture.active;
+        Texture2D readback = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        try {
+            camera.targetTexture = target;
+            camera.Render();
+            RenderTexture.active = target;
+            readback.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+            readback.Apply();
+            System.IO.File.WriteAllBytes(path, readback.EncodeToPNG());
+        }
+        finally {
+            camera.targetTexture = previousTarget;
+            RenderTexture.active = previousActive;
+            Object.DestroyImmediate(readback);
+            target.Release();
+            Object.DestroyImmediate(target);
+        }
+    }
 }

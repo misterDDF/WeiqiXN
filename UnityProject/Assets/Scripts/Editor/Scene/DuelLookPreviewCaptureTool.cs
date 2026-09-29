@@ -168,7 +168,7 @@ public static class DuelLookPreviewCaptureTool
             camera.orthographicSize *= frameScale;
             camera.transform.position = new Vector3(center.x, camera.transform.position.y, center.z);
         }
-        RenderToPng(camera, width, height, Path.Combine(OutputFolder, fileName + ".png"));
+        EditorUtils.RenderCameraToPng(camera, width, height, CaptureMsaaSamples, Path.Combine(OutputFolder, fileName + ".png"));
     }
 
     private static void BuildBoardMeshes(RectGrid grid)
@@ -328,30 +328,6 @@ public static class DuelLookPreviewCaptureTool
         camera.transform.SetPositionAndRotation(
             bounds.center + Vector3.up * CameraDistance,
             Quaternion.LookRotation(Vector3.down, Vector3.forward));
-    }
-
-    private static void RenderToPng(Camera camera, int width, int height, string path)
-    {
-        RenderTexture target = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
-        target.antiAliasing = CaptureMsaaSamples;
-        RenderTexture previousTarget = camera.targetTexture;
-        RenderTexture previousActive = RenderTexture.active;
-        Texture2D readback = new Texture2D(width, height, TextureFormat.RGBA32, false);
-        try {
-            camera.targetTexture = target;
-            camera.Render();
-            RenderTexture.active = target;
-            readback.ReadPixels(new Rect(0, 0, width, height), 0, 0);
-            readback.Apply();
-            File.WriteAllBytes(path, readback.EncodeToPNG());
-        }
-        finally {
-            camera.targetTexture = previousTarget;
-            RenderTexture.active = previousActive;
-            Object.DestroyImmediate(readback);
-            target.Release();
-            Object.DestroyImmediate(target);
-        }
     }
 }
 #endif
