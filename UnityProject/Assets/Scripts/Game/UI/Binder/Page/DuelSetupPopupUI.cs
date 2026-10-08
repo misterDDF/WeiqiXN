@@ -22,6 +22,9 @@ public class DuelSetupPopupUI : UIBinderBase
 	public TMP_Dropdown dropdown_hold_time;
 	public TMP_Dropdown dropdown_byoyomi_count;
 	public TMP_Dropdown dropdown_byoyomi_time;
+	public TextMeshProUGUI txt_setup_summary;
+	public TextMeshProUGUI txt_setup_detail;
+	public StateRoot sr_board_preview;
 	
 	public enum SrPlatformState
 	{
@@ -49,6 +52,20 @@ public class DuelSetupPopupUI : UIBinderBase
 	{
 		if (sr_mode != null) {
 			sr_mode.SetState((int)state, force);
+		}
+	}
+	
+	public enum SrBoardPreviewState
+	{
+		Board9 = 0,
+		Board13 = 1,
+		Board19 = 2,
+	}
+	
+	public void SetSrBoardPreviewState(SrBoardPreviewState state, bool force = false)
+	{
+		if (sr_board_preview != null) {
+			sr_board_preview.SetState((int)state, force);
 		}
 	}
 }

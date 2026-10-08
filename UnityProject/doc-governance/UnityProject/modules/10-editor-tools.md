@@ -71,11 +71,19 @@ UI 主题（V3，参数以工具代码常量为准）：
     - 移除被套样式节点上的 `Shadow` / `Outline`。
   - 保存前把全部 `RectTransform` 和根 `Canvas.renderMode` 恢复成资产里的值。
   - 跳过嵌套 prefab 实例里的节点并警告；贴图或字体缺失时整次不执行；可重复执行。
-  - 现有规则表还是首批 `LoadingPage` / `ConfirmPopup` 的平涂规则，这批已被否决，V3.3 按方案 E 逐页改写。
+  - 首批 `LoadingPage` / `ConfirmPopup` 的平涂规则只用于旧结构；检测到 V3.3 新内容结构时跳过，避免覆盖新版深色底板与透明层级。
 - `自定义功能/UI/重建 DuelPage V3.3`：按 14 号文档方案 E 幂等重建 `DuelPage.prefab` 与 `DuelMoveConfirmPopup.prefab` 的 `PanelRoot` 子树、`sr_platform` 横竖状态、固定控件和 Binder 引用。
   - 保存前把两个 Page 的 Canvas 根显式恢复为零尺寸 `Screen Space - Camera` 结构，布局只写在 `PanelRoot` 内。
   - 菜单不改场景和业务配置；运行时模式、玩家、时钟、手数、形势、提示和按钮可用性仍由 `DuelPageHudView` 刷新。
 - `自定义功能/UI/重建 MainMenuPage V3.3`：幂等重建 `MainMenuPage.prefab` 的 `PanelRoot`、`sr_platform` 横竖状态、宣纸导航、用户胶囊和 Binder 引用；真实棋盘由主菜单场景独立渲染，不改变入口事件。
+- `自定义功能/UI/重排剩余页面 V3.3`：按已确认补缺样图维护九个剩余 Page、三个列表 Widget 和 DuelPage 竖屏终局。保留 Page 根 Canvas 序列化结构；固定控件与状态通过 Binder 导出工具维护，首次生成新字段编译后再执行一次以回填引用。批量处理期间锁定程序集重载。
+- `自定义功能/UI/更新对局设置竖屏抽屉`：只维护 `DuelSetupPopup.prefab` 的竖屏底部纸面抽屉和组件引用，保留 Canvas、PanelRoot 与既有横屏状态。全量重排剩余页面也复用此布局。
+- `自定义功能/UI/生成对局设置预览`：输出六种业务模式的横屏及四种竖屏比例合成截图，检查控件边界、文字高度、模式收缩与横竖屏旋转恢复；竖屏摘要和按钮文案调用真实页面刷新路径，报告写到 `Temp/WeiqiXN/ThemePreview/setup_drawer_validation.txt`。仅修改预览实例，不主动进入 Play。
+- `自定义功能/UI/更新复盘图表视角布局`：在 `ReplayPage.prefab` 图表子树内维护标题栏黑白视角 Toggle、摘要、图例、深色游标和横竖屏布局，并维护竖屏顶部操作与试下选子组的位置，通过既有 Binder 导出工具维护引用；保存前恢复 Canvas 根结构，可重复执行。全量重排剩余页面也复用此布局。
+- `自定义功能/UI/验证复盘图表视角`：以编辑态合成数据检查正负目差与黑白胜率摘要、均势与缺失值、两条曲线的镜像位置、横竖屏 mesh、原始数据/游标保持不变和竖屏试下选子组与棋盘/功能操作行无重叠，输出 `Temp/WeiqiXN/ThemePreview/replay_chart_validation.txt`。
+- `自定义功能/UI/验证剩余页面 V3.3`：检查上述资源的 Binder、编辑器节点引用、状态目标类型与 Canvas 组件，输出 `Temp/WeiqiXN/ThemePreview/remaining_validation.txt`。根 RectTransform 序列化值需另查 prefab diff，避免受预览驱动值误导。
+- `自定义功能/UI/生成剩余页面状态预览`：输出设置模式、账号、列表内容/错误、好友申请、确认按钮组合、输入、数子、复盘与终局的横竖屏合成数据截图；仅修改临时实例，Regular 缺字在预览实例切换 Medium，不清空文案。
+- `自定义功能/场景/生成剩余页面棋盘合成预览`：编辑态生成真实棋盘与复盘/终局 UI 的横竖屏组合图到 `Temp/WeiqiXN/LookPreview/`，复盘包含黑方与白方视角变体，并额外输出竖屏试下和自由布局；要求当前场景无未保存改动，完成后重新打开原场景丢弃临时对象。
 
 KataGo 运行时（行为细节以 [SPECIFICATION.md](../SPECIFICATION.md) 为准）：
 

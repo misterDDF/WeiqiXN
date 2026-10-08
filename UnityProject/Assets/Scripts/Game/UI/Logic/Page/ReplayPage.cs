@@ -14,6 +14,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
     private bool hasAppliedLayoutState;
     private bool lastPortraitLayout;
     private int scrubTargetMoveIndex;
+    private bool whiteChartPerspective;
 
     public override string pageName => UIPage.GetPageName<ReplayPage>();
 
@@ -30,6 +31,8 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         binder.btn_next.onClick.AddListener(OnClickNext);
         binder.btn_last.onClick.AddListener(OnClickLast);
         binder.btn_try_mode.onClick.AddListener(OnClickTryMode);
+        binder.toggle_chart_black.onValueChanged.AddListener(OnToggleChartBlack);
+        binder.toggle_chart_white.onValueChanged.AddListener(OnToggleChartWhite);
         if (binder.toggle_move_color_auto != null) {
             binder.toggle_move_color_auto.onValueChanged.AddListener(OnToggleMoveColorAuto);
         }
@@ -60,6 +63,8 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
             binder.btn_next.onClick.RemoveListener(OnClickNext);
             binder.btn_last.onClick.RemoveListener(OnClickLast);
             binder.btn_try_mode.onClick.RemoveListener(OnClickTryMode);
+            binder.toggle_chart_black.onValueChanged.RemoveListener(OnToggleChartBlack);
+            binder.toggle_chart_white.onValueChanged.RemoveListener(OnToggleChartWhite);
             if (binder.toggle_move_color_auto != null) {
                 binder.toggle_move_color_auto.onValueChanged.RemoveListener(OnToggleMoveColorAuto);
             }
@@ -115,7 +120,6 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
     private void RefreshControls()
     {
         ReplaySystem replaySystem = GetReplaySystem();
-        ReplayScene replayScene = Global.Instance.sceneManager.mainScene as ReplayScene;
         bool canBrowse = replaySystem != null && replaySystem.IsReplayLoaded &&
             (replaySystem.IsTryMode ? replaySystem.TryMoveCount > 0 : replaySystem.ReplayMoveCount > 0);
         bool isTryMode = replaySystem != null && replaySystem.IsReplayLoaded && replaySystem.IsTryMode;
@@ -126,7 +130,12 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         bool hideChart = replaySystem != null && replaySystem.IsChartHidden;
         bool isFreeLayout = replaySystem != null && replaySystem.IsFreeLayout;
 
-        binder.txt_title.text = replayScene != null ? replayScene.configData.id : "Replay";
+        binder.txt_title.text = isFreeLayout ? "摆棋  ·  分析" : $"复盘  ·  {replaySystem?.ReplayBoardSize ?? 19} 路";
+        if (binder.txt_replay_heading != null) {
+            binder.txt_replay_heading.text = isFreeLayout ? "自由摆棋" : isTryMode
+                ? $"试下第 {replaySystem.TryCursorMoveIndex} 手"
+                : $"第 {replaySystem?.ReplayCursorMoveIndex ?? 0} 手";
+        }
         binder.txt_summary.text = replaySystem != null ? replaySystem.BuildSummaryText() : "未加载复盘场景";
         binder.txt_status.text = replaySystem != null ? replaySystem.ReplayStatus : string.Empty;
         binder.txt_move_cursor.text = replaySystem != null ? replaySystem.BuildCursorText() : "0 / 0";
@@ -227,6 +236,25 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         }
 
         replaySystem?.ExitTryMode();
+    }
+
+    private void OnToggleChartBlack(bool isOn)
+    {
+        if (isOn) SetChartPerspective(false);
+    }
+
+    private void OnToggleChartWhite(bool isOn)
+    {
+        if (isOn) SetChartPerspective(true);
+    }
+
+    private void SetChartPerspective(bool whitePerspective)
+    {
+        whiteChartPerspective = whitePerspective;
+        binder.toggle_chart_black.SetIsOnWithoutNotify(!whitePerspective);
+        binder.toggle_chart_white.SetIsOnWithoutNotify(whitePerspective);
+        binder.chart_analysis.SetPerspective(whitePerspective);
+        RefreshScrubPreview(GetReplaySystem());
     }
 
     private void OnToggleMoveColorAuto(bool isOn)
@@ -421,9 +449,8 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         }
 
         int targetMoveIndex = isScrubbing ? scrubTargetMoveIndex : replaySystem.ReplayCursorMoveIndex;
-        string previewText = isScrubbing
-            ? replaySystem.BuildScrubPreviewText(targetMoveIndex)
-            : replaySystem.BuildChartSummaryText();
+        string summary = replaySystem.BuildChartSummaryText(whiteChartPerspective, targetMoveIndex);
+        string previewText = isScrubbing ? $"预览 {targetMoveIndex} 手 · {summary}" : summary;
         binder.txt_scrub_preview.text = previewText;
     }
 
@@ -492,6 +519,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         }
 
         if (binder.chart_analysis != null) {
+            binder.chart_analysis.SetPerspective(whiteChartPerspective);
             binder.chart_analysis.SetData(replaySystem?.ChartPoints, replaySystem != null ? replaySystem.ReplayMoveCount : 0);
         }
 
@@ -520,6 +548,7 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         float chartLocalX = Mathf.Lerp(chartRect.rect.xMin, chartRect.rect.xMax, normalized);
         float cursorLocalX = ConvertLocalXToAnchoredX(chartRect, chartLocalX, cursorRect);
         cursorRect.anchoredPosition = new Vector2(cursorLocalX, cursorRect.anchoredPosition.y);
+        binder.chart_analysis?.SetCursorMoveIndex(targetMoveIndex);
         binder.img_chart_cursor.enabled = true;
     }
 

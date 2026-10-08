@@ -265,6 +265,9 @@ public static class UIThemeMigrationTool
         // 恢复值取自 prefab 资产本身：打开后的根节点已被 Canvas 驱动成预览尺寸，不再是零尺寸的编辑态结构。
         // 规则只增删组件不增删节点，资产与打开内容的 RectTransform 按遍历顺序一一对应。
         GameObject asset = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        if (asset.transform.Find("PanelRoot/sr_dialog_layout") != null || asset.transform.Find("PanelRoot/bg/txt_loading_brand") != null) {
+            return false;
+        }
         RectTransform[] sourceRects = asset.GetComponentsInChildren<RectTransform>(true);
         Canvas assetCanvas = asset.GetComponent<Canvas>();
         GameObject root = PrefabUtility.LoadPrefabContents(path);

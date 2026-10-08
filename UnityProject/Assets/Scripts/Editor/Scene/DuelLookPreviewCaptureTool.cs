@@ -136,7 +136,9 @@ public static class DuelLookPreviewCaptureTool
         float frameScale = 1f,
         Vector2 frameCenter = default,
         BoardMarkers markers = BoardMarkers.None,
-        int moveNumberBase = 0)
+        int moveNumberBase = 0,
+        string pageName = null,
+        string variant = "Content")
     {
         EditorSceneManager.OpenScene(DuelScenePath, OpenSceneMode.Single);
         RectGrid grid = Object.FindObjectOfType<RectGrid>();
@@ -168,7 +170,45 @@ public static class DuelLookPreviewCaptureTool
             camera.orthographicSize *= frameScale;
             camera.transform.position = new Vector3(center.x, camera.transform.position.y, center.z);
         }
+        if (pageName != null) {
+            if (width > height) {
+                Bounds bounds = grid.GetGridBounds();
+                float margin = Mathf.Max(camera.orthographicSize - bounds.extents.z, 0);
+                float offset = Mathf.Max(camera.orthographicSize * width / height - bounds.extents.x - margin, 0);
+                camera.transform.position += Vector3.right * offset;
+            }
+            UIThemePreviewCaptureTool.AttachRemainingSample(camera, pageName, variant, width, height);
+        }
         EditorUtils.RenderCameraToPng(camera, width, height, CaptureMsaaSamples, Path.Combine(OutputFolder, fileName + ".png"));
+    }
+
+    [MenuItem(CustomEditorMenuPaths.Scene + "/生成剩余页面棋盘合成预览")]
+    public static void CaptureRemainingPages()
+    {
+        Scene activeScene = EditorSceneManager.GetActiveScene();
+        if (activeScene.isDirty) {
+            Debug.LogError("Remaining page capture aborted: active scene has unsaved changes.");
+            return;
+        }
+        string restorePath = activeScene.path;
+        Directory.CreateDirectory(OutputFolder);
+        try {
+            foreach (bool portrait in new[] { false, true }) {
+                int width = portrait ? 720 : 1600;
+                int height = portrait ? 1280 : 900;
+                string suffix = portrait ? "_portrait" : "_landscape";
+                CaptureBoard(19, Black19, White19, width, height, "replay_v33" + suffix, pageName: "ReplayPage");
+                CaptureBoard(19, Black19, White19, width, height, "replay_v33_white" + suffix, pageName: "ReplayPage", variant: "WhitePerspective");
+                if (portrait) {
+                    CaptureBoard(19, Black19, White19, width, height, "replay_v33_try" + suffix, pageName: "ReplayPage", variant: "TryMode");
+                    CaptureBoard(19, System.Array.Empty<Vector2Int>(), System.Array.Empty<Vector2Int>(), width, height, "replay_v33_free" + suffix, pageName: "ReplayPage", variant: "FreeLayout");
+                }
+                CaptureBoard(19, Black19, White19, width, height, "duel_end_v33" + suffix, pageName: "DuelPage", variant: "End");
+            }
+        }
+        finally {
+            if (!string.IsNullOrEmpty(restorePath)) EditorSceneManager.OpenScene(restorePath, OpenSceneMode.Single);
+        }
     }
 
     private static void BuildBoardMeshes(RectGrid grid)

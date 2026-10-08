@@ -9,6 +9,8 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
     private readonly List<LanRoomItemWidget> roomItems = new List<LanRoomItemWidget>();
     private float nextSearchRefreshTime;
     private bool hasEnteredLanDuel;
+    private bool hasAppliedLayoutState;
+    private bool lastPortraitLayout;
 
     public override string pageName => UIPage.GetPageName<LanRoomPopup>();
 
@@ -21,6 +23,8 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
     {
         base.OnLoaded();
 
+        ApplyCurrentLayoutState(true);
+
         AddButtonListener(binder.btn_create_room, OnClickBtnCreateRoom);
         AddButtonListener(binder.btn_search_room, OnClickBtnSearchRoom);
         AddButtonListener(binder.btn_close, OnClickBtnClose);
@@ -31,6 +35,8 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
     {
         base.OnOpen();
 
+        ApplyCurrentLayoutState(false);
+
         SetStatus(MessageText.Get("lan_room_choose_action"));
         RefreshRoomList(null);
         hasEnteredLanDuel = false;
@@ -40,6 +46,8 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
     protected override void OnUpdate()
     {
         base.OnUpdate();
+
+        ApplyCurrentLayoutState(false);
 
         if (Global.Instance.lanRoomService == null) {
             return;
@@ -59,6 +67,24 @@ public class LanRoomPopup : UIPageWithBinder<LanRoomPopupUI>
         RefreshActionButtons();
         TryAutoStartGame();
         TryEnterLanDuel();
+    }
+
+    private void ApplyCurrentLayoutState(bool force)
+    {
+        if (binder == null || binder.sr_platform == null) {
+            return;
+        }
+
+        bool isPortrait = UIUtils.IsPortrait(rectTransform);
+        if (!force && hasAppliedLayoutState && isPortrait == lastPortraitLayout) {
+            return;
+        }
+
+        binder.SetSrPlatformState(
+            isPortrait ? LanRoomPopupUI.SrPlatformState.Portrait : LanRoomPopupUI.SrPlatformState.Landscape,
+            force);
+        hasAppliedLayoutState = true;
+        lastPortraitLayout = isPortrait;
     }
 
     public void OnClickBtnCreateRoom()

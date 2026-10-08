@@ -853,7 +853,7 @@ public class ReplaySystem : SystemBase
         return string.Empty;
     }
 
-    public string BuildChartSummaryText()
+    public string BuildChartSummaryText(bool whitePerspective = false, int targetMoveIndex = -1)
     {
         if (IsChartHidden) {
             return string.Empty;
@@ -863,7 +863,7 @@ public class ReplaySystem : SystemBase
             return "图表未加载";
         }
 
-        ReplayChartPoint point = GetChartPoint(compReplay.replayCursorMoveIndex);
+        ReplayChartPoint point = GetChartPoint(targetMoveIndex < 0 ? compReplay.replayCursorMoveIndex : targetMoveIndex);
         if (point == null && (!compReplay.isChartReady || compReplay.isChartBackgroundBuilding || compReplay.isChartLoading)) {
             return "当前手图表待生成";
         }
@@ -872,11 +872,14 @@ public class ReplaySystem : SystemBase
             return "暂无图表数据";
         }
 
+        string sideText = whitePerspective ? "白" : "黑";
+        float winrate = point != null ? Mathf.Clamp01(point.blackWinrate) : 0f;
+        if (whitePerspective) winrate = 1f - winrate;
         string winrateText = point != null && point.hasWinrate
-            ? $"黑胜率 {Mathf.RoundToInt(Mathf.Clamp01(point.blackWinrate) * 100f)}%"
-            : "黑胜率 --";
+            ? $"{sideText}胜率 {Mathf.RoundToInt(winrate * 100f)}%"
+            : $"{sideText}胜率 --";
         string scoreText = point != null && point.hasScoreLead
-            ? $"目差 {FormatScoreLead(point.scoreLead)}"
+            ? $"目差 {FormatScoreLead(point.scoreLead, whitePerspective)}"
             : "目差 --";
         return $"{winrateText} · {scoreText}";
     }
@@ -1540,14 +1543,15 @@ public class ReplaySystem : SystemBase
         }
     }
 
-    private string FormatScoreLead(float scoreLead)
+    private string FormatScoreLead(float scoreLead, bool whitePerspective)
     {
         if (Mathf.Abs(scoreLead) < 0.05f) {
             return "均势";
         }
 
-        string sideText = scoreLead > 0f ? "黑+" : "白+";
-        return $"{sideText}{Mathf.Abs(scoreLead):0.0}";
+        string sideText = whitePerspective ? "白" : "黑";
+        float perspectiveScoreLead = whitePerspective ? -scoreLead : scoreLead;
+        return $"{sideText}{perspectiveScoreLead:+0.0;-0.0;0.0}";
     }
 
     private bool DrawAiAnalysisOwnership(JObject result)

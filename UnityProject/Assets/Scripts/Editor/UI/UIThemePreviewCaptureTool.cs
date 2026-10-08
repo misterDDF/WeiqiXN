@@ -1,6 +1,8 @@
 #if UNITY_EDITOR
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using TMPro;
 using UnityEditor;
@@ -96,6 +98,294 @@ public static class UIThemePreviewCaptureTool
     private static void RenderSheet(string fileName, Action<RectTransform> build)
     {
         RenderPreview(fileName, new Vector2Int(Width, Height), (scene, camera) => build(CreateCanvas(scene, camera)));
+    }
+
+    [MenuItem(CustomEditorMenuPaths.UI + "/生成剩余页面状态预览")]
+    public static void CaptureRemainingSamples()
+    {
+        (string page, string variant)[] samples = {
+            ("DuelSetupPopup", "Local"), ("DuelSetupPopup", "Ai"), ("DuelSetupPopup", "Lan"), ("DuelSetupPopup", "Ogs"), ("DuelSetupPopup", "FreeLayout"),
+            ("UserInfoPopup", "LoggedIn"), ("UserInfoPopup", "LoggedOut"), ("UserInfoPopup", "Error"),
+            ("OgsFriendListPopup", "Content"), ("OgsFriendListPopup", "Invitation"), ("OgsFriendListPopup", "Empty"), ("OgsFriendListPopup", "Error"),
+            ("RecentReplayListPopup", "Content"), ("RecentReplayListPopup", "Error"),
+            ("LanRoomPopup", "Content"), ("ConfirmPopup", "Score"), ("ConfirmPopup", "Input"),
+            ("ConfirmPopup", "ConfirmOnly"), ("ConfirmPopup", "CancelOnly"), ("ConfirmPopup", "Neither"), ("ReplayPage", "Content"), ("ReplayPage", "TryMode"), ("ReplayPage", "FreeLayout"), ("DuelPage", "End"),
+        };
+        TMP_FontAsset regular = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(UIThemeFontAssetTool.RegularFontAssetPath);
+        foreach (var sample in samples) {
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PageFolder + "/" + sample.page + ".prefab");
+            foreach (bool portrait in new[] { false, true }) {
+                Vector2Int size = Vector2Int.RoundToInt(portrait ? UICanvasResolutionProfile.EditorMobilePreviewReferenceResolution : UICanvasResolutionProfile.EditorDefaultReferenceResolution);
+                string platform = portrait ? "Portrait" : "Landscape";
+                string fileName = $"remaining_{sample.page}_{sample.variant}" + (portrait ? "_portrait.png" : ".png");
+                RenderPreview(fileName, size, (scene, camera) => InstantiatePage(scene, camera, prefab, size, platform, regular,
+                    page => ConfigureRemainingSample(page, sample.variant, portrait)));
+            }
+        }
+        Debug.Log($"Remaining V3.3 state previews captured: {samples.Length * 2} images.");
+    }
+
+    [MenuItem(CustomEditorMenuPaths.UI + "/生成对局设置预览")]
+    public static void CaptureSetupSamples()
+    {
+        Directory.CreateDirectory(OutputFolder);
+        File.WriteAllText(Path.Combine(OutputFolder, "setup_drawer_validation.txt"), string.Empty);
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PageFolder + "/DuelSetupPopup.prefab");
+        TMP_FontAsset regular = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(UIThemeFontAssetTool.RegularFontAssetPath);
+        foreach (string variant in new[] { "Local", "Ai", "Lan", "Ogs", "OgsFriend", "FreeLayout" }) {
+            foreach (Vector2Int size in new[] { new Vector2Int(1600, 900), new Vector2Int(720, 1280), new Vector2Int(640, 1280), new Vector2Int(768, 1024), new Vector2Int(720, 1600) }) {
+                bool portrait = size.y > size.x;
+                RenderPreview($"setup_{variant}_{size.x}x{size.y}.png", size, (scene, camera) => {
+                    GameObject sample = InstantiatePage(scene, camera, prefab, size, portrait ? "Portrait" : "Landscape", regular,
+                        page => ConfigureRemainingSample(page, variant, portrait));
+                    DuelSetupPortraitLayout layout = sample.GetComponentInChildren<DuelSetupPortraitLayout>(true);
+                    if (portrait && layout != null) {
+                        layout.Rebuild();
+                        Canvas.ForceUpdateCanvases();
+                        foreach (TMP_Text text in sample.GetComponentsInChildren<TMP_Text>()) text.ForceMeshUpdate();
+                        ValidateSetupBounds(sample, layout, variant, size);
+                    } else if (layout != null) {
+                        ValidateSetupTransitions(sample, layout, variant);
+                    }
+                });
+            }
+        }
+    }
+
+    private static void ValidateSetupTransitions(GameObject sample, DuelSetupPortraitLayout layout, string variant)
+    {
+        DuelSetupPopupUI binder = sample.GetComponent<DuelSetupPopupUI>();
+        Canvas.ForceUpdateCanvases();
+        RectTransform[] targets = binder.sr_platform.States[0].Elements.Where(element => element.elementType == StateElementType.RectTransform)
+            .Select(element => (RectTransform)element.target).Distinct().ToArray();
+        string[] before = targets.Select(target => {
+            var property = new StateElementProperty();
+            property.Capture(target);
+            return JsonUtility.ToJson(property);
+        }).ToArray();
+        ((RectTransform)sample.transform).sizeDelta = new Vector2(720, 1280);
+        binder.sr_platform.SetState("Portrait", true);
+        layout.Rebuild();
+        float originalHeight = layout.paper.rect.height;
+        binder.sr_mode.SetState("FreeLayout", true);
+        layout.Rebuild();
+        if (variant != "FreeLayout" && layout.paper.rect.height >= originalHeight) {
+            throw new InvalidOperationException($"Setup {variant}: hiding settings did not shrink the drawer.");
+        }
+        binder.sr_mode.SetState(variant == "OgsFriend" ? "Lan" : variant, true);
+        layout.Rebuild();
+        ((RectTransform)sample.transform).sizeDelta = new Vector2(1600, 900);
+        binder.sr_platform.SetState("Landscape", true);
+        Canvas.ForceUpdateCanvases();
+        for (int index = 0; index < targets.Length; index++) {
+            var property = new StateElementProperty();
+            property.Capture(targets[index]);
+            if (before[index] != JsonUtility.ToJson(property)) {
+                throw new InvalidOperationException($"Setup {variant}: landscape {targets[index].name} was not restored after rotation.");
+            }
+        }
+        foreach (DuelSetupPortraitLayout.TextAppearance appearance in layout.textAppearances) {
+            if (!Mathf.Approximately(appearance.text.fontSize, appearance.landscapeSize) ||
+                appearance.text.alignment != appearance.landscapeAlignment ||
+                (!appearance.preserveColor && appearance.text.color != appearance.landscapeColor)) {
+                throw new InvalidOperationException($"Setup {variant}: landscape {appearance.text.name} appearance was not restored.");
+            }
+        }
+        if (layout.isActiveAndEnabled || !layout.landscapeGrid.enabled) {
+            throw new InvalidOperationException($"Setup {variant}: portrait layout remained active in landscape.");
+        }
+        File.AppendAllText(Path.Combine(OutputFolder, "setup_drawer_validation.txt"), $"{variant}: mode collapse and landscape rotation restoration passed.\n");
+    }
+
+    private static void ValidateSetupBounds(GameObject sample, DuelSetupPortraitLayout layout, string variant, Vector2Int size)
+    {
+        foreach (TMP_Text text in sample.GetComponentsInChildren<TMP_Text>()) {
+            if (text.name == "Item Label") continue;
+            if (text.preferredHeight > text.rectTransform.rect.height + 1) {
+                throw new InvalidOperationException($"Setup {variant}/{size}: {text.name} text is clipped ({text.preferredHeight}/{text.rectTransform.rect.height}).");
+            }
+        }
+        foreach (RectTransform target in sample.GetComponentsInChildren<RectTransform>()) {
+            if (target.GetComponent<Button>() == null && target.GetComponent<TMP_Dropdown>() == null &&
+                target != layout.summary && target != layout.heading) continue;
+            Bounds bounds = RectTransformUtility.CalculateRelativeRectTransformBounds(layout.paper, target);
+            Rect paper = layout.paper.rect;
+            if (bounds.min.x < paper.xMin - 1 || bounds.max.x > paper.xMax + 1 ||
+                bounds.min.y < paper.yMin - 1 || bounds.max.y > paper.yMax + 1) {
+                throw new InvalidOperationException($"Setup {variant}/{size}: {target.name} extends outside the paper.");
+            }
+        }
+        if (layout.paper.rect.height > size.y || layout.landscapeGrid.enabled) {
+            throw new InvalidOperationException($"Setup {variant}/{size}: portrait drawer does not fit.");
+        }
+        File.AppendAllText(Path.Combine(OutputFolder, "setup_drawer_validation.txt"), $"{variant}/{size}: drawer {layout.paper.rect.height:F1}, controls contained, text fits.\n");
+    }
+
+    private static void ConfigureRemainingSample(GameObject page, string variant, bool portrait)
+    {
+        if (page.GetComponent<DuelSetupPopupUI>() is DuelSetupPopupUI setup) {
+            setup.sr_mode.SetState(variant == "OgsFriend" ? "Lan" : variant, true);
+            setup.sr_board_preview.SetState("Board19", true);
+            PreviewDropdown(setup.dropdown_ai_difficulty, "3–4 段");
+            PreviewDropdown(setup.dropdown_player_color, "猜先");
+            PreviewDropdown(setup.dropdown_handicap, "分先");
+            PreviewDropdown(setup.dropdown_ogs_time_option, "10 分钟 + 30 秒");
+            PreviewDropdown(setup.dropdown_hold_time, "10 分钟");
+            PreviewDropdown(setup.dropdown_byoyomi_count, "3 次");
+            PreviewDropdown(setup.dropdown_byoyomi_time, "30 秒");
+            setup.txt_setup_summary.text = "19 × 19  ·  " + (variant == "Ai" ? "人机对局" : variant == "Ogs" ? "OGS 匹配" : variant == "Lan" ? "局域网对局" : variant == "FreeLayout" ? "自由摆棋" : "本地对局");
+            setup.txt_setup_detail.text = variant == "FreeLayout" ? "自由设置黑白棋子，保存局面或进行分析" : "猜先  ·  分先\n主时间 10 分钟  ·  读秒 3 × 30 秒";
+            if (portrait && page.GetComponentInChildren<DuelSetupPortraitLayout>(true) != null) {
+                PreviewDropdown(setup.dropdown_ai_difficulty, "业余3段-4段");
+                if (variant == "Ogs") PreviewDropdown(setup.dropdown_ogs_time_option, "慢棋 20分钟 + 5x30秒");
+                var logic = new DuelSetupPopup { binder = setup };
+                const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+                Type logicType = typeof(DuelSetupPopup);
+                FieldInfo mode = logicType.GetField("setupMode", flags);
+                mode.SetValue(logic, Enum.Parse(mode.FieldType, variant));
+                logicType.GetField("isAiDuel", flags).SetValue(logic, variant == "Ai");
+                logicType.GetField("lastPortraitLayout", flags).SetValue(logic, true);
+                logicType.GetField("selectedBoardCfgId", flags).SetValue(logic, "19x19");
+                logicType.GetField("selectedHoldTimeCfgId", flags).SetValue(logic, "10m");
+                logicType.GetField("selectedByoyomiCountCfgId", flags).SetValue(logic, "3");
+                logicType.GetField("startCaption", flags).SetValue(logic, setup.btn_start.GetComponentInChildren<TextMeshProUGUI>());
+                logicType.GetMethod("RefreshSetupSummary", flags).Invoke(logic, null);
+                MethodInfo refreshBoard = logicType.GetMethod("RefreshBoardButton", flags);
+                refreshBoard.Invoke(logic, new object[] { setup.btn_9x9, "9x9" });
+                refreshBoard.Invoke(logic, new object[] { setup.btn_13x13, "13x13" });
+                refreshBoard.Invoke(logic, new object[] { setup.btn_19x19, "19x19" });
+            }
+        }
+        if (page.GetComponent<UserInfoPopupUI>() is UserInfoPopupUI user) {
+            user.sr_ogs_account.SetState(variant, true);
+            user.txt_user_name.text = "棋友";
+            user.txt_win_count.text = "128";
+            user.txt_lose_count.text = "86";
+            user.txt_ogs_username.text = "Kaya_19";
+            user.txt_ogs_rating_overall.text = "综合: 3 段 · 1842";
+            user.txt_ogs_error.text = "连接暂时中断，请稍后重试";
+            user.txt_recent_replays_summary.text = "本机保存 24 局";
+            user.txt_ogs_friend_summary.text = "6 位好友 · 2 位在线";
+        }
+        if (page.GetComponent<OgsFriendListPopupUI>() is OgsFriendListPopupUI friends) {
+            friends.sr_ogs_friend_state.SetState(variant == "Invitation" ? "Content" : variant, true);
+            friends.txt_page.text = "1 / 2";
+            friends.txt_error.text = "暂时无法获取好友列表，请重试";
+            if (variant == "Content" || variant == "Invitation") AddSampleRows(friends.content_friend_list, "OgsFriendItemWidget", variant == "Invitation" ? 2 : 5, variant == "Invitation");
+        }
+        if (page.GetComponent<RecentReplayListPopupUI>() is RecentReplayListPopupUI replays) {
+            replays.sr_recent_replay_state.SetState(variant, true);
+            replays.txt_page.text = "1 / 3";
+            replays.txt_error.text = "读取棋谱失败，请重试";
+            if (variant == "Content") AddSampleRows(replays.content_replay_list, "ReplayArchiveItemWidget", 5);
+        }
+        if (page.GetComponent<LanRoomPopupUI>() is LanRoomPopupUI lan) {
+            lan.txt_status.text = "发现 3 个可加入的房间";
+            AddSampleRows(lan.content_room_list, "LanRoomItemWidget", 3);
+        }
+        if (page.GetComponent<ConfirmPopupUI>() is ConfirmPopupUI confirm) {
+            confirm.input_content.gameObject.SetActive(variant == "Input");
+            confirm.sr_dialog_layout.SetState(variant == "Score" ? portrait ? "ScorePortrait" : "ScoreLandscape" : portrait ? "Portrait" : "Landscape", true);
+            confirm.sr_dialog_buttons.SetState(variant == "Score" || variant == "Input" ? "Both" : variant, true);
+            if (variant == "Score") {
+                confirm.txt_title.text = "对局  ·  数子";
+                confirm.txt_title.fontSize = 16;
+                confirm.txt_content.text = "黑方  172.5 目\n白方  180.5 目\n\n白方胜 8 目";
+                confirm.txt_content.fontSize = 24;
+            } else {
+                confirm.txt_title.text = variant == "Input" ? "修改名字" : "等待对方";
+                confirm.txt_content.text = variant == "Input" ? "输入你希望使用的棋手名称" : "请求已发送，正在等待对方回应";
+            }
+        }
+        if (page.GetComponent<ReplayPageUI>() is ReplayPageUI replay) {
+            bool freeLayout = variant == "FreeLayout";
+            bool tryMode = variant == "TryMode" || freeLayout;
+            replay.txt_title.text = freeLayout ? "摆棋 · 分析" : "复盘 · 19 路";
+            replay.txt_replay_heading.text = freeLayout ? "自由摆棋" : tryMode ? "试下第 4 手" : "第 128 手";
+            replay.txt_summary.text = freeLayout ? "19 路 · 自由布局" : tryMode ? "19 路 · 主线 236 手 · 试下 4/4 手" : "黑棋 棋手 · 白棋 KataGo";
+            replay.txt_move_cursor.text = freeLayout ? "0 / 0" : tryMode ? "128+4 / 236" : "128 / 236";
+            replay.txt_move_detail.text = freeLayout ? "试下模式：从第 0 手开始" : tryMode ? "试下第 4 手：白 D4" : "白 D4 · 提 2 子";
+            replay.txt_status.text = tryMode ? "试下模式 · 轮到黑方" : string.Empty;
+            replay.panel_try_mode.SetActive(tryMode && !freeLayout);
+            replay.panel_move_color.SetActive(tryMode);
+            replay.btn_export_sgf.gameObject.SetActive(!freeLayout);
+            replay.rect_chart_area.gameObject.SetActive(!freeLayout);
+            bool whitePerspective = variant == "WhitePerspective";
+            replay.toggle_chart_black.SetIsOnWithoutNotify(!whitePerspective);
+            replay.toggle_chart_white.SetIsOnWithoutNotify(whitePerspective);
+            replay.txt_scrub_preview.text = whitePerspective ? "白胜率 46%  ·  目差 白-3.5" : "黑胜率 54%  ·  目差 黑+3.5";
+            var points = new List<ReplayChartPoint>();
+            for (int index = 0; index < 24; index++) {
+                points.Add(new ReplayChartPoint { moveIndex = index * 10, hasWinrate = true, blackWinrate = 0.5f + Mathf.Sin(index * 0.6f) * 0.2f,
+                    hasScoreLead = true, scoreLead = Mathf.Cos(index * 0.5f) * 8 });
+            }
+            points.Add(new ReplayChartPoint { moveIndex = 128, hasWinrate = true, blackWinrate = 0.54f, hasScoreLead = true, scoreLead = 3.5f });
+            points.Sort((left, right) => left.moveIndex.CompareTo(right.moveIndex));
+            replay.chart_analysis.SetPerspective(whitePerspective);
+            replay.chart_analysis.SetCursorMoveIndex(128);
+            replay.chart_analysis.SetData(points, 236);
+            RectTransform cursor = replay.img_chart_cursor.rectTransform;
+            cursor.anchoredPosition = new Vector2((128f / 236f - 0.5f) * replay.chart_analysis.rectTransform.rect.width, cursor.anchoredPosition.y);
+        }
+        if (page.GetComponent<DuelPageUI>() is DuelPageUI duel) {
+            duel.panel_duel_info.SetActive(false);
+            duel.panel_duel_dynamic.SetActive(false);
+            duel.panel_game_end_result.SetActive(true);
+            duel.txt_game_end_winner.text = "棋手 胜出";
+            duel.txt_game_end_reason.text = "黑方领先 3.5 目\n\n双方连续虚手后数子";
+        }
+    }
+
+    private static void PreviewDropdown(TMP_Dropdown dropdown, string caption)
+    {
+        dropdown.ClearOptions();
+        dropdown.AddOptions(new List<string> { caption });
+        dropdown.RefreshShownValue();
+    }
+
+    private static void AddSampleRows(RectTransform content, string widgetName, int count, bool invitation = false)
+    {
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/UI/Prefab/Widget/" + widgetName + ".prefab");
+        for (int index = 0; index < count; index++) {
+            GameObject row = UnityEngine.Object.Instantiate(prefab, content);
+            if (row.GetComponent<OgsFriendItemWidgetUI>() is OgsFriendItemWidgetUI friend) {
+                friend.txt_username.text = new[] { "Kaya_19", "松风", "静水", "棋友_08", "白石" }[index];
+                friend.txt_rating.text = index % 2 == 0 ? "3 段 / 1842" : "1 段 / 1628";
+                friend.txt_meta.text = "OGS ID: " + (248913 + index);
+                friend.txt_status.text = index < 2 ? "在线" : "离线";
+                friend.img_avatar.color = UIPalette.PaperSunken;
+                friend.sr_row_mode.SetState(invitation ? "Invitation" : "Normal", true);
+            }
+            if (row.GetComponent<ReplayArchiveItemWidgetUI>() is ReplayArchiveItemWidgetUI replay) {
+                replay.txt_title.text = index % 2 == 0 ? "棋友 vs KataGo" : "松风 vs 白石";
+                replay.txt_meta.text = "2026-10-07  ·  19 路  ·  236 手";
+                replay.txt_result.text = index % 2 == 0 ? "白胜 8 目" : "黑胜 2.5 目";
+                replay.txt_status.text = "查看复盘";
+            }
+            if (row.GetComponent<LanRoomItemWidgetUI>() is LanRoomItemWidgetUI lan) {
+                lan.txt_room_name.text = "棋友的房间 " + (index + 1);
+                lan.txt_player_count.text = "1 / 2";
+                lan.txt_host.text = "房主: 棋友";
+                lan.txt_config.text = "19 路 · 10 分钟 · 3 × 30 秒";
+                lan.txt_endpoint.text = "192.168.1." + (20 + index);
+                lan.txt_join_hint.text = "加入";
+            }
+        }
+    }
+
+    public static void AttachRemainingSample(Camera camera, string pageName, string variant, int width, int height)
+    {
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PageFolder + "/" + pageName + ".prefab");
+        TMP_FontAsset regular = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(UIThemeFontAssetTool.RegularFontAssetPath);
+        bool portrait = height > width;
+        camera.cullingMask |= 1 << 5;
+        GameObject page = InstantiatePage(camera.gameObject.scene, camera, prefab, new Vector2Int(width, height), portrait ? "Portrait" : "Landscape", regular,
+            instance => ConfigureRemainingSample(instance, variant, portrait));
+        RectTransform rect = (RectTransform)page.transform;
+        rect.rotation = camera.transform.rotation;
+        rect.localScale = Vector3.one * (camera.orthographicSize * 2f / height);
+        rect.position = camera.transform.position + camera.transform.forward;
+        Canvas.ForceUpdateCanvases();
     }
 
     private static void RenderPreview(string fileName, Vector2Int size, Action<Scene, Camera> build)
@@ -271,7 +561,6 @@ public static class UIThemePreviewCaptureTool
         }
     }
 
-    // 先挂在未激活的父节点下实例化，TMP 生成网格之前清掉含 Regular 图集缺字的文字，避免编辑态给 Regular 追加字形。
     private static void InstantiateDuelMenu(Scene scene, Camera camera, GameObject prefab, Vector2Int size, string platformState, TMP_FontAsset regular)
     {
         GameObject page = InstantiatePage(scene, camera, prefab, size, platformState, regular);
@@ -281,24 +570,12 @@ public static class UIThemePreviewCaptureTool
         }
     }
 
-    private static GameObject InstantiatePage(Scene scene, Camera camera, GameObject prefab, Vector2Int size, string platformState, TMP_FontAsset regular)
+    private static GameObject InstantiatePage(Scene scene, Camera camera, GameObject prefab, Vector2Int size, string platformState, TMP_FontAsset regular, Action<GameObject> configure = null)
     {
         GameObject holder = new GameObject("PageHolder");
         holder.SetActive(false);
         UnitySceneManager.MoveGameObjectToScene(holder, scene);
         GameObject page = UnityEngine.Object.Instantiate(prefab, holder.transform);
-
-        int cleared = 0;
-        foreach (TMP_Text text in page.GetComponentsInChildren<TMP_Text>(true)) {
-            if ((text.font == null || text.font == regular) && FindMissingCharacter(regular, text.text) != '\0') {
-                text.text = string.Empty;
-                cleared++;
-            }
-        }
-
-        if (cleared > 0) {
-            Debug.LogWarning($"Page preview {prefab.name}: cleared {cleared} texts with characters not in the {regular.name} atlas yet.");
-        }
 
         foreach (StateRoot stateRoot in page.GetComponentsInChildren<StateRoot>(true)) {
             foreach (StateConfig state in stateRoot.States) {
@@ -309,6 +586,14 @@ public static class UIThemePreviewCaptureTool
             }
         }
 
+        configure?.Invoke(page);
+        TMP_FontAsset previewFont = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(UIThemeFontAssetTool.MediumFontAssetPath);
+        foreach (TMP_Text text in page.GetComponentsInChildren<TMP_Text>(true)) {
+            if ((text.font == null || text.font == regular) && FindMissingCharacter(regular, text.text) != '\0') {
+                text.font = previewFont;
+                text.fontSharedMaterial = previewFont.material;
+            }
+        }
         Canvas canvas = page.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.WorldSpace;
         canvas.worldCamera = camera;

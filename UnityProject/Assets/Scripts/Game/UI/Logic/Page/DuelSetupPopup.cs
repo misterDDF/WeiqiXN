@@ -31,6 +31,7 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
 
     private bool hasAppliedLayoutState;
     private bool lastPortraitLayout;
+    private TextMeshProUGUI startCaption;
 
     private string selectedBoardCfgId = "9x9";
     private string selectedHoldTimeCfgId = InfiniteHoldTimeCfgId;
@@ -96,6 +97,7 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     {
         base.OnLoaded();
 
+        startCaption = binder.btn_start != null ? binder.btn_start.GetComponentInChildren<TextMeshProUGUI>() : null;
         ApplyCurrentLayoutState(true);
 
         AddButtonListener(binder.btn_9x9, () => SelectBoard("9x9"));
@@ -230,6 +232,7 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         binder.SetSrPlatformState(ResolveLayoutState(), force);
         hasAppliedLayoutState = true;
         lastPortraitLayout = isPortrait;
+        RefreshSetupSummary();
     }
 
     private DuelSetupPopupUI.SrPlatformState ResolveLayoutState()
@@ -831,9 +834,9 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
 
     private void RefreshSelectionState()
     {
-        SetButtonInteractable(binder.btn_9x9, CanUseBoardCfg("9x9") && selectedBoardCfgId != "9x9");
-        SetButtonInteractable(binder.btn_13x13, CanUseBoardCfg("13x13") && selectedBoardCfgId != "13x13");
-        SetButtonInteractable(binder.btn_19x19, CanUseBoardCfg("19x19") && selectedBoardCfgId != "19x19");
+        RefreshBoardButton(binder.btn_9x9, "9x9");
+        RefreshBoardButton(binder.btn_13x13, "13x13");
+        RefreshBoardButton(binder.btn_19x19, "19x19");
 
         bool infiniteHoldTime = IsInfiniteHoldTimeSelected();
         bool byoyomiEnabled = !infiniteHoldTime && selectedByoyomiCountCfgId != ByoyomiOffCfgId;
@@ -854,6 +857,87 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         if (binder.dropdown_handicap != null) {
             binder.dropdown_handicap.interactable = !ShouldForceEvenGameHandicap();
         }
+        RefreshSetupSummary();
+    }
+
+    private void RefreshBoardButton(Button button, string boardCfgId)
+    {
+        if (button == null) {
+            return;
+        }
+
+        bool selected = selectedBoardCfgId == boardCfgId;
+        button.interactable = CanUseBoardCfg(boardCfgId);
+        ColorBlock colors = UIPalette.PaperButtonColors;
+        if (selected) {
+            colors.normalColor = UIPalette.Ink;
+            colors.highlightedColor = UIPalette.InkSecondary;
+            colors.pressedColor = UIPalette.Ink;
+            colors.selectedColor = UIPalette.Ink;
+        }
+        button.colors = colors;
+        TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>();
+        if (label != null) {
+            label.color = selected ? UIPalette.Paper : UIPalette.Ink;
+        }
+    }
+
+    private void RefreshSetupSummary()
+    {
+        string modeName = IsFreeLayoutSetup() ? "自由摆棋" : isAiDuel ? "人机对局" :
+            IsLanRoomSetup() ? "局域网对局" : setupMode == SetupOpenMode.OgsFriend ? "OGS 好友对局" :
+            IsOgsAutomatchSetup() ? "OGS 匹配" : "本地对局";
+        if (binder.txt_setup_summary != null) {
+            if (lastPortraitLayout) {
+                string boardName = selectedBoardCfgId == "9x9" ? "九路" : selectedBoardCfgId == "13x13" ? "十三路" : "十九路";
+                string side = !IsOgsAutomatchSetup() && ShouldShowPlayerColor() ? "  ·  " + DropdownCaption(binder.dropdown_player_color) : string.Empty;
+                string handicap = IsFreeLayoutSetup() ? string.Empty : "  ·  " + DropdownCaption(binder.dropdown_handicap);
+                binder.txt_setup_summary.text = boardName + side + handicap;
+            } else {
+                binder.txt_setup_summary.text = selectedBoardCfgId.Replace("x", " × ") + "  ·  " + modeName;
+            }
+        }
+        if (startCaption != null) {
+            startCaption.text = !lastPortraitLayout ? "开始对局" : IsFreeLayoutSetup() ? "进入自由布局" :
+                IsOgsAutomatchSetup() ? "开始匹配" : IsLanRoomSetup() ? "创建房间" :
+                setupMode == SetupOpenMode.OgsFriend ? "邀请对局" : "开始对局";
+        }
+        if (binder.sr_board_preview != null) {
+            binder.sr_board_preview.SetState(selectedBoardCfgId == "19x19" ? "Board19" : selectedBoardCfgId == "13x13" ? "Board13" : "Board9");
+        }
+        if (binder.txt_setup_detail == null) {
+            return;
+        }
+        if (IsFreeLayoutSetup()) {
+            binder.txt_setup_detail.text = "自由设置黑白棋子，保存局面或进行分析";
+            return;
+        }
+
+        List<string> details = new List<string>();
+        if (lastPortraitLayout) details.Add(modeName);
+        if (isAiDuel) {
+            details.Add((lastPortraitLayout ? string.Empty : "棋力 ") + DropdownCaption(binder.dropdown_ai_difficulty));
+        }
+        if (!lastPortraitLayout && ShouldShowPlayerColor()) {
+            details.Add(DropdownCaption(binder.dropdown_player_color));
+        }
+        if (!lastPortraitLayout) details.Add(DropdownCaption(binder.dropdown_handicap));
+        string time = IsOgsAutomatchSetup() ? DropdownCaption(binder.dropdown_ogs_time_option) :
+            (lastPortraitLayout ? string.Empty : "主时间 ") + DropdownCaption(binder.dropdown_hold_time);
+        if (!IsOgsAutomatchSetup() && !IsInfiniteHoldTimeSelected() && selectedByoyomiCountCfgId != ByoyomiOffCfgId) {
+            time += "  ·  读秒 " + DropdownCaption(binder.dropdown_byoyomi_count) + " × " + DropdownCaption(binder.dropdown_byoyomi_time);
+        }
+        if (lastPortraitLayout) {
+            details.Add(time);
+            binder.txt_setup_detail.text = string.Join("  ·  ", details);
+        } else {
+            binder.txt_setup_detail.text = string.Join("  ·  ", details) + "\n" + time;
+        }
+    }
+
+    private static string DropdownCaption(TMP_Dropdown dropdown)
+    {
+        return dropdown != null && dropdown.captionText != null ? dropdown.captionText.text : string.Empty;
     }
 
     private void RefreshAiDifficultyDropdown()
@@ -988,6 +1072,7 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
     {
         if (index >= 0 && index < aiDifficultyCfgIds.Count) {
             selectedAiDifficultyCfgId = aiDifficultyCfgIds[index];
+            RefreshSetupSummary();
         }
     }
 
@@ -1046,11 +1131,13 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         if (ShouldForceEvenGameHandicap()) {
             selectedHandicapCfgId = DuelHandicapPlacement.GetDefaultCfgId(selectedBoardCfgId);
             RefreshHandicapDropdown();
+            RefreshSetupSummary();
             return;
         }
 
         if (index >= 0 && index < handicapCfgIds.Count) {
             selectedHandicapCfgId = handicapCfgIds[index];
+            RefreshSetupSummary();
         }
     }
 
@@ -1183,10 +1270,4 @@ public class DuelSetupPopup : UIPageWithBinder<DuelSetupPopupUI>
         }
     }
 
-    private void SetButtonInteractable(Button button, bool interactable)
-    {
-        if (button != null) {
-            button.interactable = interactable;
-        }
-    }
 }

@@ -18,6 +18,7 @@
 
 - 当前阶段的架构优化按 [modules/12-architecture-iteration-plan.md](modules/12-architecture-iteration-plan.md) 推进；该表只承载执行明细，阶段目标和范围仍以本文为准。
 - 2026-09-24 起并行推进视觉美化（朴素、简约、真实质感），按 [modules/14-visual-polish-plan.md](modules/14-visual-polish-plan.md) 分 V1 场景与棋具、V2 动效、V3 UI 体系、V4 品牌外围、V5 声音、V6 清理推进；美化只改表现，不改变棋规、落子、存档、AI 与联机行为，本地对局仍是回归基线。
+- 2026-10-08: V3.3 补缺页面已按用户确认样图实装，包含设置、复盘、资料、好友/申请、局域网、最近对局、加载、确认和竖屏终局；编译与编辑态视觉/状态检查通过，下一步为 Play、真机比例及 LAN/OGS 实网交互验收。
 - 当前架构优化主线只收敛本地对局、AI、UI、结算、手顺和存档边界，为后续联机开发降低混乱度；本阶段不接网络 SDK、不实现传输层、房间、匹配或重连。
 - 联机方案的默认方向是 host 权威、单一 server core、客户端只发命令；第一版 server core 可以嵌在 host 进程里，后续若有必要再拆分为独立进程，但命令合同和快照合同必须保持不变。接入 OGS 前，先把 Local/Computer 与 LAN host 的本进程 host 权威路径收敛，再把 OGS 作为外部 server 权威适配到同一提交和表现框架。
 - 在 Windows Unity Editor 和 Windows PC 包中继续验证本地 KataGo ownership 链路：通过 `game-config.json` 选择 `exe` 或 `native` 后端，发送当前对局 JSON，读取 `ownership`、失败状态，并验证棋盘 overlay 表现。

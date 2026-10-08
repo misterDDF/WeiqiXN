@@ -40,6 +40,9 @@ public class ReplayPageUI : UIBinderBase
 	public Toggle toggle_move_color_black;
 	public Toggle toggle_move_color_white;
 	public Button btn_export_sgf;
+	public TextMeshProUGUI txt_replay_heading;
+	public Toggle toggle_chart_black;
+	public Toggle toggle_chart_white;
 	
 	public enum SrPlatformState
 	{

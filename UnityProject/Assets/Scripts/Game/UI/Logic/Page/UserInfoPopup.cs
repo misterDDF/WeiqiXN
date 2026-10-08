@@ -5,7 +5,7 @@ using XNClient.Logger;
 
 public class UserInfoPopup : UIPageWithBinder<UserInfoPopupUI>
 {
-    private static readonly Color OgsAvatarEmptyColor = new Color(0.78f, 0.62f, 0.28f, 1f);
+    private static readonly Color OgsAvatarEmptyColor = UIPalette.PaperSunken;
 
     private readonly List<DuelReplayIndexItem> replayItems = new List<DuelReplayIndexItem>();
     private readonly List<ReplayArchiveItemWidget> replayItemWidgets = new List<ReplayArchiveItemWidget>();

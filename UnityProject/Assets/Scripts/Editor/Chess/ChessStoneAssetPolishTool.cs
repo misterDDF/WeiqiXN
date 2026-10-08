@@ -79,31 +79,30 @@ public static class ChessStoneAssetPolishTool
             return;
         }
 
-        // 黑子：那智黑石，近黑固有色、细颗粒；左上方映出一块边缘柔和的顶灯反光，外圈渐隐，其余部分保持暗色，边缘带出棋盘暖色。
-        // 面光源在凸面上会缩成一小块：反光面积小、核心亮才像光的倒影，大而灰的一片读起来像污渍。
+        // 黑子：那智黑石，近黑固有色、细颗粒；保留小块柔和的顶灯反光，其余部分保持暗色。
         ConfigureMaterial(BlackMaterialPath, shader, detailMap, new StoneLook
         {
-            baseColor = new Color(0.07f, 0.068f, 0.066f, 1f),
+            baseColor = new Color(0.085f, 0.08f, 0.075f, 1f),
             reflectionTint = new Color(0.95f, 0.95f, 0.93f, 1f),
-            smoothness = 0.72f,
-            softboxStrength = 12f,
-            softboxShape = new Vector4(0.16f, 0.12f, 0.06f, 0.1f),
-            reflectionStrength = 0.5f,
+            smoothness = 0.42f,
+            softboxStrength = 1.8f,
+            softboxShape = new Vector4(0.12f, 0.1f, 0.16f, 0.02f),
+            reflectionStrength = 0.25f,
             wrap = 0f,
-            detailStrength = new Vector4(0f, 0.3f, 0f, 0f),
+            detailStrength = new Vector4(0f, 0.4f, 0f, 0f),
         });
 
-        // 白子：蛤碁石，微暖的白、近看才能分辨的细条纹与云状色差、轻微透光；明暗保留体积感，亮面上只留一小块淡光泽。
+        // 白子：蛤碁石，微暖的白与细条纹；云状色差会形成不自然的灰斑，保持关闭。
         ConfigureMaterial(WhiteMaterialPath, shader, detailMap, new StoneLook
         {
-            baseColor = new Color(0.88f, 0.875f, 0.855f, 1f),
+            baseColor = new Color(0.86f, 0.855f, 0.84f, 1f),
             reflectionTint = new Color(1f, 0.98f, 0.95f, 1f),
-            smoothness = 0.7f,
-            softboxStrength = 5f,
-            softboxShape = new Vector4(0.16f, 0.12f, 0.06f, 0.08f),
-            reflectionStrength = 0.4f,
-            wrap = 0.3f,
-            detailStrength = new Vector4(0.035f, 0.02f, 0.04f, 0f),
+            smoothness = 0.42f,
+            softboxStrength = 1.8f,
+            softboxShape = new Vector4(0.14f, 0.11f, 0.1f, 0.03f),
+            reflectionStrength = 0.2f,
+            wrap = 0.2f,
+            detailStrength = new Vector4(0.13f, 0.02f, 0f, 0f),
         });
 
         Material contactShadowMaterial = ConfigureContactShadowMaterial(contactShadowShader);

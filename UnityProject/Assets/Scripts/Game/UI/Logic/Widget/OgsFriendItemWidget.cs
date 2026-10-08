@@ -7,10 +7,11 @@ public class OgsFriendItemWidget : UIWidgetWithBinder<OgsFriendItemWidgetUI>
     public const float ItemHeight = 86f;
     public const float ItemSpacing = 8f;
 
-    private static readonly Color AvatarEmptyColor = new Color(0.78f, 0.62f, 0.28f, 1f);
+    private static readonly Color AvatarEmptyColor = UIPalette.PaperSunken;
 
     private OgsFriendListItem item;
     private Action<OgsFriendListItem> clickHandler;
+    private Action<OgsFriendListItem, bool> invitationHandler;
     private RemoteImageView avatarImage;
 
     public override string widgetName => UIWidget.GetWidgetName<OgsFriendItemWidget>();
@@ -26,6 +27,8 @@ public class OgsFriendItemWidget : UIWidgetWithBinder<OgsFriendItemWidgetUI>
             binder.btn_profile.onClick.AddListener(OnClickItem);
         }
         avatarImage = new RemoteImageView(binder, binder.img_avatar, AvatarEmptyColor);
+        binder.btn_accept.onClick.AddListener(OnAcceptInvitation);
+        binder.btn_reject.onClick.AddListener(OnRejectInvitation);
     }
 
     protected override void OnClose()
@@ -43,14 +46,19 @@ public class OgsFriendItemWidget : UIWidgetWithBinder<OgsFriendItemWidgetUI>
         }
 
         clickHandler = null;
+        invitationHandler = null;
+        binder.btn_accept.onClick.RemoveListener(OnAcceptInvitation);
+        binder.btn_reject.onClick.RemoveListener(OnRejectInvitation);
         item = null;
         base.OnClose();
     }
 
-    public void SetData(OgsFriendListItem data, Action<OgsFriendListItem> onClick)
+    public void SetData(OgsFriendListItem data, Action<OgsFriendListItem> onClick, Action<OgsFriendListItem, bool> onInvitation = null)
     {
         item = data;
         clickHandler = onClick;
+        invitationHandler = onInvitation;
+        binder.sr_row_mode.SetState(onInvitation != null ? "Invitation" : "Normal");
 
         SetText(binder.txt_username, Display(data?.username, "OGS 好友"));
         SetText(binder.txt_meta, BuildMeta(data));
@@ -75,6 +83,12 @@ public class OgsFriendItemWidget : UIWidgetWithBinder<OgsFriendItemWidgetUI>
         return $"OGS ID: {Display(data.userId)} / 地区: {Display(data.country)}";
     }
 
+    public void SetInvitationInteractable(bool interactable)
+    {
+        binder.btn_accept.interactable = interactable;
+        binder.btn_reject.interactable = interactable;
+    }
+
     private static string Display(string value, string fallback = "--")
     {
         return string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
@@ -90,5 +104,15 @@ public class OgsFriendItemWidget : UIWidgetWithBinder<OgsFriendItemWidgetUI>
     private void OnClickItem()
     {
         clickHandler?.Invoke(item);
+    }
+
+    private void OnAcceptInvitation()
+    {
+        invitationHandler?.Invoke(item, true);
+    }
+
+    private void OnRejectInvitation()
+    {
+        invitationHandler?.Invoke(item, false);
     }
 }

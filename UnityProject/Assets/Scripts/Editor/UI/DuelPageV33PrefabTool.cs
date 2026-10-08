@@ -637,8 +637,7 @@ public static class DuelPageV33PrefabTool
         AddRectState(portrait, "BlackCard", blackCard, Vector2.zero, new Vector2(1f, 0f), new Vector2(0f, 140f), new Vector2(-28f, 136f), new Vector2(0.5f, 0f));
         AddRectState(landscape, "Actions", actions, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-42f, 216f), new Vector2(LandscapePanelWidth, 216f), new Vector2(1f, 0f));
         AddRectState(portrait, "Actions", actions, Vector2.zero, new Vector2(1f, 0f), Vector2.zero, new Vector2(-28f, 116f), new Vector2(0.5f, 0f));
-        AddRectState(landscape, "GameEnd", gameEnd, Vector2.one, Vector2.one, new Vector2(-42f, -216f), new Vector2(LandscapePanelWidth, 220f), Vector2.one);
-        AddRectState(portrait, "GameEnd", gameEnd, new Vector2(0f, 0.5f), new Vector2(1f, 0.5f), Vector2.zero, new Vector2(-28f, 220f), new Vector2(0.5f, 0.5f));
+        ConfigureGameEndStates(landscape, portrait, gameEnd);
         AddRectState(landscape, "SettingsSheet", settingsSheet, new Vector2(1f, 0f), Vector2.one, Vector2.zero, new Vector2(718f, 0f), new Vector2(1f, 0.5f));
         AddRectState(portrait, "SettingsSheet", settingsSheet, Vector2.zero, new Vector2(1f, 0f), Vector2.zero, new Vector2(0f, 650f), new Vector2(0.5f, 0f));
 
@@ -665,6 +664,31 @@ public static class DuelPageV33PrefabTool
         element.Property.pivot = pivot;
         element.Property.localScale = Vector3.one;
         state.Elements.Add(element);
+    }
+
+    public static void ConfigureGameEndStates(StateConfig landscape, StateConfig portrait, RectTransform gameEnd)
+    {
+        Image paper = gameEnd.Find("img_result_paper").GetComponent<Image>();
+        paper.color = WithAlpha(UIPalette.Paper, 0.98f);
+        paper.raycastTarget = true;
+        gameEnd.Find("txt_result_eyebrow").GetComponent<TextMeshProUGUI>().text = "终局 · 对局结束";
+        gameEnd.Find("txt_game_end_reason").GetComponent<TextMeshProUGUI>().fontSize = 18;
+        AddRectState(landscape, "GameEnd", gameEnd, Vector2.one, Vector2.one, new Vector2(-42f, -216f), new Vector2(LandscapePanelWidth, 220f), Vector2.one);
+        AddRectState(portrait, "GameEnd", gameEnd, Vector2.zero, new Vector2(1, 0), Vector2.zero, new Vector2(0, 600), new Vector2(0.5f, 0));
+        foreach (Transform child in gameEnd) {
+            AddRectState(landscape, child.name, (RectTransform)child, ((RectTransform)child).anchorMin, ((RectTransform)child).anchorMax,
+                ((RectTransform)child).anchoredPosition, ((RectTransform)child).sizeDelta, ((RectTransform)child).pivot);
+        }
+        RectTransform eyebrow = (RectTransform)gameEnd.Find("txt_result_eyebrow");
+        AddRectState(portrait, eyebrow.name, eyebrow, new Vector2(0, 1), Vector2.one, new Vector2(0, -42), new Vector2(-80, 30), new Vector2(0.5f, 1));
+        RectTransform winner = (RectTransform)gameEnd.Find("txt_game_end_winner");
+        AddRectState(portrait, winner.name, winner, new Vector2(0, 1), Vector2.one, new Vector2(-42, -80), new Vector2(-164, 70), new Vector2(0.5f, 1));
+        RectTransform seal = (RectTransform)gameEnd.Find("txt_result_seal");
+        AddRectState(portrait, seal.name, seal, Vector2.one, Vector2.one, new Vector2(-40, -80), new Vector2(48, 48), Vector2.one);
+        RectTransform reason = (RectTransform)gameEnd.Find("txt_game_end_reason");
+        AddRectState(portrait, reason.name, reason, new Vector2(0, 1), Vector2.one, new Vector2(0, -176), new Vector2(-80, 180), new Vector2(0.5f, 1));
+        RectTransform exit = (RectTransform)gameEnd.Find("btn_game_end_exit");
+        AddRectState(portrait, exit.name, exit, Vector2.zero, new Vector2(1, 0), new Vector2(0, 62), new Vector2(-80, 62), new Vector2(0.5f, 0));
     }
 
     private static void AddActiveState(StateConfig state, string name, GameObject target, bool active)

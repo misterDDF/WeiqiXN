@@ -25,6 +25,7 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
     private bool isInvitationMode;
     private bool isInvitationBadgeRunning;
     private bool isFriendRequestRunning;
+    private bool isInvitationResponseRunning;
     private bool isShowingCachedFriendList;
     private bool hasAppliedLayoutState;
     private bool lastPortraitLayout;
@@ -374,7 +375,8 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
                 continue;
             }
 
-            itemWidget.SetData(GetDisplayItem(startIndex + i), OnClickFriendItem);
+            itemWidget.SetData(GetDisplayItem(startIndex + i), OnClickFriendItem, isInvitationMode ? OnRespondInvitation : null);
+            itemWidget.SetInvitationInteractable(!isInvitationResponseRunning);
         }
 
         if (itemWidgets.Count <= 0) {
@@ -592,6 +594,9 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
 
     private async void RespondInvitation(OgsFriendInvitationItem invitation, bool accept)
     {
+        if (isInvitationResponseRunning) {
+            return;
+        }
         if (invitation == null || !int.TryParse(invitation.FromUserId, out int fromUserId) || fromUserId <= 0) {
             ConfirmPopup.ShowTip("好友申请", "好友申请用户 ID 无效。", null, "确定");
             return;
@@ -603,19 +608,38 @@ public class OgsFriendListPopup : UIPageWithBinder<OgsFriendListPopupUI>
             return;
         }
 
-        OgsConnectionResult result = await service.RespondFriendInvitationAsync(fromUserId, accept);
-        if (!result.success) {
-            ConfirmPopup.ShowTip("好友申请处理失败", result.message, null, "确定");
-            return;
+        isInvitationResponseRunning = true;
+        foreach (OgsFriendItemWidget widget in itemWidgets) widget.SetInvitationInteractable(false);
+        try {
+            OgsConnectionResult result = await service.RespondFriendInvitationAsync(fromUserId, accept);
+            if (!result.success) {
+                ConfirmPopup.ShowTip("好友申请处理失败", result.message, null, "确定");
+                return;
+            }
+            invitationItems.Remove(invitation);
+            friendTotalCount = invitationItems.Count;
+            pendingInvitationCount = invitationItems.Count;
+            SetFriendRequestsButtonText();
+            service.EmitFriendInvitationCountChanged(pendingInvitationCount);
+            if (isVisible) {
+                RefreshPage();
+                ConfirmPopup.ShowTip("好友申请", accept ? "已同意好友申请" : "已拒绝好友申请", null, "确定");
+            }
         }
+        catch (System.Exception exception) {
+            XNLogger.LogError("Respond OGS friend invitation failed.", ("err", exception.Message));
+            if (isVisible) ConfirmPopup.ShowTip("好友申请处理失败", exception.Message, null, "确定");
+        }
+        finally {
+            isInvitationResponseRunning = false;
+            foreach (OgsFriendItemWidget widget in itemWidgets) widget.SetInvitationInteractable(true);
+        }
+    }
 
-        invitationItems.Remove(invitation);
-        friendTotalCount = invitationItems.Count;
-        pendingInvitationCount = invitationItems.Count;
-        SetFriendRequestsButtonText();
-        service.EmitFriendInvitationCountChanged(pendingInvitationCount);
-        RefreshPage();
-        ConfirmPopup.ShowTip("好友申请", accept ? "已同意好友申请" : "已拒绝好友申请", null, "确定");
+    private void OnRespondInvitation(OgsFriendListItem item, bool accept)
+    {
+        OgsFriendInvitationItem invitation = FindInvitation(item);
+        if (invitation != null) RespondInvitation(invitation, accept);
     }
 
     private OgsFriendListItem GetDisplayItem(int index)

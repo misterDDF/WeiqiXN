@@ -7,7 +7,7 @@ using XNClient.Logger;
 public class OgsFriendProfilePopup : UIPageWithBinder<OgsFriendProfilePopupUI>
 {
     private static OgsFriendListItem pendingItem;
-    private static readonly Color AvatarEmptyColor = new Color(0.78f, 0.62f, 0.28f, 1f);
+    private static readonly Color AvatarEmptyColor = UIPalette.PaperSunken;
 
     private OgsFriendListItem currentItem;
     private bool hasAppliedLayoutState;

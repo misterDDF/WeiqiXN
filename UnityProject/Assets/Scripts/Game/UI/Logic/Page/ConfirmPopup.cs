@@ -17,27 +17,11 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
     private static int requestSequence;
 
     private ConfirmPopupRequest currentRequest;
-    private Vector2 defaultConfirmButtonPosition;
-    private Vector2 defaultConfirmButtonSize;
-    private Vector2 defaultCancelButtonPosition;
-    private Vector2 defaultCancelButtonSize;
-    private ColorBlock defaultConfirmButtonColors;
-    private Color defaultCancelPlateColor;
-    private RectTransform popupPanel;
-    private Vector2 defaultPanelAnchorMin;
-    private Vector2 defaultPanelAnchorMax;
-    private Vector2 defaultPanelPosition;
-    private Vector2 defaultPanelSize;
-    private Vector2 defaultPanelPivot;
-    private Vector2 defaultTitlePosition;
-    private Vector2 defaultTitleSize;
-    private Vector2 defaultContentPosition;
-    private Vector2 defaultContentSize;
     private float defaultTitleFontSize;
     private float defaultContentFontSize;
     private float defaultContentLineSpacing;
     private TextAlignmentOptions defaultContentAlignment;
-    private bool hasCachedButtonLayout;
+    private bool lastPortraitLayout;
 
     public override string pageName => UIPage.GetPageName<ConfirmPopup>();
 
@@ -196,7 +180,6 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
 
         AddButtonListener(binder.btn_confirm, OnClickBtnConfirm);
         AddButtonListener(binder.btn_cancel, OnClickBtnCancel);
-        CacheButtonLayout();
         CacheContentLayout();
     }
 
@@ -209,6 +192,14 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         openedPopup = this;
         ApplyPendingUpdate();
         RefreshContent();
+    }
+
+    protected override void OnUpdate()
+    {
+        base.OnUpdate();
+        if (binder != null && UIUtils.IsPortrait(rectTransform) != lastPortraitLayout) {
+            ApplyContentLayout(currentRequest != null && currentRequest.scoreResultLayout);
+        }
     }
 
     protected override void OnClose()
@@ -314,45 +305,8 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         }
     }
 
-    private void CacheButtonLayout()
-    {
-        if (hasCachedButtonLayout || binder.btn_confirm == null || binder.btn_cancel == null) {
-            return;
-        }
-
-        RectTransform confirmRect = binder.btn_confirm.transform as RectTransform;
-        RectTransform cancelRect = binder.btn_cancel.transform as RectTransform;
-        if (confirmRect == null || cancelRect == null) {
-            return;
-        }
-
-        defaultConfirmButtonPosition = confirmRect.anchoredPosition;
-        defaultConfirmButtonSize = confirmRect.sizeDelta;
-        defaultCancelButtonPosition = cancelRect.anchoredPosition;
-        defaultCancelButtonSize = cancelRect.sizeDelta;
-        defaultConfirmButtonColors = binder.btn_confirm.colors;
-        if (binder.btn_cancel.targetGraphic != null) {
-            defaultCancelPlateColor = binder.btn_cancel.targetGraphic.color;
-        }
-        hasCachedButtonLayout = true;
-    }
-
     private void CacheContentLayout()
     {
-        popupPanel = binder.txt_content.rectTransform.parent as RectTransform;
-        if (popupPanel == null) {
-            return;
-        }
-
-        defaultPanelSize = popupPanel.sizeDelta;
-        defaultPanelAnchorMin = popupPanel.anchorMin;
-        defaultPanelAnchorMax = popupPanel.anchorMax;
-        defaultPanelPosition = popupPanel.anchoredPosition;
-        defaultPanelPivot = popupPanel.pivot;
-        defaultTitlePosition = binder.txt_title.rectTransform.anchoredPosition;
-        defaultTitleSize = binder.txt_title.rectTransform.sizeDelta;
-        defaultContentPosition = binder.txt_content.rectTransform.anchoredPosition;
-        defaultContentSize = binder.txt_content.rectTransform.sizeDelta;
         defaultTitleFontSize = binder.txt_title.fontSize;
         defaultContentFontSize = binder.txt_content.fontSize;
         defaultContentLineSpacing = binder.txt_content.lineSpacing;
@@ -361,82 +315,23 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
 
     private void ApplyContentLayout(bool showScoreResult)
     {
-        if (popupPanel == null) {
-            return;
-        }
-
-        bool isPortraitScore = showScoreResult && Screen.height > Screen.width;
-        popupPanel.anchorMin = isPortraitScore ? Vector2.zero : defaultPanelAnchorMin;
-        popupPanel.anchorMax = isPortraitScore ? new Vector2(1f, 0f) : defaultPanelAnchorMax;
-        popupPanel.pivot = isPortraitScore ? new Vector2(0.5f, 0f) : defaultPanelPivot;
-        popupPanel.anchoredPosition = isPortraitScore ? Vector2.zero : defaultPanelPosition;
-        popupPanel.sizeDelta = isPortraitScore ? new Vector2(0f, 480f) : showScoreResult ? new Vector2(600f, 440f) : defaultPanelSize;
-        binder.txt_title.rectTransform.anchoredPosition = showScoreResult ? new Vector2(34f, -48f) : defaultTitlePosition;
-        binder.txt_title.rectTransform.sizeDelta = showScoreResult ? new Vector2(-118f, 26f) : defaultTitleSize;
-        binder.txt_title.fontSize = showScoreResult ? 13f : defaultTitleFontSize;
-        binder.txt_content.rectTransform.anchoredPosition = showScoreResult ? new Vector2(0f, isPortraitScore ? 0f : -4f) : defaultContentPosition;
-        binder.txt_content.rectTransform.sizeDelta = showScoreResult ? new Vector2(isPortraitScore ? 640f : 500f, 300f) : defaultContentSize;
+        lastPortraitLayout = UIUtils.IsPortrait(rectTransform);
+        ConfirmPopupUI.SrDialogLayoutState state = showScoreResult
+            ? lastPortraitLayout ? ConfirmPopupUI.SrDialogLayoutState.ScorePortrait : ConfirmPopupUI.SrDialogLayoutState.ScoreLandscape
+            : lastPortraitLayout ? ConfirmPopupUI.SrDialogLayoutState.Portrait : ConfirmPopupUI.SrDialogLayoutState.Landscape;
+        binder.SetSrDialogLayoutState(state, true);
+        binder.txt_title.fontSize = showScoreResult ? 16f : defaultTitleFontSize;
         binder.txt_content.fontSize = showScoreResult ? 18f : defaultContentFontSize;
         binder.txt_content.lineSpacing = showScoreResult ? 12f : defaultContentLineSpacing;
         binder.txt_content.alignment = showScoreResult ? TextAlignmentOptions.TopLeft : defaultContentAlignment;
-
-        if (!hasCachedButtonLayout) {
-            return;
-        }
-
-        RectTransform confirmRect = binder.btn_confirm.transform as RectTransform;
-        RectTransform cancelRect = binder.btn_cancel.transform as RectTransform;
-        if (showScoreResult) {
-            confirmRect.anchoredPosition = isPortraitScore ? new Vector2(160f, -185f) : new Vector2(220f, -170f);
-            confirmRect.sizeDelta = new Vector2(isPortraitScore ? 300f : 160f, 52f);
-            cancelRect.anchoredPosition = isPortraitScore ? new Vector2(-160f, -185f) : new Vector2(92f, -170f);
-            cancelRect.sizeDelta = new Vector2(isPortraitScore ? 300f : 112f, 52f);
-            ColorBlock scoreColors = defaultConfirmButtonColors;
-            scoreColors.normalColor = UIPalette.Ink;
-            scoreColors.highlightedColor = Color.Lerp(UIPalette.Ink, Color.white, 0.08f);
-            scoreColors.pressedColor = Color.Lerp(UIPalette.Ink, Color.black, 0.08f);
-            scoreColors.selectedColor = UIPalette.Ink;
-            binder.btn_confirm.colors = scoreColors;
-            if (binder.btn_cancel.targetGraphic != null) {
-                binder.btn_cancel.targetGraphic.color = isPortraitScore ? defaultCancelPlateColor : Color.clear;
-            }
-        } else {
-            cancelRect.sizeDelta = defaultCancelButtonSize;
-            binder.btn_confirm.colors = defaultConfirmButtonColors;
-            if (binder.btn_cancel.targetGraphic != null) {
-                binder.btn_cancel.targetGraphic.color = defaultCancelPlateColor;
-            }
-        }
     }
 
     private void ApplyButtonLayout(bool showCancelButton, bool showConfirmButton)
     {
-        if (!hasCachedButtonLayout || binder.btn_confirm == null || binder.btn_cancel == null) {
-            return;
-        }
-
-        RectTransform confirmRect = binder.btn_confirm.transform as RectTransform;
-        RectTransform cancelRect = binder.btn_cancel.transform as RectTransform;
-        if (confirmRect == null || cancelRect == null) {
-            return;
-        }
-
-        if (!showConfirmButton) {
-            if (showCancelButton) {
-                cancelRect.anchoredPosition = new Vector2(0f, defaultCancelButtonPosition.y);
-            }
-            return;
-        }
-
-        if (showCancelButton) {
-            confirmRect.anchoredPosition = defaultConfirmButtonPosition;
-            confirmRect.sizeDelta = defaultConfirmButtonSize;
-            cancelRect.anchoredPosition = defaultCancelButtonPosition;
-            return;
-        }
-
-        confirmRect.anchoredPosition = new Vector2(0f, defaultConfirmButtonPosition.y);
-        confirmRect.sizeDelta = new Vector2(Mathf.Max(defaultConfirmButtonSize.x, 190f), defaultConfirmButtonSize.y);
+        ConfirmPopupUI.SrDialogButtonsState state = showConfirmButton
+            ? showCancelButton ? ConfirmPopupUI.SrDialogButtonsState.Both : ConfirmPopupUI.SrDialogButtonsState.ConfirmOnly
+            : showCancelButton ? ConfirmPopupUI.SrDialogButtonsState.CancelOnly : ConfirmPopupUI.SrDialogButtonsState.Neither;
+        binder.SetSrDialogButtonsState(state, true);
     }
 
     private void ApplyPendingUpdate()
@@ -467,7 +362,9 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
             && binder.txt_confirm != null
             && binder.txt_cancel != null
             && binder.btn_confirm != null
-            && binder.btn_cancel != null;
+            && binder.btn_cancel != null
+            && binder.sr_dialog_layout != null
+            && binder.sr_dialog_buttons != null;
     }
 
     private class ConfirmPopupRequest
