@@ -17,6 +17,10 @@ public class UIManager : ModuleBase
 
     public override void Init()
     {
+#if UNITY_ANDROID && !UNITY_EDITOR
+        Input.backButtonLeavesApp = false;
+#endif
+
         Global.Instance.eventManager.RegisterSystemEvent<OnActiveSceneChanged>(this, OnActiveSceneChanged);
         Global.Instance.eventManager.RegisterSystemEvent<OnExitMainScene>(this, OnExitMainScene);
 

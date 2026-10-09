@@ -116,7 +116,8 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
             return true;
         }
 
-        return false;
+        OpenSettingsPanel();
+        return true;
     }
 
     public void OnDuelStateChanged(OnDuelStateChanged evt)
