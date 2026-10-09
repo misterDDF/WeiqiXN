@@ -9,6 +9,7 @@
 - `Assets/Scripts/Game/System/DuelAiBudgetService.cs`
 - `Assets/Scripts/Game/System/DuelAiMoveSelector.cs`
 - `Assets/Scripts/Game/System/DuelAudioSystem.cs`
+- `Assets/Scripts/Game/Audio/StoneMoveAudio.cs`
 - `Assets/Scripts/Game/System/DuelMoveRule.cs`
 - `Assets/Scripts/Game/FSM/DuelFSM/DuelFSM.cs`
 - `Assets/Scripts/Game/FSM/DuelFSM/DuelFSMConst.cs`
@@ -31,7 +32,7 @@
 - 当前实际主循环是 `GameStart -> TurnStart -> TurnInput -> TurnEnd -> TurnStart`。
 - `TurnInput` 进入时按当前玩家的持有时间或读秒状态刷新剩余时间。
 - 回合倒计时归零时触发 `TURN_TIMEOUT`，进入 `TurnEnd`。
-- 成功落子后 `OnAfterAddChessToBoard` 触发 `TURN_INPUT_FINISH`，进入 `TurnEnd`；发生提子时棋盘视图移除棋子后触发携带提子数量的 `OnAfterCaptureChessFromBoard`。`DuelAudioSystem` 监听这两个事件播放落子/提子音效，不参与棋规、手顺或 FSM 推进；两种音效都延后 `ChessStoneView.PlacementDropSeconds` 在棋子着盘时播放，同时到期时先播提子音；提子音效按本次提子数量区分单提和多提，短音效按单通道独占播放并带最小间隔，提子音效优先于同一步落子音效，避免大量落子或提子时叠加爆音。
+- 成功落子后 `OnAfterAddChessToBoard` 触发 `TURN_INPUT_FINISH`，进入 `TurnEnd`；发生提子时棋盘视图移除棋子后触发携带提子数量的 `OnAfterCaptureChessFromBoard`。`DuelAudioSystem` 监听这两个事件播放落子/提子音效，不参与棋规、手顺或 FSM 推进；两种音效都由共享的 `StoneMoveAudio` 延后 `ChessStoneView.PlacementDropSeconds` 在棋子着盘时播放，同时到期时先播提子音；提子音效按本次提子数量区分单提和多提，短音效按单通道独占播放并带最小间隔，提子音效优先于同一步落子音效，避免大量落子或提子时叠加爆音。复盘的主线单步前进、试下成功落子和 AI 推荐变化首手复用同一时序；后退、跳转、虚手和失败操作静音。
 - 2026-06-09 addendum: `DuelAudioSystem` also drives duel voice prompts from duel state, accepted pass events, OGS stone-removal phase events, and current-player clock fields. It plays game-start, pass, OGS stone-removal, game-end winner/tie, byoyomi period, and final 10-second countdown cues through `GameAudio` without advancing rules or FSM state. Countdown number voice is lower priority than other duel voices: if another voice is playing or the voice-throttle window is still active, the current countdown second is skipped rather than interrupting, delaying, or replaying it, while non-countdown duel voices may interrupt a previously started countdown number. Hold-time countdown voice is skipped when byoyomi is configured; hold-time countdown voice only plays for time settings without byoyomi. Byoyomi prompts are announced only after playback actually starts, so short voice-throttle windows do not permanently consume those cues.
 - `TurnEnd` 切换当前玩家，然后触发下一轮 `TurnStart`。
 - `DuelInputAuthority` 是当前本端人类输入权限的集中读取入口；它只读取 `SceneComponentDuel.localInputPlayerFlag`，不在 UI 中派生 LAN 座位。`DuelInputAuthoritySystem` 负责刷新该字段：本地热座跟随当前回合玩家，电脑对局在 AI 回合不给本端人类输入权，LAN 对局由 host 广播 `InputAuthority` 后双方应用。

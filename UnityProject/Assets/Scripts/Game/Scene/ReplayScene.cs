@@ -24,6 +24,7 @@ public class ReplayScene : SceneBase
 
         BindFixedRefs();
 
+        AddSystem(new ReplayAudioSystem(this));
         AddSystem(new ReplaySystem(this));
         AddSystem(new ChessBoardSystem(this));
         ReplaySystem replaySystem = GetSystem<ReplaySystem>();

@@ -6,6 +6,7 @@
 - UI 主题：`Assets/Scripts/Editor/UI/UIThemePreviewCaptureTool.cs`、`UIThemeFontAssetTool.cs`、`UIThemeTextureTool.cs`、`UIThemeMigrationTool.cs`、`MainMenuBoardBackdropTool.cs`
 - 棋盘与场景美术：`Assets/Scripts/Editor/Chess/ChessStoneAssetPolishTool.cs`、`ChessStonePreviewAssetPolishTool.cs`、`ChessBoardOverlayAssetPolishTool.cs`；`Assets/Scripts/Editor/Scene/DuelSceneLookAssetTool.cs`、`DuelLookPreviewCaptureTool.cs`
 - 通用：`Assets/Scripts/Editor/CustomEditorMenuPaths.cs`、`EditorUtils.cs`、`KataGoOpenClWarmupCleaner.cs`
+- 复盘音效验证：`Assets/Scripts/Editor/ReplayAudioValidationTool.cs`
 - 构建与资源：`Assets/Scripts/Editor/Build/AssetBundleGenerator.cs`、`BuildConfig.cs`；`Assets/Scripts/Editor/TMPSprite/SpriteAtlasToTMPSpriteTool.cs`；`Assets/Scripts/Editor/Inspector/TextureArrayWizard.cs`
 - KataGo 运行时：`Assets/Scripts/Global/GameConfig.cs`；`Assets/Scripts/Game/KataGo/` 下的 `KataGoBootstrap`、`KataGoRuntimeEnvironment`、`KataGoRuntimePreparer`、`Win32NativeKataGoEngine`、`AndroidNativeKataGoEngine`、`KataGoDuelRecordFile`、`KataGoPositionJsonBuilder`
 
@@ -82,8 +83,10 @@ UI 主题（V3，参数以工具代码常量为准）：
 - `自定义功能/UI/更新复盘图表视角布局`：在 `ReplayPage.prefab` 图表子树内维护标题栏黑白视角 Toggle、摘要、图例、深色游标和横竖屏布局，并维护竖屏顶部操作与试下选子组的位置，通过既有 Binder 导出工具维护引用；保存前恢复 Canvas 根结构，可重复执行。全量重排剩余页面也复用此布局。
 - `自定义功能/UI/验证复盘图表视角`：以编辑态合成数据检查正负目差与黑白胜率摘要、均势与缺失值、两条曲线的镜像位置、横竖屏 mesh、原始数据/游标保持不变和竖屏试下选子组与棋盘/功能操作行无重叠，输出 `Temp/WeiqiXN/ThemePreview/replay_chart_validation.txt`。
 - `自定义功能/UI/验证剩余页面 V3.3`：检查上述资源的 Binder、编辑器节点引用、状态目标类型与 Canvas 组件，输出 `Temp/WeiqiXN/ThemePreview/remaining_validation.txt`。根 RectTransform 序列化值需另查 prefab diff，避免受预览驱动值误导。
+- `自定义功能/Editor/验证复盘落子音效`：在编辑态构造临时复盘局面，覆盖主线/试下单步前进、手动落子、AI 变化、后退/跳转/虚手/失败静音和着盘延迟、单提多提优先级；输出 `Temp/WeiqiXN/replay_audio_validation.txt`，验证结束销毁临时对象并恢复音频静态状态，不修改实际场景。
 - `自定义功能/UI/生成剩余页面状态预览`：输出设置模式、账号、列表内容/错误、好友申请、确认按钮组合、输入、数子、复盘与终局的横竖屏合成数据截图；仅修改临时实例，Regular 缺字在预览实例切换 Medium，不清空文案。
 - `自定义功能/场景/生成剩余页面棋盘合成预览`：编辑态生成真实棋盘与复盘/终局 UI 的横竖屏组合图到 `Temp/WeiqiXN/LookPreview/`，复盘包含黑方与白方视角变体，并额外输出竖屏试下和自由布局；要求当前场景无未保存改动，完成后重新打开原场景丢弃临时对象。
+- UI 重建菜单按工具模板重写 prefab，可能覆盖随后在 Inspector 保存的自适应配置。重建主菜单、对局页、对局设置或复盘布局后，需按 03 号文档复核 CanvasScaler 的 Expand 模式、主菜单标题宽度、落子确认按钮底边和复盘 Portrait 底部锚点；通过多比例验证后再保存，不能把旧模板默认值当作当前布局事实。
 
 KataGo 运行时（行为细节以 [SPECIFICATION.md](../SPECIFICATION.md) 为准）：
 

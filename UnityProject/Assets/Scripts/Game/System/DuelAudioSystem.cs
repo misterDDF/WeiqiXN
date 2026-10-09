@@ -19,10 +19,7 @@ public class DuelAudioSystem : SystemBase
     private int lastAnnouncedByoyomiCount = -1;
     private float lastVoicePlayTime = -999f;
     private bool lastVoiceWasCountdown;
-    // 落子音与提子音等棋子着盘时再播放，与落子动画同步；两者同时到期时先提子，保持 GameAudio 的压制顺序。
-    private float pendingStonePlaceTime = -1f;
-    private float pendingStoneCaptureTime = -1f;
-    private int pendingStoneCaptureCount;
+    private readonly StoneMoveAudio stoneAudio = new StoneMoveAudio();
 
     public DuelAudioSystem(SceneBase scene) : base(scene)
     {
@@ -44,7 +41,7 @@ public class DuelAudioSystem : SystemBase
     public override void OnUpdate()
     {
         base.OnUpdate();
-        RefreshPendingStoneSounds();
+        stoneAudio.Update();
         RefreshTurnVoice();
         RefreshStoneRemovalVoice();
         RefreshGameEndVoice();
@@ -56,7 +53,7 @@ public class DuelAudioSystem : SystemBase
             return;
         }
 
-        pendingStonePlaceTime = UnityEngine.Time.unscaledTime + ChessStoneView.PlacementDropSeconds;
+        stoneAudio.SchedulePlace();
     }
 
     private void OnAfterCaptureChessFromBoard(OnAfterCaptureChessFromBoard evt)
@@ -65,22 +62,13 @@ public class DuelAudioSystem : SystemBase
             return;
         }
 
-        pendingStoneCaptureCount = evt.captureCount;
-        pendingStoneCaptureTime = UnityEngine.Time.unscaledTime + ChessStoneView.PlacementDropSeconds;
+        stoneAudio.ScheduleCapture(evt.captureCount);
     }
 
-    private void RefreshPendingStoneSounds()
+    public override void OnDestroy()
     {
-        float now = UnityEngine.Time.unscaledTime;
-        if (pendingStoneCaptureTime >= 0f && now >= pendingStoneCaptureTime) {
-            pendingStoneCaptureTime = -1f;
-            GameAudio.PlayStoneCapture(pendingStoneCaptureCount);
-        }
-
-        if (pendingStonePlaceTime >= 0f && now >= pendingStonePlaceTime) {
-            pendingStonePlaceTime = -1f;
-            GameAudio.PlayStonePlace();
-        }
+        stoneAudio.Cancel();
+        base.OnDestroy();
     }
 
     private void OnDuelPassAccepted(OnDuelPassAccepted evt)

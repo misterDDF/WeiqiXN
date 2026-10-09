@@ -44,6 +44,7 @@ public class ReplaySystem : SystemBase
     private SceneComponentReplay compReplay;
     private SceneComponentChessBoard compChessBoard;
     private SceneComponentDuel compDuel;
+    private ReplayAudioSystem replayAudio;
     private readonly string kataGoRequestOwnerKey = $"ReplaySystem:{Guid.NewGuid():N}";
     private string recordFilePath = string.Empty;
     private CancellationTokenSource sceneCancellationTokenSource = new CancellationTokenSource();
@@ -82,11 +83,13 @@ public class ReplaySystem : SystemBase
         compReplay = scene.GetComponent<SceneComponentReplay>();
         compChessBoard = scene.GetComponent<SceneComponentChessBoard>();
         compDuel = scene.GetComponent<SceneComponentDuel>();
+        replayAudio = scene.GetSystem<ReplayAudioSystem>();
         LoadReplayRecord();
     }
 
     public override void OnDestroy()
     {
+        replayAudio?.CancelPendingSounds();
         CancelAiAnalysisRequest();
         CancelOwnershipRequest();
         CancelChartLoadingRequest();
@@ -176,12 +179,12 @@ public class ReplaySystem : SystemBase
 
         ClearAiRecommendationMarkers();
         if (IsTryMode) {
-            ApplyTryCursor(compReplay.tryCursorMoveIndex + cursorDelta);
+            ApplyTryCursor(compReplay.tryCursorMoveIndex + cursorDelta, cursorDelta == 1);
             TryRequestCurrentCursorChartPoint();
             return;
         }
 
-        ApplyReplayCursor(compReplay.replayCursorMoveIndex + cursorDelta);
+        ApplyReplayCursor(compReplay.replayCursorMoveIndex + cursorDelta, cursorDelta == 1);
         TryRequestCurrentCursorChartPoint();
     }
 
@@ -486,6 +489,7 @@ public class ReplaySystem : SystemBase
             ClearAiRecommendationMarkers();
         }
 
+        replayAudio?.CancelPendingSounds();
         compReplay.tryBaseCursorMoveIndex = compReplay.replayCursorMoveIndex;
         compReplay.tryCursorMoveIndex = 0;
         compReplay.tryPlayerFlagOverride = 0;
@@ -553,6 +557,7 @@ public class ReplaySystem : SystemBase
         compReplay.tryCursorMoveIndex = compReplay.tryMoves.Count;
         int appliedVariationCount = compReplay.tryPlayerFlagOverride == 0 ? ApplyAiRecommendationVariation(aiVariation) : 0;
         SyncTryBoardMarkers();
+        replayAudio?.PlayMove(move.moveResult);
         compReplay.replayStatus = appliedVariationCount > 0 ? $"已展开AI推荐变化 {appliedVariationCount} 手" : string.Empty;
         return true;
     }
@@ -1714,13 +1719,17 @@ public class ReplaySystem : SystemBase
         return true;
     }
 
-    private void ApplyReplayCursor(int targetCursorMoveIndex)
+    private void ApplyReplayCursor(int targetCursorMoveIndex, bool playMoveSound = false)
     {
         if (!IsReplayLoaded || compChessBoard == null || compDuel == null || compChessBoard.chessBoardGrid == null) {
             return;
         }
 
         int safeCursor = Mathf.Clamp(targetCursorMoveIndex, 0, compReplay.replayMoves.Count);
+        bool playTargetMoveSound = playMoveSound && safeCursor == compReplay.replayCursorMoveIndex + 1;
+        if (!playMoveSound || safeCursor != compReplay.replayCursorMoveIndex) {
+            replayAudio?.CancelPendingSounds();
+        }
         // 只有单手前进时新棋子播放落子动画，后退与跳转直接显示结果局面。
         bool animateNewStones = safeCursor == compReplay.replayCursorMoveIndex + 1;
         compReplay.replayCursorMoveIndex = safeCursor;
@@ -1735,6 +1744,7 @@ public class ReplaySystem : SystemBase
         ApplyReplayInitialStones();
 
         ReplayMoveState latestMove = null;
+        DuelMoveResult targetMoveResult = null;
         int latestMoveNumber = 0;
         for (int i = 0; i < safeCursor; i++) {
             ReplayMoveState move = compReplay.replayMoves[i];
@@ -1743,25 +1753,38 @@ public class ReplaySystem : SystemBase
                 continue;
             }
 
-            if (!ApplyReplayMove(move)) {
+            if (!ApplyReplayMove(move, out DuelMoveResult moveResult)) {
                 compReplay.replayStatus = "复盘手顺回放失败";
                 break;
             }
 
             latestMove = move;
             latestMoveNumber = i + 1;
+            if (i == safeCursor - 1) {
+                targetMoveResult = moveResult;
+            }
         }
 
+        if (playTargetMoveSound && targetMoveResult != null) {
+            compChessBoard.GetStoneViewCache().HideCapturedStones(targetMoveResult.pendingRemovePosIndexes, true);
+        }
         SyncBoardViews(latestMove, latestMoveNumber, animateNewStones);
+        if (playTargetMoveSound) {
+            replayAudio?.PlayMove(targetMoveResult);
+        }
     }
 
-    private void ApplyTryCursor(int targetTryCursorMoveIndex)
+    private void ApplyTryCursor(int targetTryCursorMoveIndex, bool playMoveSound = false)
     {
         if (!IsReplayLoaded || !IsTryMode || compChessBoard == null || compDuel == null || compChessBoard.chessBoardGrid == null) {
             return;
         }
 
         int safeCursor = Mathf.Clamp(targetTryCursorMoveIndex, 0, compReplay.tryMoves.Count);
+        bool playTargetMoveSound = playMoveSound && safeCursor == compReplay.tryCursorMoveIndex + 1;
+        if (!playMoveSound || safeCursor != compReplay.tryCursorMoveIndex) {
+            replayAudio?.CancelPendingSounds();
+        }
         if (safeCursor == compReplay.tryCursorMoveIndex) {
             return;
         }
@@ -1779,6 +1802,9 @@ public class ReplaySystem : SystemBase
         }
 
         SyncTryBoardMarkers();
+        if (playTargetMoveSound && compReplay.tryCursorMoveIndex == safeCursor) {
+            replayAudio?.PlayMove(compReplay.tryMoves[safeCursor - 1].moveResult);
+        }
         compReplay.replayStatus = string.Empty;
     }
 
@@ -1801,10 +1827,10 @@ public class ReplaySystem : SystemBase
         }
     }
 
-    private bool ApplyReplayMove(ReplayMoveState move)
+    private bool ApplyReplayMove(ReplayMoveState move, out DuelMoveResult moveResult)
     {
         string chessGuid = EntityUtils.CreateGuidWithEntityType(EntityBase.GetEntityType<Chess>());
-        DuelMoveResult moveResult = DuelMoveRule.BuildMoveResult(
+        moveResult = DuelMoveRule.BuildMoveResult(
             compChessBoard,
             new DuelMoveCommand(move.playerFlag, move.coords, chessGuid)
         );

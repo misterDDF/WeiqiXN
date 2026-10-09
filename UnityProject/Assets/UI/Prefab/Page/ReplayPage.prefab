@@ -5261,6 +5261,116 @@ MonoBehaviour:
         childControlHeight: 0
         childForceExpandWidth: 0
         childForceExpandHeight: 0
+    - name: txt_scrub_preview
+      elementType: 1
+      target: {fileID: 2615655057407577513}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 1}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: 0, y: -48}
+        sizeDelta: {x: -28, y: 26}
+        pivot: {x: 0.5, y: 1}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: txt_analysis_placeholder
+      elementType: 1
+      target: {fileID: 137778027999369692}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 1}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: 0, y: -74}
+        sizeDelta: {x: -28, y: 22}
+        pivot: {x: 0.5, y: 1}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: chart_analysis
+      elementType: 1
+      target: {fileID: 7157640554520063493}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: 0, y: -33}
+        sizeDelta: {x: -28, y: -130}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: img_move_scrubber_hit
+      elementType: 1
+      target: {fileID: 4428007492777932925}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: 0, y: -33}
+        sizeDelta: {x: -28, y: -130}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: img_chart_cursor
+      elementType: 1
+      target: {fileID: 83261533798795455}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: 0, y: -33}
+        sizeDelta: {x: 2, y: -130}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
   - name: Portrait
     elements:
     - name: txt_title
@@ -5293,7 +5403,7 @@ MonoBehaviour:
         anchorMin: {x: 0, y: 1}
         anchorMax: {x: 0, y: 1}
         anchoredPosition: {x: 0, y: 0}
-        sizeDelta: {x: 80, y: 44}
+        sizeDelta: {x: 104, y: 64}
         pivot: {x: 0, y: 1}
         localScale: {x: 1, y: 1, z: 1}
         padding:
@@ -5314,8 +5424,8 @@ MonoBehaviour:
         boolValue: 1
         anchorMin: {x: 0, y: 1}
         anchorMax: {x: 0, y: 1}
-        anchoredPosition: {x: 124, y: -0}
-        sizeDelta: {x: 80, y: 44}
+        anchoredPosition: {x: 116, y: 0}
+        sizeDelta: {x: 104, y: 64}
         pivot: {x: 0, y: 1}
         localScale: {x: 1, y: 1, z: 1}
         padding:
@@ -5336,8 +5446,8 @@ MonoBehaviour:
         boolValue: 1
         anchorMin: {x: 0, y: 1}
         anchorMax: {x: 0, y: 1}
-        anchoredPosition: {x: 452, y: -0}
-        sizeDelta: {x: 80, y: 44}
+        anchoredPosition: {x: 436, y: 0}
+        sizeDelta: {x: 104, y: 64}
         pivot: {x: 0, y: 1}
         localScale: {x: 1, y: 1, z: 1}
         padding:
@@ -5358,8 +5468,8 @@ MonoBehaviour:
         boolValue: 1
         anchorMin: {x: 0, y: 1}
         anchorMax: {x: 0, y: 1}
-        anchoredPosition: {x: 576, y: -0}
-        sizeDelta: {x: 80, y: 44}
+        anchoredPosition: {x: 552, y: 0}
+        sizeDelta: {x: 104, y: 64}
         pivot: {x: 0, y: 1}
         localScale: {x: 1, y: 1, z: 1}
         padding:
@@ -5380,8 +5490,8 @@ MonoBehaviour:
         boolValue: 1
         anchorMin: {x: 0, y: 1}
         anchorMax: {x: 0, y: 1}
-        anchoredPosition: {x: 220, y: -0}
-        sizeDelta: {x: 196, y: 44}
+        anchoredPosition: {x: 232, y: 0}
+        sizeDelta: {x: 192, y: 64}
         pivot: {x: 0, y: 1}
         localScale: {x: 1, y: 1, z: 1}
         padding:
@@ -5483,28 +5593,6 @@ MonoBehaviour:
         childControlHeight: 0
         childForceExpandWidth: 0
         childForceExpandHeight: 0
-    - name: panel_side
-      elementType: 1
-      target: {fileID: 2192688944985703795}
-      property:
-        boolValue: 1
-        anchorMin: {x: 0, y: 1}
-        anchorMax: {x: 0, y: 1}
-        anchoredPosition: {x: 0, y: -986}
-        sizeDelta: {x: 720, y: 294}
-        pivot: {x: 0, y: 1}
-        localScale: {x: 1, y: 1, z: 1}
-        padding:
-          m_Left: 0
-          m_Right: 0
-          m_Top: 0
-          m_Bottom: 0
-        childAlignment: 0
-        spacing: 0
-        childControlWidth: 0
-        childControlHeight: 0
-        childForceExpandWidth: 0
-        childForceExpandHeight: 0
     - name: rect_chart_area
       elementType: 1
       target: {fileID: 7614509832260687908}
@@ -5513,7 +5601,7 @@ MonoBehaviour:
         anchorMin: {x: 0, y: 1}
         anchorMax: {x: 0, y: 1}
         anchoredPosition: {x: 24, y: -12}
-        sizeDelta: {x: 672, y: 198}
+        sizeDelta: {x: 672, y: 160}
         pivot: {x: 0, y: 1}
         localScale: {x: 1, y: 1, z: 1}
         padding:
@@ -5534,8 +5622,30 @@ MonoBehaviour:
         boolValue: 1
         anchorMin: {x: 0, y: 1}
         anchorMax: {x: 0, y: 1}
-        anchoredPosition: {x: 32, y: -212}
-        sizeDelta: {x: 656, y: 34}
+        anchoredPosition: {x: 32, y: -176}
+        sizeDelta: {x: 656, y: 24}
+        pivot: {x: 0, y: 1}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: panel_side
+      elementType: 1
+      target: {fileID: 2192688944985703795}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 0, y: 0}
+        anchoredPosition: {x: 0, y: 204}
+        sizeDelta: {x: 720, y: 204}
         pivot: {x: 0, y: 1}
         localScale: {x: 1, y: 1, z: 1}
         padding:
@@ -5554,10 +5664,10 @@ MonoBehaviour:
       target: {fileID: 9152341141654391301}
       property:
         boolValue: 1
-        anchorMin: {x: 0, y: 1}
-        anchorMax: {x: 0, y: 1}
-        anchoredPosition: {x: 32, y: -1232}
-        sizeDelta: {x: 656, y: 44}
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 0, y: 0}
+        anchoredPosition: {x: 32, y: 276}
+        sizeDelta: {x: 656, y: 64}
         pivot: {x: 0, y: 1}
         localScale: {x: 1, y: 1, z: 1}
         padding:
@@ -5735,6 +5845,116 @@ MonoBehaviour:
         anchoredPosition: {x: 32, y: -244}
         sizeDelta: {x: 656, y: 40}
         pivot: {x: 0, y: 1}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: txt_scrub_preview
+      elementType: 1
+      target: {fileID: 2615655057407577513}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 1}
+        anchorMax: {x: 0, y: 1}
+        anchoredPosition: {x: 14, y: -46}
+        sizeDelta: {x: 320, y: 24}
+        pivot: {x: 0, y: 1}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: txt_analysis_placeholder
+      elementType: 1
+      target: {fileID: 137778027999369692}
+      property:
+        boolValue: 1
+        anchorMin: {x: 1, y: 1}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: -14, y: -46}
+        sizeDelta: {x: 304, y: 24}
+        pivot: {x: 1, y: 1}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: chart_analysis
+      elementType: 1
+      target: {fileID: 7157640554520063493}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: 0, y: -24}
+        sizeDelta: {x: -28, y: -104}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: img_move_scrubber_hit
+      elementType: 1
+      target: {fileID: 4428007492777932925}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0, y: 0}
+        anchorMax: {x: 1, y: 1}
+        anchoredPosition: {x: 0, y: -24}
+        sizeDelta: {x: -28, y: -104}
+        pivot: {x: 0.5, y: 0.5}
+        localScale: {x: 1, y: 1, z: 1}
+        padding:
+          m_Left: 0
+          m_Right: 0
+          m_Top: 0
+          m_Bottom: 0
+        childAlignment: 0
+        spacing: 0
+        childControlWidth: 0
+        childControlHeight: 0
+        childForceExpandWidth: 0
+        childForceExpandHeight: 0
+    - name: img_chart_cursor
+      elementType: 1
+      target: {fileID: 83261533798795455}
+      property:
+        boolValue: 1
+        anchorMin: {x: 0.5, y: 0}
+        anchorMax: {x: 0.5, y: 1}
+        anchoredPosition: {x: 0, y: -24}
+        sizeDelta: {x: 2, y: -104}
+        pivot: {x: 0.5, y: 0.5}
         localScale: {x: 1, y: 1, z: 1}
         padding:
           m_Left: 0
@@ -6022,7 +6242,7 @@ MonoBehaviour:
   m_ReferencePixelsPerUnit: 100
   m_ScaleFactor: 1
   m_ReferenceResolution: {x: 1600, y: 900}
-  m_ScreenMatchMode: 0
+  m_ScreenMatchMode: 1
   m_MatchWidthOrHeight: 0.5
   m_PhysicalUnit: 3
   m_FallbackScreenDPI: 96

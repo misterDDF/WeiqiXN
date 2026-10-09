@@ -194,9 +194,9 @@
 
 ## V5 声音质感（与视觉配套）
 
-现状：只有一首 BGM 贯穿全部场景；没有 UI 音效；复盘场景没有音效系统；音量全部硬编码，无淡入淡出。`GameAudio.PlayExclusiveSfx` 共用一个 AudioSource，提子后 0.1s 内压制落子音。
+现状：只有一首 BGM 贯穿全部场景；没有 UI 音效；音量全部硬编码，无淡入淡出。对局和复盘已共用 `StoneMoveAudio` 的着盘音效时序，`GameAudio.PlayExclusiveSfx` 共用一个 AudioSource，提子后 0.1s 内压制落子音。
 
-- 补 UI 点击（纸/木轻触）、弹窗开合、提子拾起声；复盘场景接入落子音效。
+- 补 UI 点击（纸/木轻触）、弹窗开合、提子拾起声；复盘场景落子/提子音效已接入，保留单步前进和试下成功落子的静音边界。
 - BGM 分场景并做 0.6s 淡入淡出；增加音量/静音设置并持久化。
 - 同步更新 `Assets/Audio/THIRD_PARTY_AUDIO.md`。
 
