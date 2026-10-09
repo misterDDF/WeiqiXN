@@ -96,12 +96,6 @@ public class Global
         lanRoomService = new LanRoomService();
         moduleList.Add(lanRoomService);
 
-        ogsConnectionService = new OgsConnectionService();
-        moduleList.Add(ogsConnectionService);
-
-        ogsChallengeInviteCoordinator = new OgsChallengeInviteCoordinator();
-        moduleList.Add(ogsChallengeInviteCoordinator);
-
         startupState = StartupState.LoadingResources;
         TryFinishStartup();
     }
@@ -138,6 +132,12 @@ public class Global
         if (!resourceManager.isReady) {
             return;
         }
+
+        ogsConnectionService = new OgsConnectionService();
+        moduleList.Add(ogsConnectionService);
+
+        ogsChallengeInviteCoordinator = new OgsChallengeInviteCoordinator();
+        moduleList.Add(ogsChallengeInviteCoordinator);
 
         InitUiAndSceneManagers();
         RequestKeepAwake(KeepAwakeReason.Startup);

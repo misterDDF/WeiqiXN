@@ -210,12 +210,10 @@ namespace IngameDebugConsole
         [Tooltip("If an expanded log is longer than this limit, it will be truncated. This optimizes scrolling speed while an expanded log is visible.")]
         internal int maxExpandedLogLength = 10000;
 
-#if UNITY_EDITOR || UNITY_STANDALONE || UNITY_WEBGL
 		[SerializeField]
 		[HideInInspector]
 		[Tooltip( "If enabled, on standalone platforms, command input field will automatically be focused (start receiving keyboard input) after opening the console window" )]
 		private bool autoFocusOnCommandInputField = true;
-#endif
 
 		[Header( "Visuals" )]
 		[SerializeField]

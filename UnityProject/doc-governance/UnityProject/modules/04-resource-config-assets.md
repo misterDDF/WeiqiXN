@@ -19,6 +19,7 @@
 
 - 编辑器下资源通过 `AssetDatabaseLoader` 读取。
 - 非编辑器下会预加载 AssetBundle，并用 `AssetBundleLoader` 按路径读取资源。
+- IngameDebugConsole 的 `DebugLogManager.autoFocusOnCommandInputField` 在各平台保持相同的序列化字段声明，仅自动聚焦行为按桌面/WebGL 平台启用，避免资源包与 Android Player 的字段布局不一致。
 - `ResourceManager` 支持同步 prefab 加载、异步 prefab 加载、异步资源请求、加载绑定者取消。
 - `game_prefab.json` 已配置 EventSystem、IngameDebugConsole、落子 VFX、黑白棋子预制体。
 - `chess_board.json` 已配置 `9x9`、`13x13`、`19x19`。
@@ -36,6 +37,12 @@
 - `ResourceManager.LoadAsset<TAsset>` 当前内部调用 `ResourceUtils.GetAssetFullPath<GameObject>(assetPath)`，泛型类型没有传下去，非 prefab 资源扩展时需要检查。
 - AssetBundle 预加载依赖 `GlobalConfig.PATH_ASSET_BUNDLE` 目录存在。
 - 配置 data type 是静态缓存字典，热更新或运行时重载配置需要额外设计。
+
+## Android Development 启动回归
+
+- 修改资源包所用 MonoBehaviour 的序列化字段后，通过 Unity 刷新和脚本重编译，并重新构建 AssetBundle 与 Development APK；怀疑旧构建缓存时先备份移走 `Library/BuildCache` 再构建。
+- 覆盖安装到设备后，确认日志依次出现资源预加载成功、`Ingame debug console go loaded.`、KataGo 预热完成及进入 `MainMenu`，且没有 `Position out of bounds`、资源文件损坏或 `Json config bundle not found`。
+- 完整停止并重新启动应用，确认主菜单正常显示，同一进程至少持续运行 30 秒。此回归覆盖资源/控制台启动链路，OGS 网络连接需独立验证。
 
 ## 后续建议
 

@@ -19,6 +19,8 @@
 - `TimerManager`
 - `GameSaveManager`
 - `ReddotManager`
+- `OgsConnectionService`
+- `OgsChallengeInviteCoordinator`
 - `UIManager`
 - `SceneManager`
 
@@ -28,6 +30,7 @@
 - 已接管 `Update`、`FixedUpdate`、`LateUpdate` 的集中派发。
 - 已在开发环境加载 IngameDebugConsole。
 - 已在启动后进入主菜单场景。
+- OGS 服务和邀请协调器在 `TryStartPostResourceStartup()` 确认资源预加载成功后创建，并先于 UI、场景服务注册；资源未就绪或加载失败时不创建 OGS 服务。
 - 已在退出时逆序销毁模块并清理用户数据。
 - Android 启动期和对局期会在前台临时保持屏幕常亮，退出加载、场景切换、失焦、暂停或退出时恢复系统睡眠设置。
 
@@ -40,6 +43,12 @@
 - `ModuleBase` 构造函数直接调用 `Init()`，子类字段初始化和虚方法调用顺序需要保持谨慎。
 - `Global` 模块顺序已经成为隐式依赖，例如 UI 初始化依赖资源加载和事件系统。
 - 联机模块加入时，应明确放在 `ResourceManager`、`TimerManager`、`SceneManager` 之间的哪一层，避免全局服务互相硬依赖。
+
+## 启动顺序回归
+
+- Windows 和 Android Player 完整重启后，确认资源预加载成功，启动日志不再出现 `Json config bundle not found.` 或 OGS 配置缺失的 fallback 警告。
+- 确认主菜单正常进入，OGS 使用 `ogs_config` 中的配置，已有登录态和邀请处理仍可工作。
+- 资源预加载失败时，确认保留原资源加载失败日志，且不提前初始化 OGS、UI 或场景服务。
 
 ## 后续建议
 
