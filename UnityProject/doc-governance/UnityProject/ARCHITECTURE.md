@@ -29,6 +29,7 @@
 
 **模块边界**
 
+- `UIManager` 负责统一分发 PC Esc 和 Android 返回键：按 context 画布层级选择最上层弹窗或页面，页面通过 `UIPage.TryHandleBackNavigation()` 复用已有关闭动作；通用弹窗默认关闭，确认类弹窗执行取消回调，`ReplayPage` 和 `DuelPage` 保留各自的退出/设置层语义，输入处理不下沉到每个 prefab 按钮。
 - `ClientMain` 是进程入口和 PlayerLoop 桥接层，负责初始化全局服务，并在 Unity 对应更新阶段后调用项目层更新。
 - `Global` 和 `GlobalModule` 提供跨场景服务，包括 UI、资源加载、事件、定时器、场景加载、存档、红点、局域网房间发现/连接和日志接入。
 - `MainMenuScene`、`DuelScene`、`ReplayScene` 等场景类负责项目层场景组合：创建场景组件、添加系统、打开对应 UI。

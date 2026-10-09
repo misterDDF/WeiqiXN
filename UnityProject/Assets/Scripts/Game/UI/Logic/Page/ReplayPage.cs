@@ -91,6 +91,16 @@ public class ReplayPage : UIPageWithBinder<ReplayPageUI>
         base.OnClose();
     }
 
+    public override bool TryHandleBackNavigation()
+    {
+        if (!isLoaded || !isVisible) {
+            return false;
+        }
+
+        OnClickClose();
+        return true;
+    }
+
     protected override void OnOpen()
     {
         base.OnOpen();

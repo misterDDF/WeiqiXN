@@ -62,6 +62,16 @@ public class UIContext
         return page;
     }
 
+    public UIPage GetTopPopupPage()
+    {
+        return popupList.Count > 0 ? popupList[popupList.Count - 1] : null;
+    }
+
+    public UIPage GetTopMainPage()
+    {
+        return mainPageStack.Last?.Value;
+    }
+
     public void ShowMainPage(UIPage mainPage, bool isCachePage)
     {
         mainPage.canvasOrder = baseCanvasOrder + mainPageStack.Count * UIConfig.MAINPAGE_INCREASE_CANVAS_ORDER;

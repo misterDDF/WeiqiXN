@@ -59,6 +59,16 @@ public class DuelMoveConfirmPopup : UIPageWithBinder<DuelMoveConfirmPopupUI>
         base.OnClose();
     }
 
+    public override bool TryHandleBackNavigation()
+    {
+        if (!isLoaded || !isVisible) {
+            return false;
+        }
+
+        OnClickCancel();
+        return true;
+    }
+
     private void OnClickConfirm()
     {
         currentRequest?.onConfirm?.Invoke();

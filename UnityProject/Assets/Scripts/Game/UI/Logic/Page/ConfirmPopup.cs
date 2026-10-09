@@ -213,6 +213,16 @@ public class ConfirmPopup : UIPageWithBinder<ConfirmPopupUI>
         base.OnClose();
     }
 
+    public override bool TryHandleBackNavigation()
+    {
+        if (!isLoaded || !isVisible || currentRequest == null || !currentRequest.showCancelButton) {
+            return false;
+        }
+
+        OnClickBtnCancel();
+        return true;
+    }
+
     private void OnClickBtnConfirm()
     {
         if (currentRequest == null || !currentRequest.showConfirmButton || !currentRequest.canConfirm) {

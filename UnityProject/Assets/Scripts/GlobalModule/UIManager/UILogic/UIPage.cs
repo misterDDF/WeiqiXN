@@ -165,6 +165,16 @@ public abstract class UIPage : UILogicBase
         Global.Instance.uiManager.ClosePage(this);
         OnClose();
     }
+
+    public virtual bool TryHandleBackNavigation()
+    {
+        if (!isLoaded || !isVisible || pageConfig == null || !pageConfig.isPopup) {
+            return false;
+        }
+
+        ClosePage();
+        return true;
+    }
 }
 
 public abstract class UIPageWithBinder<TBinder> : UIPage where TBinder : UIBinderBase

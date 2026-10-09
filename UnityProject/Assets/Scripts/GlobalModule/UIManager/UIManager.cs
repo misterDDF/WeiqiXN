@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
@@ -59,9 +60,30 @@ public class UIManager : ModuleBase
     {
         base.Update();
 
+        if (Input.GetKeyDown(KeyCode.Escape)) {
+            TryHandleBackNavigation();
+        }
+
         foreach (UIContext context in contextDict.Values) {
             context.Update();
         }
+    }
+
+    public bool TryHandleBackNavigation()
+    {
+        foreach (UIContext context in contextDict.Values.OrderByDescending(value => value.baseCanvasOrder)) {
+            UIPage topPopupPage = context.GetTopPopupPage();
+            if (topPopupPage != null) {
+                return topPopupPage.TryHandleBackNavigation();
+            }
+
+            UIPage topMainPage = context.GetTopMainPage();
+            if (topMainPage != null && topMainPage.TryHandleBackNavigation()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public void ShowPage<TPage>() where TPage : UIPage, new()

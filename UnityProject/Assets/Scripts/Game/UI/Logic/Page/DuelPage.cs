@@ -72,10 +72,6 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         hudView.RefreshActionNotice();
         ApplyCurrentLayoutState(false);
 
-        if (hudView.IsSettingsPanelVisible() && Input.GetKeyDown(KeyCode.Escape)) {
-            CloseSettingsPanel();
-        }
-
         SceneBase mainScene = Global.Instance.sceneManager.mainScene;
         SceneComponentDuel compDuel = mainScene?.GetComponent<SceneComponentDuel>();
         DuelInputAuthorityState inputState = GetCurrentInputState(mainScene, compDuel);
@@ -97,6 +93,30 @@ public class DuelPage : UIPageWithBinder<DuelPageUI>
         pendingSettingsConfirmation = null;
         boardInput.Dispose();
         base.OnClose();
+    }
+
+    public override bool TryHandleBackNavigation()
+    {
+        if (!isLoaded || !isVisible) {
+            return false;
+        }
+
+        if (isMoveConfirmPopupOpen) {
+            CloseMoveConfirmPopup();
+            return true;
+        }
+
+        if (pendingSettingsConfirmation != null) {
+            OnClickSettingsInlineCancel();
+            return true;
+        }
+
+        if (hudView != null && hudView.IsSettingsPanelVisible()) {
+            CloseSettingsPanel();
+            return true;
+        }
+
+        return false;
     }
 
     public void OnDuelStateChanged(OnDuelStateChanged evt)
